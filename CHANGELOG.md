@@ -28,6 +28,8 @@ The 1.x branch remains maintained. Entries collect here until the release.
 
 ### Changed
 
+- Consolidate quality and CPU speed measurements into two permanent entries with data-defined studies, shared pins and locks, built-in Linux rehearsals, verified collection and a measurement guide. Existing published scores are unchanged.
+
 - Move repository media to `docs/assets/`, remove historical research notes and bundled STS-B data, and load the same pinned STS-B sentences from the Hub in recipe 07.
 
 - Integration package READMEs document raw means through `load_kwargs={"normalize": False}` for every supported pretrained model and the default `"model"` normalization rule.

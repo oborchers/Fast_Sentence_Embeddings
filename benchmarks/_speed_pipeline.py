@@ -9,18 +9,13 @@ import subprocess
 import sys
 import time
 import tomllib
-from functools import partial
 from importlib.metadata import distributions
 from pathlib import Path
 
-from _speed_cells import admit, atomic, configure, package_identity, sha256, telemetry
-
-
-def setup_command(*arguments, allocated_at, contract):
-    if not admit(contract, allocated_at, 60):
-        raise RuntimeError("setup exhausted allocation budget")
-    subprocess.run([str(x) for x in arguments], check=True)
-
+from _measurement import atomic, package_identity, sha256, telemetry
+from _measurement_config import PINS
+from _speed_cells import configure
+from _speed_write import headline_child
 
 RUST_SOURCE = r"""
 use model2vec_rs::model::StaticModel;
@@ -44,97 +39,36 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
 """
 
 
-def setup(root, contract, allocated_at):
-    """Install the two frozen CPU environments without starting measurement."""
-    root.mkdir(parents=True, exist_ok=False)
-    here = Path(__file__).resolve().parent
-    tools, source = root / "tools", root / "fse-source"
-    tools.mkdir()
-    execute = partial(setup_command, allocated_at=allocated_at, contract=contract)
-    execute("apt-get", "update")
-    packages = ("build-essential", "pkg-config", "libssl-dev", "curl", "git", "ca-certificates")
-    execute("apt-get", "install", "-y", *packages)
-    execute(sys.executable, "-m", "pip", "install", "--prefix", tools, "uv==0.13.0")
-    uv = tools / "bin/uv"
-    for name, lock in (("main", "speed-main.lock.txt"), ("reference", "speed-reference.lock.txt")):
-        destination = root / name
-        execute(uv, "venv", "--python", sys.executable, destination)
-        execute(
-            uv,
-            "pip",
-            "install",
-            "--python",
-            destination / "bin/python",
-            "--no-deps",
-            "--require-hashes",
-            "-r",
-            here / lock,
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/cpu",
-            "--index-strategy=unsafe-best-match",
-        )
-        execute(uv, "pip", "check", "--python", destination / "bin/python")
-    execute("git", "clone", "https://github.com/oborchers/Fast_Sentence_Embeddings.git", source)
-    execute("git", "-C", source, "checkout", "--detach", contract["fse_revision"])
-    flags = ("--no-deps", "--no-build-isolation")
-    execute(uv, "pip", "install", "--python", root / "main/bin/python", *flags, source)
-    execute(uv, "pip", "check", "--python", root / "main/bin/python")
-    installer = tools / "rustup-init"
-    execute(
-        "curl",
-        "--fail",
-        "--location",
-        "--output",
-        installer,
-        "https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-unknown-linux-gnu/rustup-init",
+def fse_encoder(job):
+    from fse import Encoder
+
+    model = Encoder.load(job["artifact"], mmap=True)
+    if model.word_vectors.dtype != job["dtype"]:
+        raise ValueError("finished table dtype differs from the requested cell")
+    return lambda texts: model.encode(texts, workers=job["workers"])
+
+
+def model2vec_encoder(job):
+    from model2vec import StaticModel
+
+    model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
+    return lambda texts: model.encode(texts, use_multiprocessing=job["workers"] > 1)
+
+
+def fastembed_encoder(job):
+    import numpy as np
+    from fastembed import TextEmbedding
+
+    model = TextEmbedding(
+        model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
     )
-    installer.chmod(0o700)
-    execute(
-        installer, "-y", "--no-modify-path", "--profile", "minimal", "--default-toolchain", "1.98.0"
-    )
-    atomic(
-        root / "setup.json",
-        dict(
-            rustup_installer_sha256=sha256(installer),
-            locks={
-                name: sha256(here / name)
-                for name in ("speed-main.lock.txt", "speed-reference.lock.txt", "speed-rust.lock")
-            },
-            fse_revision=contract["fse_revision"],
-            python=sys.version,
-            base_image=contract["machine"]["image"],
-            system_compiler=subprocess.check_output(["cc", "--version"], text=True).splitlines()[0],
-        ),
+    return lambda texts: np.stack(
+        list(model.embed(texts, parallel=job["workers"] if job["workers"] > 1 else None))
     )
 
 
-def encoder(job):
-    kind, workers = job["backend"], job["workers"]
-    if kind == "fse":
-        from fse import Encoder
-
-        model = Encoder.load(job["artifact"], mmap=True)
-        if model.word_vectors.dtype != job["dtype"]:
-            raise ValueError("finished table dtype differs from the requested cell")
-        return lambda texts: model.encode(texts, workers=workers)
-    if kind == "model2vec":
-        from model2vec import StaticModel
-
-        model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
-        return lambda texts: model.encode(texts, use_multiprocessing=workers > 1)
-    if kind == "st":
-        return st_encoder(job)
-    if kind == "fastembed":
-        import numpy as np
-        from fastembed import TextEmbedding
-
-        model = TextEmbedding(
-            model_name=job["model"], specific_model_path=job["snapshot"], local_files_only=True
-        )
-        return lambda texts: np.stack(
-            list(model.embed(texts, parallel=workers if workers > 1 else None))
-        )
-    raise ValueError(f"unsupported Python backend: {kind}")
+def interpreter(backend, reference_python):
+    return reference_python if ADAPTERS[backend]["environment"] == "reference" else sys.executable
 
 
 def build_rust(folder, lock):
@@ -142,18 +76,20 @@ def build_rust(folder, lock):
     (folder / "src").mkdir()
     (folder / "src/main.rs").write_text(RUST_SOURCE)
     (folder / "Cargo.lock").write_bytes(lock.read_bytes())
-    (folder / "Cargo.toml").write_text("""[package]
+    (folder / "Cargo.toml").write_text(
+        """[package]
 name="fse-model2vec-rs-compare"
 version="0.1.0"
 edition="2024"
 [dependencies]
-model2vec-rs={git="https://github.com/MinishLab/model2vec-rs",rev="19f58bef6ce145f2bc08de7016498f28d521feea",default-features=false,features=["onig","local-only"]}
+model2vec-rs={git="https://github.com/MinishLab/model2vec-rs",rev="@REVISION@",default-features=false,features=["onig","local-only"]}
 serde_json="=1.0.145"
 rayon="=1.12.0"
 [profile.release]
 codegen-units=1
 lto="thin"
-""")
+""".replace("@REVISION@", PINS["rust_revision"])
+    )
     subprocess.run(
         [
             str(Path.home() / ".cargo/bin/cargo"),
@@ -176,7 +112,7 @@ lto="thin"
         binary_sha256=sha256(binary),
         source_sha256=sha256(folder / "src/main.rs"),
         lock_sha256=sha256(lock),
-        revision="19f58bef6ce145f2bc08de7016498f28d521feea",
+        revision=PINS["rust_revision"],
         compiler=subprocess.check_output(
             [str(Path.home() / ".cargo/bin/rustc"), "--version"], text=True
         ).strip(),
@@ -242,6 +178,8 @@ def prepare_models(root, contract, reuse=None):
 
     result = {}
     needed = {c["model"] for c in contract["cells"]}
+    if any(c["kind"] != "write" for c in contract["cells"]):
+        needed.add(contract["quiet_cell"]["model"])
     for repo, revision in contract["models"].items():
         if repo not in needed:
             continue
@@ -257,9 +195,22 @@ def prepare_models(root, contract, reuse=None):
             if repo.startswith("sentence-transformers/")
             else StaticModel.from_pretrained(snapshot, normalize=True).encoder
         )
-        artifact = root / (repo.rsplit("/", 1)[-1] + ".safetensors")
-        encoder.save(artifact)
-        result[repo] = {"snapshot": snapshot, "artifact": str(artifact), "revision": revision}
+        artifacts = {}
+        dtypes = {
+            "float32",
+            *(c["dtype"] for c in contract["cells"] if c["model"] == repo and c["kind"] == "dtype"),
+        }
+        for dtype in sorted(dtypes):
+            artifact = root / (repo.rsplit("/", 1)[-1] + "-" + dtype + ".safetensors")
+            current = encoder if dtype == "float32" else encoder.quantize(dtype)
+            current.save(artifact)
+            artifacts[dtype] = str(artifact)
+        result[repo] = {
+            "snapshot": snapshot,
+            "artifact": artifacts["float32"],
+            "artifacts": artifacts,
+            "revision": revision,
+        }
     return result
 
 
@@ -268,24 +219,20 @@ def measure_child(job):
         return headline_child(job)
     if job["backend"] == "rust":
         return rust_child(job)
-    configure(job["workers"], native_threads=1 if job["backend"] in ("fastembed", "st") else None)
+    adapter = ADAPTERS[job["backend"]]
+    configure(job["workers"], native_threads=adapter["native_threads"])
     import resource
 
     import numpy as np
 
-    package = {
-        "fse": "fse",
-        "model2vec": "model2vec",
-        "st": "sentence-transformers",
-        "fastembed": "fastembed",
-    }[job["backend"]]
+    package = adapter["package"]
     identity = package_identity(package)
     with Path(job["input_file"]).open() as stream:
         texts = [line.rstrip("\n") for line in stream]
     if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("input changed")
     indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
-    encode = encoder(job)
+    encode = adapter["factory"](job)
     try:
         warm = encode(texts)
         if warm.shape != (len(texts), job["dimensions"]):
@@ -317,142 +264,14 @@ def measure_child(job):
                 "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
                 "telemetry_before": before,
                 "telemetry_after": after,
+                "affinity": sorted(os.sched_getaffinity(0)),
+                "workers": job["workers"],
+                "worker_path": adapter["factory"].__name__,
             },
         )
     finally:
         if hasattr(encode, "close"):
             encode.close()
-
-
-def headline_tokens(snapshot, source):
-    import numpy as np
-
-    from fse import StaticModel
-
-    model = StaticModel.from_pretrained(snapshot)
-    if model.max_length != 512:
-        raise ValueError("headline requires the pinned 512-token policy")
-    counts = np.empty(len(source), dtype=np.int64)
-    for start in range(0, len(source), 2048):
-        batch = [
-            text[: model.max_length * model.median_token_length]
-            for text in source[start : start + 2048]
-        ]
-        rows = model.tokenizer.encode_batch(batch, add_special_tokens=False)
-        counts[start : start + len(rows)] = [len(row.ids[: model.max_length]) for row in rows]
-    return counts
-
-
-def headline_child(job):
-    import resource
-
-    import numpy as np
-
-    from fse import Encoder, ShardSink, VectorStore
-
-    configure(job["workers"])
-    model = Encoder.load(job["artifact"], mmap=True)
-    path = Path(job["vectors_file"])
-    if path.exists() or path.is_symlink():
-        raise ValueError("headline output must be fresh")
-    if sha256(Path(job["input_file"])) != job["input_sha256"]:
-        raise ValueError("headline input changed")
-    identity = package_identity("fse")
-    before = telemetry()
-    disk_before = __import__("shutil").disk_usage(path.parent)._asdict()
-    started = time.perf_counter()
-    sink = ShardSink(path, model, dtype="int8", durability="none")
-    first_read = time.perf_counter()
-    with sink:
-        model.encode(Path(job["input_file"]), workers=job["workers"], sink=sink)
-    seconds = time.perf_counter() - first_read
-    including_open = time.perf_counter() - started
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-    after = telemetry()
-    if sink.published_rows != job["texts"]:
-        raise ValueError("headline row count differs")
-    files, synced_at, sync_telemetry = sync_headline(path)
-    durable_seconds = synced_at - first_read
-    indices = json.loads(Path(job["sample_file"]).read_text())
-    sample_path = Path(job["sample_texts_file"])
-    if sha256(sample_path) != job["sample_texts_sha256"]:
-        raise ValueError("headline sample texts changed")
-    texts = __import__("json").loads(sample_path.read_text())
-    reference = model.encode(texts, dtype="int8", workers=job["workers"])
-    with VectorStore.open(path, encoder=model) as store:
-        if len(store) != job["texts"]:
-            raise ValueError("reopened headline row count differs")
-        store.verify()
-        codes, scales = stored_codes(store, indices)
-    if not np.array_equal(reference.codes.view(np.uint8), codes.view(np.uint8)):
-        raise ValueError("headline int8 sample codes differ")
-    if not np.array_equal(reference.scales.view(np.uint8), scales.view(np.uint8)):
-        raise ValueError("headline int8 sample scales differ")
-    if package_identity("fse") != identity:
-        raise ValueError("executing headline backend changed")
-    atomic(
-        Path(job["receipt"]),
-        dict(
-            seconds=seconds,
-            affinity=sorted(os.sched_getaffinity(0)),
-            requested_worker_limit=job["workers"],
-            including_sink_open_seconds=including_open,
-            time_until_durable_seconds=durable_seconds,
-            external_fsync=True,
-            durability="none",
-            published_rows=sink.published_rows,
-            durable_rows=sink.durable_rows,
-            output_dtype="int8",
-            table_dtype=str(model.word_vectors.dtype),
-            sample_checked_rows=len(indices),
-            sample_bitwise_equal=True,
-            peak_rss_bytes=peak,
-            identity=identity,
-            files=files,
-            bytes_written=sum(row["bytes"] for row in files),
-            telemetry_before=before,
-            telemetry_after=after,
-            telemetry_after_sync=sync_telemetry,
-            disk_before=disk_before,
-            disk_with_output=__import__("shutil").disk_usage(path.parent)._asdict(),
-        ),
-    )
-
-
-def sync_headline(path):
-    files = []
-    for p in sorted(path.rglob("*")):
-        if p.is_symlink():
-            raise ValueError("unexpected symlink in owned headline output")
-        if p.is_file():
-            with p.open("rb") as stream:
-                os.fsync(stream.fileno())
-            files.append(p)
-    for p in [*sorted((p for p in path.rglob("*") if p.is_dir()), reverse=True), path, path.parent]:
-        descriptor = os.open(p, os.O_RDONLY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-    synced_at, sync_telemetry = time.perf_counter(), telemetry()
-    inventory = [
-        dict(path=str(p.relative_to(path)), bytes=p.stat().st_size, sha256=sha256(p)) for p in files
-    ]
-    return inventory, synced_at, sync_telemetry
-
-
-def stored_codes(store, indices):
-    import numpy as np
-
-    indices = np.asarray(indices, dtype=np.int64)
-    codes = np.empty((len(indices), store.dim), dtype=np.int8)
-    scales = np.empty(len(indices), dtype=np.float32)
-    for shard, tensors in store._shards:
-        mask = (indices >= shard.first_row) & (indices < shard.first_row + shard.rows)
-        rows = indices[mask] - shard.first_row
-        codes[mask] = tensors["vectors"][rows]
-        scales[mask] = tensors["scales"][rows]
-    return codes, scales
 
 
 def st_pool_worker(*args):
@@ -469,6 +288,8 @@ def st_encoder(job):
     from sentence_transformers import SentenceTransformer
 
     workers = job["workers"]
+    if workers > 1:
+        st_file_limits()
     torch.set_num_threads(1 if workers > 1 else workers)
     model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
     if workers == 1:
@@ -498,3 +319,51 @@ def st_encoder(job):
 
     encode.close = lambda: model.stop_multi_process_pool(pool)
     return encode
+
+
+def st_file_limits():
+    """The documented CPU process pool transports many shared tensor descriptors."""
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    target = 524288
+    if hard != resource.RLIM_INFINITY and hard < target:
+        raise RuntimeError(f"ST pool needs nofile hard limit >= {target}; got {hard}")
+    resource.setrlimit(resource.RLIMIT_NOFILE, (max(soft, target), hard))
+    if __import__("shutil").disk_usage("/dev/shm").free < 512 * 1024**2:
+        raise RuntimeError("ST pool needs at least 512 MiB free shared memory")
+
+
+# A new Python library adds one factory and one registry entry, not another runner.
+ADAPTERS = {
+    "fse": {
+        "factory": fse_encoder,
+        "package": "fse",
+        "environment": "main",
+        "native_threads": None,
+    },
+    "model2vec": {
+        "factory": model2vec_encoder,
+        "package": "model2vec",
+        "environment": "main",
+        "native_threads": None,
+    },
+    "fastembed": {
+        "factory": fastembed_encoder,
+        "package": "fastembed",
+        "environment": "reference",
+        "native_threads": 1,
+    },
+    "st": {
+        "factory": st_encoder,
+        "package": "sentence-transformers",
+        "environment": "main",
+        "native_threads": 1,
+    },
+    "rust": {
+        "factory": rust_child,
+        "package": "model2vec-rs",
+        "environment": "main",
+        "native_threads": None,
+    },
+}

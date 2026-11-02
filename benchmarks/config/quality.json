@@ -1,0 +1,516 @@
+{
+  "format": "quality-study-v1",
+  "billing": {
+    "compute_usd_per_hour": 1.472,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "cells": [
+    {
+      "id": "eval-potion-base-8M",
+      "kind": "mteb",
+      "model": "minishlab/potion-base-8M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-retrieval-mrl-en-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-similarity-mrl-multilingual-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-base-32M",
+      "kind": "mteb",
+      "model": "minishlab/potion-base-32M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-retrieval-32M",
+      "kind": "mteb",
+      "model": "minishlab/potion-retrieval-32M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-potion-multilingual-128M",
+      "kind": "mteb",
+      "model": "minishlab/potion-multilingual-128M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-all-MiniLM-L6-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "backend": "st",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-glove-wiki-gigaword-300",
+      "kind": "fit",
+      "model": "fse/glove-wiki-gigaword-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-glove-wiki-gigaword-300",
+      "kind": "sts",
+      "fit": "fit-glove-wiki-gigaword-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-glove-wiki-gigaword-300",
+      "kind": "mteb",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "fit-glove-wiki-gigaword-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-word2vec-google-news-300",
+      "kind": "fit",
+      "model": "fse/word2vec-google-news-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-word2vec-google-news-300",
+      "kind": "sts",
+      "fit": "fit-word2vec-google-news-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-word2vec-google-news-300",
+      "kind": "mteb",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "fit-word2vec-google-news-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-fasttext-crawl-subwords-300",
+      "kind": "fit",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-fasttext-crawl-subwords-300",
+      "kind": "sts",
+      "fit": "fit-fasttext-crawl-subwords-300",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-fasttext-crawl-subwords-300",
+      "kind": "mteb",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "fit-fasttext-crawl-subwords-300",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "fit-paragram-300-sl999",
+      "kind": "fit",
+      "model": "fse/paragram-300-sl999",
+      "corpus": "wikitext",
+      "workers": 2,
+      "estimated_seconds": 900
+    },
+    {
+      "id": "sts-paragram-300-sl999",
+      "kind": "sts",
+      "fit": "fit-paragram-300-sl999",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "eval-paragram-300-sl999",
+      "kind": "mteb",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "fit-paragram-300-sl999",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "mean-paranmt",
+      "kind": "mean",
+      "model": "fse/paranmt-300",
+      "workers": 2,
+      "estimated_seconds": 300
+    },
+    {
+      "id": "eval-paranmt",
+      "kind": "mteb",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "mean-paranmt",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "published-sif10-glove-wiki-gigaword-300",
+      "kind": "fit",
+      "model": "fse/glove-wiki-gigaword-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-word2vec-google-news-300",
+      "kind": "fit",
+      "model": "fse/word2vec-google-news-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-fasttext-crawl-subwords-300",
+      "kind": "fit",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-paragram-300-sl999",
+      "kind": "fit",
+      "model": "fse/paragram-300-sl999",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published"
+    },
+    {
+      "id": "published-sif10-paranmt-300",
+      "kind": "fit",
+      "model": "fse/paranmt-300",
+      "corpus": "published-fineweb",
+      "output_tokenizer": "fse_words@1",
+      "workers": 2,
+      "estimated_seconds": 1800,
+      "description": "SIF-10 fit as published; historical mean evaluation remains separate"
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-float32",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-float16",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-glove-wiki-gigaword-300-int8",
+      "kind": "sts",
+      "model": "fse/glove-wiki-gigaword-300",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-glove-wiki-gigaword-300-float16",
+      "kind": "recall",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-glove-wiki-gigaword-300-int8",
+      "kind": "recall",
+      "model": "fse/glove-wiki-gigaword-300",
+      "backend": "fse",
+      "fit": "published-sif10-glove-wiki-gigaword-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-float32",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-float16",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-word2vec-google-news-300-int8",
+      "kind": "sts",
+      "model": "fse/word2vec-google-news-300",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-word2vec-google-news-300-float16",
+      "kind": "recall",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-word2vec-google-news-300-int8",
+      "kind": "recall",
+      "model": "fse/word2vec-google-news-300",
+      "backend": "fse",
+      "fit": "published-sif10-word2vec-google-news-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-float32",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-float16",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-fasttext-crawl-subwords-300-int8",
+      "kind": "sts",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-fasttext-crawl-subwords-300-float16",
+      "kind": "recall",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-fasttext-crawl-subwords-300-int8",
+      "kind": "recall",
+      "model": "fse/fasttext-crawl-subwords-300",
+      "backend": "fse",
+      "fit": "published-sif10-fasttext-crawl-subwords-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-float32",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-float16",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paragram-300-sl999-int8",
+      "kind": "sts",
+      "model": "fse/paragram-300-sl999",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paragram-300-sl999-float16",
+      "kind": "recall",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paragram-300-sl999-int8",
+      "kind": "recall",
+      "model": "fse/paragram-300-sl999",
+      "backend": "fse",
+      "fit": "published-sif10-paragram-300-sl999",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-float32",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float32",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-float16",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-sts-paranmt-300-int8",
+      "kind": "sts",
+      "model": "fse/paranmt-300",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paranmt-300-float16",
+      "kind": "recall",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "float16",
+      "workers": 2,
+      "estimated_seconds": 60
+    },
+    {
+      "id": "published-recall-paranmt-300-int8",
+      "kind": "recall",
+      "model": "fse/paranmt-300",
+      "backend": "fse",
+      "fit": "published-sif10-paranmt-300",
+      "dtype": "int8",
+      "workers": 2,
+      "estimated_seconds": 60
+    }
+  ]
+}

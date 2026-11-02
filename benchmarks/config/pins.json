@@ -1,0 +1,58 @@
+{
+  "fse_revision": "624251df2269e3099f5c61987be63e718893b58c",
+  "rust_revision": "19f58bef6ce145f2bc08de7016498f28d521feea",
+  "corpus": {
+    "repo": "Salesforce/wikitext",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "configuration": "wikitext-103-raw-v1",
+    "split": "train",
+    "seed": 0,
+    "generator": "PCG64",
+    "paragraph_preprocessing": "collapse whitespace, omit headings, minimum five words",
+    "sampling": "sentence positions with replacement, followed by seeded shuffle",
+    "expected_source_positions": 3863020,
+    "expected_paragraphs": 832318,
+    "sentence_split": "(?<=[.!?])\\s+"
+  },
+  "machine": {
+    "vcpu": 32,
+    "ram_bytes": 128000000000,
+    "disk_gb": 150,
+    "image": "python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c",
+    "python_patch": "3.13.18",
+    "architecture": "amd64",
+    "os": "linux",
+    "config_digest": "sha256:e2e020974fc5950a42b67b579de668ee586880373a77d5af6306a430156bb605",
+    "source": "Docker official library/python registry manifest and configuration"
+  },
+  "models": {
+    "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a",
+    "sentence-transformers/static-similarity-mrl-multilingual-v1": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+    "minishlab/potion-base-32M": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",
+    "minishlab/potion-retrieval-32M": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
+    "minishlab/potion-multilingual-128M": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+    "sentence-transformers/all-MiniLM-L6-v2": "8b3219a92973c328a8e22fadcfa821b5dc75636a",
+    "fse/paranmt-300": "a08e15771891207a22f840a3091a00a1657d888b",
+    "fse/glove-wiki-gigaword-300": "4e5ad402664236b85be45a0d107b95259ba8a909",
+    "fse/word2vec-google-news-300": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
+    "fse/fasttext-crawl-subwords-300": "552b66a16850576275f894ed738f9e953b45a594",
+    "fse/paragram-300-sl999": "c99818c1470d5c4e454eb9d59dfce2b179dba455"
+  },
+  "versions": {
+    "mteb": "2.26.25",
+    "uv": "0.13.0",
+    "rustup": "1.28.2",
+    "rust": "1.98.0"
+  },
+  "published_sif": {
+    "repo": "HuggingFaceFW/fineweb-edu-llama3-annotations",
+    "revision": "72df4c92fb1b48beceb16016e8f695ec40a6c3a5",
+    "texts": 859346,
+    "seed": 0,
+    "corpus_xxh3": "xxh3-128:88146a7f61a2c157c4710cfaf3e0cb4b",
+    "components": 10,
+    "a": 0.001,
+    "wordfreq_version": "3.1.1"
+  }
+}

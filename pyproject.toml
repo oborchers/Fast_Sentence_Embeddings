@@ -184,8 +184,6 @@ known-first-party = ["fse"]
 "tests/**" = ["PLC0415", "E741"]
 # Benchmarks import inside the measured child processes on purpose.
 "benchmarks/**" = ["PLC0415"]
-# The encoder adapter implements the signature MTEB calls, whose arguments it ignores.
-"benchmarks/quality/run_mteb.py" = ["PLC0415", "ARG002"]
 
 # Limits of the complexity rules. They are not in `select`: tools/check_guardrails.py
 # runs them and compares the findings with the ratchet in [tool.fse.guardrails].
@@ -343,11 +341,6 @@ untested-modules = ["src/fse/_version.py"]
 
 [tool.fse.guardrails.ratchet.functions]
 "benchmarks/baseline/make_v1_fixture.py::main" = { C901 = 11, cognitive = 39 }
-"benchmarks/bench_kernel.py::main" = { cognitive = 22 }
-"benchmarks/bench_tokenize.py::child_v2" = { cognitive = 19 }
-"benchmarks/bench_tokenize.py::main" = { C901 = 17, PLR0915 = 59, cognitive = 40 }
-"benchmarks/bench_tokenize.py::prepare" = { cognitive = 18 }
-"benchmarks/quality/run_mteb.py::summarize" = { cognitive = 38 }
 
 # --- Import contracts (import-linter; the Cython extension is invisible to it and is
 # checked by tools/check_guardrails.py) ---

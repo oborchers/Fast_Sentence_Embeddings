@@ -70,6 +70,12 @@ def batches(path: Path, size: int = 16384):
 
 
 def checked_wikitext(path):
-    if digest(path) != WIKI_CHECKSUM:
+    # The historical raw file and the cold-cache one-space serialization have
+    # identical line.split() tokens (859,346 paragraphs, 6,063 changed lines).
+    # Evidence: comparison-source-2026-11.tar.gz at 608cf02a9557ef8bade83ae6c0c2fadd5b8d5012,
+    # verified audit member SHA256 f3203379bec429743381efc41ab03125837615702a147c8b6aa9169396d7a008.
+    # See docs/benchmarks/measurement.md, "Fit corpus equivalence". Keep actual hashes.
+    canonical = "xxh3-128:ca7a595ff0547a4a847a849d749d3604"
+    if digest(path) not in (WIKI_CHECKSUM, canonical):
         raise ValueError("WikiText tokenized corpus checksum mismatch")
     return path

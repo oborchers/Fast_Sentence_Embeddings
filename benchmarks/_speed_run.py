@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
-import platform
 import shutil
 import signal
 import subprocess
@@ -14,11 +12,17 @@ import threading
 import time
 from pathlib import Path
 
-import _speed_cells as records
+import _measurement as records
+import _speed_cells as inputs
 import _speed_pipeline as engines
+import _speed_write as writing
+from _measurement import heartbeat, write_environment
+from _measurement_config import CONFIG
+from _measurement_config import contract as load_contract
+
+ENTRY = Path(__file__).resolve().with_name("speed.py")
 
 HERE = Path(__file__).resolve().parent
-INPUT = HERE / "speed-input-2026-11.json"
 
 
 Ledger = records.Ledger
@@ -34,7 +38,7 @@ def prepare(args, contract, ledger):
     records.sync_directory(args.work.parent)
     records.atomic(
         args.work / "owner.json",
-        {"script_sha256": records.sha256(Path(__file__)), "results": str(args.results.resolve())},
+        {"script_sha256": records.sha256(ENTRY), "results": str(args.results.resolve())},
     )
     setup_record = Path(sys.executable).parents[2] / "setup.json"
     if setup_record.exists():
@@ -42,13 +46,13 @@ def prepare(args, contract, ledger):
     require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
-    paragraphs, unknown = records.corpus_sources(
+    paragraphs, unknown = inputs.corpus_sources(
         contract, (args.reuse_work or args.work) / "datasets"
     )
     require_budget(ledger, 60)
     rust = (
-        engines.build_rust(args.work / "native", HERE / "speed-rust.lock")
-        if contract["cells"][0]["kind"] != "write"
+        engines.build_rust(args.work / "native", CONFIG / "rust.lock")
+        if any(c.get("reference") == "rust" for c in contract["cells"])
         else None
     )
     return {
@@ -59,6 +63,7 @@ def prepare(args, contract, ledger):
         "unknown": unknown,
         "rust": rust,
         "reference_python": args.reference_python,
+        "base_python": args.base_python,
     }
 
 
@@ -75,7 +80,7 @@ def prepare_input(context, cell):
         limit = model.max_length * model.median_token_length
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
-    identity = records.write_input(path, source, mandatory, cell["texts"], 0)
+    identity = inputs.write_input(path, source, mandatory, cell["texts"], 0)
     if (
         not cell.get("functional_only")
         and cell.get("planned_input_bytes") is not None
@@ -99,12 +104,14 @@ def launch(context, cell, label, number, path, sample, identity):
         cell,
         label=label,
         round=number,
-        backend=label,
+        backend="fse" if label.startswith("fse-") else label,
         input_file=str(path),
         input_sha256=identity["sha256"],
         sample_file=str(sample),
         snapshot=model["snapshot"],
-        artifact=model["artifact"],
+        artifact=model.get("artifacts", {}).get(
+            cell.get("table_dtype", cell["dtype"]), model["artifact"]
+        ),
         vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
@@ -115,10 +122,14 @@ def launch(context, cell, label, number, path, sample, identity):
         job["sample_texts_sha256"] = records.sha256(Path(job["sample_texts_file"]))
     spec = root / f"{cell['id']}-{number}-{label}.job.json"
     records.atomic(spec, job)
-    python = context["reference_python"] if label == "fastembed" else sys.executable
+    python = engines.interpreter(job["backend"], context["reference_python"])
+    if label == "fse-base":
+        if not context["base_python"]:
+            raise ValueError("fse-base requires --base-python")
+        python = context["base_python"]
     with spec.with_suffix(".log").open("x") as stream:
         child = subprocess.Popen(
-            [python, str(Path(__file__).resolve()), "--child-job", str(spec)],
+            [python, str(ENTRY), "--child-job", str(spec)],
             stdout=stream,
             stderr=subprocess.STDOUT,
         )
@@ -134,10 +145,7 @@ def launch(context, cell, label, number, path, sample, identity):
         model=cell["model"],
         revision=model["revision"],
         sample_file=str(folder / "sample"),
-        adapter_sha256={
-            p.name: records.sha256(p)
-            for p in (Path(__file__), HERE / "_speed_cells.py", HERE / "_speed_pipeline.py")
-        },
+        adapter_sha256={p.name: records.sha256(p) for p in [*sorted(HERE.glob("_*.py")), ENTRY]},
     )
     records.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
@@ -167,7 +175,7 @@ def round_pair(context, cell, number, path, sample, identity):
     ]
     a = next(row for row in rows if row["label"] == "fse")
     b = next(row for row in rows if row["label"] != "fse")
-    delta = records.check_output(sample_array(a), sample_array(b), False)
+    delta = inputs.check_output(sample_array(a), sample_array(b), cell["kind"] == "dtype")
     records.append(
         context["ledger"].root / "checks.jsonl",
         {
@@ -196,20 +204,22 @@ def summarize_pair(cell, observations, identity):
     arms = {"fse": [], cell["reference"]: []}
     for row in observations:
         arms[row["label"]].append(row)
-    for rows in arms.values():
-        if [row["round"] for row in rows] != [0, 1, 2]:
-            raise ValueError("missing or duplicate paired rounds")
-        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
-            raise ValueError("executing backend changed between rounds")
-    short = not cell.get("functional_only") and min(r["seconds"] for r in arms["fse"]) < 2
+    validate_pair_arms(arms)
+    short, aa_upper, noisy = pair_validity(cell, observations, arms)
     ratios = [
         b["seconds"] / a["seconds"]
         for a, b in zip(arms["fse"], arms[cell["reference"]], strict=True)
     ]
+
     return {
-        "status": "invalid" if short else "valid",
+        "status": "invalid" if short or noisy else "valid",
+        "aa": {"status": "measured", "symmetric_upper": aa_upper}
+        if aa_upper is not None
+        else {"status": "not_run"},
         "input_identity": identity,
-        "reason": "fse call shorter than two seconds" if short else None,
+        "reason": "call shorter than two seconds"
+        if short
+        else ("A/A exceeds 10 percent" if noisy else None),
         "sample_checked": True,
         "paired_speedup": records.spread(ratios),
         "arms": {name: arm_summary(rows) for name, rows in arms.items()},
@@ -230,8 +240,10 @@ def memory_preflight(context, contract):
             workers=cell.get("production_workers", cell["workers"]),
             functional_only=False,
         )
+        if cell["kind"] == "write":
+            continue
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
-        plan = records.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
+        plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
     records.atomic(
         context["ledger"].root / "preflight-memory.json",
@@ -247,7 +259,7 @@ def pair(context, cell):
     maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
-    budget = records.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
+    budget = inputs.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
     records.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
     if not budget["admitted"]:
         raise MemoryError("fixed input exceeds the declared memory budget")
@@ -280,48 +292,18 @@ def quiet(context, contract):
     cleanup(context, [path, path.with_suffix(".json"), sample])
 
 
-def heartbeat(ledger, stop):
-    while not stop.is_set():
-        ledger.progress()
-        stop.wait(15)
-
-
-def write_environment(args, contract):
-    records.atomic(
-        args.results / "environment.json",
-        {
-            "contract": contract,
-            "platform": platform.platform(),
-            "python": sys.version,
-            "telemetry": records.telemetry(),
-            "affinity": sorted(os.sched_getaffinity(0)),
-            "machine": {
-                "cpu": next(
-                    line.split(":", 1)[1].strip()
-                    for line in Path("/proc/cpuinfo").read_text().splitlines()
-                    if line.startswith("model name")
-                ),
-                "affinity": sorted(os.sched_getaffinity(0)),
-                "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
-                "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
-                "allocated_at_unix": float(
-                    os.getenv("SPEED_MACHINE_ALLOCATED_AT", args.allocated_at)
-                ),
-                "budget_started_at_unix": args.allocated_at,
-            },
-        },
-    )
-
-
 def study_contract(args):
-    contract = records.document(args.input)
+    contract = load_contract(args.input)
     headline = args.study == "headline"
-    contract["cells"] = [c for c in contract["cells"] if (c["kind"] == "write") == headline]
+    if args.study != "all":
+        contract["cells"] = [c for c in contract["cells"] if c["stage"] == args.study]
+    if not contract["cells"]:
+        raise ValueError("study has no matching cells")
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")
         contract["billing"].update(contract["headline_billing"])
-        contract["format"] = "headline-2026-11-v1"
+        contract["format"] = "headline-study-v1"
         contract["cells"][0]["workers"] = args.workers
     if args.rehearse:
         contract["rehearsal_limits"] = records.rehearsal_limits()
@@ -329,7 +311,7 @@ def study_contract(args):
         for cell in [*contract["cells"], contract["quiet_cell"]]:
             cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
             cell.update(
-                texts=1_000_000 if headline else 12_000,
+                texts=20_000 if cell["kind"] == "write" else 12_000,
                 workers=min(cell["workers"], 2),
                 functional_only=True,
             )
@@ -341,6 +323,7 @@ def run(args):
     contract = study_contract(args)
     args.results.mkdir(parents=True, exist_ok=False)
     ledger = Ledger(args.results, contract, args.allocated_at)
+    os.environ["MEASURE_WORK"] = str(args.work)
     write_environment(args, contract)
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
@@ -351,8 +334,7 @@ def run(args):
     try:
         require_budget(ledger, 60)
         context = prepare(args, contract, ledger)
-        action = run_headline if args.study == "headline" else run_libraries
-        action(context, contract)
+        run_cells(context, contract)
     except Exception as error:
         records.append(args.results / "fatal.jsonl", {"error": repr(error)})
     finally:
@@ -364,26 +346,30 @@ def run(args):
                 )
         stop.set()
         watcher.join()
+    records.finalize_rehearsal(ledger, "speed")
     return ledger.done()
 
 
-def run_libraries(context, contract):
+def run_cells(context, contract):
     ledger = context["ledger"]
     memory_preflight(context, contract)
-    ledger.stage, ledger.current = "quiet", "quiet"
-    require_budget(
-        ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
-    )
-    quiet(context, contract)
-    ledger.stage = "libraries"
+    if any(c["kind"] != "write" for c in contract["cells"]):
+        ledger.stage, ledger.current = "quiet", "quiet"
+        require_budget(
+            ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
+        )
+        quiet(context, contract)
     for cell in contract["cells"]:
-        ledger.current = cell["id"]
+        ledger.current, ledger.stage = cell["id"], cell["stage"]
         started = time.monotonic()
         if not ledger.admit(cell["estimated_seconds"]):
             ledger.result(cell, started, status="not_started", reason="soft budget or stop signal")
             continue
         try:
-            ledger.result(cell, started, **pair(context, cell))
+            if cell["kind"] == "write":
+                run_headline(context, {**contract, "cells": [cell]})
+            else:
+                ledger.result(cell, started, **pair(context, cell))
         except Exception as error:
             ledger.result(cell, started, status="failed", reason=repr(error))
 
@@ -398,14 +384,14 @@ def run_headline(context, contract):
         ledger.result(cell, started, status="not_started", reason="headline admission budget")
         return
     source = context["paragraphs"]
-    records.stream_budget(work, cell, source)
-    tokens = engines.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
+    inputs.stream_budget(work, cell, source)
+    tokens = writing.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
     path = work / "headline-input.txt"
-    identity = records.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
+    identity = inputs.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
     records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
     records.atomic(sample, identity["sample_rows"])
-    rows, error = records.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
+    rows, error = inputs.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
     complete = len(rows) == cell["rounds"] and error is None
     ledger.result(
         cell,
@@ -428,41 +414,20 @@ def run_headline(context, contract):
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=INPUT)
-    parser.add_argument("--study", choices=("libraries", "headline"), default="libraries")
-    parser.add_argument("--workers", type=int, choices=(16, 32))
-    parser.add_argument("--reuse-work", type=Path)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--describe", action="store_true")
-    mode.add_argument("--child-job", type=Path)
-    mode.add_argument("--setup", type=Path)
-    mode.add_argument("--run", action="store_true")
-    mode.add_argument("--rehearse", action="store_true")
-    parser.add_argument("--results", type=Path, default=Path("/speed-results"))
-    parser.add_argument("--work", type=Path, default=Path("/speed-work"))
-    parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
-    parser.add_argument("--allocated-at", type=float)
-    args = parser.parse_args()
-    if args.child_job:
-        engines.measure_child(records.document(args.child_job))
-        return 0
-    contract = records.document(args.input)
-    if args.describe:
-        print(json.dumps(contract, indent=2))
-        return 0
-    if sys.platform != "linux" or sys.version.split()[0] != contract["machine"]["python_patch"]:
-        raise RuntimeError("pinned Linux Python required")
-    if args.allocated_at is None:
-        raise ValueError("allocation Unix timestamp required")
-    if args.setup:
-        if os.getenv("SPEED_REHEARSAL") == "1":
-            records.rehearsal_limits()
-        engines.setup(args.setup, contract, args.allocated_at)
-        return 0
-    return run(args)
+def pair_validity(cell, observations, arms):
+    measured_fse = observations if cell["reference"].startswith("fse-") else arms["fse"]
+    short = not cell.get("functional_only") and min(r["seconds"] for r in measured_fse) < 2
+    if cell["reference"] != "fse-control":
+        return short, None, False
+    a = records.spread([r["seconds"] for r in arms["fse"]])
+    b = records.spread([r["seconds"] for r in arms[cell["reference"]]])
+    upper = max(a["max"] / b["min"], b["max"] / a["min"])
+    return short, upper, upper > 1.10 and not cell.get("functional_only")
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def validate_pair_arms(arms):
+    for rows in arms.values():
+        if [row["round"] for row in rows] != [0, 1, 2]:
+            raise ValueError("missing or duplicate paired rounds")
+        if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
+            raise ValueError("executing backend changed between rounds")

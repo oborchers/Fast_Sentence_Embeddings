@@ -61,7 +61,7 @@ six==1.17.0
 sympy==1.14.0
 threadpoolctl==3.7.0
 tokenizers==0.23.3
-torch==2.15.0
+torch==2.15.0+cpu
 tqdm==4.70.1
 transformers==5.22.1
 truststore==0.10.5
@@ -72,3 +72,9 @@ tzdata==2026.6
 urllib3==2.8.0
 xxhash==4.0.2
 yarl==1.25.1
+
+gensim==4.4.0
+wordfreq==3.1.1
+
+Cython==3.1.0
+setuptools-scm==9.2.2

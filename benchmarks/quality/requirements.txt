@@ -1,2 +1,0 @@
-# Complete resolved environment used by the comparison.
--r requirements.lock.txt
