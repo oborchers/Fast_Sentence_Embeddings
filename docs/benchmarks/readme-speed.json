@@ -1,5 +1,5 @@
 {
-  "format": "readme-library-speed-v1",
+  "format": "readme-speed-v1",
   "machine": "AMD EPYC 9575F",
   "allocated_vcpu": 32,
   "date": "2026-11-02",
@@ -123,5 +123,55 @@
     "archive_sha256": "443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7",
     "member": "audit/library-summary.json",
     "member_sha256": "f7ad4f548cb77ec671035564f905afe205d22251b7f6057f5a3250b4b02b780c"
+  },
+  "dtypes": {
+    "model": "minishlab/potion-base-8M",
+    "dimensions": 256,
+    "machine": "AMD EPYC 9965",
+    "date": "2026-11-01/02",
+    "texts": 4620000,
+    "mean_words": 119.0559961038961,
+    "input_sha256": "bec2f6d5e127889fce0b29e6123915f083431ac0cd4b7fe3a4f24e43758a7c92",
+    "output_dtype": "float32",
+    "source": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/speed-2026-11.json",
+    "archive": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f97e32edbc0f9daa538b56b54f3187d8d3c177d8/archives/speed-run-2026-11.tar.gz",
+    "cells": [
+      {
+        "cell": "dtypes-02",
+        "dtype": "float32",
+        "workers": 1,
+        "texts_per_second": 139422.08980621607
+      },
+      {
+        "cell": "dtypes-03",
+        "dtype": "float16",
+        "workers": 1,
+        "texts_per_second": 153885.97940419446
+      },
+      {
+        "cell": "dtypes-04",
+        "dtype": "int8",
+        "workers": 1,
+        "texts_per_second": 163778.99199846495
+      },
+      {
+        "cell": "dtypes-05",
+        "dtype": "float32",
+        "workers": 16,
+        "texts_per_second": 1265122.7509406214
+      },
+      {
+        "cell": "dtypes-06",
+        "dtype": "float16",
+        "workers": 16,
+        "texts_per_second": 1359539.632905677
+      },
+      {
+        "cell": "dtypes-07",
+        "dtype": "int8",
+        "workers": 16,
+        "texts_per_second": 1379948.7492253433
+      }
+    ]
   }
 }

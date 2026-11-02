@@ -75,7 +75,12 @@ def speed_panel(theme, data):
         parts += [
             text(left, 98, f"{workers} worker" + ("s" if workers != 1 else ""), 24, weight=700)
         ]
-        for index, row in enumerate(r for r in data["comparisons"] if r["workers"] == workers):
+        rows = sorted(
+            (r for r in data["comparisons"] if r["workers"] == workers),
+            key=lambda r: r["paired_speedup_median"],
+            reverse=True,
+        )
+        for index, row in enumerate(rows):
             y = 143 + index * 118
             ratio = row["paired_speedup_median"]
             model = "POTION-8M" if row["dimensions"] == 256 else "static-retrieval-mrl-en-v1"
@@ -117,8 +122,72 @@ def speed_panel(theme, data):
     (out / f"library-speed-{theme}.svg").write_text("\n".join(parts) + "\n")
 
 
+def dtype_panel(theme, data):
+    global colors
+    colors = {k: v["value"] for k, v in brand[theme].items()}
+    left, width, maximum = 210, 700, 1_500_000
+    parts = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="540" '
+        'viewBox="0 0 1100 540" role="img" aria-labelledby="title desc">',
+        '<title id="title">fse performance on longer texts</title>',
+        '<desc id="desc">Absolute texts per second for float32, float16 and int8 model '
+        "tables, with one and sixteen workers. All six bars use the same linear scale.</desc>",
+        f'<rect width="1100" height="540" rx="12" fill="{colors["bg"]}"/>',
+        '<g font-family="Geist, Arial, sans-serif">',
+        text(40, 48, "Performance on longer texts", 30, weight=700),
+        text(
+            40,
+            80,
+            "fse only. POTION-8M, 256 dimensions. Float32 output.",
+            18,
+            colors["text-secondary"],
+        ),
+    ]
+    for workers, x, color in ((1, 210, colors["text-secondary"]), (16, 420, colors["accent"])):
+        parts += [
+            f'<rect x="{x}" y="102" width="18" height="18" rx="3" fill="{color}"/>',
+            text(x + 28, 118, f"{workers} worker" + ("s" if workers != 1 else ""), 18),
+        ]
+    for index, dtype in enumerate(("float32", "float16", "int8")):
+        y = 150 + index * 110
+        parts += [text(40, y + 43, dtype, 23, weight=700)]
+        for row in (r for r in data["dtypes"]["cells"] if r["dtype"] == dtype):
+            bar_y = y + (36 if row["workers"] == 16 else 0)
+            value = row["texts_per_second"]
+            color = colors["accent"] if row["workers"] == 16 else colors["text-secondary"]
+            bar_width = width * value / maximum
+            parts += [
+                f'<rect x="{left}" y="{bar_y}" width="{bar_width:.3f}" height="24" rx="3" fill="{color}"/>',
+                text(left + bar_width + 12, bar_y + 19, f"{value:,.0f}", 20, weight=700),
+            ]
+    parts += [f'<path d="M{left} 465 H{left + width}" stroke="{colors["border"]}"/>']
+    for value in (0, 500_000, 1_000_000, 1_500_000):
+        parts += [
+            text(
+                left + width * value / maximum,
+                488,
+                f"{value:,}",
+                16,
+                colors["text-secondary"],
+                anchor="middle",
+            )
+        ]
+    parts += [
+        text(
+            40,
+            526,
+            "Texts per second. All bars use the same linear scale, starting at zero.",
+            17,
+            colors["text-secondary"],
+        ),
+        "</g></svg>",
+    ]
+    (out / f"dtype-speed-{theme}.svg").write_text("\n".join(parts) + "\n")
+
+
 speed_source = ROOT / "docs/benchmarks/readme-speed.json"
 if speed_source.exists():
     speed_data = json.loads(speed_source.read_text())
     for speed_theme in ("light", "dark"):
         speed_panel(speed_theme, speed_data)
+        dtype_panel(speed_theme, speed_data)

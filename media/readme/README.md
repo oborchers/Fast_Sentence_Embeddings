@@ -25,3 +25,7 @@ rsvg-convert media/readme/vectors-and-labels-light.svg -o media/readme/vectors-a
 Repeat for the dark theme. Fonts use Geist, then Arial or sans-serif as fallback.
 
 Export the two library charts with the same `rsvg-convert` command, using their `library-speed` file names.
+
+`dtype-speed` shows the six longer-text rates on one shared linear scale.
+Its source is the `dtypes` section of the same compact summary.
+Export its light and dark SVGs to PNG with `rsvg-convert` too.
