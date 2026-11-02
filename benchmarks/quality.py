@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 
 from _measurement import Ledger, append, atomic, heartbeat, rehearsal_limits, write_environment
-from _measurement_config import CONFIG, contract
-from _measurement_setup import setup, utility
+from _measurement_config import CONFIG, contract, validate_cell, validate_prerequisites
+from _measurement_setup import outside_checkout, setup, utility
 
 
 def specification(args):
@@ -48,16 +48,33 @@ def specification(args):
             },
         ]
         spec["billing"].update(planning_minutes=180, planning_balance_usd=10)
+    if args.rehearse:
+        spec["cells"].append(
+            {
+                "id": "small-recall",
+                "kind": "recall",
+                "model": "fse/glove-wiki-gigaword-300",
+                "backend": "fse",
+                "fit": "small-fit",
+                "dtype": "int8",
+                "workers": 1,
+                "estimated_seconds": 30,
+            }
+        )
     if args.cells:
         spec["cells"] = [c for c in spec["cells"] if c["id"] in args.cells]
-        if set(args.cells) != {c["id"] for c in spec["cells"]}:
+        if len(args.cells) != len(spec["cells"]) or set(args.cells) != {
+            c["id"] for c in spec["cells"]
+        }:
             raise ValueError("unknown or duplicate requested cells")
+    validate_prerequisites(spec["cells"])
     from _quality.mteb import expand
 
     spec["cells"] = expand(spec["cells"])
     if not spec["cells"]:
         raise ValueError("empty quality study")
     for cell in spec["cells"]:
+        validate_cell(cell)
         cell["functional_only"] = spec.get("functional_only", False)
     return spec
 
@@ -171,6 +188,8 @@ def main():
             rehearsal_limits()
         setup(args.setup, spec, args.allocated_at, quality=True)
         return 0
+    for path in (args.results, args.work, args.cache):
+        outside_checkout(path)
     code = run(args)
     if args.rehearse and code == 0:
         from _measurement_rehearse import control_proof

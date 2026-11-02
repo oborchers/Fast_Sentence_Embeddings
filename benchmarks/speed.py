@@ -9,7 +9,7 @@ from pathlib import Path
 
 from _measurement import document, rehearsal_limits
 from _measurement_config import CONFIG, contract
-from _measurement_setup import setup, utility
+from _measurement_setup import outside_checkout, setup, utility
 from _speed_pipeline import measure_child
 from _speed_run import run
 
@@ -56,6 +56,8 @@ def main():
             rehearsal_limits()
         setup(args.setup, specification, args.allocated_at)
         return 0
+    for path in (args.results, args.work):
+        outside_checkout(path)
     code = run(args)
     if args.rehearse and code == 0:
         from _measurement_rehearse import control_proof

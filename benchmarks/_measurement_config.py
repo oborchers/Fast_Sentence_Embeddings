@@ -31,12 +31,7 @@ def contract(path):
     identifiers = [c["id"] for c in result["cells"]]
     if not identifiers or len(identifiers) != len(set(identifiers)):
         raise ValueError("nonempty unique cell identifiers required")
-    previous = set()
-    for cell in result["cells"]:
-        validate_cell(cell)
-        if cell.get("fit") and cell["fit"] not in previous:
-            raise ValueError("fit prerequisite must precede its dependent cell")
-        previous.add(cell["id"])
+    validate_prerequisites(result["cells"])
     return result
 
 
@@ -48,3 +43,12 @@ def validate_cell(cell):
             raise ValueError(f"positive finite {key} required")
     if cell.get("model") and cell["model"] not in MODEL_PINS:
         raise ValueError(f"model is not pinned: {cell['model']}")
+
+
+def validate_prerequisites(cells):
+    previous = set()
+    for cell in cells:
+        validate_cell(cell)
+        if cell.get("fit") and cell["fit"] not in previous:
+            raise ValueError("fit prerequisite must precede its dependent cell")
+        previous.add(cell["id"])

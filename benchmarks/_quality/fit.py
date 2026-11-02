@@ -141,6 +141,7 @@ def sts(cell, context):
     return {
         "status": "valid",
         "pairs": half,
+        "fit_id": cell["fit"],
         "pearson": score(labels, vectors),
         "spearman": float(spearmanr(labels, similarities).statistic * 100),
         "fit": receipt,
@@ -196,6 +197,8 @@ def recall(cell, context):
     return {
         "status": "valid",
         "recall_at_10": neighbor_recall(neighbors(a), neighbors(b)),
+        "fit_id": cell.get("fit"),
+        "table_dtype": cell["dtype"],
         "rows": len(inputs),
         "benchmark": benchmark_identity(),
         "float32_fingerprint": parent.fingerprint,

@@ -415,12 +415,13 @@ def run_headline(context, contract):
 
 
 def pair_validity(cell, observations, arms):
-    short = not cell.get("functional_only") and min(r["seconds"] for r in observations) < 2
+    measured_fse = observations if cell["reference"].startswith("fse-") else arms["fse"]
+    short = not cell.get("functional_only") and min(r["seconds"] for r in measured_fse) < 2
     if cell["reference"] != "fse-control":
         return short, None, False
-    a = records.spread([r["seconds"] for r in arms["fse"]])["median"]
-    b = records.spread([r["seconds"] for r in arms[cell["reference"]]])["median"]
-    upper = max(a / b, b / a)
+    a = records.spread([r["seconds"] for r in arms["fse"]])
+    b = records.spread([r["seconds"] for r in arms[cell["reference"]]])
+    upper = max(a["max"] / b["min"], b["max"] / a["min"])
     return short, upper, upper > 1.10 and not cell.get("functional_only")
 
 

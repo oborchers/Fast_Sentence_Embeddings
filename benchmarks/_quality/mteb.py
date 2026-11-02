@@ -92,7 +92,7 @@ def native_model(cell, fit):
             ).encoder
         else:
             model = fse.Encoder.from_pretrained(
-                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
+                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True, truncate=False
             )
     elif backend == "model2vec":
         from model2vec import StaticModel
@@ -183,6 +183,8 @@ def evaluate(cell, context):
         "model_revision": MODEL_PINS[cell["model"]],
         "backend_identity": before,
         "mteb_version": version("mteb"),
+        "table_dtype": cell.get("dtype", "float32"),
+        "normalization": True,
         "load_seconds": load_seconds,
         "evaluation_seconds": time.perf_counter() - started,
         "timing_scope": "diagnostic only, never inference throughput",

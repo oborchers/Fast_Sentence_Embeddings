@@ -18,6 +18,7 @@ def setup_command(*arguments, allocated_at, contract):
 
 def setup(root, contract, allocated_at, quality=False):
     """Install the two frozen CPU environments without starting measurement."""
+    outside_checkout(root)
     root.mkdir(parents=True, exist_ok=False)
     here = CONFIG
     tools, source = root / "tools", root / "fse-source"
@@ -131,6 +132,7 @@ def utility(args, entry):
     if args.collect:
         if not args.archive:
             raise ValueError("--collect requires --archive")
+        outside_checkout(args.archive)
         print(json.dumps(collect(args.collect, args.archive)))
         return True
     if args.bootstrap:
@@ -140,3 +142,11 @@ def utility(args, entry):
         print(json.dumps(load_contract(args.input), indent=2))
         return True
     return False
+
+
+def outside_checkout(path):
+    from pathlib import Path
+
+    checkout = Path(__file__).resolve().parents[1]
+    if path.resolve().is_relative_to(checkout):
+        raise ValueError("model caches and reconstruction outputs must be outside the checkout")

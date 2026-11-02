@@ -16,7 +16,17 @@ def summarize(folder):
     for row in rows:
         if row["kind"] != "mteb" or row["status"] != "valid" or row.get("functional_only"):
             continue
-        keys = ("model", "model_revision", "backend", "backend_identity", "fit_id", "fit")
+        keys = (
+            "model",
+            "model_revision",
+            "table_dtype",
+            "mteb_version",
+            "machine_environment_sha256",
+            "backend",
+            "backend_identity",
+            "fit_id",
+            "fit",
+        )
         key = json.dumps({k: row.get(k) for k in keys}, sort_keys=True)
         task_key = (row["benchmark"], row["task"])
         if task_key in groups.setdefault(key, {}):
@@ -28,6 +38,28 @@ def summarize(folder):
         "cells_sha256": sha256(path),
         "score_scale": "0 to 1",
         "rows": result,
+        "artifact_scores": [
+            {
+                k: r[k]
+                for k in (
+                    "cell_id",
+                    "kind",
+                    "model",
+                    "fit_id",
+                    "fit",
+                    "table_dtype",
+                    "pearson",
+                    "spearman",
+                    "recall_at_10",
+                    "benchmark",
+                )
+                if k in r
+            }
+            for r in rows
+            if r["status"] == "valid"
+            and r["kind"] in ("sts", "recall")
+            and not r.get("functional_only")
+        ],
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
     }
 
