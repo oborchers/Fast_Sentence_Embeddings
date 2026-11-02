@@ -3,25 +3,6 @@
 from bench_pretrained import COMMITS
 
 
-def artifact_path(folder, repo: str, dtype: str):
-    """Resolve folded or mean artifacts by their bound source, never by guessing."""
-    import json
-
-    manifest = folder / "artifact-identities.json"
-    if manifest.exists():
-        matches = [
-            row
-            for row in json.loads(manifest.read_text())["artifacts"]
-            if row["source"] == repo and row["table_dtype"] == dtype
-        ]
-        if len(matches) != 1:
-            raise ValueError(
-                "need exactly one finished artifact for the requested source and dtype"
-            )
-        return folder / matches[0]["artifact"]
-    return folder / artifact_name(repo, dtype)
-
-
 MODELS = {
     **COMMITS,
     "fse/paranmt-300": "a08e15771891207a22f840a3091a00a1657d888b",
