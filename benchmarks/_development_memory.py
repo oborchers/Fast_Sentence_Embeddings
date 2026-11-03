@@ -37,7 +37,6 @@ class _Target:
 
 def operation(model, texts, job):
     import numpy as np
-
     from _development_encode import output_identity
 
     dtype = job["output_dtype"]
