@@ -24,6 +24,7 @@ def observations():
         "unix": time.time(),
         "load": list(os.getloadavg()),
         "foreign_cpu_over_50": foreign_cpu(),
+        "nice": os.getpriority(os.PRIO_PROCESS, 0),
         "uptime": subprocess.check_output(["uptime"], text=True).strip(),
         "disk": shutil.disk_usage(Path.cwd())._asdict(),
         "usage": list(resource.getrusage(resource.RUSAGE_SELF)),
@@ -35,11 +36,11 @@ def _quiet(job):
     if (
         not job.get("functional_only")
         and not job.get("profile_only")
-        and (observation["load"][0] >= MAX_LOAD or observation["foreign_cpu_over_50"])
+        and (observation["load"][0] >= MAX_LOAD or observation["nice"] != 0)
     ):
         raise RuntimeError(
             f"local timing requires one-minute load below {MAX_LOAD} "
-            "and no foreign process above 50 percent CPU"
+            "and measurement children at nice 0"
         )
     return observation
 

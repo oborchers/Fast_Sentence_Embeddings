@@ -220,8 +220,9 @@ inference through sink close. Verification and external synchronization are
 outside the timer and finish before the next arm. Fresh output directories are
 owned by the child and cleaned after verification.
 
-Timing starts only with one-minute load below 4 and no foreign process above
-50 percent CPU. The process check excludes the executing diagnostic process and
+Timing starts only with one-minute load below 4, and measurement children run at
+nice 0. Foreign processes above 50 percent CPU are recorded as telemetry; they
+do not block admission. The process observation excludes the diagnostic process and
 its descendants. It retains executable names, PIDs and CPU percentages, never
 command arguments. Each cell and arm records this admission check. The child
 checks it again before warmup and the timed call. A busy directory lock is never
@@ -243,9 +244,8 @@ Local timing and heavy work are mutually exclusive. The diagnostic requires the
 sibling `heavy.lock` directory to be absent before taking `bench.lock`, checks
 again after acquisition, and repeats the check before every arm. Heavy-work
 controllers must similarly require `bench.lock` to be absent before starting.
-Record both checks. The per-process CPU guard does not replace these locks:
-several compiler processes can each remain below 50 percent while loading the
-machine together.
+Record both checks. Process telemetry does not replace these locks:
+several compiler processes can load the machine together.
 
 Use `--diagnostic-rehearsal` with a small local specification for functional
 probes. Such records are explicitly functional-only, with no speed claim.

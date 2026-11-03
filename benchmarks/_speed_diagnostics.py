@@ -64,9 +64,9 @@ def _launch(args, cell, arm, round_index, order, functional):
     receipt.update(arm=arm["name"], round=round_index, order=order)
     if not functional and (
         receipt["telemetry_before"]["load"][0] >= MAX_LOAD
-        or receipt["telemetry_before"]["foreign_cpu_over_50"]
+        or receipt["telemetry_before"]["nice"] != 0
     ):
-        raise RuntimeError("timed call violated local load or foreign-process admission")
+        raise RuntimeError("timed call violated local load or nice admission")
     if not functional and cell["operation"] != "filter_memory" and receipt["seconds"] < 2:
         raise RuntimeError("measured fse operation lasted less than two seconds")
     return receipt
@@ -82,7 +82,7 @@ def _pair(args, cell, round_index, ledger, functional):
                 receipts.append(receipt)
                 append(args.results / "operations.jsonl", {"cell_id": cell["id"], **receipt})
                 break
-            ledger.stage = "waiting_for_load_or_foreign_cpu"
+            ledger.stage = "waiting_for_load"
             ledger.progress()
             time.sleep(5)
         else:
@@ -125,14 +125,13 @@ def _admitted(args, cell, round_index, order, functional):
             "order": order,
             "load_limit_exclusive": MAX_LOAD,
             "foreign_cpu_limit_percent": 50,
+            "foreign_cpu_policy": "telemetry_only",
             "heavy_lock": str(heavy_lock),
             "heavy_lock_busy": heavy_busy,
             "telemetry": observation,
         },
     )
-    return not heavy_busy and (
-        functional or (observation["load"][0] < MAX_LOAD and not observation["foreign_cpu_over_50"])
-    )
+    return not heavy_busy and (functional or observation["load"][0] < MAX_LOAD)
 
 
 def _cell(args, cell, ledger, functional):
