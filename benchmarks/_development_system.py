@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 LABEL = {"mode": "local-development", "publishable": False}
@@ -31,10 +32,8 @@ def memory_limit():
         if value:
             candidates.append(int(value))
     elif hasattr(os, "sysconf"):
-        try:
+        with suppress(ValueError, OSError):
             candidates.append(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
-        except (ValueError, OSError):
-            pass
     if sys.platform.startswith("linux"):
         for name in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
             path = Path(name)
