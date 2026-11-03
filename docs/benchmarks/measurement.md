@@ -207,6 +207,17 @@ each write group. Every repeated store is fully verified, synchronized and remov
 outside its group's timer. `*.stores.jsonl` records logical file bytes and ID payload
 bytes separately; these are not physical device writes.
 
+This profile's file-write RAM admission counts common live inputs plus the larger
+of encoding and complete store verification. FileSource maps the entire UTF-8 file.
+It tokenizes bounded tasks rather than allocating a token array for all input rows.
+The encode estimate includes the full mapped file, the 512 MiB runtime window,
+both 64 MiB writer queues and an additional 1 GiB native-workspace allowance per
+worker. Verification includes the full float32-sized store mapping, inverse norms,
+scales and IDs, even for smaller output formats. Common state retains the general
+reserve, model, Python-text, worker and ID budgets. The ledger records both phase
+estimates. The safety fraction remains 85 percent. These are conservative admission
+estimates, not observed RSS. Other profiles and stages retain their existing planner.
+
 ```sh
 python benchmarks/speed.py --diagnose \
   --development-input benchmarks/config/document-ids-local.json \

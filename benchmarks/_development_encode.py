@@ -18,6 +18,10 @@ def operation(model, texts, job):
 
     from fse import ShardSink
 
+    if job.get("profile") == "document-ids@1":
+        from _development_file_resources import check_limits
+
+        check_limits()
     ids = values(len(texts), job.get("doc_ids", "none"), job["id_chunks"])
     sink_options = {} if ids is None else {"doc_ids": True}
     encode_options = {} if ids is None else {"doc_ids": ids}

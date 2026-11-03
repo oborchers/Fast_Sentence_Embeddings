@@ -51,6 +51,11 @@ def admission(cell, prepared, count, work, requested_limit=None):
         "none",
     ):
         components["document_ids_and_verification"] = count * 16
+    phases = None
+    if cell.get("profile") == "document-ids@1" and cell["stage"] == "encode-sink":
+        from _development_file_resources import file_components
+
+        components, phases = file_components(cell, count, dim, mean_bytes, components)
     disk = int(count * (mean_bytes + 1) + disk_reserve(cell))
     if cell["stage"] == "encode-sink":
         disk += (output + count * 8) * cell["iterations"] * 2
@@ -63,6 +68,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
         "texts": count,
         "operation_repetitions": cell["iterations"],
         "components": components,
+        "sequential_phases": phases,
         "estimated_peak_bytes": sum(components.values()),
         "memory_limit_bytes": limit,
         "safety_fraction": 0.85,
