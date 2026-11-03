@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+DOCUMENT_PROFILES = ("document-ids@1", "document-ids-1m@1")
+
+
+def document_profile(cell):
+    return cell.get("profile") in DOCUMENT_PROFILES
+
 
 def values(count, mode, chunks=4):
     if mode == "none":
@@ -35,14 +41,14 @@ def check_store(store, mode, chunks=4):
 
 
 def validate(cell):
-    if cell["profile"] not in ("standard@1", "document-ids@1"):
+    if cell["profile"] not in ("standard@1", *DOCUMENT_PROFILES):
         raise ValueError("unknown development adapter profile")
     modes = (cell["base_doc_ids"], cell["candidate_doc_ids"])
     if any(mode not in ("none", "ordered", "shuffled") for mode in modes):
         raise ValueError("unknown development document-ID mode")
     store_stage = cell["stage"] in ("store-search", "store-open")
-    if (store_stage or modes != ("none", "none")) and cell["profile"] != "document-ids@1":
-        raise ValueError("store and document-ID adapters require profile document-ids@1")
+    if (store_stage or modes != ("none", "none")) and not document_profile(cell):
+        raise ValueError("store and document-ID adapters require a document-ID profile")
     if modes != ("none", "none") and cell["stage"] not in (
         "encode-sink",
         "store-search",

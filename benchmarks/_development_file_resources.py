@@ -28,7 +28,7 @@ def file_components(cell, count, dim, mean_bytes, components):
     }
     common["file_encode_or_full_store_verification"] = max(encoding, verification)
     return common, {
-        "scope": "document-ids@1 encode-sink FileSource only",
+        "scope": cell["profile"] + " encode-sink FileSource only",
         "mapped_input_bytes": source,
         "encoding_phase_bytes": encoding,
         "verification_phase_bytes": verification,

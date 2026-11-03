@@ -5,15 +5,16 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from _development_ids import document_profile
 from _development_system import LABEL, memory_limit
 
 
 def disk_reserve(cell):
-    return (30 if cell.get("profile") == "document-ids@1" else 1) * 1024**3
+    return (30 if document_profile(cell) else 1) * 1024**3
 
 
 def check_write_disk(job):
-    if job["stage"] != "encode-sink" or job.get("profile") != "document-ids@1":
+    if job["stage"] != "encode-sink" or not document_profile(job):
         return
     width = {"float32": 4, "float16": 2, "int8": 1}[job["output_dtype"]]
     row_bytes = job["dimensions"] * width + 4 + 8
@@ -52,7 +53,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
     ):
         components["document_ids_and_verification"] = count * 16
     phases = None
-    if cell.get("profile") == "document-ids@1" and cell["stage"] == "encode-sink":
+    if document_profile(cell) and cell["stage"] == "encode-sink":
         from _development_file_resources import file_components
 
         components, phases = file_components(cell, count, dim, mean_bytes, components)

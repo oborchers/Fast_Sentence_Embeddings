@@ -14,11 +14,11 @@ def operation(model, texts, job):
         from _development_memory import operation as memory_operation
 
         return memory_operation(model, texts, job)
-    from _development_ids import values
+    from _development_ids import document_profile, values
 
     from fse import ShardSink
 
-    if job.get("profile") == "document-ids@1":
+    if document_profile(job):
         from _development_file_resources import check_limits
 
         check_limits()

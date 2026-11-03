@@ -188,7 +188,7 @@ functional probe establishes function only, with no Linux or host-Mac speed clai
 
 ### Document-ID adapter profile
 
-`profile: "document-ids@1"` extends the same v2 controller with optional stored IDs,
+`profile: "document-ids@1"` and `document-ids-1m@1` extend the same v2 controller with optional stored IDs,
 `store-search` and `store-open`. It does not add another timer or publication path.
 `base_doc_ids` and `candidate_doc_ids` accept `none`, `ordered` or `shuffled`.
 IDs are int64 row positions divided by `id_chunks` (default four), with seed-zero
@@ -196,12 +196,25 @@ shuffling when selected. All written labels are checked against their source row
 Numerical tensors remain the common paired output proof. Search additionally checks
 every returned label against its physical position and every position against the filter.
 
-`benchmarks/config/document-ids-local.json` defines a separate 10,001,610-row workload,
+`benchmarks/config/document-ids-1m-local.json` defines the active smaller workload:
+1,002,340 rows from 230 complete WikiText test cycles, two workers and float32 tables.
+Both builds use the same resident count and complete corpus order. Every cell needs
+fresh same-cell controls. Float32 without IDs versus ordered IDs precedes int8.
+All v2 gates remain active: fifteen pairs, at least twelve seconds of warmup, A/A IQR
+below two percent, at most sixty active calibration minutes, a saving threshold of
+`max(3 * A/A IQR, 0.02)` and independent confirmation. A rejected speed decision does
+not establish a numerical difference; complete byte checks are a separate gate.
+
+The retained `benchmarks/config/document-ids-local.json` defines the earlier 10,001,610-row workload,
 2295 complete WikiText test cycles, with two workers and float32 tables. It is not
 the 100-million-row Linux headline or the earlier ten-million-row training-text study.
 Float32 ordered-ID writing precedes the int8 configurations. These comparisons are
 descriptive because optional ID work is an added feature, not a speed optimization.
-All v2 quality, duration and A/A noise gates still apply. At least 30 GiB must remain
+Its first float32 cell was inconclusive when the active calibration budget expired
+after nine of fifteen A/A pairs. Neither its partial observations nor its controls
+are reused for the smaller profile. Raw evidence remains retained.
+
+Both profiles require at least 30 GiB to remain
 free after the conservative planned output allocation. Admission checks each cell and
 each write group. Every repeated store is fully verified, synchronized and removed
 outside its group's timer. `*.stores.jsonl` records logical file bytes and ID payload
@@ -220,8 +233,8 @@ estimates, not observed RSS. Other profiles and stages retain their existing pla
 
 ```sh
 python benchmarks/speed.py --diagnose \
-  --development-input benchmarks/config/document-ids-local.json \
-  --cells local-wikitext-10001610-float32-ordered-ids \
+  --development-input benchmarks/config/document-ids-1m-local.json \
+  --cells local-wikitext-1002340-float32-ordered-ids \
   --base-python /external/master/bin/python --candidate-python /external/candidate/bin/python \
   --worker-name document-ids --results /external/ids-results --work /external/ids-work
 python benchmarks/quality.py --diagnose \
