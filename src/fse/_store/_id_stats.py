@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from fse._container import CorruptArtifactError
-from fse._contract import UnsupportedArtifactError
+from fse._contract import UnsupportedArtifactError, parse_id
 
 ID_KEYS = ("fse.row_ids_min", "fse.row_ids_max", "fse.row_ids_sorted")
 MODE_KEYS = ("fse.row_ids", "fse.resume")
@@ -50,6 +50,11 @@ def check_mode(metadata: dict[str, Any], file: Any) -> None:
     for key, supported in (("fse.row_ids", ("none", "int64")), ("fse.resume", ("none",))):
         value = metadata.get(key)
         if isinstance(value, str) and value not in supported:
+            if key == "fse.resume":
+                try:
+                    parse_id(value)
+                except ValueError as error:
+                    raise CorruptArtifactError(f"{file}: invalid resume identifier") from error
             raise UnsupportedArtifactError(f"{file}: unsupported {key} {value!r}")
 
 

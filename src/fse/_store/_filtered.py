@@ -19,14 +19,12 @@ def _part(tensor: np.ndarray, positions: np.ndarray) -> np.ndarray:
     return tensor[positions]
 
 
-def _tasks(shards: Any, values: np.ndarray, kind: str, queries: int, exact: bool, count: list[int]):
+def _tasks(shards: Any, values: np.ndarray, kind: str, queries: int, count: list[int]):
     size = max(1, min(65_536, (1 << 20) // min(queries, 256)))
-    if not exact:
-        size = (
-            min(size, max(1, (16 << 20) // (4 * shards[0][1]["vectors"].shape[1])))
-            if shards
-            else size
-        )
+    if shards:
+        # Bound gathers as well as BLAS decoding, including very wide exact rows.
+        width = shards[0][1]["vectors"].shape[1]
+        size = min(size, max(1, (16 << 20) // (4 * width)))
     for index, positions in _selection.blocks(shards, values, kind, size):
         shard, tensors = shards[index]
         stored = _part(tensors["vectors"], positions)
@@ -68,7 +66,7 @@ def search(
         return qb.start, (q, scores, physical[local])
 
     for result in _search._run(
-        run, _tasks(shards, values, kind, len(queries), exact, count), workers, "fse-search"
+        run, _tasks(shards, values, kind, len(queries), count), workers, "fse-search"
     ):
         candidates.add(*result)
     _log.emit(

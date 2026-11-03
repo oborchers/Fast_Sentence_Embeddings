@@ -1,0 +1,200 @@
+"""Explicit local diagnostics with shared records, paired children and directory locks."""
+
+from __future__ import annotations
+
+import json
+import os
+import platform
+import signal
+import statistics
+import subprocess
+import sys
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+from _measurement import Ledger, append, atomic, document, heartbeat, sha256
+from _measurement_setup import outside_checkout
+from _speed_diagnostic_child import observations
+
+ENTRY = Path(__file__).with_name("speed.py").resolve()
+
+
+@contextmanager
+def _lock(path, worker, purpose):
+    """Never take over a lock, even when its recorded process no longer exists."""
+    try:
+        path.mkdir()
+    except FileExistsError:
+        yield False
+        return
+    owner = {"worker": worker, "pid": os.getpid(), "purpose": purpose}
+    (path / "owner").write_text(json.dumps(owner) + "\n")
+    try:
+        yield True
+    finally:
+        if document(path / "owner") != owner:
+            raise RuntimeError("diagnostic lock owner changed; refusing to remove it")
+        (path / "owner").unlink()
+        path.rmdir()
+
+
+def _launch(args, cell, arm, round_index, order, functional):
+    tag = f"{cell['id']}-{round_index}-{order}"
+    job = {
+        **cell,
+        **arm,
+        "kind": "diagnostic",
+        "receipt": str(args.results / (tag + ".json")),
+        "work": str(args.work),
+        "functional_only": functional,
+    }
+    file = args.results / (tag + "-job.json")
+    atomic(file, job)
+    with (args.results / (tag + ".log")).open("x") as log:
+        subprocess.run(
+            [arm["python"], str(ENTRY), "--child-job", str(file)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+    receipt = document(Path(job["receipt"]))
+    receipt.update(arm=arm["name"], round=round_index, order=order)
+    if not functional and receipt["telemetry_before"]["load"][0] >= 3:
+        raise RuntimeError("load was at least 3 at the timed call; observation is invalid")
+    if not functional and cell["operation"] != "filter_memory" and receipt["seconds"] < 2:
+        raise RuntimeError("measured fse operation lasted less than two seconds")
+    return receipt
+
+
+def _pair(args, cell, round_index, ledger, functional):
+    arms = cell["arms"] if round_index % 2 == 0 else list(reversed(cell["arms"]))
+    receipts = []
+    for order, arm in enumerate(arms):
+        while not ledger.stopping:
+            with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
+                if acquired and (functional or os.getloadavg()[0] < 3):
+                    receipt = _launch(args, cell, arm, round_index, order, functional)
+                    receipts.append(receipt)
+                    append(args.results / "operations.jsonl", {"cell_id": cell["id"], **receipt})
+                    break
+            ledger.stage = "waiting_for_lock_or_load"
+            ledger.progress()
+            time.sleep(5)
+        else:
+            raise RuntimeError("diagnostic stopped before the next arm")
+    if receipts[0]["output"] != receipts[1]["output"]:
+        raise ValueError("paired outputs are not equivalent")
+    return receipts
+
+
+def _cell(args, cell, ledger, functional):
+    started = time.monotonic()
+    ledger.current, ledger.stage = cell["id"], "local_diagnostic"
+    rounds = 1 if functional else cell.get("rounds", 5)
+    if rounds < 5 and not functional:
+        raise ValueError("local diagnostics require at least five pairs")
+    if len(cell["arms"]) != 2:
+        raise ValueError("a diagnostic cell requires exactly two named arms")
+    pairs = []
+    try:
+        for round_index in range(rounds):
+            pair = _pair(args, cell, round_index, ledger, functional)
+            by_arm = {r["arm"]: r for r in pair}
+            names = [arm["name"] for arm in cell["arms"]]
+            factor = by_arm[names[1]]["seconds"] / by_arm[names[0]]["seconds"]
+            pairs.append(factor)
+        ledger.result(
+            cell,
+            started,
+            status="valid",
+            local_diagnostic=True,
+            publishable=False,
+            pairs=pairs,
+            paired_factor=statistics.median(pairs),
+            ratio_min=min(pairs),
+            ratio_max=max(pairs),
+        )
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+        ledger.result(
+            cell,
+            started,
+            status="failed",
+            local_diagnostic=True,
+            publishable=False,
+            error_type=type(error).__name__,
+            reason=str(error),
+        )
+
+
+def _resolved(args, specification):
+    context = {
+        "candidate_python": sys.executable,
+        "base_python": args.base_python,
+        "reuse_work": str(args.reuse_work) if args.reuse_work else "",
+    }
+    for cell in specification["cells"]:
+        for key in ("artifact", "input_file", "store", "ids_file"):
+            if key in cell:
+                cell[key] = cell[key].format_map(context)
+        if "input_file" in cell:
+            cell["input_sha256"] = sha256(Path(cell["input_file"]))
+        for arm in cell["arms"]:
+            arm["python"] = arm["python"].format_map(context)
+            if "ids_file" in arm:
+                arm["ids_file"] = arm["ids_file"].format_map(context)
+    return specification
+
+
+def run(args):
+    if sys.platform != "darwin":
+        raise RuntimeError("the local diagnostic mode is explicitly for macOS indications")
+    specification = document(args.input)
+    if specification.get("format") != "local-diagnostic-v1":
+        raise ValueError("local-diagnostic-v1 specification required")
+    if not args.bench_lock or not args.worker_name:
+        raise ValueError("local diagnostics require --bench-lock and --worker-name")
+    for path in (args.results, args.work):
+        outside_checkout(path)
+        path.mkdir(parents=True, exist_ok=False)
+    specification = _resolved(args, specification)
+    functional = args.diagnostic_rehearsal
+    specification.update(functional_only=functional, local_diagnostic=True, publishable=False)
+    atomic(
+        args.results / "environment.json",
+        {
+            "machine": {
+                "platform": platform.platform(),
+                "cpu": subprocess.check_output(
+                    ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
+                ).strip(),
+            },
+            "python": sys.version,
+            "contract": specification,
+            "telemetry": observations(),
+            "measurement_source_sha256": {
+                p.name: sha256(p) for p in sorted(ENTRY.parent.glob("*.py"))
+            },
+        },
+    )
+    ledger = Ledger(args.results, specification, time.time())
+    stop = threading.Event()
+    thread = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
+    thread.start()
+    previous = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM, lambda *_: setattr(ledger, "stopping", True))
+    try:
+        for cell in specification["cells"]:
+            if ledger.stopping:
+                break
+            _cell(args, cell, ledger, functional)
+    except BaseException as error:
+        append(
+            args.results / "fatal.jsonl", {"error_type": type(error).__name__, "reason": str(error)}
+        )
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+        stop.set()
+        thread.join()
+    return ledger.done()

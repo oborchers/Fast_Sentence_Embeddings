@@ -167,3 +167,48 @@ Collection rejects changed bytes, unsafe paths, symlinks and extra files. It wri
 The original pre-consolidation source is preserved byte-for-byte at [evidence commit `1e1165b`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1e1165b7a892555b201897fc91377a68f31f298f/archives/measurement-tools-before-consolidation.tar.gz), SHA256 `9c81b21dcd56b393e50292c188b9aa656a7ff4716cd569df6e7e6d4a6c6acad0`. This archive holds source, not measurement output. Historical result provenance remains in [the comparison guide](../fse-comparison.md).
 
 Primary API references: [ST process-pool API](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html), [PyTorch file-descriptor sharing](https://docs.pytorch.org/docs/2.15/multiprocessing.html#file-descriptor-file-descriptor).
+
+## Local macOS diagnostics
+
+`speed.py --diagnose` is an explicit, non-publishable local indication mode.
+It does not relax the pinned Linux production path or supply headline evidence.
+Use `--input` with a `local-diagnostic-v1` specification, `--results` and `--work`
+with fresh external directories, `--worker-name`, and the coordinator's exact
+`--bench-lock` directory. `--reuse-work` supplies existing inputs and model files.
+`--base-python` selects an independently installed base, not a source-directory
+switch inside the current interpreter.
+
+The document-ID study template is `benchmarks/config/document-ids-local.json`.
+It declares 10 million sampled WikiText sentences, two workers, five alternating
+pairs, float32/int8 writing, ID/no-ID comparisons and matching A/A controls.
+Its model and corpus revisions match the shared pins. This is not the published
+100-million-row, 16-CPU Linux study. Place prepared artifacts and the input
+provenance in `--reuse-work`; template placeholders resolve those paths and the
+base/candidate Python executables. No inputs are downloaded by the diagnostic.
+
+Each arm uses the existing `speed.py --child-job` dispatcher. It records package
+identity, output checksums, complete document-ID alignment, actual row count,
+RSS scope and load/uptime before and after the timed operation. Writing includes
+inference through sink close. Verification and external synchronization are
+outside the timer and finish before the next arm. Fresh output directories are
+owned by the child and cleaned after verification.
+
+Timing starts only with one-minute load below 3. A busy directory lock is never
+taken over. The owner file names worker, PID and purpose. A stale lock requires
+the coordinator's decision. Keep heavy builds and tests outside measurement
+windows using the separately coordinated heavy-work lock. Post-operation load
+is retained, including load caused by the measured operation; no rounds are
+silently discarded based on favorable timings.
+
+Use `--diagnostic-rehearsal` with a small local specification for functional
+probes. Such records are explicitly functional-only, with no speed claim.
+Memory/CPU profiling may use a diagnostic child job marked `profile_only`.
+Its timings are excluded from comparisons. Instrument the child itself, not
+just its controller. `filter_memory` uses tracemalloc after input allocation,
+reporting additional preparation workspace separately from caller-owned IDs.
+
+Results use `cells.jsonl`, `operations.jsonl`, `progress.json`, `manifest.json`
+and `DONE`, with `local_diagnostic=true` and `publishable=false` throughout.
+Failed cells remain failed. A completed `DONE` is not proof that every cell
+passed. SIGTERM stops admission after the current arm. Collect and verify the
+result manifest before reporting pairs. No local timing changes README claims.

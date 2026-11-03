@@ -24,12 +24,22 @@ def main():
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
+    mode.add_argument(
+        "--diagnose", action="store_true", help="non-publishable paired macOS diagnostics"
+    )
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--setup", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--rehearse", action="store_true")
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
+    parser.add_argument("--bench-lock", type=Path)
+    parser.add_argument("--worker-name")
+    parser.add_argument(
+        "--diagnostic-rehearsal",
+        action="store_true",
+        help="functional probes only, no speed evidence",
+    )
     parser.add_argument("--source-revision")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
@@ -43,6 +53,12 @@ def main():
     if args.child_job:
         measure_child(document(args.child_job))
         return 0
+    if args.diagnose:
+        from _speed_diagnostics import run as diagnose
+
+        return diagnose(args)
+    if args.diagnostic_rehearsal:
+        parser.error("--diagnostic-rehearsal requires --diagnose")
     specification = contract(args.input)
     if (
         sys.platform != "linux"

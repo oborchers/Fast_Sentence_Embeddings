@@ -1,0 +1,235 @@
+{
+  "format": "local-diagnostic-v1",
+  "local_diagnostic": true,
+  "publishable": false,
+  "description": "10M WikiText sentences on Apple M1 Pro, not the published 100M Linux headline",
+  "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+  "corpus_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+  "cells": [
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-float32-aa",
+      "dtype": "float32",
+      "control": "A/A",
+      "arms": [
+        {
+          "name": "first",
+          "python": "{candidate_python}"
+        },
+        {
+          "name": "second",
+          "python": "{candidate_python}"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-float32-ids-aa",
+      "dtype": "float32",
+      "control": "A/A",
+      "arms": [
+        {
+          "name": "first",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        },
+        {
+          "name": "second",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-float32-no-ids",
+      "dtype": "float32",
+      "arms": [
+        {
+          "name": "base",
+          "python": "{base_python}"
+        },
+        {
+          "name": "candidate",
+          "python": "{candidate_python}"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-float32-with-ids",
+      "dtype": "float32",
+      "arms": [
+        {
+          "name": "base",
+          "python": "{base_python}"
+        },
+        {
+          "name": "candidate",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-int8-aa",
+      "dtype": "int8",
+      "control": "A/A",
+      "arms": [
+        {
+          "name": "first",
+          "python": "{candidate_python}"
+        },
+        {
+          "name": "second",
+          "python": "{candidate_python}"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-int8-ids-aa",
+      "dtype": "int8",
+      "control": "A/A",
+      "arms": [
+        {
+          "name": "first",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        },
+        {
+          "name": "second",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-int8-no-ids",
+      "dtype": "int8",
+      "arms": [
+        {
+          "name": "base",
+          "python": "{base_python}"
+        },
+        {
+          "name": "candidate",
+          "python": "{candidate_python}"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-int8-with-ids",
+      "dtype": "int8",
+      "arms": [
+        {
+          "name": "base",
+          "python": "{base_python}"
+        },
+        {
+          "name": "candidate",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-ordered.npy"
+        }
+      ]
+    },
+    {
+      "operation": "write",
+      "texts": 10000000,
+      "dimensions": 256,
+      "workers": 2,
+      "rounds": 5,
+      "estimated_seconds": 600,
+      "artifact": "{reuse_work}/potion-base-8M.safetensors",
+      "input_file": "{reuse_work}/wikitext-sentences-10m.txt",
+      "durability": "none",
+      "id": "local-10m-int8-unordered-ids",
+      "dtype": "int8",
+      "arms": [
+        {
+          "name": "base",
+          "python": "{base_python}"
+        },
+        {
+          "name": "candidate",
+          "python": "{candidate_python}",
+          "doc_ids": true,
+          "ids_file": "{reuse_work}/doc-ids-10m-unordered.npy"
+        }
+      ]
+    }
+  ]
+}
