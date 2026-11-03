@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
-import subprocess
 import tempfile
 import time
 import uuid
@@ -46,12 +46,40 @@ def _claim(path, owner):
         path.mkdir()
     except FileExistsError:
         return False
-    with (path / "owner").open("x") as stream:
-        json.dump(owner, stream)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
+    created, written = path.lstat(), None
+    try:
+        with (path / "owner").open("x") as stream:
+            written = os.fstat(stream.fileno())
+            json.dump(owner, stream)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        _rollback_claim(path, created, written)
+        raise
     return True
+
+
+def _same_file(path, expected):
+    try:
+        current = path.lstat()
+    except FileNotFoundError:
+        return False
+    return (current.st_dev, current.st_ino) == (expected.st_dev, expected.st_ino)
+
+
+def _rollback_claim(path, created, written):
+    if not _same_file(path, created):
+        return
+    owner = path / "owner"
+    if written is not None and _same_file(owner, written):
+        owner.unlink()
+    if _same_file(path, created):
+        try:
+            path.rmdir()
+        except OSError as error:
+            if error.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
 
 
 @contextmanager
@@ -80,29 +108,6 @@ def coordinated(role, worker, purpose, notify, stopped=lambda: False, admitted=l
 
 
 def heavy_command(command, worker, notify):
-    require_unix()
-    if not command:
-        raise ValueError("--local-heavy requires a command after --")
-    with coordinated("heavy", worker, "build or check", notify):
-        # nice is optional on Unix. Absence is visible and does not prevent operation.
-        import shutil
+    from _development_heavy import run
 
-        nice = shutil.which("nice")
-        current = os.getpriority(os.PRIO_PROCESS, 0) if hasattr(os, "getpriority") else None
-        increment = max(0, 10 - current) if current is not None else 10
-        notify(
-            {
-                **LABEL,
-                "event": "heavy_priority",
-                "parent_nice": current,
-                "nice_increment": increment if nice else None,
-            }
-        )
-        child = subprocess.Popen([nice, "-n", str(increment), *command] if nice else command)
-        try:
-            status = child.wait()
-        except BaseException:
-            child.terminate()
-            child.wait()
-            raise
-    return status
+    return run(command, worker, notify)

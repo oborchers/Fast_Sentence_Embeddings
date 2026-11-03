@@ -5,6 +5,14 @@ from __future__ import annotations
 import math
 import statistics
 
+GATE_MINIMUMS = {"noise_multiplier": 3.0, "minimum_saving": 0.02, "confirmation_fraction": 0.5}
+
+
+def decision_enabled(cell):
+    return cell["decision_gate"] is True and all(
+        cell[name] >= minimum for name, minimum in GATE_MINIMUMS.items()
+    )
+
 
 def summary(values):
     if not values or any(
@@ -77,7 +85,7 @@ def decide(cell, aa, main, confirmation):
         "inconclusive_noise" if not quiet else ("keep" if primary and confirmed else "reject")
     )
     return {
-        "decision": decision if cell["decision_gate"] else "descriptive_only",
+        "decision": decision if decision_enabled(cell) else "descriptive_only",
         "threshold": threshold,
         "primary_passes": primary,
         "confirmation_passes": confirmed,

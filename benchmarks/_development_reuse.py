@@ -46,13 +46,13 @@ def load_control(root, cell_id, suffix, expected, functional):
         raise ValueError("reused control is absent from its final manifest")
     if "operations.jsonl" not in {row["path"] for row in files}:
         raise ValueError("reused cell operations are absent from its final manifest")
-    _cell_gap(root, cell_id)
+    last = _cell_gap(root, cell_id)
     value = document(root / name)
     if value["context"] != expected or value["functional_only"] != functional:
         raise ValueError(
             "reused control does not match the exact current cell, build, machine or runner"
         )
-    return value
+    return {**value, "last_operation_at_unix": last}
 
 
 def _verify_files(root, files):
@@ -79,3 +79,4 @@ def _cell_gap(root, cell_id):
         )
     if last is None or time.time() - last >= 900:
         raise ValueError("reused cell was idle for fifteen minutes; fresh A/A required")
+    return last

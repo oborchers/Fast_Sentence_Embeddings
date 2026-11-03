@@ -52,6 +52,9 @@ def _quiet(job, waiting):
     bench, heavy = lock_paths()
     started = time.monotonic()
     while True:
+        anchor = job.get("session_last_operation_at_unix")
+        if anchor is not None and time.time() - anchor >= 900:
+            raise TimeoutError("reused cell expired before operation; fresh A/A required")
         if time.monotonic() - started >= 900:
             raise TimeoutError(
                 "fifteen-minute operation wait interrupted the session; fresh A/A required"
@@ -76,6 +79,7 @@ def _quiet(job, waiting):
 def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
     seconds, output, repeated = repeat(operation, job["iterations"])
+    job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
     after = observations(job["work"], excluded=(os.getppid(),))
     append(

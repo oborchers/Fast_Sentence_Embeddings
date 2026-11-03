@@ -31,10 +31,11 @@ def wait_for_arm(args, ledger, cell_id):
     while True:
         if ledger.stopping:
             raise InterruptedError("stopped before next development arm")
-        _session_gap(args, cell_id)
+        _session_gap(args, cell_id, ledger)
         observed = observations(args.work)
         append(args.results / "preflights.jsonl", {**observed, "heavy_busy": busy(heavy)})
         if not busy(heavy) and observed["load"][0] < 5:
+            _session_gap(args, cell_id, ledger)
             return
         ledger.stage = "waiting_for_load_or_heavy_work"
         ledger.progress()
@@ -57,6 +58,7 @@ def arm(
     if args.diagnostic_rehearsal:
         job.update(warmup_calls=1, warmup_seconds=0)
     python = args.base_python if control or name == "base" else args.candidate_python
+    job["session_last_operation_at_unix"] = _session_gap(args, cell["id"], ledger)
     record = launch(args, job, python, tag, timed=True)
     record.update(
         phase=phase,
@@ -72,16 +74,17 @@ def arm(
     return record
 
 
-def _session_gap(args, cell_id):
+def _session_gap(args, cell_id, ledger):
     path = args.results / "operations.jsonl"
-    if not path.exists():
-        return
-    records = [json.loads(line) for line in path.read_text().splitlines()]
-    previous = [row for row in records if row["cell_id"] == cell_id]
-    if previous and time.time() - previous[-1]["completed_at_unix"] >= 900:
+    records = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    completed = [row["completed_at_unix"] for row in records if row["cell_id"] == cell_id]
+    inherited = ledger.reused_completed_at.get(cell_id)
+    last = max(completed, default=inherited)
+    if last is not None and time.time() - last >= 900:
         raise TimeoutError(
             "measurement session interrupted for fifteen minutes; fresh A/A required"
         )
+    return last
 
 
 def block(

@@ -124,8 +124,11 @@ Four fifteen-pair AB blocks at the six-second tier need at least 36 minutes per 
 
 The factor is base/candidate time. Saving is `1 - 1 / median(paired factors)`.
 Keep requires saving at least `max(3 * same-cell A/A IQR, 0.02)` and an independent
-confirmation with positive saving and at least half the main effect. Maximum factor
-and maximum distance from one remain descriptive. Required cells cannot offset one
+confirmation with positive saving and at least half the main effect.
+Active decision gates cannot lower the noise multiplier below three, minimum saving
+below two percent or confirmation fraction below one half. Weaker configurations
+require `decision_gate: false` and produce descriptive results only.
+Maximum factor and maximum distance from one remain descriptive. Required cells cannot offset one
 another. `--local-phase` selects `prepare`, `calibrate`, `aa`, `screen`, `compare` or
 `confirm`; the default `compare` includes controls and confirmation. A screen cannot
 yield a final keep decision. Separate confirmation requires `--comparison-results`.
@@ -150,11 +153,17 @@ published benchmark values. Quality and stage-specific correctness precede speed
 Defaults share a user-specific temporary directory. Each acquisition checks the peer
 before and after mkdir. Never take over an existing owner, even if its PID disappeared.
 Timing holds bench.lock for a complete cell and rechecks heavy.lock before each arm.
+Reused cells carry their last completed operation into the next run. The first wait
+and the measurement child recheck that age before beginning work.
 Builds and checks use the same reverse exclusion:
 
 ```sh
 python benchmarks/speed.py --local-heavy --worker-name feature-owner -- make check PYTEST_N=4
 ```
+
+The heavy wrapper forwards SIGINT/SIGTERM to its own job process group. It keeps
+heavy.lock until the leader and its descendants have ended. A failed owner-file
+write rolls back only the lock directory and file created by that acquisition.
 
 Timing waits for `os.getloadavg()[0] < 5` before each cell, arm and measured call.
 Foreign processes above fifty percent CPU are telemetry only; process arguments are

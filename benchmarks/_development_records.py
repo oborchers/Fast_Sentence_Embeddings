@@ -16,6 +16,10 @@ from _measurement_setup import outside_checkout
 class LocalLedger(Ledger):
     """Keep every terminal/progress artifact explicitly separate from publication."""
 
+    def __init__(self, root, contract, allocated_at):
+        super().__init__(root, contract, allocated_at)
+        self.reused_completed_at = {}
+
     def progress(self, terminal=False):
         with self.lock:
             remaining = [

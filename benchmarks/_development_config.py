@@ -7,6 +7,7 @@ import math
 import re
 from pathlib import Path
 
+from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
 from _measurement import document
 from _measurement_config import CONFIG, MODEL_PINS
@@ -92,6 +93,11 @@ def validate_cell(raw, defaults):
 
 
 def _bounds(cell):
+    if cell["decision_gate"] and not decision_enabled(cell):
+        raise ValueError(
+            "decision gates require noise_multiplier >= 3, minimum_saving >= 0.02 "
+            "and confirmation_fraction >= 0.5; use decision_gate=false for weaker descriptive cells"
+        )
     if cell["stage"] in ("tokenizer", "pooling") and cell["workers"] != 1:
         raise ValueError("isolated tokenizer and pooling calls require one worker")
     if cell["pairs"] < 3 or cell["minimum_seconds"] < 2:

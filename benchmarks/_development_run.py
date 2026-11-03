@@ -11,7 +11,7 @@ from _development_locks import coordinated
 from _development_pairs import block
 from _development_records import record_result, session
 from _development_reuse import context, load_control
-from _development_statistics import decide
+from _development_statistics import decide, decision_enabled
 from _development_system import LABEL, observations
 from _measurement import append, atomic
 from _quality.development import quality_gate
@@ -41,9 +41,12 @@ def _control(args, cell, prepared, ledger, quality, stamp, owner):
         previous = load_control(
             args.comparison_results, cell["id"], "comparison", stamp, args.diagnostic_rehearsal
         )
+        ledger.reused_completed_at[cell["id"]] = previous["last_operation_at_unix"]
         return previous["control"]
     if args.aa_results:
-        return load_control(args.aa_results, cell["id"], "aa", stamp, args.diagnostic_rehearsal)
+        previous = load_control(args.aa_results, cell["id"], "aa", stamp, args.diagnostic_rehearsal)
+        ledger.reused_completed_at[cell["id"]] = previous["last_operation_at_unix"]
+        return previous
     control = calibrate(args, cell, prepared, ledger, owner, quality["identities"])
     control.update(context=stamp, functional_only=args.diagnostic_rehearsal)
     atomic(args.results / (cell["id"] + "-aa.json"), control)
@@ -76,6 +79,8 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             raise ValueError("screen output differs from its A/A control")
         if args.diagnostic_rehearsal:
             return dict(status="valid", decision="functional_only", comparison=main)
+        if not decision_enabled(cell):
+            return dict(status="valid", decision="descriptive_only", comparison=main)
         threshold = max(
             cell["noise_multiplier"] * control["aa"]["factor"]["iqr"], cell["minimum_saving"]
         )
