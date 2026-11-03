@@ -44,6 +44,50 @@ Record the runner revision separately from each executing package's version, pat
 Rust also needs source, Cargo lock, compiler, binary hash and actual Rayon thread count.
 An fse fingerprint cannot identify a counterpart's installed code.
 
+### Local Unix development
+
+Use the same entries with `--diagnose`, explicit `--base-python` and `--candidate-python`,
+an external `--results` and `--work`, and selected `--cells`. `speed.py --local-info`
+shows the local contract without optional evaluation packages. Windows is refused.
+Local results on macOS, Linux and other Unix systems always say `publishable: false`.
+They never replace the Linux publication protocol or justify publishing Mac speeds.
+
+The default uses six-second calls, at least two warmups totaling twelve seconds,
+and fifteen alternating pairs per block. A/A adapts through six/twelve/twenty-four
+seconds until its same-cell IQR is below two percent, with an independent control
+block and a sixty-active-minute calibration limit. An unresolved cell is inconclusive.
+Keep requires saving at least `max(3 * A/A IQR, 0.02)` and a confirmation with the
+same positive sign and at least half the effect. Maximum deviation is reported only.
+All raw observations remain. Use ABBA explicitly in a cell when appropriate.
+
+`FSE_BENCH_LOCK` and `FSE_HEAVY_LOCK` configure mutually exclusive mkdir locks.
+Use `speed.py --local-heavy --worker-name NAME -- COMMAND ...` for builds/checks.
+Timing waits for one-minute load below five before each cell and arm. Foreign CPU
+above fifty percent is telemetry only. macOS clears child background policy when
+available; Unix priority, Linux affinity and governor observations are capability-based.
+
+For a Linux functional probe, build the pinned development image:
+
+```sh
+docker build -f benchmarks/docker/Dockerfile -t fse-development .
+docker run --rm --cpus 2 --memory 4g \
+  --mount type=bind,src="$PWD",dst=/source,readonly \
+  --mount type=bind,src=/external/results,dst=/results \
+  --mount type=bind,src=/external/work,dst=/work \
+  --mount type=bind,src=/external/cache,dst=/cache \
+  --mount type=bind,src=/external/coordination,dst=/coordination \
+  fse-development /source/benchmarks/speed.py --local-info
+```
+
+Create those external directories first. The image builds the extension with
+CPython 3.13.16 and uv 0.13.0, with no baked models/data and no registry push.
+Rebuild it from the same checkout after product changes. Its explicit development
+version does not identify a Git commit; package/source hashes identify actual code.
+Use `--diagnostic-rehearsal` for tiny functional stage probes. Run Docker preparation
+under heavy coordination and keep Docker off during native host timing sessions.
+See the [local protocol](../../../docs/benchmarks/measurement.md#local-unix-development)
+for phases, complete quality checks, resource limits and result reuse.
+
 ## 3. Prove correctness and resource feasibility
 
 Load each side through its native API. Match input, truncation, normalization, shape and dtype.

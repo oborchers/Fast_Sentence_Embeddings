@@ -13,7 +13,7 @@ from _development_system import LABEL
 from _measurement import append, atomic
 
 
-class CalibrationLimit(TimeoutError):
+class CalibrationLimitError(TimeoutError):
     """The workload cannot establish the requested noise/duration within its limits."""
 
 
@@ -31,7 +31,7 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
     attempt = 0
     while True:
         if remaining() <= 0:
-            raise CalibrationLimit("active calibration budget exhausted during sizing")
+            raise CalibrationLimitError("active calibration budget exhausted during sizing")
         plan = admission(cell, prepared, count, args.work, args.memory_limit_bytes)
         append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": step, **plan})
         if not plan["admitted"]:
@@ -113,7 +113,7 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
         args.results / (cell["id"] + "-calibration.json"),
         {**LABEL, "attempts": attempts, "status": "inconclusive_noise"},
     )
-    raise CalibrationLimit(
+    raise CalibrationLimitError(
         "A/A IQR target not established within duration, step or active-time bounds"
     )
 
