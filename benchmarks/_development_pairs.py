@@ -26,11 +26,12 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
     }
 
 
-def wait_for_arm(args, ledger):
+def wait_for_arm(args, ledger, cell_id):
     _, heavy = lock_paths()
     while True:
         if ledger.stopping:
             raise InterruptedError("stopped before next development arm")
+        _session_gap(args, cell_id)
         observed = observations(args.work)
         append(args.results / "preflights.jsonl", {**observed, "heavy_busy": busy(heavy)})
         if not busy(heavy) and observed["load"][0] < 5:
@@ -43,7 +44,7 @@ def wait_for_arm(args, ledger):
 def arm(
     args, cell, prepared, ledger, count, owner, phase, pair, position, name, control, batch=None
 ):
-    wait_for_arm(args, ledger)
+    wait_for_arm(args, ledger, cell["id"])
     tag = f"{cell['id']}-{phase}-{pair}-{position}"
     job = job_for(cell, prepared, count, tag, owner, batch)
     job["cpu_affinity"] = args.cpu_affinity
@@ -51,9 +52,28 @@ def arm(
         job.update(warmup_calls=1, warmup_seconds=0)
     python = args.base_python if control or name == "base" else args.candidate_python
     record = launch(args, job, python, tag, timed=True)
-    record.update(phase=phase, pair=pair, position=position, arm=name, texts=count)
+    record.update(
+        phase=phase,
+        pair=pair,
+        position=position,
+        arm=name,
+        texts=count,
+        completed_at_unix=time.time(),
+    )
     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     return record
+
+
+def _session_gap(args, cell_id):
+    path = args.results / "operations.jsonl"
+    if not path.exists():
+        return
+    records = [json.loads(line) for line in path.read_text().splitlines()]
+    previous = [row for row in records if row["cell_id"] == cell_id]
+    if previous and time.time() - previous[-1]["completed_at_unix"] >= 900:
+        raise TimeoutError(
+            "measurement session interrupted for fifteen minutes; fresh A/A required"
+        )
 
 
 def block(

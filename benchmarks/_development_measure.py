@@ -15,7 +15,7 @@ from _development_encode import operation as encode_operation
 from _development_encode import output_identity
 from _development_locks import busy, lock_paths
 from _development_stages import inputs, pooling, tokenizer
-from _development_system import observations
+from _development_system import LABEL, observations
 from _measurement import append
 
 
@@ -59,16 +59,30 @@ def _quiet(job, waiting):
         time.sleep(1)
 
 
-def _call(operation):
+def _call(operation, job, phase, number, waiting):
+    before = _quiet(job, waiting)
     start = time.perf_counter()
     output = operation()
     elapsed = time.perf_counter() - start
     seconds = output["seconds"] if isinstance(output, dict) else elapsed
     including_open = output.get("including_open_seconds") if isinstance(output, dict) else None
+    after = observations(job["work"], excluded=(os.getppid(),))
+    append(
+        Path(job["receipt"]).with_suffix(".calls.jsonl"),
+        {
+            **LABEL,
+            "phase": phase,
+            "number": number,
+            "seconds": seconds,
+            "including_open_seconds": including_open,
+            "telemetry_before": before,
+            "telemetry_after": after,
+        },
+    )
     proof = output_identity(output)
     del output
     gc.collect()
-    return seconds, proof, including_open
+    return seconds, proof, including_open, before, after
 
 
 def measure(job):
@@ -87,16 +101,13 @@ def measure(job):
     operation = factories[job["stage"]]()
     warmups, warm_seconds, expected = [], 0.0, None
     while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
-        _quiet(job, waiting)
-        seconds, proof, _ = _call(operation)
+        seconds, proof, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
         if expected is not None and proof != expected:
             raise ValueError("warmup output changed")
         expected = proof
         warmups.append(seconds)
         warm_seconds += seconds
-    before = _quiet(job, waiting)
-    seconds, proof, including_open = _call(operation)
-    after = observations(job["work"], excluded=(os.getppid(),))
+    seconds, proof, including_open, before, after = _call(operation, job, "measured", 0, waiting)
     if proof != expected:
         raise ValueError("measured output differs from warmup")
     if job["stage"] == "encode-sink":

@@ -137,6 +137,10 @@ def run(args):
                 break
             ledger.current, ledger.stage = cell["id"], "full_output_quality_gate"
             started = time.monotonic()
-            result = quality_gate(args, cell, prepared, ledger, cell["id"] + "-quality")
+            try:
+                result = quality_gate(args, cell, prepared, ledger, cell["id"] + "-quality")
+            except Exception as error:
+                record_result(ledger, cell, started, status="failed", reason=repr(error))
+                break
             record_result(ledger, cell, started, status="valid", quality=result)
     return ledger.done()

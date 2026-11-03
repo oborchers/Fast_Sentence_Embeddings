@@ -79,25 +79,21 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
         )
         attempt = dict(target_seconds=target, texts=count, tuning=tuning)
         attempts.append(attempt)
-        if tuning["factor"]["iqr"] < cell["target_aa_iqr"] or args.diagnostic_rehearsal:
-            if remaining() <= 0:
-                break
-            validation = block(
-                args,
-                current,
-                prepared,
-                ledger,
-                count,
-                owner,
-                f"aa-validate-{step}",
-                identities,
-                control=True,
-                batch=batch,
-                budget=remaining,
-            )
+        validation = _validation(
+            args,
+            current,
+            prepared,
+            ledger,
+            count,
+            owner,
+            step,
+            identities,
+            batch,
+            remaining,
+            tuning,
+        )
+        if validation is not None:
             attempt["validation"] = validation
-            if tuning["output"] != validation["output"]:
-                raise ValueError("A/A validation output differs from tuning")
             if validation["factor"]["iqr"] < cell["target_aa_iqr"] or args.diagnostic_rehearsal:
                 result = {
                     **LABEL,
@@ -118,6 +114,31 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
     raise CalibrationLimitError(
         "A/A IQR target not established within duration, step or active-time bounds"
     )
+
+
+def _validation(
+    args, cell, prepared, ledger, count, owner, step, identities, batch, remaining, tuning
+):
+    if not args.diagnostic_rehearsal and tuning["factor"]["iqr"] >= cell["target_aa_iqr"]:
+        return None
+    if remaining() <= 0:
+        raise CalibrationLimitError("active calibration budget exhausted before validation")
+    validation = block(
+        args,
+        cell,
+        prepared,
+        ledger,
+        count,
+        owner,
+        f"aa-validate-{step}",
+        identities,
+        control=True,
+        batch=batch,
+        budget=remaining,
+    )
+    if tuning["output"] != validation["output"]:
+        raise ValueError("A/A validation output differs from tuning")
+    return validation
 
 
 def _active_seconds(args, cell_id):
