@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- From the next release, macOS Intel (x86_64) wheels are no longer built, tested or published. macOS wheels target Apple Silicon (arm64) only. Source distributions remain available, but builds on Intel Macs are unverified and no longer tested in CI. Existing 2.0.0 wheels remain available.
+
 - Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
 
 ## [2.0.0] - 2026-11-02
