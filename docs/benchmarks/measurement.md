@@ -102,17 +102,17 @@ external cache first; missing artifacts download to the owned external work cach
 
 Defaults are six-second groups, at least two full warmups totaling twelve seconds and
 fifteen pairs per block. AB/BA alternates; a cell can explicitly select ABBA. Its factor
-is the sum of A times divided by the sum of B times. Every measured call meets the
+is the sum of A times divided by the sum of B times. Every measured group meets the
 frozen group duration floor. It is a continuous interval, not a sum of separately
-timed snippets. `--diagnostic-rehearsal` labels
-small functional probes and disables timing decisions, not correctness checks.
+timed snippets. `--diagnostic-rehearsal` labels small functional probes and disables
+timing decisions, not correctness checks.
 
 Calibration sizes a common iteration count with reserve on both builds, keeping the
 resident corpus fixed. This follows the calibrated loop pattern described by
 [pyperf](https://pyperf.readthedocs.io/en/latest/runner.html#loop-iterations).
-Sizing probes may be shorter, use two preliminary iterations without the twelve-second
-warmup requirement and explicitly have
-`valid_for_comparison: false`; they never enter paired decision summaries. It measures
+Sizing probes may be shorter, use two preliminary groups without the twelve-second
+warmup requirement and explicitly have `valid_for_comparison: false`.
+They never enter paired decision summaries. Calibration measures
 A/A at targets six, twelve and twenty-four seconds, seeking a ratio IQR below 0.02.
 The first suitable tier needs an independent A/A validation block. Limits are three
 tiers, twenty-four seconds target and sixty active calibration minutes per cell.
