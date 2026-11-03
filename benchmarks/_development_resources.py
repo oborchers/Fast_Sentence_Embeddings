@@ -43,6 +43,5 @@ def admission(cell, prepared, count, work, requested_limit=None):
         "safety_fraction": 0.85,
         "required_disk_bytes": disk,
         "available_disk_bytes": free_disk,
-        "admitted": sum(components.values()) <= limit * 0.85
-        and free_disk >= disk,
+        "admitted": sum(components.values()) <= limit * 0.85 and free_disk >= disk,
     }
