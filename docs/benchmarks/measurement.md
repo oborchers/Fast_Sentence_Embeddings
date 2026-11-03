@@ -232,6 +232,11 @@ windows using the separately coordinated heavy-work lock. Post-operation load
 is retained, including load caused by the measured operation; no rounds are
 silently discarded based on favorable timings.
 
+If warmup or cleanup raises the load, the child waits outside the timer until
+the same admission limit is met again. It records these observations in an
+admission ledger. It does not discard a pair or relax the limit. A nonzero
+measurement nice level remains an error with the observed value reported.
+
 The benchmark lock covers one complete cell, including its alternating pairs,
 verification and synchronization. It is released before the next cell. When
 workers share a Mac, run one-cell specifications and hand the lock to the other

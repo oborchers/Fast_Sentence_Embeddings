@@ -14,7 +14,7 @@ import tracemalloc
 from pathlib import Path
 
 from _local_resources import MAX_LOAD, foreign_cpu
-from _measurement import atomic, package_identity, sha256
+from _measurement import append, atomic, package_identity, sha256
 from _speed_cells import configure
 
 
@@ -31,18 +31,21 @@ def observations():
     }
 
 
-def _quiet(job):
+def _quiet(job, stage="before_operation"):
     observation = observations()
-    if (
-        not job.get("functional_only")
-        and not job.get("profile_only")
-        and (observation["load"][0] >= MAX_LOAD or observation["nice"] != 0)
-    ):
-        raise RuntimeError(
-            f"local timing requires one-minute load below {MAX_LOAD} "
-            "and measurement children at nice 0"
+    if job.get("functional_only") or job.get("profile_only"):
+        return observation
+    while True:
+        if observation["nice"] != 0:
+            raise RuntimeError(f"local timing requires nice 0, observed {observation['nice']}")
+        if observation["load"][0] < MAX_LOAD:
+            return observation
+        append(
+            Path(job["receipt"]).with_suffix(".admission.jsonl"),
+            {"stage": stage, "waiting_for_load_below": MAX_LOAD, "telemetry": observation},
         )
-    return observation
+        time.sleep(5)
+        observation = observations()
 
 
 def _ids(job):
@@ -132,13 +135,13 @@ def writing(job):
     ids = _ids(job)
     with tempfile.TemporaryDirectory(prefix="diagnostic-", dir=job["work"]) as directory:
         root = Path(directory)
-        _quiet(job)
+        _quiet(job, "before_warmup")
         _write(job, model, root / "warm", ids)
         warm = _verified(root / "warm", ids)
         _sync(root / "warm")
         shutil.rmtree(root / "warm")
         gc.collect()
-        before = _quiet(job)
+        before = _quiet(job, "after_warmup_before_timing")
         seconds = _write(job, model, root / "measured", ids)
         after = observations()
         result = _verified(root / "measured", ids)
