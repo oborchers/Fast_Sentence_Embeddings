@@ -220,7 +220,7 @@ inference through sink close. Verification and external synchronization are
 outside the timer and finish before the next arm. Fresh output directories are
 owned by the child and cleaned after verification.
 
-Timing starts only with one-minute load below 4, and measurement children run at
+Timing starts only with one-minute load below 5, and measurement children run at
 nice 0. Foreign processes above 50 percent CPU are recorded as telemetry; they
 do not block admission. The process observation excludes the diagnostic process and
 its descendants. It retains executable names, PIDs and CPU percentages, never

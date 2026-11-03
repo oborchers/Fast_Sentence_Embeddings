@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 
-MAX_LOAD = 4
+MAX_LOAD = 5
 MAX_FOREIGN_CPU = 50
 
 
