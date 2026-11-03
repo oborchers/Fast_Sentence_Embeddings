@@ -14,6 +14,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from _local_resources import MAX_LOAD
 from _measurement import Ledger, append, atomic, document, heartbeat, sha256
 from _measurement_setup import outside_checkout
 from _speed_diagnostic_child import observations
@@ -61,8 +62,11 @@ def _launch(args, cell, arm, round_index, order, functional):
         )
     receipt = document(Path(job["receipt"]))
     receipt.update(arm=arm["name"], round=round_index, order=order)
-    if not functional and receipt["telemetry_before"]["load"][0] >= 3:
-        raise RuntimeError("load was at least 3 at the timed call; observation is invalid")
+    if not functional and (
+        receipt["telemetry_before"]["load"][0] >= MAX_LOAD
+        or receipt["telemetry_before"]["foreign_cpu_over_50"]
+    ):
+        raise RuntimeError("timed call violated local load or foreign-process admission")
     if not functional and cell["operation"] != "filter_memory" and receipt["seconds"] < 2:
         raise RuntimeError("measured fse operation lasted less than two seconds")
     return receipt
@@ -74,12 +78,12 @@ def _pair(args, cell, round_index, ledger, functional):
     for order, arm in enumerate(arms):
         while not ledger.stopping:
             with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
-                if acquired and (functional or os.getloadavg()[0] < 3):
+                if acquired and _admitted(args, cell, round_index, order, functional):
                     receipt = _launch(args, cell, arm, round_index, order, functional)
                     receipts.append(receipt)
                     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **receipt})
                     break
-            ledger.stage = "waiting_for_lock_or_load"
+            ledger.stage = "waiting_for_lock_load_or_foreign_cpu"
             ledger.progress()
             time.sleep(5)
         else:
@@ -87,6 +91,24 @@ def _pair(args, cell, round_index, ledger, functional):
     if receipts[0]["output"] != receipts[1]["output"]:
         raise ValueError("paired outputs are not equivalent")
     return receipts
+
+
+def _admitted(args, cell, round_index, order, functional):
+    observation = observations()
+    append(
+        args.results / "preflights.jsonl",
+        {
+            "cell_id": cell["id"],
+            "round": round_index,
+            "order": order,
+            "load_limit_exclusive": MAX_LOAD,
+            "foreign_cpu_limit_percent": 50,
+            "telemetry": observation,
+        },
+    )
+    return functional or (
+        observation["load"][0] < MAX_LOAD and not observation["foreign_cpu_over_50"]
+    )
 
 
 def _cell(args, cell, ledger, functional):

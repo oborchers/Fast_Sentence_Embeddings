@@ -220,7 +220,11 @@ inference through sink close. Verification and external synchronization are
 outside the timer and finish before the next arm. Fresh output directories are
 owned by the child and cleaned after verification.
 
-Timing starts only with one-minute load below 3. A busy directory lock is never
+Timing starts only with one-minute load below 4 and no foreign process above
+50 percent CPU. The process check excludes the executing diagnostic process and
+its descendants. It retains executable names, PIDs and CPU percentages, never
+command arguments. Each cell and arm records this admission check. The child
+checks it again before warmup and the timed call. A busy directory lock is never
 taken over. The owner file names worker, PID and purpose. A stale lock requires
 the coordinator's decision. Keep heavy builds and tests outside measurement
 windows using the separately coordinated heavy-work lock. Post-operation load

@@ -13,6 +13,7 @@ import time
 import tracemalloc
 from pathlib import Path
 
+from _local_resources import MAX_LOAD, foreign_cpu
 from _measurement import atomic, package_identity, sha256
 from _speed_cells import configure
 
@@ -22,6 +23,7 @@ def observations():
     return {
         "unix": time.time(),
         "load": list(os.getloadavg()),
+        "foreign_cpu_over_50": foreign_cpu(),
         "uptime": subprocess.check_output(["uptime"], text=True).strip(),
         "disk": shutil.disk_usage(Path.cwd())._asdict(),
         "usage": list(resource.getrusage(resource.RUSAGE_SELF)),
@@ -33,9 +35,12 @@ def _quiet(job):
     if (
         not job.get("functional_only")
         and not job.get("profile_only")
-        and observation["load"][0] >= 3
+        and (observation["load"][0] >= MAX_LOAD or observation["foreign_cpu_over_50"])
     ):
-        raise RuntimeError("local timing requires one-minute load below 3")
+        raise RuntimeError(
+            f"local timing requires one-minute load below {MAX_LOAD} "
+            "and no foreign process above 50 percent CPU"
+        )
     return observation
 
 
