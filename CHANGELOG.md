@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Limit macOS tests on pull requests and release tags to Python 3.13, alongside arm64 wheel builds. Master pushes retain the full Python 3.11 to 3.15 macOS matrix and sentence-transformers comparison. Release publication now requires successful full master CI for the exact tagged commit, verified through the GitHub API.
+
+- From the next release, macOS Intel (x86_64) wheels are no longer built, tested or published. macOS wheels target Apple Silicon (arm64) only. Source distributions remain available, but builds on Intel Macs are unverified and no longer tested in CI. Existing 2.0.0 wheels remain available.
+
 - Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
 
 ## [2.0.0] - 2026-11-02
