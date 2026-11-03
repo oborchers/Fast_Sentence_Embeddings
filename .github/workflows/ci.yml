@@ -30,7 +30,8 @@ jobs:
   # check still runs and passes. Otherwise lint always runs, and test runs on Linux with
   # Python 3.13 (the newest version where every test runs; gensim does not build on 3.14
   # and newer). The rest depends on the files changed, see the outputs below. Pushes to
-  # master and tags use one macOS test interpreter; monthly and manual runs use all.
+  # master uses all macOS test interpreters; PRs and release tags use one.
+  # Monthly and manual runs use the full matrix.
   # A change of the workflows themselves turns every output on.
   changes:
     runs-on: ubuntu-latest
@@ -56,14 +57,15 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
+          REF: ${{ github.ref }}
         run: |
           full=$(jq -nc '[{os: "ubuntu-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "ubuntu-latest", "python-version": "3.11", deps: "min"}]')
-          # Pushes (master and release tags) need only one macOS test runner.
+          # Release tags need only one macOS test runner.
           # 3.13 is the newest Python where the optional gensim tests also run.
-          if [ "$EVENT" = "push" ]; then
+          if [ "$EVENT" = "push" ] && [[ "$REF" == refs/tags/v* ]]; then
             full=$(echo "$full" | jq -c '[.[] | select(.os != "macos-latest" or .["python-version"] == "3.13")]')
           fi
-          st=$(jq -nc --arg event "$EVENT" '[{os: "ubuntu-latest", "python-version": ("3.11", "3.15")}] + (if $event == "push" then [] else [{os: "macos-latest", "python-version": "3.13"}] end)')
+          st=$(jq -nc --arg event "$EVENT" --arg ref "$REF" '[{os: "ubuntu-latest", "python-version": ("3.11", "3.15")}] + (if $event == "pull_request" or ($event == "push" and ($ref | startswith("refs/tags/v"))) then [] else [{os: "macos-latest", "python-version": "3.13"}] end)')
           echo "st_matrix={\"include\":$st}" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" != "pull_request" ]; then
             {
@@ -117,8 +119,8 @@ jobs:
             flag st '^src/fse/_encoder/_sentence_transformers|^tests/test_encoder_sentence_transformers|^tests/support/(sentence_transformers|converted)\.py$|^(pyproject\.toml|uv\.lock)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
-          # Linux on 3.13, the full macOS matrix for native changes, and minimum dependencies.
-          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
+          # Linux on 3.13, macOS on 3.13 for native changes, and minimum dependencies.
+          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
           echo "test_matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   lint:
@@ -200,7 +202,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      # macOS comparisons run on PRs, scheduled and manual runs, not on pushes.
+      # macOS comparisons run on master, scheduled and manual runs, not PRs or tags.
       matrix: ${{ fromJSON(needs.changes.outputs.st_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -361,9 +363,29 @@ jobs:
     environment: release
     permissions:
       contents: read
+      actions: read
       id-token: write
       attestations: write
     steps:
+      - name: Require successful full master CI for this release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          gh api --method GET "repos/$GH_REPO/actions/workflows/ci.yml/runs" \
+            -f branch=master -f event=push -f head_sha="$RELEASE_SHA" -f per_page=100 \
+            --paginate --slurp > "$RUNNER_TEMP/master-ci.json"
+          # Select the newest run, including its current rerun attempt. An older
+          # success must not hide a newer failed, cancelled or unfinished run.
+          run=$(jq -c --arg sha "$RELEASE_SHA" '[.[].workflow_runs[] |
+            select(.head_sha == $sha and .head_branch == "master" and .event == "push")] |
+            max_by(.id)' "$RUNNER_TEMP/master-ci.json")
+          if ! jq -e '.status == "completed" and .conclusion == "success"' <<< "$run" > /dev/null; then
+            echo "::error::Release requires successful full master CI for commit $RELEASE_SHA. Latest matching run: $run"
+            exit 1
+          fi
+          echo "Verified full master CI: $(jq -r '.html_url' <<< "$run")"
       - name: Download sdist and wheels
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:

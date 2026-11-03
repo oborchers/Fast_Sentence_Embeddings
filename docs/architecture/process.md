@@ -151,15 +151,22 @@ The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one 
 
 ## Test scheduling and release checks
 
-Pushes to master and release tags run one macOS test job on CPython 3.13,
-plus the macOS arm64 wheel job. Python 3.13 is the newest interpreter where
-the optional gensim tests also run. The separate sentence-transformers jobs
-run on Linux for these events. This limits dependence on scarce macOS runners.
+Pull requests that trigger native tests and release tags run one macOS test
+job on CPython 3.13, plus the macOS arm64 wheel job when selected.
+Python 3.13 is the newest interpreter where the optional gensim tests also run.
+The separate sentence-transformers jobs run on Linux for PRs and tags.
 
-Pull requests that trigger native tests run the full macOS test matrix
-(CPython 3.11 to 3.15). The macOS sentence-transformers comparison still runs
-when its path filter matches. Scheduled and manual runs retain both the full
-macOS test matrix and that comparison. Documentation-only PRs still skip tests.
+Pushes to master run the full macOS test matrix (CPython 3.11 to 3.15),
+including the macOS sentence-transformers comparison. Scheduled and manual
+runs also retain this full matrix. Documentation-only PRs still skip tests.
+This keeps PR and release runner demand low while master verifies every version.
+
+Create a release tag only on a commit whose full master CI has already passed.
+Before downloading or publishing artifacts, the release job queries the GitHub
+Actions API for push runs of `ci.yml` on master with the exact release commit SHA.
+The newest matching run must be completed and successful. A missing, running,
+failed or cancelled run blocks publication with an explicit error.
+The gate does not accept PR, manual, scheduled or tag runs as substitutes.
 
 The required branch check is `check`. It aggregates `changes`, `lint`, `test`,
 `test-st`, `coverage`, `sdist` and `wheels` through alls-green. Only PRs allow
