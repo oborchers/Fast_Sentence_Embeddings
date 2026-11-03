@@ -40,12 +40,7 @@ def load_control(root, cell_id, suffix, expected, functional):
             "measurement session interrupted for at least fifteen minutes; new A/A required"
         )
     files = document(manifest)["files"]
-    for row in files:
-        path = root / row["path"]
-        if not path.resolve().is_relative_to(root) or path.is_symlink():
-            raise ValueError("unsafe reused development result path")
-        if path.stat().st_size != row["bytes"] or sha256(path) != row["sha256"]:
-            raise ValueError("reused development result bytes changed")
+    _verify_files(root, files)
     name = cell_id + "-" + suffix + ".json"
     if name not in {row["path"] for row in files}:
         raise ValueError("reused control is absent from its final manifest")
@@ -58,6 +53,15 @@ def load_control(root, cell_id, suffix, expected, functional):
             "reused control does not match the exact current cell, build, machine or runner"
         )
     return value
+
+
+def _verify_files(root, files):
+    for row in files:
+        path = root / row["path"]
+        if not path.resolve().is_relative_to(root) or path.is_symlink():
+            raise ValueError("unsafe reused development result path")
+        if path.stat().st_size != row["bytes"] or sha256(path) != row["sha256"]:
+            raise ValueError("reused development result bytes changed")
 
 
 def _cell_gap(root, cell_id):
