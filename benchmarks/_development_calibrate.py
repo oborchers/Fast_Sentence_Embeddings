@@ -38,13 +38,7 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
             raise MemoryError("whole-call workload exceeds declared RAM or disk admission")
         phase = f"size-{step}-{attempt}"
         batch = _batch(args, cell, prepared, count, owner, cell["id"] + "-" + phase + "-batch")
-        rows = []
-        for i, name in enumerate(("base", "candidate")):
-            if remaining() <= 0:
-                raise CalibrationLimitError("active calibration budget exhausted before sizing arm")
-            rows.append(
-                arm(args, cell, prepared, ledger, count, owner, phase, 0, i, name, False, batch)
-            )
+        rows = _sizing_rows(args, cell, prepared, ledger, count, owner, phase, batch, remaining)
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete calibration outputs differ between builds")
         fastest = min(row["seconds"] for row in rows)
@@ -52,6 +46,17 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
             return count, batch
         count = cycle * max(count // cycle + 1, math.ceil(count * target * 1.25 / fastest / cycle))
         attempt += 1
+
+
+def _sizing_rows(args, cell, prepared, ledger, count, owner, phase, batch, remaining):
+    rows = []
+    for i, name in enumerate(("base", "candidate")):
+        if remaining() <= 0:
+            raise CalibrationLimitError("active calibration budget exhausted before sizing arm")
+        rows.append(
+            arm(args, cell, prepared, ledger, count, owner, phase, 0, i, name, False, batch)
+        )
+    return rows
 
 
 def calibrate(args, cell, prepared, ledger, owner, identities):
