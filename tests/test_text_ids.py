@@ -64,6 +64,25 @@ def test_stream_failure_releases_only_owned_arrays():
     assert producer.releases.count("stream") == 1
 
 
+def test_release_during_block_allocation_is_refused(monkeypatch):
+    from fse import _native
+
+    producer = Producer()
+    array = producer.array([None, np.array([1, 2], dtype="int64")], 2)
+    ids = _native.ArrowIds.from_array(*producer.array_capsules(producer.schema(b"l"), array))
+    real = np.empty
+
+    def allocate(*args, **kwargs):
+        with pytest.raises(RuntimeError, match="being read"):
+            ids.release()
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(np, "empty", allocate)
+    assert list(ids.block(0, 2)) == [1, 2]
+    ids.release()
+    assert producer.releases.count("array") == 1
+
+
 @pytest.mark.parametrize(
     "change",
     [

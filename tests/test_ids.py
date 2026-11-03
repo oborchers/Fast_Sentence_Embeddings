@@ -33,3 +33,9 @@ def test_full_domain_and_owned_snapshots():
     assert not copy.flags.writeable
     with pytest.raises(ValueError, match="required"):
         id_block(values, 0, 5)
+
+
+def test_masked_arrays_are_not_silently_filled():
+    values = np.ma.array([1, 2], mask=[False, True], dtype="int64")
+    with pytest.raises(TypeError, match="int64 array"):
+        checked_ids(values)

@@ -12,6 +12,7 @@ cdef class ArrowIds:
     cdef Py_ssize_t _n
     cdef readonly int64_t rows
     cdef bint _released
+    cdef int _readers
 
     def __dealloc__(self):
         self._free()
@@ -30,6 +31,8 @@ cdef class ArrowIds:
         free(arrays)
 
     def release(self):
+        if self._readers:
+            raise RuntimeError("the Arrow document IDs are being read")
         self._free()
 
     cdef void _take(self, ArrowArray *a) except *:
@@ -121,6 +124,13 @@ cdef class ArrowIds:
     def block(self, int64_t begin, int64_t end):
         if self._released or not 0 <= begin <= end <= self.rows:
             raise ValueError("doc_ids block is outside the open column")
+        self._readers += 1
+        try:
+            return self._block(begin, end)
+        finally:
+            self._readers -= 1
+
+    cdef object _block(self, int64_t begin, int64_t end):
         cdef np.ndarray out = np.empty(end - begin, dtype="<i8")
         cdef Py_ssize_t k
         cdef int64_t first, last

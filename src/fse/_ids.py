@@ -10,7 +10,11 @@ import numpy as np
 def checked_ids(value: Any, name: str = "doc_ids") -> Any:
     """Keep arrays and lists in place; never coerce values or copy an entire column."""
     if isinstance(value, np.ndarray):
-        if value.dtype != np.dtype("int64") or value.ndim != 1:
+        if (
+            isinstance(value, np.ma.MaskedArray)
+            or value.dtype != np.dtype("int64")
+            or value.ndim != 1
+        ):
             raise TypeError(f"{name} must be a one-dimensional int64 array")
         return value
     if not isinstance(value, list):
