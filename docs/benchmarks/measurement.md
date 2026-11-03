@@ -67,12 +67,29 @@ WikiText, and four stages. Select cells explicitly for a bounded study. `--input
 or `--development-input` accepts a strict local contract. A venv directory is also
 accepted as an interpreter, without resolving away its venv identity.
 
-The stages are tokenizer-only, pooling-only without normalization, regular encoding
-to memory and regular file encoding through ShardSink close. Pooling reads an identical
-batch exported by the base, rather than retokenizing separately inside each timer.
-Model loading, input preparation, output checks, external sync and cleanup are outside
-the timer. Sink-open time is reported separately. The sink stage keeps large output
-on disk; a RAM cell that cannot fit is reported, never silently changed to a sink.
+The `local-development-v2` timer uses repeated prepared inputs at constant resident
+size. `resident_cycles` defaults to one complete corpus and never grows during
+calibration. `iterations` counts complete stage operations inside one uninterrupted
+timer. Both builds, warmups, A/A, comparisons and confirmation use the same frozen
+count. Individual library operations may be short; the group must meet the duration
+floor. This differs from the publication protocol's single-call requirement.
+
+Tokenizer repeats encoding on one scanned source. Pooling reuses one exported batch
+and one output array, without normalization. Memory encoding calls the public encode
+API with a new Sink wrapper over the same allocated arrays on every iteration. The
+regular allocating encode API has no output-buffer argument, so this stage measures
+the reusable-target path, not allocation and concatenation of a fresh result. A full
+byte-equivalence check against regular encode runs outside the timer before repetition.
+The final output of each warmup/measured group is checked completely.
+
+A ShardSink accepts only one run. Each disk iteration therefore encodes the same fixed
+input file into a fresh ShardSink and closes it. The continuous group timer includes
+all opens, complete encodes and closes. Read-to-close and including-open component
+sums are descriptive, never substitutes for this continuous timer. Every produced
+store is verified, synchronized and removed after the group, before another group.
+Disk admission grows with iterations; resident inputs and result buffers do not.
+Model loading, input preparation and output verification remain outside the timer.
+The timer includes the repeat loop and release of preceding tokenizer outputs.
 
 Quality uses the complete original STS-B train/dev/test texts and unrounded labels,
 and every original WikiText-103 raw-v1 test row, including empty rows and headings.
@@ -83,14 +100,18 @@ The result records corpus hashes, count, preprocessing and repetition. Download 
 anonymous and restricted to recorded public revisions. `--hf-cache` reads an existing
 external cache first; missing artifacts download to the owned external work cache.
 
-Defaults are six-second calls, at least two full warmups totaling twelve seconds and
+Defaults are six-second groups, at least two full warmups totaling twelve seconds and
 fifteen pairs per block. AB/BA alternates; a cell can explicitly select ABBA. Its factor
 is the sum of A times divided by the sum of B times. Every measured call meets the
-frozen duration floor, never a sum of short calls. `--diagnostic-rehearsal` labels
+frozen group duration floor. It is a continuous interval, not a sum of separately
+timed snippets. `--diagnostic-rehearsal` labels
 small functional probes and disables timing decisions, not correctness checks.
 
-Calibration first sizes a common workload with reserve on both builds. It measures
-only complete calls. Sizing probes may be shorter and explicitly have
+Calibration sizes a common iteration count with reserve on both builds, keeping the
+resident corpus fixed. This follows the calibrated loop pattern described by
+[pyperf](https://pyperf.readthedocs.io/en/latest/runner.html#loop-iterations).
+Sizing probes may be shorter, use two preliminary iterations without the twelve-second
+warmup requirement and explicitly have
 `valid_for_comparison: false`; they never enter paired decision summaries. It measures
 A/A at targets six, twelve and twenty-four seconds, seeking a ratio IQR below 0.02.
 The first suitable tier needs an independent A/A validation block. Limits are three
@@ -139,7 +160,8 @@ available. macOS uses `taskpolicy -B` when available. Linux supports explicitly
 requested `--cpu-affinity` and reports a readable governor without changing it.
 Optional capabilities are reported rather than required. Missing RAM detection needs
 `--memory-limit-bytes`; automatic admission uses at most 85 percent of the detected
-physical/cgroup limit. No privileged frequency or scheduling changes are performed.
+physical/cgroup limit. The recorded input and processed row counts distinguish
+resident rows from repeated work. No privileged frequency or scheduling changes are performed.
 
 Results retain raw operations, warmups, telemetry, checks, decisions and build identities
 with the existing `cells.jsonl`, `progress.json`, manifest and DONE collection contract.

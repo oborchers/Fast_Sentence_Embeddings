@@ -11,7 +11,9 @@ from pathlib import Path
 
 def operation(model, texts, job):
     if job["stage"] == "encode-memory":
-        return lambda: model.encode(texts, workers=job["workers"], dtype=job["output_dtype"])
+        from _development_memory import operation as memory_operation
+
+        return memory_operation(model, texts, job)
     from fse import ShardSink
 
     source = Path(job["work"]) / (job["tag"] + "-timing.txt")
@@ -23,7 +25,8 @@ def operation(model, texts, job):
     counter = itertools.count()
 
     def encode():
-        target = Path(job["work"]) / (job["tag"] + f"-sink-{next(counter)}")
+        index = next(counter)
+        target = Path(job["work"]) / (job["tag"] + f"-sink-{index}")
         opened = time.perf_counter()
         sink = ShardSink(target, model, dtype=job["output_dtype"], durability="none")
         first_read = time.perf_counter()
@@ -34,6 +37,7 @@ def operation(model, texts, job):
             raise ValueError("sink timing output row count differs")
         return {
             "folder": target,
+            "index": index,
             "seconds": seconds,
             "including_open_seconds": time.perf_counter() - opened,
         }
@@ -47,7 +51,7 @@ def output_identity(value):
     from fse._container._hash import checksum
 
     if isinstance(value, dict):
-        return _store_identity(value["folder"])
+        return _stores_identity(value)
     if hasattr(value, "tokens"):
         arrays = {"offsets": value.offsets, "tokens": value.tokens}
     elif hasattr(value, "codes"):
@@ -62,6 +66,18 @@ def output_identity(value):
             shape=list(array.shape), dtype=array.dtype.str, checksum=checksum(array)
         )
     return result
+
+
+def _stores_identity(value):
+    folder = value["folder"]
+    prefix = folder.name.rsplit("-", 1)[0]
+    expected = None
+    for index in range(value["first_index"], value["index"] + 1):
+        current = _store_identity(folder.parent / (prefix + "-" + str(index)))
+        if expected is not None and current != expected:
+            raise ValueError("repeated ShardSink outputs differ")
+        expected = current
+    return expected
 
 
 def _store_identity(folder):

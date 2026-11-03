@@ -52,6 +52,8 @@ def arm(
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.diagnostic_rehearsal
     job["sizing_only"] = phase.startswith("size-")
+    if job["sizing_only"]:
+        job["warmup_seconds"] = 0
     if args.diagnostic_rehearsal:
         job.update(warmup_calls=1, warmup_seconds=0)
     python = args.base_python if control or name == "base" else args.candidate_python

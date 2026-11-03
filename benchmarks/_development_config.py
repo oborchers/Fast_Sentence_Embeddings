@@ -13,6 +13,8 @@ from _measurement_config import CONFIG, MODEL_PINS
 
 STAGES = ("tokenizer", "pooling", "encode-memory", "encode-sink")
 DEFAULTS = {
+    "resident_cycles": 1,
+    "iterations": 1,
     "workers": 1,
     "table_dtype": "float32",
     "output_dtype": "float32",
@@ -64,7 +66,14 @@ def validate_cell(raw, defaults):
         raise ValueError("unknown table or output dtype")
     if type(cell["decision_gate"]) is not bool:
         raise ValueError("decision_gate must be a boolean")
-    for name in ("workers", "pairs", "warmup_calls", "max_calibration_steps"):
+    for name in (
+        "workers",
+        "pairs",
+        "warmup_calls",
+        "max_calibration_steps",
+        "resident_cycles",
+        "iterations",
+    ):
         _positive(cell[name], name, integral=True)
     for name in (
         "warmup_seconds",
@@ -100,9 +109,9 @@ def load(path=None, selected=None):
     if (
         not isinstance(spec, dict)
         or spec.keys() - allowed
-        or spec.get("format") != "local-development-v1"
+        or spec.get("format") != "local-development-v2"
     ):
-        raise ValueError("a local-development-v1 contract without unknown fields is required")
+        raise ValueError("a local-development-v2 contract without unknown fields is required")
     defaults = spec.get("defaults", {})
     if not isinstance(defaults, dict) or defaults.keys() - DEFAULTS.keys():
         raise ValueError("unknown development defaults")

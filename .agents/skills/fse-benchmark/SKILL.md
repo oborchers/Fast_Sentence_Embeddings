@@ -52,10 +52,17 @@ shows the local contract without optional evaluation packages. Windows is refuse
 Local results on macOS, Linux and other Unix systems always say `publishable: false`.
 They never replace the Linux publication protocol or justify publishing Mac speeds.
 
-The default uses six-second calls, at least two warmups totaling twelve seconds,
+The v2 local timer uses six-second continuous groups, at least two warmups totaling twelve seconds,
 and fifteen alternating pairs per block. A/A adapts through six/twelve/twenty-four
 seconds until its same-cell IQR is below two percent, with an independent control
-block and a sixty-active-minute calibration limit. An unresolved cell is inconclusive.
+block and a sixty-active-minute calibration limit. Calibration increases repetitions
+of the same prepared corpus, never resident rows. Tokenizer and pooling reuse their
+prepared input; memory encoding reuses a public Sink target and checks it against
+regular encode. Disk groups include a new ShardSink's open, encode and close on each
+iteration. Disk usage grows with repetitions; every store is checked and removed
+outside the timer. Individual operations may be short. This local repeated-work
+contract never satisfies the publication single-call gate. Old v1 controls cannot
+be reused. An unresolved cell is inconclusive.
 Keep requires saving at least `max(3 * A/A IQR, 0.02)` and a confirmation with the
 same positive sign and at least half the effect. Maximum deviation is reported only.
 All raw observations remain. Use ABBA explicitly in a cell when appropriate.

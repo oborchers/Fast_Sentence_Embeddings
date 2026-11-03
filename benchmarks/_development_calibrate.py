@@ -27,25 +27,32 @@ def _batch(args, cell, prepared, count, owner, tag):
 
 def _size(args, cell, prepared, ledger, owner, target, step, remaining):
     cycle = prepared["corpora"][cell["corpus"]]["texts"]
-    count = cycle if args.diagnostic_rehearsal else cycle * max(1, math.ceil(262144 / cycle))
+    count = cycle * cell["resident_cycles"]
+    iterations = cell["iterations"]
+    _admit(args, cell, prepared, count, step)
+    batch = _batch(args, cell, prepared, count, owner, f"{cell['id']}-size-{step}-batch")
     attempt = 0
     while True:
         if remaining() <= 0:
             raise CalibrationLimitError("active calibration budget exhausted during sizing")
-        plan = admission(cell, prepared, count, args.work, args.memory_limit_bytes)
-        append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": step, **plan})
-        if not plan["admitted"]:
-            raise MemoryError("whole-call workload exceeds declared RAM or disk admission")
+        current = {**cell, "iterations": iterations}
+        _admit(args, current, prepared, count, step)
         phase = f"size-{step}-{attempt}"
-        batch = _batch(args, cell, prepared, count, owner, cell["id"] + "-" + phase + "-batch")
-        rows = _sizing_rows(args, cell, prepared, ledger, count, owner, phase, batch, remaining)
+        rows = _sizing_rows(args, current, prepared, ledger, count, owner, phase, batch, remaining)
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete calibration outputs differ between builds")
         fastest = min(row["seconds"] for row in rows)
         if fastest >= target * 1.25 or args.diagnostic_rehearsal:
-            return count, batch
-        count = cycle * max(count // cycle + 1, math.ceil(count * target * 1.25 / fastest / cycle))
+            return count, batch, iterations
+        iterations = max(iterations + 1, math.ceil(iterations * target * 1.25 / fastest))
         attempt += 1
+
+
+def _admit(args, cell, prepared, count, step):
+    plan = admission(cell, prepared, count, args.work, args.memory_limit_bytes)
+    append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": step, **plan})
+    if not plan["admitted"]:
+        raise MemoryError("fixed resident workload or repeated disk output exceeds admission")
 
 
 def _sizing_rows(args, cell, prepared, ledger, count, owner, phase, batch, remaining):
@@ -71,7 +78,10 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
         if target > cell["max_target_seconds"] or remaining() <= 0:
             break
         current = {**cell, "target_seconds": target}
-        count, batch = _size(args, current, prepared, ledger, owner, target, step, remaining)
+        count, batch, iterations = _size(
+            args, current, prepared, ledger, owner, target, step, remaining
+        )
+        current["iterations"] = iterations
         tuning = block(
             args,
             current,
@@ -85,7 +95,7 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
             batch=batch,
             budget=remaining,
         )
-        attempt = dict(target_seconds=target, texts=count, tuning=tuning)
+        attempt = dict(target_seconds=target, texts=count, iterations=iterations, tuning=tuning)
         attempts.append(attempt)
         validation = _validation(
             args,

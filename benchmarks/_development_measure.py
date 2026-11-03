@@ -15,6 +15,7 @@ from pathlib import Path
 from _development_encode import operation as encode_operation
 from _development_encode import output_identity
 from _development_locks import busy, lock_paths
+from _development_repeat import repeat
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, observations
 from _measurement import append
@@ -74,11 +75,8 @@ def _quiet(job, waiting):
 
 def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
-    start = time.perf_counter()
-    output = operation()
-    elapsed = time.perf_counter() - start
-    seconds = output["seconds"] if isinstance(output, dict) else elapsed
-    including_open = output.get("including_open_seconds") if isinstance(output, dict) else None
+    seconds, output, repeated = repeat(operation, job["iterations"])
+    including_open = repeated["sink_including_open_seconds_sum"]
     after = observations(job["work"], excluded=(os.getppid(),))
     append(
         Path(job["receipt"]).with_suffix(".calls.jsonl"),
@@ -86,6 +84,7 @@ def _call(operation, job, phase, number, waiting):
             **LABEL,
             "phase": phase,
             "number": number,
+            **repeated,
             "sizing_only": job.get("sizing_only", False),
             "functional_only": job.get("functional_only", False),
             "valid_for_comparison": phase == "measured"
@@ -96,7 +95,7 @@ def _call(operation, job, phase, number, waiting):
             "telemetry_after": after,
         },
     )
-    proof = output_identity(output)
+    proof = {"operation_repetitions": job["iterations"], "one_iteration": output_identity(output)}
     del output
     gc.collect()
     return seconds, proof, including_open, before, after
@@ -132,6 +131,10 @@ def measure(job):
     return {
         "wait_seconds": waiting[0],
         "seconds": seconds,
+        "timer_contract": "repeated-prepared-input@1",
+        "operation_repetitions": job["iterations"],
+        "processed_texts": job["texts"] * job["iterations"],
+        "seconds_per_iteration": seconds / job["iterations"],
         "including_open_seconds": including_open,
         "warmup_seconds": warmups,
         "output": proof,

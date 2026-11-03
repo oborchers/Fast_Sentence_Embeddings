@@ -30,13 +30,14 @@ def admission(cell, prepared, count, work, requested_limit=None):
         else min(output, 64 * 1024**2),
         "workers": cell["workers"] * 64 * 1024**2,
     }
-    disk = int(
-        count * (mean_bytes + 1) + (output * 2 if cell["stage"] == "encode-sink" else 0) + 1024**3
-    )
+    disk = int(count * (mean_bytes + 1) + 1024**3)
+    if cell["stage"] == "encode-sink":
+        disk += output * cell["iterations"] * 2
     free_disk = shutil.disk_usage(work).free
     return {
         **LABEL,
         "texts": count,
+        "operation_repetitions": cell["iterations"],
         "components": components,
         "estimated_peak_bytes": sum(components.values()),
         "memory_limit_bytes": limit,
