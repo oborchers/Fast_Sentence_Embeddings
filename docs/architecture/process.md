@@ -149,19 +149,46 @@ Scope: outside the former "2.0 design" section.
 
 The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the headers in `_native_src/` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
+## Test scheduling and release checks
+
+Pull requests that trigger native tests and release tags run one macOS test
+job on CPython 3.13, plus the macOS arm64 wheel job when selected.
+Python 3.13 is the newest interpreter where the optional gensim tests also run.
+The separate sentence-transformers jobs run on Linux for PRs and tags.
+
+Pushes to master run the full macOS test matrix (CPython 3.11 to 3.15),
+including the macOS sentence-transformers comparison. Scheduled and manual
+runs also retain this full matrix. Documentation-only PRs still skip tests.
+This keeps PR and release runner demand low while master verifies every version.
+
+Create a release tag only on a commit whose full master CI has already passed.
+Before downloading or publishing artifacts, the release job queries the GitHub
+Actions API for push runs of `ci.yml` on master with the exact release commit SHA.
+The newest matching run must be completed and successful. A missing, running,
+failed or cancelled run blocks publication with an explicit error.
+The gate does not accept PR, manual, scheduled or tag runs as substitutes.
+
+The required branch check is `check`. It aggregates `changes`, `lint`, `test`,
+`test-st`, `coverage`, `sdist` and `wheels` through alls-green. Only PRs allow
+intentional job skips. All these jobs run on release tags, including the
+Linux-only `test-st` matrix and coverage from the reduced test matrix.
+The release job needs `check`, so a failed or unexpectedly skipped tag job
+blocks publication. No dependency names an omitted macOS matrix entry.
+
 ## Wheel verification
 
 CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects
 CPython 3.11 to 3.15, without free-threaded variants. Tags and `workflow_dispatch`
-build and test all 35 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
-macOS arm64 and x86_64, and Windows x86_64. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
+build and test all 30 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
+macOS arm64, and Windows x86_64. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
 with `RENAME_NOREPLACE` when libc has no wrapper. It never falls back to a rename
 that could overwrite an existing directory. Unsupported syscall architectures fail
 explicitly. Linux images are pinned by digest to
 [cibuildwheel's 2026.10.21-1 images](https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg).
 A manual run on a branch verifies the release matrix without publishing. Publication
 requires a tag push and approval in the release environment. PRs keep the four
-existing runner jobs, without musllinux or macOS Intel, and test only CPython 3.15.
+runner jobs, without musllinux, and test only CPython 3.15
+(Windows also tests 3.11). macOS wheel builds explicitly select arm64.
 The path filter still omits wheels when an unrelated file changes. Store/container source changes and their tests trigger the wheel jobs so the store suite also runs on real Windows.
 
 [cibuildwheel's selectors](https://cibuildwheel.pypa.io/en/stable/options/#build-skip)

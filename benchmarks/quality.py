@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 
+from _development_config import add_arguments, dispatch
 from _measurement import (
     Ledger,
     append,
@@ -176,7 +177,7 @@ def run(args):
     return ledger.done()
 
 
-def _arguments():
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
@@ -186,8 +187,6 @@ def _arguments():
     mode.add_argument("--summarize", type=Path)
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
-    mode.add_argument("--diagnose", action="store_true", help="local bitwise quality comparison")
-    mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--input", type=Path, default=CONFIG / "quality.json")
     parser.add_argument("--cells", nargs="+")
     parser.add_argument("--results", type=Path, default=Path("/quality-results"))
@@ -199,12 +198,11 @@ def _arguments():
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
-    parser.add_argument("--base-python", help="installed base fse interpreter for diagnostics")
-    parser.add_argument("--reuse-work", type=Path, help="prepared local diagnostic inputs")
-    return parser, parser.parse_args()
-
-
-def _resolve_paths(args):
+    add_arguments(parser, mode, quality=True)
+    args = parser.parse_args()
+    local_status = dispatch(args, quality=True)
+    if local_status is not None:
+        return local_status
     for name in ("results", "work", "cache"):
         setattr(args, name, getattr(args, name).resolve())
     setup_source = Path(sys.executable).parents[2] / "fse-source"
@@ -212,19 +210,6 @@ def _resolve_paths(args):
         args.fixture_repo
         or (setup_source if setup_source.is_dir() else Path(__file__).resolve().parents[1])
     ).resolve()
-
-
-def main():
-    parser, args = _arguments()
-    if args.child_job:
-        from _quality.diagnostic_child import child
-
-        return child(json.loads(args.child_job.read_text()))
-    if args.diagnose:
-        from _quality.diagnostics import run as diagnose
-
-        return diagnose(args)
-    _resolve_paths(args)
     if args.summarize:
         from _quality.summary import summarize
 

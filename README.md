@@ -96,7 +96,10 @@ pip install "fse>=2.0"
 
 Moving an existing application? Read the [migration guide from fse 1.x](docs/migrating-from-1x.md) before upgrading.
 
-Python 3.11 to 3.15. Load a model and make a vector for each text:
+Python 3.11 to 3.15. Wheels target Linux (x86_64 and aarch64, glibc or musl),
+macOS (Apple Silicon, arm64) and Windows (x86_64).
+
+Load a model and make a vector for each text:
 
 ```python
 from fse import Encoder

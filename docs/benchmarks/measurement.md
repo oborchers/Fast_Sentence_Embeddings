@@ -44,6 +44,148 @@ flowchart LR
 10. Agree on cost and runtime before allocation, including setup, full warmups, slow arms, storage and collection reserve. Admission limits are soft and do not kill an active pair. Bootstrap remains in `sleep infinity` after success or failure. A restart never launches another measurement. The lifecycle owner collects, verifies and promptly deletes the allocation.
 11. A watcher separates transport failure from a missing file during setup. Read-only monitoring must never start a second controller. Fetch progress and results continuously. On failure, preserve and collect first, then analyze locally.
 
+## Local Unix development
+
+The explicit `--diagnose` mode compares installed builds on macOS, Linux and other
+Unix systems. Windows is rejected. Every local result is labelled `publishable: false`,
+including Linux results. These are development indications, never README evidence.
+The existing pinned Linux commands, studies and publication rules remain separate.
+
+```sh
+python benchmarks/speed.py --local-info
+python benchmarks/speed.py --diagnose \
+  --base-python /external/base/bin/python --candidate-python /external/candidate/bin/python \
+  --cells potion-stsb-tokenizer potion-wikitext-tokenizer \
+  --worker-name feature-owner --results /external/speed-01 --work /external/work-01
+python benchmarks/quality.py --diagnose \
+  --base-python /external/base/bin/python --candidate-python /external/candidate/bin/python \
+  --worker-name feature-owner --results /external/quality-01 --work /external/quality-work-01
+```
+
+`benchmarks/config/development.json` declares two pinned public models, STS-B and
+WikiText, and four stages. Select cells explicitly for a bounded study. `--input`
+or `--development-input` accepts a strict local contract. A venv directory is also
+accepted as an interpreter, without resolving away its venv identity.
+
+The `local-development-v2` timer uses repeated prepared inputs at constant resident
+size. `resident_cycles` defaults to one complete corpus and never grows during
+calibration. `iterations` counts complete stage operations inside one uninterrupted
+timer. Both builds, warmups, A/A, comparisons and confirmation use the same frozen
+count. Individual library operations may be short; the group must meet the duration
+floor. This differs from the publication protocol's single-call requirement.
+
+Tokenizer repeats encoding on one scanned source. Pooling reuses one exported batch
+and one output array, without normalization. Memory encoding calls the public encode
+API with a new Sink wrapper over the same allocated arrays on every iteration. The
+regular allocating encode API has no output-buffer argument, so this stage measures
+the reusable-target path, not allocation and concatenation of a fresh result. A full
+byte-equivalence check against regular encode runs outside the timer before repetition.
+The final output of each warmup/measured group is checked completely.
+
+A ShardSink accepts only one run. Each disk iteration therefore encodes the same fixed
+input file into a fresh ShardSink and closes it. The continuous group timer includes
+all opens, complete encodes and closes. Read-to-close and including-open component
+sums are descriptive, never substitutes for this continuous timer. Every produced
+store is verified, synchronized and removed after the group, before another group.
+Disk admission grows with iterations; resident inputs and result buffers do not.
+Model loading, input preparation and output verification remain outside the timer.
+The timer includes the repeat loop and release of preceding tokenizer outputs.
+
+Quality uses the complete original STS-B train/dev/test texts and unrounded labels,
+and every original WikiText-103 raw-v1 test row, including empty rows and headings.
+Timing explicitly collapses whitespace to one space while preserving those row
+positions, so file input has exactly one physical line per row. Every timing stage
+uses that same text view. Workloads repeat whole fixed corpus cycles in source order.
+The result records corpus hashes, count, preprocessing and repetition. Download is
+anonymous and restricted to recorded public revisions. `--hf-cache` reads an existing
+external cache first; missing artifacts download to the owned external work cache.
+
+Defaults are six-second groups, at least two full warmups totaling twelve seconds and
+fifteen pairs per block. AB/BA alternates; a cell can explicitly select ABBA. Its factor
+is the sum of A times divided by the sum of B times. Every measured group meets the
+frozen group duration floor. It is a continuous interval, not a sum of separately
+timed snippets. `--diagnostic-rehearsal` labels small functional probes and disables
+timing decisions, not correctness checks.
+
+Calibration sizes a common iteration count with reserve on both builds, keeping the
+resident corpus fixed. This follows the calibrated loop pattern described by
+[pyperf](https://pyperf.readthedocs.io/en/latest/runner.html#loop-iterations).
+Sizing probes may be shorter, use two preliminary groups without the twelve-second
+warmup requirement and explicitly have `valid_for_comparison: false`.
+They never enter paired decision summaries. Calibration measures
+A/A at targets six, twelve and twenty-four seconds, seeking a ratio IQR below 0.02.
+The first suitable tier needs an independent A/A validation block. Limits are three
+tiers, twenty-four seconds target and sixty active calibration minutes per cell.
+Load/lock waiting is separate from active work. An active operation finishes before
+a soft budget stop. Exhausted noise or resource limits produce an explicit inconclusive
+or non-executable cell. No outliers are removed or repeated until a favorable sample.
+These longer defaults are a policy choice, not a proven guarantee of lower noise.
+Four fifteen-pair AB blocks at the six-second tier need at least 36 minutes per cell.
+
+The factor is base/candidate time. Saving is `1 - 1 / median(paired factors)`.
+Keep requires saving at least `max(3 * same-cell A/A IQR, 0.02)` and an independent
+confirmation with positive saving and at least half the main effect.
+Active decision gates cannot lower the noise multiplier below three, minimum saving
+below two percent or confirmation fraction below one half. Weaker configurations
+require `decision_gate: false` and produce descriptive results only.
+Maximum factor and maximum distance from one remain descriptive. Required cells cannot offset one
+another. `--local-phase` selects `prepare`, `calibrate`, `aa`, `screen`, `compare` or
+`confirm`; the default `compare` includes controls and confirmation. A screen cannot
+yield a final keep decision. Separate confirmation requires `--comparison-results`.
+`--aa-results` can reuse a completed matching control with `compare` or `screen`.
+`--reuse-work` reuses prepared external inputs. Reuse checks final manifests, source
+hashes, builds, dependencies, available Git revision, machine boot, cell, order, dtype,
+corpus and affinity. The environment records Git availability and tracked dirty state;
+file hashes identify the runner even where mounted worktree metadata is unavailable.
+Systems without a readable boot identity require fresh controls. A session interrupted
+for fifteen minutes requires new controls for that cell. A later-finishing different
+cell does not refresh an earlier cell's controls. Continuous long runs have no global
+thirty-minute expiry.
+
+The byte gate compares complete direct and stored float32, float16 and int8 payloads,
+including scales and stored inverse norms, and checks direct/store equality within
+each build. Logical rows are compared independently of shard layout. STS-B Pearson
+and Spearman additionally compare exact little-endian float64 bits on each split.
+The first difference stops further cells. Scores are confirmation data, not new
+published benchmark values. Quality and stage-specific correctness precede speed.
+
+`FSE_BENCH_LOCK` and `FSE_HEAVY_LOCK` configure shared mkdir locks across worktrees.
+Defaults share a user-specific temporary directory. Each acquisition checks the peer
+before and after mkdir. Never take over an existing owner, even if its PID disappeared.
+Timing holds bench.lock for a complete cell and rechecks heavy.lock before each arm.
+Reused cells carry their last completed operation into the next run. The first wait
+and the measurement child recheck that age before beginning work.
+Builds and checks use the same reverse exclusion:
+
+```sh
+python benchmarks/speed.py --local-heavy --worker-name feature-owner -- make check PYTEST_N=4
+```
+
+The heavy wrapper forwards SIGINT/SIGTERM to its own job process group. It keeps
+heavy.lock until the leader and its descendants have ended. A failed owner-file
+write rolls back only the lock directory and file created by that acquisition.
+
+Timing waits for `os.getloadavg()[0] < 5` before each cell, arm and measured call.
+Foreign processes above fifty percent CPU are telemetry only; process arguments are
+never collected. Measurement priority targets nice 0. Builds/checks use nice 10 when
+available. macOS uses `taskpolicy -B` when available. Linux supports explicitly
+requested `--cpu-affinity` and reports a readable governor without changing it.
+Optional capabilities are reported rather than required. Missing RAM detection needs
+`--memory-limit-bytes`; automatic admission uses at most 85 percent of the detected
+physical/cgroup limit. The recorded input and processed row counts distinguish
+resident rows from repeated work. No privileged frequency or scheduling changes are performed.
+
+Results retain raw operations, warmups, telemetry, checks, decisions and build identities
+with the existing `cells.jsonl`, `progress.json`, manifest and DONE collection contract.
+Models, full output tensors and corpora stay in the external work directory. A nonzero
+DONE is not success; rejected/inconclusive decisions are preserved.
+
+The [benchmark skill](../../.agents/skills/fse-benchmark/SKILL.md#local-unix-development)
+shows the pinned development Dockerfile and read-only repository mounts. It builds
+this checkout's extension on Linux using CPython 3.13.16, keeps models/data outside
+the image and is never pushed to a registry. Rebuild after product changes. A container
+functional probe establishes function only, with no Linux or host-Mac speed claim.
+
 ## Inspect and set up
 
 Describe without importing optional measurement packages:
@@ -167,100 +309,3 @@ Collection rejects changed bytes, unsafe paths, symlinks and extra files. It wri
 The original pre-consolidation source is preserved byte-for-byte at [evidence commit `1e1165b`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1e1165b7a892555b201897fc91377a68f31f298f/archives/measurement-tools-before-consolidation.tar.gz), SHA256 `9c81b21dcd56b393e50292c188b9aa656a7ff4716cd569df6e7e6d4a6c6acad0`. This archive holds source, not measurement output. Historical result provenance remains in [the comparison guide](../fse-comparison.md).
 
 Primary API references: [ST process-pool API](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html), [PyTorch file-descriptor sharing](https://docs.pytorch.org/docs/2.15/multiprocessing.html#file-descriptor-file-descriptor).
-
-## Local macOS diagnostics
-
-`quality.py --diagnose` compares complete outputs from two installed fse versions.
-It accepts `--input benchmarks/config/quality-local.json`, `--base-python`,
-`--reuse-work`, and fresh external `--results` and `--work` directories.
-The local quality template uses both pinned README WordPiece models, all STS-B
-train/dev/test sentences and every raw WikiText-103 test row, without sampling,
-heading removal or whitespace normalization. Prepared JSON inputs contain the
-original text list and, for STS-B, ordered split ranges and labels. Keep source
-revisions, row counts and fixture checksums in their provenance. Prepare pinned
-model artifacts externally. The diagnostic itself never downloads inputs.
-
-The existing entry launches its `--child-job` mode in the base and candidate
-interpreters. It saves full float32 output and int8 codes/scales from `encode`,
-plus every float32/int8 store vector, scale and inverse norm. With
-`candidate_doc_ids=true`, it also checks the candidate's ID-enabled store against
-the base's ordinary store and verifies every stored ID. Comparison reads the
-actual array bit patterns in blocks, checks shapes and dtypes, and verifies the
-saved file hashes. No value tolerance is used. The first error or differing bit
-stops the remaining cells. Failed evidence is retained.
-
-STS-B Pearson and Spearman use the saved default tokenizer, normalized cosine
-similarities and a score scale of 100. Both float64 score bit patterns must also
-agree. These are local quality gates, not new MTEB or throughput results. Their
-timings supply no speed claims. Coordinate heavy quality runs through the shared
-heavy-work lock. Both local diagnostic modes retain the existing result ledger,
-heartbeat, manifest and `DONE` collection format. Linux evaluation paths and
-publication defaults are unchanged.
-
-`speed.py --diagnose` is an explicit, non-publishable local indication mode.
-It does not relax the pinned Linux production path or supply headline evidence.
-Use `--input` with a `local-diagnostic-v1` specification, `--results` and `--work`
-with fresh external directories, `--worker-name`, and the coordinator's exact
-`--bench-lock` directory. `--reuse-work` supplies existing inputs and model files.
-`--base-python` selects an independently installed base, not a source-directory
-switch inside the current interpreter.
-
-The document-ID study template is `benchmarks/config/document-ids-local.json`.
-It declares 10 million sampled WikiText sentences, two workers, five alternating
-pairs, float32/int8 writing, ID/no-ID comparisons and matching A/A controls.
-Its model and corpus revisions match the shared pins. This is not the published
-100-million-row, 16-CPU Linux study. Place prepared artifacts and the input
-provenance in `--reuse-work`; template placeholders resolve those paths and the
-base/candidate Python executables. No inputs are downloaded by the diagnostic.
-
-Each arm uses the existing `speed.py --child-job` dispatcher. It records package
-identity, output checksums, complete document-ID alignment, actual row count,
-RSS scope and load/uptime before and after the timed operation. Writing includes
-inference through sink close. Verification and external synchronization are
-outside the timer and finish before the next arm. Fresh output directories are
-owned by the child and cleaned after verification.
-
-Timing starts only with one-minute load below 5, and measurement children run at
-nice 0. Foreign processes above 50 percent CPU are recorded as telemetry; they
-do not block admission. The process observation excludes the diagnostic process and
-its descendants. It retains executable names, PIDs and CPU percentages, never
-command arguments. Each cell and arm records this admission check. The child
-checks it again before warmup and the timed call. A busy directory lock is never
-taken over. The owner file names worker, PID and purpose. A stale lock requires
-the coordinator's decision. Keep heavy builds and tests outside measurement
-windows using the separately coordinated heavy-work lock. Post-operation load
-is retained, including load caused by the measured operation; no rounds are
-silently discarded based on favorable timings.
-
-If warmup or cleanup raises the load, the child waits outside the timer until
-the same admission limit is met again. It records these observations in an
-admission ledger. It does not discard a pair or relax the limit. A nonzero
-measurement nice level remains an error with the observed value reported.
-
-The benchmark lock covers one complete cell, including its alternating pairs,
-verification and synchronization. It is released before the next cell. When
-workers share a Mac, run one-cell specifications and hand the lock to the other
-worker between cells. The result records per-arm medians and interquartile
-ranges (IQR), plus the median and IQR of paired time ratios. Quartiles use
-inclusive linear interpolation. A throughput ratio is the reciprocal of the
-paired time ratio and must be labelled accordingly.
-
-Local timing and heavy work are mutually exclusive. The diagnostic requires the
-sibling `heavy.lock` directory to be absent before taking `bench.lock`, checks
-again after acquisition, and repeats the check before every arm. Heavy-work
-controllers must similarly require `bench.lock` to be absent before starting.
-Record both checks. Process telemetry does not replace these locks:
-several compiler processes can load the machine together.
-
-Use `--diagnostic-rehearsal` with a small local specification for functional
-probes. Such records are explicitly functional-only, with no speed claim.
-Memory/CPU profiling may use a diagnostic child job marked `profile_only`.
-Its timings are excluded from comparisons. Instrument the child itself, not
-just its controller. `filter_memory` uses tracemalloc after input allocation,
-reporting additional preparation workspace separately from caller-owned IDs.
-
-Results use `cells.jsonl`, `operations.jsonl`, `progress.json`, `manifest.json`
-and `DONE`, with `local_diagnostic=true` and `publishable=false` throughout.
-Failed cells remain failed. A completed `DONE` is not proof that every cell
-passed. SIGTERM stops admission after the current arm. Collect and verify the
-result manifest before reporting pairs. No local timing changes README claims.

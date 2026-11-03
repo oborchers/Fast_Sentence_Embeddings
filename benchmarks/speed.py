@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+from _development_config import add_arguments, dispatch
 from _measurement import document, rehearsal_limits
 from _measurement_config import CONFIG, contract
 from _measurement_setup import outside_checkout, setup, utility
@@ -24,22 +25,12 @@ def main():
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
-    mode.add_argument(
-        "--diagnose", action="store_true", help="non-publishable paired macOS diagnostics"
-    )
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--setup", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--rehearse", action="store_true")
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
-    parser.add_argument("--bench-lock", type=Path)
-    parser.add_argument("--worker-name")
-    parser.add_argument(
-        "--diagnostic-rehearsal",
-        action="store_true",
-        help="functional probes only, no speed evidence",
-    )
     parser.add_argument("--source-revision")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
@@ -47,18 +38,16 @@ def main():
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
+    add_arguments(parser, mode)
     args = parser.parse_args()
+    local_status = dispatch(args)
+    if local_status is not None:
+        return local_status
     if utility(args, "speed"):
         return 0
     if args.child_job:
         measure_child(document(args.child_job))
         return 0
-    if args.diagnose:
-        from _speed_diagnostics import run as diagnose
-
-        return diagnose(args)
-    if args.diagnostic_rehearsal:
-        parser.error("--diagnostic-rehearsal requires --diagnose")
     specification = contract(args.input)
     if (
         sys.platform != "linux"
