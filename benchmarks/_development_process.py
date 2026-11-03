@@ -48,13 +48,20 @@ def launch(args, job, python, tag, timed=False):
             child.wait()
             raise
     if code:
-        raise RuntimeError(
-            f"development child exited with status {code}; see {file.with_suffix('.log')}"
-        )
+        _failed(job, code, file.with_suffix(".log"))
     receipt = document(Path(job["receipt"]))
     if receipt.get("mode") != "local-development" or receipt.get("publishable") is not False:
         raise ValueError("child omitted the local development result label")
     return receipt
+
+
+def _failed(job, code, log):
+    receipt = Path(job["receipt"])
+    if receipt.is_file():
+        failure = document(receipt)
+        if failure.get("error") == "session_expired":
+            raise TimeoutError(failure["reason"])
+    raise RuntimeError(f"development child exited with status {code}; see {log}")
 
 
 def identity():
@@ -86,7 +93,13 @@ def child(file):
     elif job["action"] == "measure":
         from _development_measure import measure
 
-        result = measure(job)
+        try:
+            result = measure(job)
+        except TimeoutError as error:
+            atomic(
+                Path(job["receipt"]), {**LABEL, "error": "session_expired", "reason": str(error)}
+            )
+            raise
     elif job["action"] == "pooling-input":
         from _development_stages import prepare_batch
 

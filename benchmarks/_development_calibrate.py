@@ -10,7 +10,7 @@ from _development_pairs import arm, block, job_for
 from _development_process import launch
 from _development_resources import admission
 from _development_system import LABEL
-from _measurement import append, atomic
+from _measurement import append, atomic, document
 
 
 class CalibrationLimitError(TimeoutError):
@@ -38,10 +38,13 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
             raise MemoryError("whole-call workload exceeds declared RAM or disk admission")
         phase = f"size-{step}-{attempt}"
         batch = _batch(args, cell, prepared, count, owner, cell["id"] + "-" + phase + "-batch")
-        rows = [
-            arm(args, cell, prepared, ledger, count, owner, phase, 0, i, name, False, batch)
-            for i, name in enumerate(("base", "candidate"))
-        ]
+        rows = []
+        for i, name in enumerate(("base", "candidate")):
+            if remaining() <= 0:
+                raise CalibrationLimitError("active calibration budget exhausted before sizing arm")
+            rows.append(
+                arm(args, cell, prepared, ledger, count, owner, phase, 0, i, name, False, batch)
+            )
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete calibration outputs differ between builds")
         fastest = min(row["seconds"] for row in rows)
@@ -143,7 +146,8 @@ def _validation(
 
 def _active_seconds(args, cell_id):
     path = args.results / "operations.jsonl"
-    if not path.exists():
-        return 0.0
-    rows = [json.loads(line) for line in path.read_text().splitlines()]
-    return sum(row["active_seconds"] for row in rows if row["cell_id"] == cell_id)
+    rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    batches = sum(
+        document(path)["active_seconds"] for path in args.results.glob(cell_id + "-*-batch.json")
+    )
+    return batches + sum(row["active_seconds"] for row in rows if row["cell_id"] == cell_id)

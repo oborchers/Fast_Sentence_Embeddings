@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from _development_encode import operation as encode_operation
@@ -28,8 +29,12 @@ def _policy(job):
     if sys.platform == "darwin":
         taskpolicy = shutil.which("taskpolicy")
         if taskpolicy:
-            subprocess.run([taskpolicy, "-B", "-p", str(os.getpid())], check=True)
-            result["background_policy_cleared"] = True
+            with suppress(OSError):
+                status = subprocess.run(
+                    [taskpolicy, "-B", "-p", str(os.getpid())], check=False, capture_output=True
+                ).returncode
+                result["background_policy_cleared"] = status == 0
+                result["taskpolicy_exit_status"] = status
     affinity = job.get("cpu_affinity")
     if affinity is not None:
         if not hasattr(os, "sched_setaffinity"):
@@ -46,6 +51,10 @@ def _quiet(job, waiting):
     bench, heavy = lock_paths()
     started = time.monotonic()
     while True:
+        if time.monotonic() - started >= 900:
+            raise TimeoutError(
+                "fifteen-minute operation wait interrupted the session; fresh A/A required"
+            )
         if (
             not busy(bench)
             or bench.is_symlink()
