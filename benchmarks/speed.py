@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+from _development_config import add_arguments, dispatch
 from _measurement import document, rehearsal_limits
 from _measurement_config import CONFIG, contract
 from _measurement_setup import outside_checkout, setup, utility
@@ -37,7 +38,11 @@ def main():
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
+    add_arguments(parser, mode)
     args = parser.parse_args()
+    local_status = dispatch(args)
+    if local_status is not None:
+        return local_status
     if utility(args, "speed"):
         return 0
     if args.child_job:

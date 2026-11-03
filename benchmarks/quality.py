@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 
+from _development_config import add_arguments, dispatch
 from _measurement import (
     Ledger,
     append,
@@ -197,7 +198,11 @@ def main():
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
+    add_arguments(parser, mode)
     args = parser.parse_args()
+    local_status = dispatch(args)
+    if local_status is not None:
+        return local_status
     for name in ("results", "work", "cache"):
         setattr(args, name, getattr(args, name).resolve())
     setup_source = Path(sys.executable).parents[2] / "fse-source"

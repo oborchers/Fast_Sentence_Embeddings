@@ -1,0 +1,102 @@
+{
+  "format": "local-development-v1",
+  "description": "Local Unix development indications only; never README publication evidence.",
+  "cells": [
+    {
+      "id": "potion-stsb-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-stsb-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-stsb-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "potion-stsb-encode-sink",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-sink"
+    },
+    {
+      "id": "potion-wikitext-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-wikitext-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-wikitext-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "potion-wikitext-encode-sink",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink"
+    },
+    {
+      "id": "retrieval-stsb-tokenizer",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "stsb",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "retrieval-stsb-pooling",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "stsb",
+      "stage": "pooling"
+    },
+    {
+      "id": "retrieval-stsb-encode-memory",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "stsb",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "retrieval-stsb-encode-sink",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "stsb",
+      "stage": "encode-sink"
+    },
+    {
+      "id": "retrieval-wikitext-tokenizer",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "retrieval-wikitext-pooling",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext",
+      "stage": "pooling"
+    },
+    {
+      "id": "retrieval-wikitext-encode-memory",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "retrieval-wikitext-encode-sink",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext",
+      "stage": "encode-sink"
+    }
+  ]
+}
