@@ -24,8 +24,7 @@ def _sysctl(name):
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def memory_limit():
-    """Return detected physical/cgroup RAM, or None rather than inventing a limit."""
+def _physical_memory():
     candidates = []
     if sys.platform == "darwin":
         value = _sysctl("hw.memsize")
@@ -34,14 +33,26 @@ def memory_limit():
     elif hasattr(os, "sysconf"):
         with suppress(ValueError, OSError):
             candidates.append(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
+    return candidates
+
+
+def memory_limit():
+    """Return detected physical/cgroup RAM, or None rather than inventing a limit."""
+    candidates = _physical_memory()
     if sys.platform.startswith("linux"):
-        for name in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
-            path = Path(name)
-            if path.is_file():
-                value = path.read_text().strip()
-                if value.isdecimal():
-                    candidates.append(int(value))
+        candidates.extend(_cgroup_memory())
     return min((n for n in candidates if n > 0), default=None)
+
+
+def _cgroup_memory():
+    candidates = []
+    for name in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        path = Path(name)
+        if path.is_file():
+            value = path.read_text().strip()
+            if value.isdecimal():
+                candidates.append(int(value))
+    return candidates
 
 
 def machine():

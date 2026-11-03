@@ -106,6 +106,10 @@ def load(path=None, selected=None):
     if not isinstance(spec.get("cells"), list) or not spec["cells"]:
         raise ValueError("nonempty development cells required")
     cells = [validate_cell(cell, defaults) for cell in spec["cells"]]
+    return {**spec, **LABEL, "cells": _select(cells, selected)}
+
+
+def _select(cells, selected):
     identifiers = [cell["id"] for cell in cells]
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("duplicate development cell ids")
@@ -113,7 +117,7 @@ def load(path=None, selected=None):
         if not selected or len(set(selected)) != len(selected) or set(selected) - set(identifiers):
             raise ValueError("unknown, empty or duplicate selected development cells")
         cells = [cell for cell in cells if cell["id"] in selected]
-    return {**spec, **LABEL, "cells": cells}
+    return cells
 
 
 def add_arguments(parser, mode):
