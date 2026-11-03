@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Add optional int64 document IDs to vector stores, per-batch ID input, and exact filtered search by document IDs or physical rows. Duplicate document IDs retain every matching row. New ID-enabled stores use format 2 while ordinary stores remain format 1. DR-215 (Eigene Dokument-IDs im Store speichern (row_ids)).
+
 - Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
 
 ## [2.0.0] - 2026-11-02

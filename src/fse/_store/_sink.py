@@ -28,6 +28,7 @@ from numpy import ndarray
 from fse import _codes, _log
 from fse._container import PublishedNotDurableError, note_cleanup
 from fse._encoder import Encoder
+from fse._ids import checked_ids, id_block
 from fse._validation import PositiveInt, validate_arguments
 
 from ._layout import StoreInfo, create_store, failed_cleanup, read_store
@@ -80,16 +81,21 @@ class ShardSink:
         dtype: Literal["float32", "float16", "int8"] = "float32",
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
+        doc_ids: bool = False,
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
         self.path = Path(path)
         self._start = time.perf_counter()
-        info = StoreInfo(encoder.fingerprint, dtype, encoder.output_dim)
+        info = StoreInfo(
+            encoder.fingerprint, dtype, encoder.output_dim, doc_ids, 2 if doc_ids else 1
+        )
         new = not self.path.exists() and not self.path.is_symlink()
         if new:
             create_store(self.path, info)
-        read_store(self.path).check(info, self.path)
+        existing = read_store(self.path)
+        existing.check(info, self.path)
+        info = existing
         self._synced = durability == "full"
         checked = snapshot(self.path, info, verify=False)
         try:
@@ -99,6 +105,7 @@ class ShardSink:
         finally:
             checked.shards.clear()  # a sink keeps no mappings, also on refusal
 
+        self.has_doc_ids = doc_ids
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self.shard_rows = shard_rows or default_shard_rows(info.dim, dtype)
@@ -163,7 +170,7 @@ class ShardSink:
         self._targets[first_row] = (parts, own)
         return _flat(own)
 
-    def commit(self, first_row: int, rows: Any) -> None:
+    def _commit_target(self, first_row, rows, doc_ids):
         self._check_open()
         self._check_threads()
         if first_row != self._committed or first_row not in self._targets:
@@ -177,7 +184,19 @@ class ShardSink:
             _same(g, e) for g, e in zip(given, expected, strict=True)
         ):
             raise ValueError(f"the rows from {first_row} are not the target reserved for them")
+        if self.has_doc_ids != (doc_ids is not None):
+            raise ValueError("doc_ids must match the mode of the sink")
+        ids = None
+        if doc_ids is not None:
+            checked_ids(doc_ids)
+            if len(doc_ids) != sum(len(part[2][0]) for part in parts):
+                raise ValueError("doc_ids must have one ID per committed row")
+            ids = id_block(doc_ids, 0, len(doc_ids))
         del self._targets[first_row]  # only once the commit is checked
+        return parts, own, ids
+
+    def commit(self, first_row: int, rows: Any, *, doc_ids: Any = None) -> None:
+        parts, own, ids = self._commit_target(first_row, rows, doc_ids)
         offset = 0
         for writer, begin, (codes, scales, norms) in parts:
             if own is not None:
@@ -186,14 +205,24 @@ class ShardSink:
                 if scales is not None:
                     scales[...] = own[1][offset : offset + n]
                 norms[...] = own[2][offset : offset + n]
-                offset += n
             # The write first: rows counted as committed always have their write queued,
             # also when an interrupt (Ctrl+C) stops this between the two hand-overs.
-            self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
-            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+            self._submit_rows(
+                writer, begin, codes, None if ids is None else ids[offset : offset + len(codes)]
+            )
+            offset += len(codes)
             writer.queued += len(codes)
             self._committed += len(codes)
             self._publish_ready()  # a full shard goes on at once, so few files stay open
+
+    def _submit_rows(self, writer, begin, codes, ids):
+        if ids is None:
+            self._io.submit(writer.write, begin, codes, nbytes=codes.nbytes)
+            self._hash.submit(writer.commit, begin, codes, nbytes=codes.nbytes)
+        else:
+            size = codes.nbytes + ids.nbytes
+            self._io.submit(writer.write, begin, codes, ids, nbytes=size)
+            self._hash.submit(writer.commit, begin, codes, ids, nbytes=size)
 
     # --- durability --------------------------------------------------------------------
 
