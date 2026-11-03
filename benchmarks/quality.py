@@ -176,7 +176,7 @@ def run(args):
     return ledger.done()
 
 
-def main():
+def _arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
@@ -201,7 +201,21 @@ def main():
     parser.add_argument("--source-revision")
     parser.add_argument("--base-python", help="installed base fse interpreter for diagnostics")
     parser.add_argument("--reuse-work", type=Path, help="prepared local diagnostic inputs")
-    args = parser.parse_args()
+    return parser, parser.parse_args()
+
+
+def _resolve_paths(args):
+    for name in ("results", "work", "cache"):
+        setattr(args, name, getattr(args, name).resolve())
+    setup_source = Path(sys.executable).parents[2] / "fse-source"
+    args.fixture_repo = (
+        args.fixture_repo
+        or (setup_source if setup_source.is_dir() else Path(__file__).resolve().parents[1])
+    ).resolve()
+
+
+def main():
+    parser, args = _arguments()
     if args.child_job:
         from _quality.diagnostic_child import child
 
@@ -210,13 +224,7 @@ def main():
         from _quality.diagnostics import run as diagnose
 
         return diagnose(args)
-    for name in ("results", "work", "cache"):
-        setattr(args, name, getattr(args, name).resolve())
-    setup_source = Path(sys.executable).parents[2] / "fse-source"
-    args.fixture_repo = (
-        args.fixture_repo
-        or (setup_source if setup_source.is_dir() else Path(__file__).resolve().parents[1])
-    ).resolve()
+    _resolve_paths(args)
     if args.summarize:
         from _quality.summary import summarize
 
