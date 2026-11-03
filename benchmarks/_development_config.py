@@ -83,6 +83,8 @@ def validate_cell(raw, defaults):
 
 
 def _bounds(cell):
+    if cell["stage"] in ("tokenizer", "pooling") and cell["workers"] != 1:
+        raise ValueError("isolated tokenizer and pooling calls require one worker")
     if cell["pairs"] < 3 or cell["minimum_seconds"] < 2:
         raise ValueError("at least three pairs and a two-second duration floor are required")
     if not cell["minimum_seconds"] <= cell["target_seconds"] <= cell["max_target_seconds"]:
@@ -138,6 +140,13 @@ def add_arguments(parser, mode, quality=False):
     parser.add_argument("--worker-name", default="fse-development")
     parser.add_argument("--candidate-python")
     parser.add_argument(
+        "--diagnostic-rehearsal",
+        action="store_true",
+        help="functional probes only, no timing decision",
+    )
+    parser.add_argument("--memory-limit-bytes", type=int)
+    parser.add_argument("--cpu-affinity", type=int, nargs="+")
+    parser.add_argument(
         "--hf-cache", type=Path, help="existing public HF cache, read before downloading to work"
     )
     if quality:
@@ -145,7 +154,13 @@ def add_arguments(parser, mode, quality=False):
         parser.add_argument("--reuse-work", type=Path)
     else:
         parser.add_argument("--cells", nargs="+")
-        parser.add_argument("--local-phase", choices=("prepare",), default="prepare")
+        parser.add_argument(
+            "--local-phase",
+            choices=("prepare", "calibrate", "aa", "screen", "compare", "confirm"),
+            default="compare",
+        )
+        parser.add_argument("--aa-results", type=Path)
+        parser.add_argument("--comparison-results", type=Path)
     parser.add_argument("local_command", nargs="*", help="command after -- for --local-heavy")
 
 
@@ -191,6 +206,17 @@ def _diagnose(args, quality):
     require_unix()
     if args.local_command:
         raise ValueError("a trailing command requires --local-heavy")
+    default_input = CONFIG / ("quality.json" if quality else "speed.json")
+    if args.input != default_input:
+        if args.development_input:
+            raise ValueError("use either --input or --development-input for local development")
+        args.development_input = args.input
+    if args.memory_limit_bytes is not None and args.memory_limit_bytes <= 0:
+        raise ValueError("positive --memory-limit-bytes required")
+    if args.cpu_affinity is not None and (
+        min(args.cpu_affinity) < 0 or len(set(args.cpu_affinity)) != len(args.cpu_affinity)
+    ):
+        raise ValueError("CPU affinity must contain distinct nonnegative CPU numbers")
     if quality:
         from _quality.development import run
     else:

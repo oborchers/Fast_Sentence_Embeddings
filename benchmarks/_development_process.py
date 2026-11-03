@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from _development_system import LABEL, configure_child, require_unix
@@ -64,6 +65,7 @@ def child(file):
     job = document(file)
     workers = job.get("workers", 1)
     configure_child(workers)
+    started = time.monotonic()
     before = identity()
     if job["action"] == "prepare":
         from _development_data import prepare_child
@@ -73,10 +75,19 @@ def child(file):
         from _quality.development_child import export
 
         result = export(job)
+    elif job["action"] == "measure":
+        from _development_measure import measure
+
+        result = measure(job)
+    elif job["action"] == "pooling-input":
+        from _development_stages import prepare_batch
+
+        result = {"batch": prepare_batch(job)}
     else:
         raise ValueError("unknown development child action")
     if identity() != before:
         raise ValueError("installed build changed during development child execution")
+    result["active_seconds"] = time.monotonic() - started - result.pop("wait_seconds", 0.0)
     atomic(Path(job["receipt"]), {**result, **LABEL, "identity": before})
 
 

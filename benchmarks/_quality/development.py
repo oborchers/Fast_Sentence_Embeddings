@@ -10,6 +10,7 @@ from _development_data import prepare
 from _development_locks import coordinated
 from _development_process import checked, launch
 from _development_records import record_result, session
+from _development_resources import admission
 from _development_system import LABEL
 from _measurement import append
 
@@ -79,6 +80,16 @@ def _score_bits(first, second):
 def quality_gate(args, cell, prepared, ledger, tag):
     model = prepared["models"][cell["model"]]
     corpus = prepared["corpora"][cell["corpus"]]
+    plan = admission(
+        {**cell, "stage": "encode-memory"},
+        prepared,
+        corpus["texts"],
+        args.work,
+        args.memory_limit_bytes,
+    )
+    append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "quality", **plan})
+    if not plan["admitted"]:
+        raise MemoryError("complete quality corpus exceeds RAM or disk admission")
     records = []
 
     def notify(row):
@@ -111,6 +122,7 @@ def quality_gate(args, cell, prepared, ledger, tag):
 
 def run(args):
     spec = load(args.development_input, args.cells)
+    spec["functional_only"] = args.diagnostic_rehearsal
     seen, cells = set(), []
     for cell in spec["cells"]:
         key = cell["model"], cell["corpus"], cell["table_dtype"], cell["workers"]

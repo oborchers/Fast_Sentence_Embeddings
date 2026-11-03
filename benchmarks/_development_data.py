@@ -167,9 +167,16 @@ def prepare_child(job):
     corpora = {}
     for name in sorted({cell["corpus"] for cell in job["cells"]}):
         data = _stsb() if name == "stsb" else _wikitext(work, cache)
+        data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
+        data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
         path = work / (name + ".json")
         atomic(path, data)
         corpora[name] = dict(
-            path=str(path), sha256=sha256(path), texts=len(data["texts"]), source=data["source"]
+            path=str(path),
+            sha256=sha256(path),
+            texts=len(data["texts"]),
+            source=data["source"],
+            timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in data["timing_texts"]),
+            timing_policy=data["timing_policy"],
         )
     return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache)}
