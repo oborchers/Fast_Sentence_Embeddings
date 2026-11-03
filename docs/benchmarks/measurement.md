@@ -186,6 +186,56 @@ this checkout's extension on Linux using CPython 3.13.16, keeps models/data outs
 the image and is never pushed to a registry. Rebuild after product changes. A container
 functional probe establishes function only, with no Linux or host-Mac speed claim.
 
+### Document-ID adapter profile
+
+`profile: "document-ids@1"` extends the same v2 controller with optional stored IDs,
+`store-search` and `store-open`. It does not add another timer or publication path.
+`base_doc_ids` and `candidate_doc_ids` accept `none`, `ordered` or `shuffled`.
+IDs are int64 row positions divided by `id_chunks` (default four), with seed-zero
+shuffling when selected. All written labels are checked against their source rows.
+Numerical tensors remain the common paired output proof. Search additionally checks
+every returned label against its physical position and every position against the filter.
+
+`benchmarks/config/document-ids-local.json` defines a separate 10,001,610-row workload,
+2295 complete WikiText test cycles, with two workers and float32 tables. It is not
+the 100-million-row Linux headline or the earlier ten-million-row training-text study.
+Float32 ordered-ID writing precedes the int8 configurations. These comparisons are
+descriptive because optional ID work is an added feature, not a speed optimization.
+All v2 quality, duration and A/A noise gates still apply. At least 30 GiB must remain
+free after the conservative planned output allocation. Admission checks each cell and
+each write group. Every repeated store is fully verified, synchronized and removed
+outside its group's timer. `*.stores.jsonl` records logical file bytes and ID payload
+bytes separately; these are not physical device writes.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/document-ids-local.json \
+  --cells local-wikitext-10001610-float32-ordered-ids \
+  --base-python /external/master/bin/python --candidate-python /external/candidate/bin/python \
+  --worker-name document-ids --results /external/ids-results --work /external/ids-work
+python benchmarks/quality.py --diagnose \
+  --development-input benchmarks/config/quality-local.json \
+  --base-python /external/master/bin/python --candidate-python /external/candidate/bin/python \
+  --worker-name document-ids --results /external/ids-quality --work /external/ids-quality-work
+```
+
+The normal A/A blocks always use the base interpreter and base ID mode for both arms.
+For the explicit ID-control cells, pass the candidate interpreter as both interpreters.
+Their base and candidate ID modes are both ordered. Such controls are separate cells,
+not reusable controls for a differently configured base/candidate comparison.
+
+`document-ids-store-local.json` defines small, complete 4358-row WikiText stores.
+These are explicitly separate from large-store evidence. Source-store construction,
+full verification, synchronization and filter preparation happen outside the timer.
+Search repeats exact scoring on an already open store. Open repeats opening and closing
+the same store with warm OS caches. It does not measure cold storage latency.
+Range, spread and missing filters use `filter_fraction` of the row or document domain.
+`filter_kind` selects physical `rows` or logical `doc_ids`; `queries` and `k` are explicit.
+Both installed builds must support the selected filter API. Use two candidate
+interpreters for functional probes or controls where master lacks that API.
+Run `--diagnostic-rehearsal` with a separately named small-cycle configuration for
+functional probes. Never report those observations as the large workload's throughput.
+
 ## Inspect and set up
 
 Describe without importing optional measurement packages:

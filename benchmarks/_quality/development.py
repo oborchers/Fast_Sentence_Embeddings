@@ -7,6 +7,7 @@ import time
 
 from _development_config import load
 from _development_data import prepare
+from _development_ids import mode_for
 from _development_locks import coordinated
 from _development_process import checked, launch
 from _development_records import record_result, session
@@ -105,8 +106,14 @@ def quality_gate(args, cell, prepared, ledger, tag):
                 corpus=corpus,
                 workers=cell["workers"],
                 output=str(args.work / (tag + "-" + name)),
+                doc_ids=mode_for(cell, candidate=name == "candidate"),
+                id_chunks=cell["id_chunks"],
             )
             records.append(launch(args, job, python, tag + "-" + name))
+            if records[-1]["document_ids"] != {"mode": job["doc_ids"], "alignment_checked": True}:
+                raise ValueError(
+                    "quality document-ID alignment proof differs from the requested mode"
+                )
         bits = compare(*records)
     if cell["corpus"] == "stsb" and set(bits) != {"train", "dev", "test"}:
         raise ValueError("complete STS-B score splits required")
@@ -115,6 +122,7 @@ def quality_gate(args, cell, prepared, ledger, tag):
         "bit_identical": True,
         "score_bits": bits,
         "identities": [r["identity"] for r in records],
+        "document_ids": [r["document_ids"] for r in records],
     }
     append(args.results / "checks.jsonl", {"cell_id": cell["id"], **result})
     return result
@@ -125,7 +133,19 @@ def run(args):
     spec["functional_only"] = args.diagnostic_rehearsal
     seen, cells = set(), []
     for cell in spec["cells"]:
-        key = cell["model"], cell["corpus"], cell["table_dtype"], cell["workers"]
+        key = tuple(
+            cell[name]
+            for name in (
+                "model",
+                "corpus",
+                "table_dtype",
+                "workers",
+                "profile",
+                "base_doc_ids",
+                "candidate_doc_ids",
+                "id_chunks",
+            )
+        )
         if key not in seen:
             seen.add(key)
             cells.append(cell)

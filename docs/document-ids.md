@@ -66,8 +66,9 @@ shard. Writing document IDs in nondecreasing order is therefore recommended.
 
 The filter admission budget is 64 MiB at 24 bytes per input entry. This admits
 at most 2,796,202 entries before deduplication. A local allocation probe at that
-boundary measured 47,536,066 additional preparation bytes for both list and array
-input. The remaining budget covers block probes and a conservative margin.
+boundary measured 47,536,042 additional preparation bytes for list inputs and
+48,651,185 bytes for array inputs. The remaining budget covers block probes and a
+conservative margin.
 Caller-owned inputs and numerical scoring buffers are separate. Larger filters
 raise before normalization with the required bytes and budget. They are never
 truncated. Split them into separate searches and merge hits by score and physical

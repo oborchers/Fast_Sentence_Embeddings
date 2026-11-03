@@ -8,6 +8,22 @@ from pathlib import Path
 from _development_system import LABEL, memory_limit
 
 
+def disk_reserve(cell):
+    return (30 if cell.get("profile") == "document-ids@1" else 1) * 1024**3
+
+
+def check_write_disk(job):
+    if job["stage"] != "encode-sink" or job.get("profile") != "document-ids@1":
+        return
+    width = {"float32": 4, "float16": 2, "int8": 1}[job["output_dtype"]]
+    row_bytes = job["dimensions"] * width + 4 + 8
+    if job["output_dtype"] == "int8":
+        row_bytes += 4
+    required = job["texts"] * row_bytes * job["iterations"] * 2 + disk_reserve(job)
+    if shutil.disk_usage(job["work"]).free < required:
+        raise MemoryError("document-ID write group would leave less than 30 GiB free")
+
+
 def admission(cell, prepared, count, work, requested_limit=None):
     corpus = prepared["corpora"][cell["corpus"]]
     model = prepared["models"][cell["model"]]
@@ -30,9 +46,17 @@ def admission(cell, prepared, count, work, requested_limit=None):
         else min(output, 64 * 1024**2),
         "workers": cell["workers"] * 64 * 1024**2,
     }
-    disk = int(count * (mean_bytes + 1) + 1024**3)
+    if (cell.get("base_doc_ids", "none"), cell.get("candidate_doc_ids", "none")) != (
+        "none",
+        "none",
+    ):
+        components["document_ids_and_verification"] = count * 16
+    disk = int(count * (mean_bytes + 1) + disk_reserve(cell))
     if cell["stage"] == "encode-sink":
-        disk += output * cell["iterations"] * 2
+        disk += (output + count * 8) * cell["iterations"] * 2
+    elif cell["stage"] in ("store-open", "store-search"):
+        components["mapped_store_and_filter"] = output + count * 48
+        disk += (output + count * 8) * 2
     free_disk = shutil.disk_usage(work).free
     return {
         **LABEL,

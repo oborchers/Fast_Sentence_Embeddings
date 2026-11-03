@@ -50,6 +50,9 @@ def arm(
     ledger.progress()
     tag = f"{cell['id']}-{phase}-{pair}-{position}"
     job = job_for(cell, prepared, count, tag, owner, batch)
+    from _development_ids import mode_for
+
+    job["doc_ids"] = mode_for(cell, candidate=not control and name == "candidate")
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.diagnostic_rehearsal
     job["sizing_only"] = phase.startswith("size-")

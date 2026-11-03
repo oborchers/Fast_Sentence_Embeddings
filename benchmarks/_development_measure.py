@@ -9,13 +9,14 @@ import shutil
 import subprocess
 import sys
 import time
-from contextlib import suppress
+from contextlib import nullcontext, suppress
 from pathlib import Path
 
 from _development_encode import operation as encode_operation
 from _development_encode import output_identity
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
+from _development_resources import check_write_disk
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, observations
 from _measurement import append
@@ -78,6 +79,7 @@ def _quiet(job, waiting):
 
 def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
+    check_write_disk(job)
     seconds, output, repeated = repeat(operation, job["iterations"])
     job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
@@ -112,13 +114,24 @@ def measure(job):
     waiting = [0.0]
     _quiet(job, waiting)
     model, texts = inputs(job)
+    job["dimensions"] = model.output_dim
     factories = {
         "tokenizer": lambda: tokenizer(model, texts),
         "pooling": lambda: pooling(model, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),
     }
-    operation = factories[job["stage"]]()
+    if job["stage"] in ("store-open", "store-search"):
+        from _development_store import StoreOperation
+
+        context = StoreOperation(model, texts, job)
+    else:
+        context = nullcontext(factories[job["stage"]]())
+    with context as operation:
+        return _measured(operation, job, waiting, policy, resource)
+
+
+def _measured(operation, job, waiting, policy, resource):
     warmups, warm_seconds, expected = [], 0.0, None
     while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
         seconds, proof, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)

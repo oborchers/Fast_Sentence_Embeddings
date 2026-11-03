@@ -215,10 +215,6 @@ def prepare_models(root, contract, reuse=None):
 
 
 def measure_child(job):
-    if job.get("kind") == "diagnostic":
-        from _speed_diagnostic_child import child
-
-        return child(job)
     if job.get("kind") == "write":
         return headline_child(job)
     if job["backend"] == "rust":

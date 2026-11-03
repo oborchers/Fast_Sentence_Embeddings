@@ -1,48 +1,36 @@
 {
-  "format": "local-quality-diagnostic-v1",
-  "local_diagnostic": true,
-  "publishable": false,
-  "description": "Complete STS-B train/dev/test and raw WikiText-103 test rows. Bitwise direct/store float32 and int8 checks, plus default-tokenizer STS scores. No throughput claim.",
+  "format": "local-development-v2",
+  "description": "Full original STS-B train/dev/test and WikiText test rows. Both README WordPiece models; all float32, float16 and int8 direct/store tensors and exact STS score bits. Candidate stored IDs checked in full.",
+  "defaults": {
+    "profile": "document-ids@1",
+    "workers": 2,
+    "candidate_doc_ids": "ordered",
+    "decision_gate": false
+  },
   "cells": [
     {
-      "id": "potion-base-8M-stsb-all",
+      "id": "potion-stsb-ids",
       "model": "minishlab/potion-base-8M",
-      "artifact": "{reuse_work}/potion-base-8M.safetensors",
-      "input": "{reuse_work}/stsb-all.json",
-      "texts": 17256,
-      "candidate_doc_ids": true,
-      "workers": 2,
-      "estimated_seconds": 30
+      "corpus": "stsb",
+      "stage": "encode-sink"
     },
     {
-      "id": "potion-base-8M-wikitext-test",
+      "id": "potion-wikitext-ids",
       "model": "minishlab/potion-base-8M",
-      "artifact": "{reuse_work}/potion-base-8M.safetensors",
-      "input": "{reuse_work}/wikitext-test.json",
-      "texts": 4358,
-      "candidate_doc_ids": true,
-      "workers": 2,
-      "estimated_seconds": 30
+      "corpus": "wikitext",
+      "stage": "encode-sink"
     },
     {
-      "id": "static-retrieval-mrl-en-v1-stsb-all",
+      "id": "retrieval-stsb-ids",
       "model": "sentence-transformers/static-retrieval-mrl-en-v1",
-      "artifact": "{reuse_work}/static-retrieval-mrl-en-v1.safetensors",
-      "input": "{reuse_work}/stsb-all.json",
-      "texts": 17256,
-      "candidate_doc_ids": true,
-      "workers": 2,
-      "estimated_seconds": 30
+      "corpus": "stsb",
+      "stage": "encode-sink"
     },
     {
-      "id": "static-retrieval-mrl-en-v1-wikitext-test",
+      "id": "retrieval-wikitext-ids",
       "model": "sentence-transformers/static-retrieval-mrl-en-v1",
-      "artifact": "{reuse_work}/static-retrieval-mrl-en-v1.safetensors",
-      "input": "{reuse_work}/wikitext-test.json",
-      "texts": 4358,
-      "candidate_doc_ids": true,
-      "workers": 2,
-      "estimated_seconds": 30
+      "corpus": "wikitext",
+      "stage": "encode-sink"
     }
   ]
 }
