@@ -73,8 +73,7 @@ def block(
     ledger.stage, ledger.current = phase, cell["id"]
     for number in range(cell["pairs"]):
         for position, name in enumerate(order(cell, number)):
-            if budget is not None and budget() <= 0:
-                raise TimeoutError("active calibration budget exhausted before next arm")
+            _budget(budget)
             row = arm(
                 args,
                 cell,
@@ -89,15 +88,22 @@ def block(
                 control,
                 batch,
             )
-            expected = identities[0] if control or name == "base" else identities[1]
-            if row["identity"] != expected:
-                raise ValueError("build identity differs from the full quality gate")
-            if not args.diagnostic_rehearsal and row["seconds"] < max(
-                cell["minimum_seconds"], cell["target_seconds"]
-            ):
-                raise ValueError("measured call is shorter than the frozen duration floor")
+            _validate(row, name, identities, control, cell, args.diagnostic_rehearsal)
             proofs.add(json.dumps(row["output"], sort_keys=True))
             rows.append(row)
     if len(proofs) != 1:
         raise ValueError("complete paired stage output differs between builds or rounds")
     return {**LABEL, **paired(cell, rows), "output": rows[0]["output"]}
+
+
+def _budget(remaining):
+    if remaining is not None and remaining() <= 0:
+        raise TimeoutError("active calibration budget exhausted before next arm")
+
+
+def _validate(row, name, identities, control, cell, functional):
+    expected = identities[0] if control or name == "base" else identities[1]
+    if row["identity"] != expected:
+        raise ValueError("build identity differs from the full quality gate")
+    if not functional and row["seconds"] < max(cell["minimum_seconds"], cell["target_seconds"]):
+        raise ValueError("measured call is shorter than the frozen duration floor")

@@ -72,6 +72,8 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             },
         )
     if args.local_phase == "screen":
+        if main["output"] != control["aa"]["output"]:
+            raise ValueError("screen output differs from its A/A control")
         threshold = max(
             cell["noise_multiplier"] * control["aa"]["factor"]["iqr"], cell["minimum_saving"]
         )

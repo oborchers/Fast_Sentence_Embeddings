@@ -36,19 +36,7 @@ def order(cell, pair):
 
 
 def paired(cell, records):
-    factors = []
-    for pair in range(cell["pairs"]):
-        rows = [row for row in records if row["pair"] == pair]
-        expected = order(cell, pair)
-        if [r["arm"] for r in rows] != list(expected) or [r["position"] for r in rows] != list(
-            range(len(expected))
-        ):
-            raise ValueError("missing, duplicate or incorrectly ordered paired arms")
-        a = sum(r["seconds"] for r in rows if r["arm"] == "base")
-        b = sum(r["seconds"] for r in rows if r["arm"] == "candidate")
-        if a <= 0 or b <= 0:
-            raise ValueError("nonpositive paired arm time")
-        factors.append(a / b)
+    factors = [_ratio(cell, records, number) for number in range(cell["pairs"])]
     if len(records) != cell["pairs"] * len(order(cell, 0)):
         raise ValueError("unexpected extra paired observations")
     return {
@@ -61,7 +49,23 @@ def paired(cell, records):
     }
 
 
+def _ratio(cell, records, number):
+    rows = [row for row in records if row["pair"] == number]
+    expected = order(cell, number)
+    if [r["arm"] for r in rows] != list(expected) or [r["position"] for r in rows] != list(
+        range(len(expected))
+    ):
+        raise ValueError("missing, duplicate or incorrectly ordered paired arms")
+    a = sum(r["seconds"] for r in rows if r["arm"] == "base")
+    b = sum(r["seconds"] for r in rows if r["arm"] == "candidate")
+    if a <= 0 or b <= 0:
+        raise ValueError("nonpositive paired arm time")
+    return a / b
+
+
 def decide(cell, aa, main, confirmation):
+    if aa["output"] != main["output"] or main["output"] != confirmation["output"]:
+        raise ValueError("complete output differs between A/A, comparison and confirmation")
     threshold = max(cell["noise_multiplier"] * aa["factor"]["iqr"], cell["minimum_saving"])
     primary = main["time_saving"] >= threshold
     confirmed = (

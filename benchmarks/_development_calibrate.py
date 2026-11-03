@@ -96,6 +96,8 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
                 budget=remaining,
             )
             attempt["validation"] = validation
+            if tuning["output"] != validation["output"]:
+                raise ValueError("A/A validation output differs from tuning")
             if validation["factor"]["iqr"] < cell["target_aa_iqr"] or args.diagnostic_rehearsal:
                 result = {
                     **LABEL,
