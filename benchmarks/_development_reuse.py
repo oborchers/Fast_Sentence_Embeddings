@@ -26,6 +26,8 @@ def context(cell, prepared, identities):
 
 
 def load_control(root, cell_id, suffix, expected, functional):
+    if not expected["machine"]["boot_id"]:
+        raise ValueError("control reuse requires an observed machine boot identity; run fresh A/A")
     root = root.resolve(strict=True)
     done = document(root / "DONE")
     manifest = root / "manifest.json"

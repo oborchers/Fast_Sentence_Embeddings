@@ -20,8 +20,23 @@ def require_unix():
 
 
 def _sysctl(name):
-    result = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, check=False)
-    return result.stdout.strip() if result.returncode == 0 else None
+    with suppress(OSError):
+        result = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, check=False)
+        return result.stdout.strip() if result.returncode == 0 else None
+    return None
+
+
+def _optional_text(path):
+    with suppress(OSError):
+        return Path(path).read_text().strip()
+    return None
+
+
+def _affinity():
+    if hasattr(os, "sched_getaffinity"):
+        with suppress(OSError):
+            return sorted(os.sched_getaffinity(0))
+    return None
 
 
 def _physical_memory():
@@ -47,11 +62,9 @@ def memory_limit():
 def _cgroup_memory():
     candidates = []
     for name in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
-        path = Path(name)
-        if path.is_file():
-            value = path.read_text().strip()
-            if value.isdecimal():
-                candidates.append(int(value))
+        value = _optional_text(name)
+        if value and value.isdecimal():
+            candidates.append(int(value))
     return candidates
 
 
@@ -62,8 +75,8 @@ def machine():
     if sys.platform == "darwin":
         cpu = _sysctl("machdep.cpu.brand_string") or cpu
         physical = _sysctl("hw.physicalcpu")
-    elif sys.platform.startswith("linux") and Path("/proc/cpuinfo").is_file():
-        fields = Path("/proc/cpuinfo").read_text().splitlines()
+    elif sys.platform.startswith("linux"):
+        fields = (_optional_text("/proc/cpuinfo") or "").splitlines()
         names = [line.split(":", 1)[1].strip() for line in fields if line.startswith("model name")]
         cpu = names[0] if names else cpu
     governor = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
@@ -71,27 +84,32 @@ def machine():
         **LABEL,
         "platform": platform.platform(),
         "system": platform.system(),
+        "hostname": platform.node(),
+        "boot_id": _sysctl("kern.bootsessionuuid")
+        if sys.platform == "darwin"
+        else _optional_text("/proc/sys/kernel/random/boot_id"),
         "cpu": cpu,
         "logical_cpus": os.cpu_count(),
         "physical_cpus": int(physical) if physical else None,
         "memory_limit_bytes": memory_limit(),
-        "affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
-        "governor": governor.read_text().strip()
-        if sys.platform.startswith("linux") and governor.is_file()
-        else None,
+        "affinity": _affinity(),
+        "governor": _optional_text(governor) if sys.platform.startswith("linux") else None,
         "frequency_policy": "observe only; no frequency or governor changes",
     }
 
 
 def foreign_cpu(excluded=()):
     """Read executable names, never process arguments, and exclude our descendants."""
-    result = subprocess.run(
-        ["ps", "-A", "-o", "pid=,ppid=,pcpu=,comm="],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**os.environ, "LC_ALL": "C"},
-    )
+    try:
+        result = subprocess.run(
+            ["ps", "-A", "-o", "pid=,ppid=,pcpu=,comm="],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except OSError:
+        return {"available": False, "processes": []}
     if result.returncode:
         return {"available": False, "processes": []}
     rows = []

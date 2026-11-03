@@ -90,6 +90,8 @@ frozen duration floor, never a sum of short calls. `--diagnostic-rehearsal` labe
 small functional probes and disables timing decisions, not correctness checks.
 
 Calibration first sizes a common workload with reserve on both builds. It measures
+only complete calls. Sizing probes may be shorter and explicitly have
+`valid_for_comparison: false`; they never enter paired decision summaries. It measures
 A/A at targets six, twelve and twenty-four seconds, seeking a ratio IQR below 0.02.
 The first suitable tier needs an independent A/A validation block. Limits are three
 tiers, twenty-four seconds target and sixty active calibration minutes per cell.
@@ -108,7 +110,8 @@ another. `--local-phase` selects `prepare`, `calibrate`, `aa`, `screen`, `compar
 yield a final keep decision. Separate confirmation requires `--comparison-results`.
 `--aa-results` can reuse a completed matching control with `compare` or `screen`.
 `--reuse-work` reuses prepared external inputs. Reuse checks final manifests, source
-hashes, builds, machine, cell, order, dtype, corpus and affinity. A session interrupted
+hashes, builds, dependencies, machine boot, cell, order, dtype, corpus and affinity.
+Systems without a readable boot identity require fresh controls. A session interrupted
 for fifteen minutes requires new controls. Continuous long runs have no global
 thirty-minute expiry.
 

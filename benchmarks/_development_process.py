@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import os
 import shutil
 import subprocess
@@ -57,7 +58,14 @@ def launch(args, job, python, tag, timed=False):
 
 
 def identity():
-    return {"python": sys.version, "executable": sys.executable, "fse": package_identity("fse")}
+    return {
+        "python": sys.version,
+        "executable": sys.executable,
+        "fse": package_identity("fse"),
+        "dependencies": dict(
+            sorted((d.metadata["Name"], d.version) for d in importlib.metadata.distributions())
+        ),
+    }
 
 
 def child(file):

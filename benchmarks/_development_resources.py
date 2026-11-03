@@ -33,6 +33,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
     disk = int(
         count * (mean_bytes + 1) + (output * 2 if cell["stage"] == "encode-sink" else 0) + 1024**3
     )
+    free_disk = shutil.disk_usage(work).free
     return {
         **LABEL,
         "texts": count,
@@ -41,6 +42,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
         "memory_limit_bytes": limit,
         "safety_fraction": 0.85,
         "required_disk_bytes": disk,
+        "available_disk_bytes": free_disk,
         "admitted": sum(components.values()) <= limit * 0.85
-        and shutil.disk_usage(work).free >= disk,
+        and free_disk >= disk,
     }

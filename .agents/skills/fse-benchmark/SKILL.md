@@ -85,6 +85,9 @@ Rebuild it from the same checkout after product changes. Its explicit developmen
 version does not identify a Git commit; package/source hashes identify actual code.
 Use `--diagnostic-rehearsal` for tiny functional stage probes. Run Docker preparation
 under heavy coordination and keep Docker off during native host timing sessions.
+If a host heavy wrapper covers the complete Docker session, give the container its
+own mounted coordination directory. Sharing the held host lock with its inner
+controller would make it wait for itself. Other host work still uses the host locks.
 See the [local protocol](../../../docs/benchmarks/measurement.md#local-unix-development)
 for phases, complete quality checks, resource limits and result reuse.
 

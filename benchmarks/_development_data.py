@@ -21,6 +21,7 @@ def prepare(args, cells, ledger):
         root = args.reuse_work.resolve()
         receipt = document(root / "prepared.json")
         _verify(receipt, cells)
+        atomic(args.results / "inputs.json", receipt)
         return receipt
 
     def notify(row):
@@ -45,6 +46,7 @@ def prepare(args, cells, ledger):
         )
     atomic(args.work / "prepared.json", receipt)
     _verify(receipt, cells)
+    atomic(args.results / "inputs.json", receipt)
     return receipt
 
 

@@ -21,6 +21,10 @@ from _measurement import append
 
 def _policy(job):
     result = {"background_policy_cleared": None, "affinity": None}
+    if hasattr(os, "getpriority"):
+        result["nice"] = os.getpriority(os.PRIO_PROCESS, 0)
+        if result["nice"] != 0 and not job.get("functional_only", False):
+            raise ValueError("timing requires nice 0; start the controller at nice 0")
     if sys.platform == "darwin":
         taskpolicy = shutil.which("taskpolicy")
         if taskpolicy:
@@ -73,6 +77,10 @@ def _call(operation, job, phase, number, waiting):
             **LABEL,
             "phase": phase,
             "number": number,
+            "sizing_only": job.get("sizing_only", False),
+            "functional_only": job.get("functional_only", False),
+            "valid_for_comparison": phase == "measured"
+            and not (job.get("sizing_only", False) or job.get("functional_only", False)),
             "seconds": seconds,
             "including_open_seconds": including_open,
             "telemetry_before": before,
@@ -126,4 +134,10 @@ def measure(job):
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
         "requested_workers": job["workers"],
+        "input": {
+            **job["corpus"],
+            "repetition_factor": job["texts"] // job["corpus"]["texts"],
+            "timing_utf8_bytes": job["corpus"]["timing_utf8_bytes"]
+            * (job["texts"] // job["corpus"]["texts"]),
+        },
     }

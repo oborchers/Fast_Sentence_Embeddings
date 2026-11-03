@@ -45,9 +45,13 @@ def arm(
     args, cell, prepared, ledger, count, owner, phase, pair, position, name, control, batch=None
 ):
     wait_for_arm(args, ledger, cell["id"])
+    ledger.current, ledger.stage = cell["id"], phase
+    ledger.progress()
     tag = f"{cell['id']}-{phase}-{pair}-{position}"
     job = job_for(cell, prepared, count, tag, owner, batch)
     job["cpu_affinity"] = args.cpu_affinity
+    job["functional_only"] = args.diagnostic_rehearsal
+    job["sizing_only"] = phase.startswith("size-")
     if args.diagnostic_rehearsal:
         job.update(warmup_calls=1, warmup_seconds=0)
     python = args.base_python if control or name == "base" else args.candidate_python
@@ -59,6 +63,8 @@ def arm(
         arm=name,
         texts=count,
         completed_at_unix=time.time(),
+        sizing_only=job["sizing_only"],
+        valid_for_comparison=not (job["sizing_only"] or args.diagnostic_rehearsal),
     )
     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     return record

@@ -88,8 +88,17 @@ def heavy_command(command, worker, notify):
         import shutil
 
         nice = shutil.which("nice")
-        notify({**LABEL, "event": "heavy_priority", "nice_increment": 10 if nice else None})
-        child = subprocess.Popen([nice, "-n", "10", *command] if nice else command)
+        current = os.getpriority(os.PRIO_PROCESS, 0) if hasattr(os, "getpriority") else None
+        increment = max(0, 10 - current) if current is not None else 10
+        notify(
+            {
+                **LABEL,
+                "event": "heavy_priority",
+                "parent_nice": current,
+                "nice_increment": increment if nice else None,
+            }
+        )
+        child = subprocess.Popen([nice, "-n", str(increment), *command] if nice else command)
         try:
             status = child.wait()
         except BaseException:
