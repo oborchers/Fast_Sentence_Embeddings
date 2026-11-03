@@ -149,6 +149,25 @@ Scope: outside the former "2.0 design" section.
 
 The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one translation unit, so `cdef inline` functions inline across parts) and the headers in `_native_src/` at build time with Cython 3 against numpy 2 headers; generated C is never committed. Wheels built this way also run with numpy 1.x. `make rebuild-ext` rebuilds it in the development environment after edits to `.pyx`, `.pxi`, `.pxd` or `.h` files.
 
+## Test scheduling and release checks
+
+Pushes to master and release tags run one macOS test job on CPython 3.13,
+plus the macOS arm64 wheel job. Python 3.13 is the newest interpreter where
+the optional gensim tests also run. The separate sentence-transformers jobs
+run on Linux for these events. This limits dependence on scarce macOS runners.
+
+Pull requests that trigger native tests run the full macOS test matrix
+(CPython 3.11 to 3.15). The macOS sentence-transformers comparison still runs
+when its path filter matches. Scheduled and manual runs retain both the full
+macOS test matrix and that comparison. Documentation-only PRs still skip tests.
+
+The required branch check is `check`. It aggregates `changes`, `lint`, `test`,
+`test-st`, `coverage`, `sdist` and `wheels` through alls-green. Only PRs allow
+intentional job skips. All these jobs run on release tags, including the
+Linux-only `test-st` matrix and coverage from the reduced test matrix.
+The release job needs `check`, so a failed or unexpectedly skipped tag job
+blocks publication. No dependency names an omitted macOS matrix entry.
+
 ## Wheel verification
 
 CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects

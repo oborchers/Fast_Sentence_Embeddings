@@ -30,8 +30,8 @@ jobs:
   # check still runs and passes. Otherwise lint always runs, and test runs on Linux with
   # Python 3.13 (the newest version where every test runs; gensim does not build on 3.14
   # and newer). The rest depends on the files changed, see the outputs below. Pushes to
-  # master, tags, the monthly run and manual runs test everything. A change of the
-  # workflows themselves turns every output on.
+  # master and tags use one macOS test interpreter; monthly and manual runs use all.
+  # A change of the workflows themselves turns every output on.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -46,6 +46,7 @@ jobs:
       sdist: ${{ steps.diff.outputs.sdist }}
       # The matrix of the test job.
       test_matrix: ${{ steps.diff.outputs.test_matrix }}
+      st_matrix: ${{ steps.diff.outputs.st_matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -57,6 +58,13 @@ jobs:
           BASE: ${{ github.base_ref }}
         run: |
           full=$(jq -nc '[{os: "ubuntu-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "ubuntu-latest", "python-version": "3.11", deps: "min"}]')
+          # Pushes (master and release tags) need only one macOS test runner.
+          # 3.13 is the newest Python where the optional gensim tests also run.
+          if [ "$EVENT" = "push" ]; then
+            full=$(echo "$full" | jq -c '[.[] | select(.os != "macos-latest" or .["python-version"] == "3.13")]')
+          fi
+          st=$(jq -nc --arg event "$EVENT" '[{os: "ubuntu-latest", "python-version": ("3.11", "3.15")}] + (if $event == "push" then [] else [{os: "macos-latest", "python-version": "3.13"}] end)')
+          echo "st_matrix={\"include\":$st}" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" != "pull_request" ]; then
             {
               for name in code native deps st sdist; do echo "$name=true"; done
@@ -109,8 +117,8 @@ jobs:
             flag st '^src/fse/_encoder/_sentence_transformers|^tests/test_encoder_sentence_transformers|^tests/support/(sentence_transformers|converted)\.py$|^(pyproject\.toml|uv\.lock)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
-          # Linux on 3.13, macOS for native changes, and minimum dependency versions.
-          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
+          # Linux on 3.13, the full macOS matrix for native changes, and minimum dependencies.
+          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
           echo "test_matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   lint:
@@ -192,11 +200,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-latest, python-version: "3.11" }
-          - { os: ubuntu-latest, python-version: "3.15" }
-          - { os: macos-latest, python-version: "3.13" }
+      # macOS comparisons run on PRs, scheduled and manual runs, not on pushes.
+      matrix: ${{ fromJSON(needs.changes.outputs.st_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -347,7 +352,7 @@ jobs:
           jobs: ${{ toJSON(needs) }}
           # A pull request skips jobs on purpose (documentation only, no native code
           # changed, and so on); a skipped job counts as passed, a failed one fails.
-          allowed-skips: lint, test, test-st, coverage, sdist, wheels
+          allowed-skips: ${{ github.event_name == 'pull_request' && 'lint, test, test-st, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check
