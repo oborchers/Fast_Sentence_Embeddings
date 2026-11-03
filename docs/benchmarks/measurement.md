@@ -131,9 +131,12 @@ another. `--local-phase` selects `prepare`, `calibrate`, `aa`, `screen`, `compar
 yield a final keep decision. Separate confirmation requires `--comparison-results`.
 `--aa-results` can reuse a completed matching control with `compare` or `screen`.
 `--reuse-work` reuses prepared external inputs. Reuse checks final manifests, source
-hashes, builds, dependencies, machine boot, cell, order, dtype, corpus and affinity.
+hashes, builds, dependencies, available Git revision, machine boot, cell, order, dtype,
+corpus and affinity. The environment records Git availability and tracked dirty state;
+file hashes identify the runner even where mounted worktree metadata is unavailable.
 Systems without a readable boot identity require fresh controls. A session interrupted
-for fifteen minutes requires new controls. Continuous long runs have no global
+for fifteen minutes requires new controls for that cell. A later-finishing different
+cell does not refresh an earlier cell's controls. Continuous long runs have no global
 thirty-minute expiry.
 
 The byte gate compares complete direct and stored float32, float16 and int8 payloads,

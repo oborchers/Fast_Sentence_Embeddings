@@ -90,6 +90,17 @@ Create those external directories first. The image builds the extension with
 CPython 3.13.16 and uv 0.13.0, with no baked models/data and no registry push.
 Rebuild it from the same checkout after product changes. Its explicit development
 version does not identify a Git commit; package/source hashes identify actual code.
+For a functional comparison, replace the final `--local-info` command with:
+
+```sh
+/source/benchmarks/speed.py --diagnose --diagnostic-rehearsal \
+  --base-python /opt/fse-env/bin/python --candidate-python /opt/fse-env/bin/python \
+  --cells potion-stsb-tokenizer potion-stsb-pooling potion-stsb-encode-memory potion-stsb-encode-sink \
+  --hf-cache /cache --results /results/probe-01 --work /work/probe-01
+```
+
+Use fresh result/work subdirectories, not the existing mount roots. Public downloads
+go into the mounted work directory; keep caches and generated output outside Git.
 Use `--diagnostic-rehearsal` for tiny functional stage probes. Run Docker preparation
 under heavy coordination and keep Docker off during native host timing sessions.
 If a host heavy wrapper covers the complete Docker session, give the container its

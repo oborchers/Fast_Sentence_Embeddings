@@ -14,6 +14,33 @@ from pathlib import Path
 LABEL = {"mode": "local-development", "publishable": False}
 
 
+def source_identity():
+    """Observe Git when available; file hashes remain authoritative without Git metadata."""
+    unavailable = {"available": False, "revision": None, "tracked_working_tree_dirty": None}
+    git = shutil.which("git")
+    if not git:
+        return unavailable
+    root = Path(__file__).resolve().parents[1]
+    with suppress(OSError):
+        command = [git, "--no-optional-locks", "-C", str(root)]
+        revision = subprocess.run(
+            [*command, "rev-parse", "HEAD"], capture_output=True, text=True, check=False
+        )
+        status = subprocess.run(
+            [*command, "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if revision.returncode == 0 and status.returncode == 0:
+            return {
+                "available": True,
+                "revision": revision.stdout.strip(),
+                "tracked_working_tree_dirty": bool(status.stdout),
+            }
+    return unavailable
+
+
 def require_unix():
     if os.name != "posix":
         raise RuntimeError("local development measurements require Unix; Windows is unsupported")

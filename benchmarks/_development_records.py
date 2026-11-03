@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from _development_system import LABEL, machine, observations
+from _development_system import LABEL, machine, observations, source_identity
 from _measurement import Ledger, append, atomic, heartbeat, sha256
 from _measurement_setup import outside_checkout
 
@@ -76,6 +76,7 @@ def session(args, spec):
             **LABEL,
             "machine": machine(),
             "contract": spec,
+            "runner_git": source_identity(),
             "telemetry": observations(args.work),
             "measurement_source_sha256": {
                 str(p.relative_to(Path(__file__).parent)): sha256(p)
