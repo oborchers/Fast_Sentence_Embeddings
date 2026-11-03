@@ -186,6 +186,8 @@ def main():
     mode.add_argument("--summarize", type=Path)
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
+    mode.add_argument("--diagnose", action="store_true", help="local bitwise quality comparison")
+    mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--input", type=Path, default=CONFIG / "quality.json")
     parser.add_argument("--cells", nargs="+")
     parser.add_argument("--results", type=Path, default=Path("/quality-results"))
@@ -197,7 +199,17 @@ def main():
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
+    parser.add_argument("--base-python", help="installed base fse interpreter for diagnostics")
+    parser.add_argument("--reuse-work", type=Path, help="prepared local diagnostic inputs")
     args = parser.parse_args()
+    if args.child_job:
+        from _quality.diagnostic_child import child
+
+        return child(json.loads(args.child_job.read_text()))
+    if args.diagnose:
+        from _quality.diagnostics import run as diagnose
+
+        return diagnose(args)
     for name in ("results", "work", "cache"):
         setattr(args, name, getattr(args, name).resolve())
     setup_source = Path(sys.executable).parents[2] / "fse-source"

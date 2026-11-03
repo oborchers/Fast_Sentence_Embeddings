@@ -170,6 +170,33 @@ Primary API references: [ST process-pool API](https://www.sbert.net/docs/package
 
 ## Local macOS diagnostics
 
+`quality.py --diagnose` compares complete outputs from two installed fse versions.
+It accepts `--input benchmarks/config/quality-local.json`, `--base-python`,
+`--reuse-work`, and fresh external `--results` and `--work` directories.
+The local quality template uses both pinned README WordPiece models, all STS-B
+train/dev/test sentences and every raw WikiText-103 test row, without sampling,
+heading removal or whitespace normalization. Prepared JSON inputs contain the
+original text list and, for STS-B, ordered split ranges and labels. Keep source
+revisions, row counts and fixture checksums in their provenance. Prepare pinned
+model artifacts externally. The diagnostic itself never downloads inputs.
+
+The existing entry launches its `--child-job` mode in the base and candidate
+interpreters. It saves full float32 output and int8 codes/scales from `encode`,
+plus every float32/int8 store vector, scale and inverse norm. With
+`candidate_doc_ids=true`, it also checks the candidate's ID-enabled store against
+the base's ordinary store and verifies every stored ID. Comparison reads the
+actual array bit patterns in blocks, checks shapes and dtypes, and verifies the
+saved file hashes. No value tolerance is used. The first error or differing bit
+stops the remaining cells. Failed evidence is retained.
+
+STS-B Pearson and Spearman use the saved default tokenizer, normalized cosine
+similarities and a score scale of 100. Both float64 score bit patterns must also
+agree. These are local quality gates, not new MTEB or throughput results. Their
+timings supply no speed claims. Coordinate heavy quality runs through the shared
+heavy-work lock. Both local diagnostic modes retain the existing result ledger,
+heartbeat, manifest and `DONE` collection format. Linux evaluation paths and
+publication defaults are unchanged.
+
 `speed.py --diagnose` is an explicit, non-publishable local indication mode.
 It does not relax the pinned Linux production path or supply headline evidence.
 Use `--input` with a `local-diagnostic-v1` specification, `--results` and `--work`
