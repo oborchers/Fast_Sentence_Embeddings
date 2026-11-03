@@ -94,10 +94,11 @@ def _pair(args, cell, round_index, ledger, functional):
 
 def _locked_cell(args, cell, ledger, functional):
     while not ledger.stopping:
-        with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
-            if acquired:
-                _cell(args, cell, ledger, functional)
-                return
+        if _admitted(args, cell, -1, -1, functional):
+            with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
+                if acquired and _admitted(args, cell, -1, -1, functional):
+                    _cell(args, cell, ledger, functional)
+                    return
         ledger.current, ledger.stage = cell["id"], "waiting_for_cell_lock"
         ledger.progress()
         time.sleep(5)
@@ -114,6 +115,8 @@ def _summary(values):
 
 def _admitted(args, cell, round_index, order, functional):
     observation = observations()
+    heavy_lock = Path(args.bench_lock).with_name("heavy.lock")
+    heavy_busy = heavy_lock.exists()
     append(
         args.results / "preflights.jsonl",
         {
@@ -122,11 +125,13 @@ def _admitted(args, cell, round_index, order, functional):
             "order": order,
             "load_limit_exclusive": MAX_LOAD,
             "foreign_cpu_limit_percent": 50,
+            "heavy_lock": str(heavy_lock),
+            "heavy_lock_busy": heavy_busy,
             "telemetry": observation,
         },
     )
-    return functional or (
-        observation["load"][0] < MAX_LOAD and not observation["foreign_cpu_over_50"]
+    return not heavy_busy and (
+        functional or (observation["load"][0] < MAX_LOAD and not observation["foreign_cpu_over_50"])
     )
 
 

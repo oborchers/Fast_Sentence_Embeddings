@@ -239,6 +239,14 @@ ranges (IQR), plus the median and IQR of paired time ratios. Quartiles use
 inclusive linear interpolation. A throughput ratio is the reciprocal of the
 paired time ratio and must be labelled accordingly.
 
+Local timing and heavy work are mutually exclusive. The diagnostic requires the
+sibling `heavy.lock` directory to be absent before taking `bench.lock`, checks
+again after acquisition, and repeats the check before every arm. Heavy-work
+controllers must similarly require `bench.lock` to be absent before starting.
+Record both checks. The per-process CPU guard does not replace these locks:
+several compiler processes can each remain below 50 percent while loading the
+machine together.
+
 Use `--diagnostic-rehearsal` with a small local specification for functional
 probes. Such records are explicitly functional-only, with no speed claim.
 Memory/CPU profiling may use a diagnostic child job marked `profile_only`.
