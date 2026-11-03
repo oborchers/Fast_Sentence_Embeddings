@@ -89,7 +89,8 @@ def test_ids_are_synced_before_publication(tmp_path, monkeypatch):
         encoder.encode(["w1", "w2"], doc_ids=[1, 2], sink=sink)
     events = recorder.named(root)
     assert events.index("fsync row_ids.npy") < events.index("rename")
-    assert events[-1] == "full store"
+    # Windows publishes with MoveFileExW and does not synchronize directories.
+    assert events[-1] == ("rename" if os.name == "nt" else "full store")
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX power-loss model")
