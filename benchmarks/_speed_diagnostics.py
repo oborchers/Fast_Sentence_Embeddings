@@ -77,13 +77,12 @@ def _pair(args, cell, round_index, ledger, functional):
     receipts = []
     for order, arm in enumerate(arms):
         while not ledger.stopping:
-            with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
-                if acquired and _admitted(args, cell, round_index, order, functional):
-                    receipt = _launch(args, cell, arm, round_index, order, functional)
-                    receipts.append(receipt)
-                    append(args.results / "operations.jsonl", {"cell_id": cell["id"], **receipt})
-                    break
-            ledger.stage = "waiting_for_lock_load_or_foreign_cpu"
+            if _admitted(args, cell, round_index, order, functional):
+                receipt = _launch(args, cell, arm, round_index, order, functional)
+                receipts.append(receipt)
+                append(args.results / "operations.jsonl", {"cell_id": cell["id"], **receipt})
+                break
+            ledger.stage = "waiting_for_load_or_foreign_cpu"
             ledger.progress()
             time.sleep(5)
         else:
@@ -91,6 +90,26 @@ def _pair(args, cell, round_index, ledger, functional):
     if receipts[0]["output"] != receipts[1]["output"]:
         raise ValueError("paired outputs are not equivalent")
     return receipts
+
+
+def _locked_cell(args, cell, ledger, functional):
+    while not ledger.stopping:
+        with _lock(Path(args.bench_lock), args.worker_name, cell["id"]) as acquired:
+            if acquired:
+                _cell(args, cell, ledger, functional)
+                return
+        ledger.current, ledger.stage = cell["id"], "waiting_for_cell_lock"
+        ledger.progress()
+        time.sleep(5)
+
+
+def _summary(values):
+    q1, _, q3 = (
+        statistics.quantiles(values, n=4, method="inclusive")
+        if len(values) > 1
+        else (values[0], values[0], values[0])
+    )
+    return {"median": statistics.median(values), "q1": q1, "q3": q3, "iqr": q3 - q1}
 
 
 def _admitted(args, cell, round_index, order, functional):
@@ -120,9 +139,12 @@ def _cell(args, cell, ledger, functional):
     if len(cell["arms"]) != 2:
         raise ValueError("a diagnostic cell requires exactly two named arms")
     pairs = []
+    seconds = {arm["name"]: [] for arm in cell["arms"]}
     try:
         for round_index in range(rounds):
             pair = _pair(args, cell, round_index, ledger, functional)
+            for receipt in pair:
+                seconds[receipt["arm"]].append(receipt["seconds"])
             by_arm = {r["arm"]: r for r in pair}
             names = [arm["name"] for arm in cell["arms"]]
             factor = by_arm[names[1]]["seconds"] / by_arm[names[0]]["seconds"]
@@ -137,6 +159,9 @@ def _cell(args, cell, ledger, functional):
             paired_factor=statistics.median(pairs),
             ratio_min=min(pairs),
             ratio_max=max(pairs),
+            ratio_summary=_summary(pairs),
+            seconds_summary={name: _summary(values) for name, values in seconds.items()},
+            quartile_method="inclusive linear interpolation",
         )
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         ledger.result(
@@ -210,7 +235,7 @@ def run(args):
         for cell in specification["cells"]:
             if ledger.stopping:
                 break
-            _cell(args, cell, ledger, functional)
+            _locked_cell(args, cell, ledger, functional)
     except BaseException as error:
         append(
             args.results / "fatal.jsonl", {"error_type": type(error).__name__, "reason": str(error)}

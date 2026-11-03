@@ -231,6 +231,14 @@ windows using the separately coordinated heavy-work lock. Post-operation load
 is retained, including load caused by the measured operation; no rounds are
 silently discarded based on favorable timings.
 
+The benchmark lock covers one complete cell, including its alternating pairs,
+verification and synchronization. It is released before the next cell. When
+workers share a Mac, run one-cell specifications and hand the lock to the other
+worker between cells. The result records per-arm medians and interquartile
+ranges (IQR), plus the median and IQR of paired time ratios. Quartiles use
+inclusive linear interpolation. A throughput ratio is the reciprocal of the
+paired time ratio and must be labelled accordingly.
+
 Use `--diagnostic-rehearsal` with a small local specification for functional
 probes. Such records are explicitly functional-only, with no speed claim.
 Memory/CPU profiling may use a diagnostic child job marked `profile_only`.
