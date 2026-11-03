@@ -1,0 +1,175 @@
+"""Pinned public inputs and identical encoder artifacts, always outside the checkout."""
+
+from __future__ import annotations
+
+import sys
+from contextlib import suppress
+from pathlib import Path
+
+from _development_locks import coordinated
+from _development_process import checked, interpreter, launch
+from _development_system import LABEL
+from _measurement import append, atomic, document, sha256
+from _measurement_config import MODEL_PINS, PINS
+from _measurement_setup import outside_checkout
+
+
+def prepare(args, cells, ledger):
+    interpreter(args.base_python)
+    interpreter(args.candidate_python)
+    if args.reuse_work:
+        root = args.reuse_work.resolve()
+        receipt = document(root / "prepared.json")
+        _verify(receipt, cells)
+        return receipt
+
+    def notify(row):
+        append(args.results / "coordination.jsonl", row)
+
+    with coordinated(
+        "heavy",
+        args.worker_name,
+        "prepare pinned development inputs",
+        notify,
+        lambda: ledger.stopping,
+    ):
+        receipt = launch(
+            args,
+            {
+                "action": "prepare",
+                "cells": cells,
+                "hf_cache": str(args.hf_cache) if args.hf_cache else None,
+            },
+            args.base_python,
+            "preparation",
+        )
+    atomic(args.work / "prepared.json", receipt)
+    _verify(receipt, cells)
+    return receipt
+
+
+def _verify(receipt, cells):
+    if receipt.get("mode") != "local-development" or receipt.get("publishable") is not False:
+        raise ValueError("prepared data must identify local development mode")
+    for cell in cells:
+        model = receipt["models"][cell["model"]]
+        if model["revision"] != MODEL_PINS[cell["model"]]:
+            raise ValueError("prepared model pin differs")
+        for record in model["artifacts"].values():
+            checked(record["path"], record["sha256"])
+        corpus = receipt["corpora"][cell["corpus"]]
+        checked(corpus["path"], corpus["sha256"])
+
+
+def _snapshot(repo, revision, work, existing, dataset=False, patterns=None):
+    from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    options = dict(
+        repo_type="dataset" if dataset else "model",
+        revision=revision,
+        token=False,
+        allow_patterns=patterns,
+    )
+    if existing:
+        outside_checkout(Path(existing))
+        with suppress(LocalEntryNotFoundError):
+            return Path(
+                snapshot_download(repo, cache_dir=existing, local_files_only=True, **options)
+            )
+    return Path(snapshot_download(repo, cache_dir=work / "hub", max_workers=2, **options))
+
+
+def _stsb():
+    # Reuse the original labels and checksum-verified Git/download fallback.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from stsb import CHECKSUMS, COMMIT, read_rows
+
+    texts, sections = [], []
+    for split in ("train", "dev", "test"):
+        rows = read_rows(split)
+        sections.append(
+            dict(split=split, begin=len(texts), pairs=len(rows), labels=[float(r[4]) for r in rows])
+        )
+        texts.extend(r[5] for r in rows)
+        texts.extend(r[6] for r in rows)
+    return dict(texts=texts, score_slices=sections, source=dict(commit=COMMIT, checksums=CHECKSUMS))
+
+
+def _wikitext(work, cache):
+    import pyarrow.parquet as pq
+
+    pin = PINS["corpus"]
+    snapshot = _snapshot(
+        pin["repo"],
+        pin["revision"],
+        work,
+        cache,
+        dataset=True,
+        patterns=["wikitext-103-raw-v1/test-*.parquet"],
+    )
+    parts = sorted((snapshot / "wikitext-103-raw-v1").glob("test-*.parquet"))
+    if not parts:
+        raise ValueError("pinned WikiText test split is missing")
+    texts = [
+        row
+        for part in parts
+        for batch in pq.ParquetFile(part).iter_batches(columns=["text"])
+        for row in batch.column(0).to_pylist()
+    ]
+    if not texts or any(not isinstance(row, str) for row in texts):
+        raise ValueError("WikiText contains no text or a non-string row")
+    return dict(
+        texts=texts,
+        score_slices=[],
+        source=dict(
+            repo=pin["repo"],
+            revision=pin["revision"],
+            split="test",
+            preprocessing="original rows, including empty rows and headings",
+        ),
+    )
+
+
+def _models(cells, work, cache):
+    from fse import Encoder, StaticModel
+
+    result = {}
+    for repo in sorted({cell["model"] for cell in cells}):
+        revision = MODEL_PINS[repo]
+        snapshot = _snapshot(
+            repo,
+            revision,
+            work,
+            cache,
+            patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
+        )
+        model = (
+            StaticModel.from_pretrained(str(snapshot), normalize=True).encoder
+            if repo.startswith("minishlab/")
+            else Encoder.from_pretrained(str(snapshot), normalize=True, truncate=False)
+        )
+        artifacts = {}
+        for dtype in ("float32", "float16", "int8"):
+            path = work / (repo.replace("/", "--") + "-" + dtype + ".safetensors")
+            current = model if dtype == "float32" else model.quantize(dtype)
+            current.save(path)
+            artifacts[dtype] = dict(
+                path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
+            )
+        result[repo] = dict(revision=revision, artifacts=artifacts, dimensions=model.output_dim)
+    return result
+
+
+def prepare_child(job):
+    work = Path(job["work"])
+    cache = job.get("hf_cache")
+    corpora = {}
+    for name in sorted({cell["corpus"] for cell in job["cells"]}):
+        data = _stsb() if name == "stsb" else _wikitext(work, cache)
+        path = work / (name + ".json")
+        atomic(path, data)
+        corpora[name] = dict(
+            path=str(path), sha256=sha256(path), texts=len(data["texts"]), source=data["source"]
+        )
+    return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache)}

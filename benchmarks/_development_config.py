@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import math
 import re
 from pathlib import Path
@@ -120,7 +121,7 @@ def _select(cells, selected):
     return cells
 
 
-def add_arguments(parser, mode):
+def add_arguments(parser, mode, quality=False):
     mode.add_argument(
         "--local-info",
         action="store_true",
@@ -129,13 +130,34 @@ def add_arguments(parser, mode):
     mode.add_argument(
         "--local-heavy", action="store_true", help="run a build/check under the shared heavy lock"
     )
+    mode.add_argument(
+        "--diagnose", action="store_true", help="local non-publishable build comparison"
+    )
+    mode.add_argument("--development-job", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--development-input", type=Path)
     parser.add_argument("--worker-name", default="fse-development")
+    parser.add_argument("--candidate-python")
+    parser.add_argument(
+        "--hf-cache", type=Path, help="existing public HF cache, read before downloading to work"
+    )
+    if quality:
+        parser.add_argument("--base-python")
+        parser.add_argument("--reuse-work", type=Path)
+    else:
+        parser.add_argument("--cells", nargs="+")
+        parser.add_argument("--local-phase", choices=("prepare",), default="prepare")
     parser.add_argument("local_command", nargs="*", help="command after -- for --local-heavy")
 
 
-def dispatch(args):
+def dispatch(args, quality=False):
     """Handle only explicitly local utilities; leave every publication path alone."""
+    if args.development_job:
+        from _development_process import child
+
+        child(args.development_job)
+        return 0
+    if args.diagnose:
+        return _diagnose(args, quality)
     if not args.local_info and not args.local_heavy:
         if args.local_command:
             raise ValueError("a trailing command requires --local-heavy")
@@ -163,3 +185,14 @@ def dispatch(args):
         )
     )
     return 0
+
+
+def _diagnose(args, quality):
+    require_unix()
+    if args.local_command:
+        raise ValueError("a trailing command requires --local-heavy")
+    if quality:
+        from _quality.development import run
+    else:
+        from _development_run import run
+    return run(args)

@@ -127,3 +127,18 @@ def observations(work, excluded=()):
         "disk": shutil.disk_usage(work)._asdict(),
         "usage": list(resource.getrusage(resource.RUSAGE_SELF)),
     }
+
+
+def configure_child(workers):
+    require_unix()
+    for name in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "BLIS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "RAYON_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    ):
+        os.environ[name] = str(workers)
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if workers > 1 else "false"

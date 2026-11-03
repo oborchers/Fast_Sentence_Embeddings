@@ -198,9 +198,9 @@ def main():
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
-    add_arguments(parser, mode)
+    add_arguments(parser, mode, quality=True)
     args = parser.parse_args()
-    local_status = dispatch(args)
+    local_status = dispatch(args, quality=True)
     if local_status is not None:
         return local_status
     for name in ("results", "work", "cache"):
