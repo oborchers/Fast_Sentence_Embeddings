@@ -32,6 +32,8 @@ jobs:
   # and newer). The rest depends on the files changed, see the outputs below. Pushes to
   # master uses all macOS test interpreters; PRs and release tags use one.
   # Monthly and manual runs use the full matrix.
+  # Skill-only instructions and metadata also skip heavy jobs on ordinary master
+  # pushes. Unknown bases and workflow changes always keep the full selection.
   # A change of the workflows themselves turns every output on.
   changes:
     runs-on: ubuntu-latest
@@ -58,6 +60,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
           REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
           full=$(jq -nc '[{os: "ubuntu-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "ubuntu-latest", "python-version": "3.11", deps: "min"}]')
           # Release tags need only one macOS test runner.
@@ -67,6 +70,52 @@ jobs:
           fi
           st=$(jq -nc --arg event "$EVENT" --arg ref "$REF" '[{os: "ubuntu-latest", "python-version": ("3.11", "3.15")}] + (if $event == "pull_request" or ($event == "push" and ($ref | startswith("refs/tags/v"))) then [] else [{os: "macos-latest", "python-version": "3.13"}] end)')
           echo "st_matrix={\"include\":$st}" >> "$GITHUB_OUTPUT"
+          # Only a verified PR base or ordinary master push can use the light path.
+          # A missing, initial, or otherwise unknown base falls back to all jobs.
+          comparison=""
+          if [ "$EVENT" = "pull_request" ]; then
+            comparison=$(git merge-base "origin/$BASE" HEAD || true)
+          elif [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/master" ] \
+            && [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$BEFORE" HEAD; then
+            comparison="$BEFORE"
+          fi
+          if [ -n "$comparison" ] && python3 - "$comparison" <<'PY'
+          import re, subprocess, sys
+          # Keep the allowlist narrow. Scripts, assets, unknown metadata, and executable
+          # or symlink modes must run normal CI, even inside a skill directory.
+          skill = re.compile(r"\.agents/skills/[a-z0-9-]+/(SKILL\.md|agents/openai\.yaml|references/(?:[a-zA-Z0-9_-]+/)*[a-zA-Z0-9_.-]+\.md)")
+          raw = subprocess.check_output([
+              "git", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", sys.argv[1], "HEAD",
+          ]).split(b"\0")
+          found = False
+          for index in range(0, len(raw) - 1, 2):
+              header, path = raw[index:index + 2]
+              modes = header.split()[:2]
+              if any(mode.lstrip(b":") not in (b"000000", b"100644") for mode in modes):
+                  sys.exit(1)
+              name = path.decode("utf-8", errors="strict")
+              if skill.fullmatch(name):
+                  found = True
+              elif name != "CHANGELOG.md":
+                  sys.exit(1)
+          sys.exit(0 if found else 1)
+          PY
+          then
+            {
+              for name in code native deps st sdist; do echo "$name=false"; done
+              echo "test_matrix={\"include\":$full}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT" = "pull_request" ] && [ -z "$comparison" ]; then
+            {
+              for name in code native deps st sdist; do echo "$name=true"; done
+              echo "test_matrix={\"include\":$full}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$EVENT" != "pull_request" ]; then
             {
               for name in code native deps st sdist; do echo "$name=true"; done
@@ -107,7 +156,7 @@ jobs:
               files=$(echo "$files" | grep -vxF pyproject.toml || true)
             fi
           fi
-          if [ -n "$other" ] || touches '^README\.md$'; then code=true; else code=false; fi
+          if [ -n "$other" ] || touches '^README\.md$|^\.agents/skills/'; then code=true; else code=false; fi
           {
             echo "code=$code"
             # The extension sources, setup.py, the project metadata, the sdist manifest,
@@ -352,9 +401,9 @@ jobs:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
-          # A pull request skips jobs on purpose (documentation only, no native code
-          # changed, and so on); a skipped job counts as passed, a failed one fails.
-          allowed-skips: ${{ github.event_name == 'pull_request' && 'lint, test, test-st, coverage, sdist, wheels' || '' }}
+          # PRs skip jobs according to their diff; skill-only master pushes skip heavy
+          # jobs too. All other master pushes, tags, and full runs require every job.
+          allowed-skips: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.changes.outputs.code == 'false')) && 'lint, test, test-st, coverage, sdist, wheels' || '' }}
 
   release:
     needs: check
@@ -383,6 +432,13 @@ jobs:
             max_by(.id)' "$RUNNER_TEMP/master-ci.json")
           if ! jq -e '.status == "completed" and .conclusion == "success"' <<< "$run" > /dev/null; then
             echo "::error::Release requires successful full master CI for commit $RELEASE_SHA. Latest matching run: $run"
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/actions/runs/$(jq -r '.id' <<< "$run")/jobs?filter=latest&per_page=100" \
+            --paginate --slurp > "$RUNNER_TEMP/master-jobs.json"
+          if ! jq -e '[.[].jobs[]] | any(.name == "wheels (ubuntu-latest, manylinux)" and .conclusion == "success")' \
+            "$RUNNER_TEMP/master-jobs.json" > /dev/null; then
+            echo "::error::Release requires full master CI, not a skill-only run."
             exit 1
           fi
           echo "Verified full master CI: $(jq -r '.html_url' <<< "$run")"
