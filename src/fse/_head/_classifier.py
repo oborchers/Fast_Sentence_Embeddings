@@ -135,6 +135,7 @@ class Classifier(LinearModel):
         current = dict(self.thresholds)
         # Compare loaded tensors before deriving a new model, as quantize does.
         old = self._content
+        assert old.labels is not None
         self._verified("head.thresholds", old.thresholds)
         bias = self._verified("head.bias", old.bias)
         weight = None if old.weight is None else self._verified("head.weight", old.weight)
