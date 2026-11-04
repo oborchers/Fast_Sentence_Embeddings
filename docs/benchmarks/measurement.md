@@ -303,6 +303,9 @@ includes numerical scoring buffers). Caller arrays/lists and the independent row
 oracle are created outside the traced interval. Array data bytes and list/element
 representation sizes are separate from the measured incremental peak. Whole-child
 RSS includes source-store construction and the oracle as well.
+The filter-only probe uses the largest legal selection block, 65,536 rows, even
+when the actual vector width makes the public search use smaller scoring blocks.
+Both block sizes are recorded, so the budget evidence covers the general bound.
 
 Probe counts include the actual admitted boundary `FILTER_BYTES // FILTER_ROW_BYTES`
 and one entry above it. The latter must raise the filter-budget error before a large

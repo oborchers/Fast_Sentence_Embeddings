@@ -109,7 +109,8 @@ def profile(job):
     if not counts or any(type(n) is not int or not 0 < n <= limit + 1 for n in counts):
         raise ValueError("positive filter counts up to the admission boundary plus one required")
     model, texts = inputs(job)
-    block_rows = min(65536, max(1, (16 << 20) // (4 * model.output_dim)))
+    block_rows = 65536
+    api_block_rows = min(block_rows, max(1, (16 << 20) // (4 * model.output_dim)))
     with StoreOperation(model, texts, job) as operation:
         # Prime imports and caches before the explicitly warm incremental memory probe.
         operation.store.search(
@@ -138,6 +139,7 @@ def profile(job):
         admission_bytes_per_entry=FILTER_ROW_BYTES,
         maximum_admitted_entries=limit,
         block_rows=block_rows,
+        full_api_block_rows=api_block_rows,
         probes=rows,
         unfiltered_public_search=baseline,
         scope="warm process; caller inputs and oracle excluded from incremental peaks; "
