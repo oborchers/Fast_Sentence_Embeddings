@@ -267,6 +267,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify the executing checkout SHA
+        shell: bash
         env:
           EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
@@ -336,6 +337,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify the executing checkout SHA
+        shell: bash
         env:
           EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
@@ -457,6 +459,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify the executing checkout SHA
+        shell: bash
         env:
           EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
