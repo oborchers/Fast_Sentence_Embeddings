@@ -6,8 +6,10 @@ import json
 from pathlib import Path
 
 from _development_budget import check, check_args
+from _development_ids import mode_for
 from _development_pairs import job_for
 from _development_process import checked, launch
+from _development_search import configure
 from _measurement import append, document
 
 
@@ -23,7 +25,10 @@ def preflight(args, cell, prepared, ledger, owner):
     for name, python in builds:
         tag = cell["id"] + "-probe-" + name
         job = job_for(cell, prepared, 1, tag, owner)
-        job.update(action="probe", iterations=1)
+        configure(job, cell, name, False)
+        job.update(
+            action="probe", iterations=1, doc_ids=mode_for(cell, candidate=name == "candidate")
+        )
         row = launch(args, job, python, tag)
         model = prepared["models"][cell["model"]]
         if (
@@ -67,7 +72,11 @@ def probe(job):
     if output_identity(batch) != output_identity(expected_batch):
         raise ValueError("preflight tokenizer differs from independent reference")
     check(job.get("wall_deadline"))
-    if job["stage"] == "tokenizer":
+    if job["stage"] in ("store-open", "store-search"):
+        from _development_probe_store import probe_store
+
+        proof = probe_store(model, texts, job, _store)
+    elif job["stage"] == "tokenizer":
         proof = output_identity(batch)
     elif job["stage"] == "pooling":
         # Export precisely the probed rows, without changing the original corpus.
@@ -96,6 +105,8 @@ def probe(job):
     return {
         "output": proof,
         "source_rows": len(texts),
+        "probe_filter_count": job.get("filter_count"),
+        "document_ids": job.get("doc_ids", "none"),
         "encoder_fingerprint": model.fingerprint,
         "dimensions": model.output_dim,
         "reference": "independent tokenizer and numpy backend",

@@ -18,6 +18,7 @@ from fse._container._npy_inplace import _rename_exclusive
 from fse._contract import UnsupportedArtifactError
 from fse._validation import PathLike, validate_arguments
 
+from ._id_stats import check_mode
 from ._layout import StoreInfo, _check_quantization, open_shard, read_store, shard_name
 from ._recovery import canonical_shards, clear_exception_frames, verify_shard
 
@@ -124,6 +125,10 @@ def _check_identifiers(directory: Path, info: StoreInfo) -> None:
     metadata = manifest.get("metadata")
     if not isinstance(metadata, dict):
         return
+    check_mode(metadata, file)
+    version = metadata.get("fse.format_version")
+    if isinstance(version, str) and version not in ("1", "2"):
+        raise UnsupportedArtifactError(f"{file}: unsupported format {version!r}")
     durability = metadata.get("fse.durability")
     if isinstance(durability, str) and durability != "none":
         raise UnsupportedArtifactError(f"{file}: unsupported fse.durability {durability!r}")

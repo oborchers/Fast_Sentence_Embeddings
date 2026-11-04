@@ -65,16 +65,22 @@ def _direct(model, texts, root, workers, dtype):
 
 def _stored(job, model, texts, root, dtype):
     import numpy as np
+    from _development_ids import check_store, values
 
     from fse import ShardSink, VectorStore
 
     arrays = {}
+    mode = job.get("doc_ids", "none")
+    ids = values(len(texts), mode, job.get("id_chunks", 4))
+    options = {} if ids is None else {"doc_ids": True}
+    encode_options = {} if ids is None else {"doc_ids": ids}
     with tempfile.TemporaryDirectory(prefix="quality-store-", dir=job["work"]) as temporary:
         path = Path(temporary) / "store"
-        with ShardSink(path, model, dtype=dtype, durability="none") as sink:
-            model.encode(texts, workers=job["workers"], sink=sink)
+        with ShardSink(path, model, dtype=dtype, durability="none", **options) as sink:
+            model.encode(texts, workers=job["workers"], sink=sink, **encode_options)
         with VectorStore.open(path) as store:
             store.verify()
+            check_store(store, mode, job.get("id_chunks", 4))
             if len(store) != len(texts):
                 raise ValueError("quality store row count differs")
             for shard, tensors in store._shards:
@@ -135,5 +141,6 @@ def export(job):
         "outputs": outputs,
         "scores": scores,
         "encoder_fingerprint": model.fingerprint,
+        "document_ids": {"mode": job.get("doc_ids", "none"), "alignment_checked": True},
         "score_definition": "original complete STS-B splits; float32 cosine, float64 Pearson/Spearman times 100",
     }

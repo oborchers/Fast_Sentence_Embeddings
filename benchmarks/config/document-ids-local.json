@@ -1,0 +1,65 @@
+{
+  "format": "local-development-v2",
+  "description": "document-ids@1: 10,001,610 rows, 2295 complete WikiText test cycles. Local development only. Base without IDs, candidate with optional IDs; full numerical bits and ID alignment checked. At least 30 GiB free after each output group.",
+  "defaults": {
+    "profile": "document-ids@1",
+    "resident_cycles": 2295,
+    "workers": 2,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "local-wikitext-10001610-float32-ordered-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "ordered"
+    },
+    {
+      "id": "local-wikitext-10001610-float32-no-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink"
+    },
+    {
+      "id": "local-wikitext-10001610-int8-ordered-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "ordered",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-10001610-int8-no-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-10001610-int8-shuffled-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "shuffled",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-10001610-float32-ids-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered"
+    },
+    {
+      "id": "local-wikitext-10001610-int8-ids-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered",
+      "output_dtype": "int8"
+    }
+  ]
+}

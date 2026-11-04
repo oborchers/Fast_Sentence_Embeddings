@@ -48,7 +48,7 @@ def describe(args, cell, prepared, ledger, owner, identities):
         arm="candidate",
         seconds=costs,
         repetitions=len(rows),
-        iterations=cell["iterations"],
+        iterations=row["operation_repetitions"],
         aa="not_run",
         confirmation="not_run",
         valid_for_comparison=False,

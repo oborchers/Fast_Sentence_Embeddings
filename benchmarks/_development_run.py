@@ -156,7 +156,19 @@ def _cell(args, cell, prepared, ledger):
             lambda: stopped(ledger),
         ) as owner:
             identities = preflight(args, cell, prepared, ledger, owner)
-        key = (cell["model"], cell["corpus"], cell["table_dtype"], cell["workers"])
+        key = tuple(
+            cell[name]
+            for name in (
+                "model",
+                "corpus",
+                "table_dtype",
+                "workers",
+                "profile",
+                "base_doc_ids",
+                "candidate_doc_ids",
+                "id_chunks",
+            )
+        )
         if key not in ledger.quality_cache:
             ledger.stage = "full_output_quality_gate"
             ledger.quality_cache[key] = quality_gate(

@@ -124,7 +124,7 @@ def test_unknown_store_version_is_refused_without_mutation(tmp_path):
     make_store(path)
     file = path / "store.json"
     raw = json.loads(file.read_text())
-    raw["store_version"] = 2
+    raw["store_version"] = 3
     file.write_text(json.dumps(raw))
     before = tree(path)
     with pytest.raises(fse.UnsupportedArtifactError):

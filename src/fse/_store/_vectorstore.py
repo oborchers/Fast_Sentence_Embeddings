@@ -21,7 +21,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
@@ -33,18 +33,12 @@ from fse._cpus import usable_cpus
 from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
-from . import _search
+from . import _filtered, _search, _selection
 from ._layout import Shard, StoreInfo, read_store
 from ._recovery import check_values, clear_exception_frames, snapshot
+from ._result import DocumentSearchResult, SearchResult
 
 F32 = np.float32
-
-
-class SearchResult(NamedTuple):
-    """The rows of the best matches (int64) and their cosines (float32), best first."""
-
-    ids: ndarray
-    scores: ndarray
 
 
 class VectorStore:
@@ -96,6 +90,8 @@ class VectorStore:
         *,
         workers: PositiveInt | None = None,
         mode: Literal["auto", "exact", "blas"] = "auto",
+        doc_ids: Any = None,
+        rows: Any = None,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
@@ -109,18 +105,40 @@ class VectorStore:
         """
         self._check_open()
         matrix, single = self._queries(queries, "queries")
-        if k > len(self):
+        if doc_ids is not None and rows is not None:
+            raise ValueError("pass either doc_ids or rows, not both")
+        if doc_ids is not None and not self._info.has_doc_ids:
+            raise ValueError("this store has no doc_ids")
+        filtered = doc_ids is not None or rows is not None
+        values = None
+        kind = "doc_ids" if doc_ids is not None else "rows"
+        if filtered:
+            values = _selection.prepare(doc_ids if doc_ids is not None else rows, kind, len(self))
+        elif k > len(self):
             raise ValueError(f"k is {k}, but the store holds {len(self)} rows")
         with self._using():
-            ids, scores = _search.search(
-                self._backend,
-                self._shards,
-                matrix,
-                k,
-                workers=workers or usable_cpus(),
-                exact=_search.is_exact(mode, len(matrix)),
-            )
-        return SearchResult(ids[0], scores[0]) if single else SearchResult(ids, scores)
+            workers = workers or usable_cpus()
+            exact = _search.is_exact(mode, len(matrix))
+            if values is None:
+                ids, scores = _search.search(
+                    self._backend, self._shards, matrix, k, workers=workers, exact=exact
+                )
+            else:
+                ids, scores = _filtered.search(
+                    self._backend,
+                    self._shards,
+                    matrix,
+                    k,
+                    values,
+                    kind,
+                    workers=workers,
+                    exact=exact,
+                )
+            if single:
+                ids, scores = ids[0], scores[0]
+            if self._info.has_doc_ids:
+                return DocumentSearchResult(ids, scores, _filtered.document_ids(self._shards, ids))
+            return SearchResult(ids, scores)
 
     @validate_arguments
     def score(

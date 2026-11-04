@@ -44,6 +44,8 @@ from fse._container._common import _open_regular, _strict_json, _sync_directory
 from fse._container._npy_inplace import publish_directory, sync_file, write_at
 from fse._contract import UnsupportedArtifactError, parse_id
 
+from ._id_stats import ID_KEYS, MODE_KEYS, IdStats, check_mode, parsed_stats
+
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
@@ -73,20 +75,28 @@ class StoreInfo:
     encoder: str
     dtype: str
     dim: int
+    has_doc_ids: bool = False
+    version: int = 1
 
     def metadata(self) -> dict[str, str]:
-        return {
+        metadata = {
             "fse.kind": "sentence_vectors",
-            "fse.format_version": FORMAT_VERSION,
+            "fse.format_version": str(self.version),
             "fse.transform_version": "2",
             "fse.encoder": self.encoder,
             "fse.dtype": self.dtype,
             "fse.output_dim": str(self.dim),
         }
 
+        if self.version == 2:
+            metadata.update(
+                {"fse.row_ids": "int64" if self.has_doc_ids else "none", "fse.resume": "none"}
+            )
+        return metadata
+
     def check(self, other: StoreInfo, path: Path) -> None:
         """Raise unless ``other`` describes the same rows as this store."""
-        for name in ("encoder", "dtype", "dim"):
+        for name in ("encoder", "dtype", "dim", "has_doc_ids"):
             if getattr(self, name) != getattr(other, name):
                 raise ValueError(
                     f"the store {path} holds rows of {name} {getattr(self, name)!r}, not "
@@ -103,6 +113,7 @@ class Shard:
     rows: int
     unsynced: bool = False
     checksums: dict[str, str] = field(default_factory=dict)
+    id_stats: IdStats | None = None
 
 
 def shard_name(first_row: int) -> str:
@@ -139,7 +150,7 @@ def create_store(path: Path, info: StoreInfo) -> bool:
     tmp.mkdir()
     try:
         text = json.dumps(
-            {"store": STORE_NAME, "store_version": STORE_VERSION, "metadata": info.metadata()},
+            {"store": STORE_NAME, "store_version": info.version, "metadata": info.metadata()},
             sort_keys=True,
             indent=1,
         )
@@ -203,23 +214,32 @@ def read_store(path: Path) -> StoreInfo:
     if not isinstance(store, dict) or set(store) != {"store", "store_version", "metadata"}:
         raise CorruptArtifactError(f"{file} must hold exactly store, store_version and metadata")
     version = store["store_version"]
-    if store["store"] != STORE_NAME or type(version) is not int or version != STORE_VERSION:
+    if store["store"] != STORE_NAME or type(version) is not int or version not in (1, 2):
         raise UnsupportedArtifactError(
             f"{path} is a store {store['store']!r} version {version!r}; this fse "
             f"reads {STORE_NAME!r} version {STORE_VERSION}"
         )
-    return _info(store["metadata"], file, ())
+    info = _info(store["metadata"], file, ())
+    if info.version != version:
+        raise CorruptArtifactError(f"{file}: store and sentence_vectors versions differ")
+    return info
 
 
 def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
     """The StoreInfo of ``metadata``, which must hold exactly the shared keys and
     ``extra``."""
-    keys = (*_SHARED, *extra)
+    if not isinstance(metadata, dict):
+        raise CorruptArtifactError(f"{file}: metadata must be an object")
+    version = metadata.get("fse.format_version")
+    check_mode(metadata, file)
+    if isinstance(version, str) and version not in ("1", "2"):
+        raise UnsupportedArtifactError(f"{file}: unsupported sentence_vectors format {version!r}")
+    keys = (*_SHARED, *(MODE_KEYS if version == "2" else ()), *extra)
     if not isinstance(metadata, dict) or set(metadata) != set(keys):
         raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(keys)}")
     if (
         metadata["fse.kind"] != "sentence_vectors"
-        or metadata["fse.format_version"] != FORMAT_VERSION
+        or metadata["fse.format_version"] not in ("1", "2")
         or metadata["fse.transform_version"] != "2"
     ):
         raise UnsupportedArtifactError(
@@ -239,7 +259,18 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
         raise CorruptArtifactError(
             f"{file}: fse.encoder must be an encoder fingerprint ({FINGERPRINT_FORM})"
         )
-    return StoreInfo(metadata["fse.encoder"], metadata["fse.dtype"], int(dim))
+    if version == "2" and any(
+        metadata.get(key) not in values
+        for key, values in (("fse.row_ids", ("none", "int64")), ("fse.resume", ("none",)))
+    ):
+        raise CorruptArtifactError(f"{file}: invalid document-ID or resume mode")
+    return StoreInfo(
+        metadata["fse.encoder"],
+        metadata["fse.dtype"],
+        int(dim),
+        metadata.get("fse.row_ids") == "int64",
+        int(str(version)),
+    )
 
 
 def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict[str, ndarray]]:
@@ -254,6 +285,8 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     shard_info, unsynced = _shard_info(metadata, info, file)
     try:
         info.check(shard_info, path)
+        if info.version != shard_info.version:
+            raise ValueError("store and shard format versions differ")
     except ValueError as error:
         raise CorruptArtifactError(str(error)) from error
     _check_quantization(metadata, info, file)
@@ -265,6 +298,8 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     ):
         raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
     want = {"vectors", "inv_norms"} | ({"scales"} if info.dtype == "int8" else set())
+    if info.has_doc_ids:
+        want.add("row_ids")
     if set(tensors) != want:
         raise CorruptArtifactError(f"{file}: a {info.dtype} shard holds exactly {sorted(want)}")
     n = int(rows)
@@ -272,14 +307,23 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         tensors[k].shape != (n,) for k in want - {"vectors"}
     ):
         raise CorruptArtifactError(f"{file}: the tensors do not hold {n} rows of {info.dim} values")
-    if tensors["vectors"].dtype != np.dtype(_codes.STORAGE_TYPES[info.dtype]) or any(
-        tensors[k].dtype != np.float32 for k in want - {"vectors"}
+    if (
+        tensors["vectors"].dtype != np.dtype(_codes.STORAGE_TYPES[info.dtype])
+        or any(tensors[k].dtype != np.float32 for k in want - {"vectors", "row_ids"})
+        or (info.has_doc_ids and tensors["row_ids"].dtype != np.dtype("<i8"))
     ):
         raise CorruptArtifactError(
-            f"{file}: the vectors must be {info.dtype}, the inverse norms and scales float32"
+            f"{file}: row_ids must be int64; the vectors must be {info.dtype}, the inverse norms and scales float32"
         )
     expected = {key: metadata[CHECKSUM_PREFIX + key] for key in tensors}
-    return Shard(name, first_row, n, unsynced, expected), tensors
+    return Shard(
+        name,
+        first_row,
+        n,
+        unsynced,
+        expected,
+        parsed_stats(metadata, file) if info.has_doc_ids else None,
+    ), tensors
 
 
 def _shard_info(metadata: dict, info: StoreInfo, file: Path) -> tuple[StoreInfo, bool]:
@@ -290,6 +334,8 @@ def _shard_info(metadata: dict, info: StoreInfo, file: Path) -> tuple[StoreInfo,
         if key != FINGERPRINT_KEY and not key.startswith(CHECKSUM_PREFIX)
     }
     extra = _shard_keys(info)
+    if info.has_doc_ids:
+        extra = (*extra, *ID_KEYS)
     unsynced = "fse.durability" in content
     if unsynced:
         if content["fse.durability"] != "none":

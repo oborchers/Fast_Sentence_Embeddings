@@ -12,8 +12,20 @@ from _development_system import LABEL, require_unix
 from _measurement import document
 from _measurement_config import CONFIG, MODEL_PINS
 
-STAGES = ("tokenizer", "pooling", "encode-memory", "encode-sink")
+STAGES = ("tokenizer", "pooling", "encode-memory", "encode-sink", "store-search", "store-open")
 DEFAULTS = {
+    "profile": "standard@1",
+    "base_doc_ids": "none",
+    "candidate_doc_ids": "none",
+    "id_chunks": 4,
+    "filter_kind": "doc_ids",
+    "filter_layout": "range",
+    "filter_fraction": 0.01,
+    "filter_count": 64,
+    "base_iterations": 1,
+    "candidate_iterations": 1,
+    "queries": 1,
+    "k": 10,
     "resident_cycles": 1,
     "iterations": 1,
     "workers": 1,
@@ -74,6 +86,12 @@ def validate_cell(raw, defaults):
         "max_calibration_steps",
         "resident_cycles",
         "iterations",
+        "id_chunks",
+        "queries",
+        "k",
+        "filter_count",
+        "base_iterations",
+        "candidate_iterations",
     ):
         _positive(cell[name], name, integral=True)
     for name in (
@@ -89,6 +107,12 @@ def validate_cell(raw, defaults):
     ):
         _positive(cell[name], name)
     _bounds(cell)
+    from _development_ids import validate
+
+    validate(cell)
+    from _development_search import validate as validate_search
+
+    validate_search(cell)
     return cell
 
 
