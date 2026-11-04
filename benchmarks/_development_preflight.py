@@ -46,14 +46,12 @@ def preflight(args, cell, prepared, ledger, owner):
 
 
 def probe(job):
-    import numpy as np
     from _development_encode import operation, output_identity
     from _development_repeat import repeat
-    from _development_stages import pooling, prepare_batch, tokenizer
+    from _development_stages import tokenizer
     from _development_token_reference import reference_batch
 
     from fse import Encoder
-    from fse._backends._numpy import NumpyBackend
 
     check(job.get("wall_deadline"))
     model = Encoder.load(checked(job["artifact"]["path"], job["artifact"]["sha256"]), mmap=True)
@@ -79,19 +77,7 @@ def probe(job):
     elif job["stage"] == "tokenizer":
         proof = output_identity(batch)
     elif job["stage"] == "pooling":
-        # Export precisely the probed rows, without changing the original corpus.
-        small = Path(job["work"]) / (job["tag"] + "-corpus.json")
-        from _measurement import atomic, sha256
-
-        atomic(small, {"timing_texts": texts})
-        small_job = {**job, "corpus": {"path": str(small), "sha256": sha256(small)}}
-        small_job["batch"] = prepare_batch(small_job)
-        check(job.get("wall_deadline"))
-        got = pooling(model, small_job)()
-        backend = NumpyBackend()
-        expected = np.empty_like(got)
-        backend.rows(expected_batch, backend.prepare(model._spec.pool_input(), ()), expected)
-        proof = _equal(got, expected)
+        proof = _pool(model, texts, job, expected_batch)
     else:
         expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
         check(job.get("wall_deadline"))
@@ -115,6 +101,25 @@ def probe(job):
         "artifact": job["artifact"],
         "corpus": job["corpus"],
     }
+
+
+def _pool(model, texts, job, expected_batch):
+    import numpy as np
+    from _development_stages import pooling, prepare_batch
+    from _measurement import atomic, sha256
+
+    from fse._backends._numpy import NumpyBackend
+
+    small = Path(job["work"]) / (job["tag"] + "-corpus.json")
+    atomic(small, {"timing_texts": texts})
+    small_job = {**job, "corpus": {"path": str(small), "sha256": sha256(small)}}
+    small_job["batch"] = prepare_batch(small_job)
+    check(job.get("wall_deadline"))
+    got = pooling(model, small_job)()
+    backend = NumpyBackend()
+    expected = np.empty_like(got)
+    backend.rows(expected_batch, backend.prepare(model._spec.pool_input(), ()), expected)
+    return _equal(got, expected)
 
 
 def _equal(got, expected):
