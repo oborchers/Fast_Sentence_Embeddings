@@ -80,7 +80,6 @@ class StoreOperation:
         self.shape = np.asarray([len(self.texts), self.model.output_dim], dtype="int64")
         if job["stage"] == "store-search":
             self.query = np.ones((job["queries"], self.model.output_dim), dtype="float32")
-            self.query.flags.writeable = False
             self.store = VectorStore.open(self.path)
             try:
                 self._prepare_search(job)
@@ -93,6 +92,7 @@ class StoreOperation:
         if search_cost(job):
             from _development_search_filters import prepare
 
+            self.query.flags.writeable = False
             self.filters, self.allowed, self.reference = prepare(self.store, self.query, job)
         else:
             self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
