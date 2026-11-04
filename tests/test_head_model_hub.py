@@ -47,5 +47,5 @@ def test_hub_config_rejects_both_format_version_mismatches(tmp_path, multilabel)
     config = json.loads(path.read_text())
     config["fse_format_version"] = 1 if multilabel else 2
     path.write_text(json.dumps(config))
-    with pytest.raises(CorruptArtifactError, match="names format version.*file holds version"):
+    with pytest.raises(CorruptArtifactError, match=r"names format version.*file holds version"):
         fse.Classifier.from_pretrained(folder)

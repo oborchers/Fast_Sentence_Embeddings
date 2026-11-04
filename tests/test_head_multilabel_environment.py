@@ -65,4 +65,5 @@ def test_public_decisions_use_and_restore_a_protected_environment(
     monkeypatch.setattr(CpuBackend, "decisions", in_foreign_environment)
     got = _predict(model, tmp_path, route)
     assert got.tolist() == [[True, False, False, False]] * len(TEXTS)
-    assert checked and all(checked)
+    assert checked
+    assert all(checked)

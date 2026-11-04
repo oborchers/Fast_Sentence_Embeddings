@@ -117,8 +117,18 @@ def test_complete_decisions_ignore_and_restore_the_float_environment(isa, env):
 
 
 @pytest.mark.parametrize("backend", BACKENDS, ids=lambda item: item[1] or item[0])
-@pytest.mark.parametrize("bad", ["probabilities", "thresholds", "out", "alias", "nan", "range"])
-def test_decision_inputs_are_checked_before_writing(backend, bad):
+@pytest.mark.parametrize(
+    ("bad", "match"),
+    [
+        ("probabilities", "probabilities"),
+        ("thresholds", "thresholds"),
+        ("out", "out"),
+        ("alias", "share memory"),
+        ("nan", "probabilities"),
+        ("range", "thresholds"),
+    ],
+)
+def test_decision_inputs_are_checked_before_writing(backend, bad, match):
     name, isa = backend
     probabilities = np.full((1, 3), 0.5, np.float32)
     thresholds = np.zeros(3, np.float32)
@@ -135,7 +145,7 @@ def test_decision_inputs_are_checked_before_writing(backend, bad):
         probabilities[0, 0] = np.nan
     else:
         thresholds[0] = -1
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=match):
         get_backend(name, isa=isa).decisions(probabilities, thresholds, out)
 
 
