@@ -7,6 +7,18 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Full verification or optional macOS evidence for one current PR head
+        type: choice
+        options: [full, pr-macos]
+        default: full
+      pr_number:
+        description: Required for pr-macos, open PR against master
+        type: string
+      head_sha:
+        description: Required for pr-macos, full current PR head SHA
+        type: string
   schedule:
     # Monthly run against the newest dependency versions, so breakage from
     # numpy, scipy or gensim releases shows up without active development.
@@ -16,7 +28,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.scope == 'pr-macos' && format('pr-macos-{0}-{1}', inputs.pr_number, inputs.head_sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -30,12 +42,15 @@ jobs:
   # check still runs and passes. Otherwise lint always runs, and test runs on Linux with
   # Python 3.13 (the newest version where every test runs; gensim does not build on 3.14
   # and newer). The rest depends on the files changed, see the outputs below. Pushes to
-  # master uses all macOS test interpreters; PRs and release tags use one.
-  # Monthly and manual runs use the full matrix.
+  # master use all macOS test interpreters; release tags use one.
+  # PR macOS jobs are explicit opt-ins. Monthly and full manual runs use the full matrix.
   # Skill-only instructions and metadata also skip heavy jobs on ordinary master
-  # pushes. Unknown bases and workflow changes always keep the full selection.
+  # pushes. Unknown bases and workflow changes keep the full non-macOS PR selection.
   # A change of the workflows themselves turns every output on.
   changes:
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.diff.outputs.code }}
@@ -50,19 +65,61 @@ jobs:
       # The matrix of the test job.
       test_matrix: ${{ steps.diff.outputs.test_matrix }}
       st_matrix: ${{ steps.diff.outputs.st_matrix }}
+      wheel_matrix: ${{ steps.diff.outputs.wheel_matrix }}
+      source_repository: ${{ steps.source.outputs.source_repository }}
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      target_pr: ${{ steps.source.outputs.target_pr }}
+      targeted: ${{ steps.source.outputs.targeted }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+      - id: source
+        name: Resolve and pin the requested source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_SCOPE: ${{ inputs.scope }}
+          CI_PR_NUMBER: ${{ inputs.pr_number }}
+          CI_HEAD_SHA: ${{ inputs.head_sha }}
+        run: python3 tools/ci_target.py
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
           REF: ${{ github.ref }}
           BEFORE: ${{ github.event.before }}
+          TARGETED: ${{ steps.source.outputs.targeted }}
         run: |
           full=$(jq -nc '[{os: "ubuntu-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "macos-latest", "python-version": ("3.11", "3.12", "3.13", "3.14", "3.15"), deps: "latest"}, {os: "ubuntu-latest", "python-version": "3.11", deps: "min"}]')
+          # Automatic PRs never allocate a macOS runner, even on unknown bases or workflow changes.
+          if [ "$EVENT" = "pull_request" ]; then
+            full=$(echo "$full" | jq -c '[.[] | select(.os != "macos-latest")]')
+          fi
+          wheel_os='["ubuntu-latest","ubuntu-24.04-arm","macos-latest","windows-latest"]'
+          if [ "$EVENT" = "pull_request" ]; then
+            wheel_os='["ubuntu-latest","ubuntu-24.04-arm","windows-latest"]'
+          fi
+          extended=false
+          if [[ "$REF" == refs/tags/v* ]] || [ "$EVENT" = "workflow_dispatch" ]; then extended=true; fi
+          wheels=$(jq -nc --argjson platforms "$wheel_os" --argjson extended "$extended" \
+            '[ $platforms[] as $os | ("manylinux", "musllinux") as $libc |
+               select($libc == "manylinux" or ($extended and ($os | startswith("ubuntu-")))) |
+               {os: $os, libc: $libc} ]')
+          echo "wheel_matrix={\"include\":$wheels}" >> "$GITHUB_OUTPUT"
+          if [ "$TARGETED" = "true" ]; then
+            {
+              echo 'code=true'
+              echo 'native=true'
+              echo 'deps=false'
+              echo 'st=true'
+              echo 'sdist=false'
+              echo 'test_matrix={"include":[{"os":"macos-latest","python-version":"3.13","deps":"latest"}]}'
+              echo 'st_matrix={"include":[{"os":"macos-latest","python-version":"3.13"}]}'
+              echo 'wheel_matrix={"include":[{"os":"macos-latest","libc":"manylinux"}]}'
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Release tags need only one macOS test runner.
           # 3.13 is the newest Python where the optional gensim tests also run.
           if [ "$EVENT" = "push" ] && [[ "$REF" == refs/tags/v* ]]; then
@@ -168,13 +225,13 @@ jobs:
             flag st '^src/fse/_encoder/_sentence_transformers|^tests/test_encoder_sentence_transformers|^tests/support/(sentence_transformers|converted)\.py$|^(pyproject\.toml|uv\.lock)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
-          # Linux on 3.13, macOS on 3.13 for native changes, and minimum dependencies.
-          matrix=$(jq -nc --argjson native "$(grep -qx 'native=true' "$GITHUB_OUTPUT" && echo true || echo false)" --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $native then [{os: "macos-latest", "python-version": "3.13", deps: "latest"}] else [] end) + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
+          # Linux on 3.13 and selected minimum dependencies. macOS is explicit only.
+          matrix=$(jq -nc --argjson deps "$(grep -qx 'deps=true' "$GITHUB_OUTPUT" && echo true || echo false)" '[{os: "ubuntu-latest", "python-version": "3.13", deps: "latest"}] + (if $deps then [{os: "ubuntu-latest", "python-version": "3.11", deps: "min"}] else [] end)')
           echo "test_matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   lint:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.targeted != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -184,7 +241,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
-      - run: uv sync $UV_SYNC_FLAGS --group lint
+      - run: uv sync "$UV_SYNC_FLAGS" --group lint
       - run: make format-check
       - run: make lint
       - name: The ratchet of the guardrails does not grow against the base branch
@@ -195,6 +252,7 @@ jobs:
       - run: make typecheck
 
   test:
+    name: test (${{ matrix.os }}, ${{ matrix.python-version }}, ${{ matrix.deps }})${{ needs.changes.outputs.targeted == 'true' && format(' at {0}', needs.changes.outputs.source_ref) || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -204,14 +262,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          repository: ${{ needs.changes.outputs.source_repository }}
+          ref: ${{ needs.changes.outputs.source_ref }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify the executing checkout SHA
+        env:
+          EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
-          enable-cache: true
+          enable-cache: ${{ needs.changes.outputs.targeted != 'true' }}
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
-      - run: uv sync $UV_SYNC_FLAGS --group test --python ${{ matrix.python-version }}
+      - run: uv sync "$UV_SYNC_FLAGS" --group test --python ${{ matrix.python-version }}
       - name: Pin minimum dependencies
         if: matrix.deps == 'min'
         run: >-
@@ -220,20 +284,20 @@ jobs:
           "scikit-learn==1.5.0" "huggingface-hub==1.0.0" "pytest-xdist==3.6.1"
       # A pull request skips the coverage (the merged report runs on master and tags only)
       # and so runs faster.
-      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}
+      - name: Run tests${{ (github.event_name != 'pull_request' && needs.changes.outputs.targeted != 'true') && ' with coverage' || '' }}
         if: matrix.deps != 'min'
-        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
+        run: make ${{ (github.event_name == 'pull_request' || needs.changes.outputs.targeted == 'true') && 'test' || 'test-cov' }}
         env:
           COVERAGE_FILE: .coverage.${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
-      - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }} on minimum dependencies
+      - name: Run tests${{ (github.event_name != 'pull_request' && needs.changes.outputs.targeted != 'true') && ' with coverage' || '' }} on minimum dependencies
         if: matrix.deps == 'min'
-        run: make ${{ github.event_name == 'pull_request' && 'test' || 'test-cov' }}
+        run: make ${{ (github.event_name == 'pull_request' || needs.changes.outputs.targeted == 'true') && 'test' || 'test-cov' }}
         env:
           # Keep the pinned minimum versions instead of re-syncing the lockfile.
           UV_NO_SYNC: "1"
           COVERAGE_FILE: .coverage.${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
       - name: Upload coverage
-        if: github.event_name != 'pull_request'
+        if: (github.event_name != 'pull_request' && needs.changes.outputs.targeted != 'true')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: coverage-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.deps }}
@@ -246,6 +310,7 @@ jobs:
   # newer, so it cannot share the minimum job, and torch would slow every other job.
   # FSE_REQUIRE_ST makes a missing package fail the tests instead of skipping them.
   test-st:
+    name: test-st (${{ matrix.os }}, ${{ matrix.python-version }})${{ needs.changes.outputs.targeted == 'true' && format(' at {0}', needs.changes.outputs.source_ref) || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.st == 'true'
     runs-on: ${{ matrix.os }}
@@ -256,14 +321,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          repository: ${{ needs.changes.outputs.source_repository }}
+          ref: ${{ needs.changes.outputs.source_ref }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify the executing checkout SHA
+        env:
+          EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
-          enable-cache: true
+          enable-cache: ${{ needs.changes.outputs.targeted != 'true' }}
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
-      - run: uv sync $UV_SYNC_FLAGS --group test --group st --python ${{ matrix.python-version }}
+      - run: uv sync "$UV_SYNC_FLAGS" --group test --group st --python ${{ matrix.python-version }}
       - run: uv run python -c "import sentence_transformers, torch; print(sentence_transformers.__version__, torch.__version__)"
       - run: make test-st
         env:
@@ -272,7 +343,7 @@ jobs:
   # The merged coverage of the test jobs: a pull request runs only some of them.
   coverage:
     needs: [changes, test]
-    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request' && needs.changes.outputs.targeted != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -361,23 +432,24 @@ jobs:
           retention-days: 7
 
   wheels:
-    name: wheels (${{ matrix.os }}, ${{ matrix.libc }})
+    name: wheels (${{ matrix.os }}, ${{ matrix.libc }})${{ needs.changes.outputs.targeted == 'true' && format(' at {0}', needs.changes.outputs.source_ref) || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
-        libc: [manylinux, musllinux]
-        # Full wheel verification is available without a release through workflow_dispatch.
-        # PRs and ordinary master pushes keep the previous four runner jobs.
-        exclude: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && fromJSON('[{"os":"macos-latest","libc":"musllinux"},{"os":"windows-latest","libc":"musllinux"}]') || fromJSON('[{"os":"macos-latest","libc":"musllinux"},{"os":"windows-latest","libc":"musllinux"},{"os":"ubuntu-latest","libc":"musllinux"},{"os":"ubuntu-24.04-arm","libc":"musllinux"}]') }}
+      matrix: ${{ fromJSON(needs.changes.outputs.wheel_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          repository: ${{ needs.changes.outputs.source_repository }}
+          ref: ${{ needs.changes.outputs.source_ref }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify the executing checkout SHA
+        env:
+          EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e  # v4.3.5
         env:
@@ -389,21 +461,36 @@ jobs:
           CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && (matrix.os == 'windows-latest' && 'cp312-* cp313-* cp314-*' || 'cp311-* cp312-* cp313-* cp314-*') || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
-          name: dist-wheels-${{ matrix.os }}-${{ matrix.libc }}
+          name: dist-wheels-${{ matrix.os }}-${{ matrix.libc }}${{ needs.changes.outputs.targeted == 'true' && format('-pr-{0}-{1}', needs.changes.outputs.target_pr, needs.changes.outputs.source_ref) || '' }}
           path: wheelhouse/*.whl
           retention-days: 7
 
   check:
     if: always()
     needs: [changes, lint, test, test-st, coverage, sdist, wheels]
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
-      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
+      # Controller code, not code from the optionally tested PR/fork.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          jobs: ${{ toJSON(needs) }}
-          # PRs skip jobs according to their diff; skill-only master pushes skip heavy
-          # jobs too. All other master pushes, tags, and full runs require every job.
-          allowed-skips: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.changes.outputs.code == 'false')) && 'lint, test, test-st, coverage, sdist, wheels' || '' }}
+          persist-credentials: false
+      - name: Revalidate the optional PR head before accepting evidence
+        if: needs.changes.outputs.targeted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_SCOPE: pr-macos
+          CI_PR_NUMBER: ${{ needs.changes.outputs.target_pr }}
+          CI_HEAD_SHA: ${{ needs.changes.outputs.source_ref }}
+        run: python3 tools/ci_target.py
+      - name: Require every selected job and every started matrix entry to succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_check.py
 
   release:
     needs: check
