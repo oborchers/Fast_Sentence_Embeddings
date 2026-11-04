@@ -83,14 +83,16 @@ def _ratio(cell, records, number):
     if a <= 0 or b <= 0:
         raise ValueError("nonpositive paired arm time")
     if search_cost(cell):
-        counts = {
-            name: sum(row["operation_repetitions"] for row in rows if row["arm"] == name)
-            for name in ("base", "candidate")
-        }
-        if min(counts.values()) <= 0:
-            raise ValueError("positive search call counts required")
-        return (a / counts["base"]) / (b / counts["candidate"])
+        return _search_ratio(rows, a, b)
     return a / b
+
+
+def _search_ratio(rows, base_seconds, candidate_seconds):
+    base_calls = sum(r["operation_repetitions"] for r in rows if r["arm"] == "base")
+    candidate_calls = sum(r["operation_repetitions"] for r in rows if r["arm"] == "candidate")
+    if min(base_calls, candidate_calls) <= 0:
+        raise ValueError("positive search call counts required")
+    return (base_seconds / base_calls) / (candidate_seconds / candidate_calls)
 
 
 def decide(cell, aa, main, confirmation):
