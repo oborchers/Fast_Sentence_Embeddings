@@ -245,26 +245,34 @@ def dispatch(args, quality=False):
     return 0
 
 
-def _diagnose(args, quality):
-    require_unix()
+def _local_arguments(args, quality):
     if args.wall_time_seconds is not None:
         _positive(args.wall_time_seconds, "--wall-time-seconds")
     if args.estimated_seconds is not None:
         _positive(args.estimated_seconds, "--estimated-seconds")
     if not quality:
-        _positive(args.descriptive_repetitions, "--descriptive-repetitions", integral=True)
-        if args.local_phase == "regression-screen":
-            _positive(args.regression_limit, "--regression-limit")
-            if args.aa_results or args.comparison_results:
-                raise ValueError("regression-screen does not reuse controls")
-        elif args.regression_limit is not None:
-            raise ValueError("--regression-limit requires regression-screen")
-        if args.local_phase == "descriptive":
-            if args.base_python or args.aa_results or args.comparison_results:
-                raise ValueError(
-                    "descriptive mode uses only --candidate-python, without reused controls"
-                )
-            args.base_python = args.candidate_python
+        _phase_arguments(args)
+
+
+def _phase_arguments(args):
+    _positive(args.descriptive_repetitions, "--descriptive-repetitions", integral=True)
+    if args.local_phase == "regression-screen":
+        _positive(args.regression_limit, "--regression-limit")
+        if args.aa_results or args.comparison_results:
+            raise ValueError("regression-screen does not reuse controls")
+    elif args.regression_limit is not None:
+        raise ValueError("--regression-limit requires regression-screen")
+    if args.local_phase == "descriptive":
+        if args.base_python or args.aa_results or args.comparison_results:
+            raise ValueError(
+                "descriptive mode uses only --candidate-python, without reused controls"
+            )
+        args.base_python = args.candidate_python
+
+
+def _diagnose(args, quality):
+    require_unix()
+    _local_arguments(args, quality)
     if args.local_command:
         raise ValueError("a trailing command requires --local-heavy")
     default_input = CONFIG / ("quality.json" if quality else "speed.json")

@@ -138,8 +138,9 @@ it is a functional rehearsal. Inspect the raw pairs before requesting further wo
 The existing O `screen` phase retains controls but cannot return keep.
 
 Both local entries accept `--wall-time-seconds` and optional `--estimated-seconds`.
-A declared estimate exceeding the budget is refused before result directories are
-created. Defaults are 900 seconds for D and 7200 seconds for other local phases,
+A declared estimate exceeding the budget, or a known measured-group lower bound
+that cannot fit, is refused before result directories are created. This lower bound
+excludes setup and warmups and never promises that a plan will finish. Defaults are 900 seconds for D and 7200 seconds for other local phases,
 shared by the entire invocation, never multiplied by selected cells. Set an
 explicit budget appropriate to the declared claim and workload. The monotonic
 clock starts when the local session opens, before directory/environment capture.

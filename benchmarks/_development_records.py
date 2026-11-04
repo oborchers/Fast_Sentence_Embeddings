@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from _development_budget import WallBudgetExpiredError
+from _development_budget import WallBudgetExpiredError, minimum_measured_seconds
 from _development_system import LABEL, machine, observations, source_identity
 from _measurement import Ledger, append, atomic, heartbeat, sha256
 from _measurement_setup import outside_checkout
@@ -79,6 +79,9 @@ def session(args, spec):
     args.wall_deadline = started + seconds
     if args.estimated_seconds is not None and args.estimated_seconds > seconds:
         raise ValueError("declared runtime estimate exceeds the total wall-time budget")
+    minimum = minimum_measured_seconds(args, spec["cells"])
+    if minimum >= seconds:
+        raise ValueError("known measured-group duration cannot fit the total wall-time budget")
     for name in ("results", "work"):
         path = getattr(args, name).resolve()
         outside_checkout(path)
