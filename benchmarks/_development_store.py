@@ -24,7 +24,7 @@ def checked_query(value):
 
     found = value.found
     if value.reference is not None:
-        from _development_search_filters import check
+        from _development_search_reference import check
 
         check(found, value.reference)
     if not np.isin(found.ids, value.allowed).all():
@@ -97,7 +97,10 @@ class StoreOperation:
             self.query.flags.writeable = False
             self.filters, self.allowed, self.reference = prepare(self.store, self.query, job)
         else:
+            from _development_search_reference import complete
+
             self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
+            self.reference = complete(self.store, self.query, job["k"], self.allowed, self.labels)
 
     def __call__(self):
         from fse import VectorStore

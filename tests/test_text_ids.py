@@ -7,6 +7,34 @@ from fse._text._ids import IdSource
 from support.arrow_c import Producer
 
 
+@pytest.mark.parametrize("fmt", [b"l", None])
+@pytest.mark.parametrize("stream_export", [False, True])
+def test_released_schema_rejected_before_fields_without_taking_array(fmt, stream_export):
+    from fse import _native
+
+    producer = Producer()
+    schema = producer.schema(b"l")
+    schema.release(schema)
+    schema.format = fmt
+    array = producer.array([None, np.array([7], dtype="int64")], 1)
+    if stream_export:
+        stream = producer.stream(schema, [array])
+        with pytest.raises(ValueError, match="schema was released already"):
+            _native.ArrowIds.from_stream(stream)
+    else:
+        with pytest.raises(ValueError, match="schema was released already"):
+            _native.ArrowIds.from_array(*producer.array_capsules(schema, array))
+    assert not schema.release
+    assert producer.releases.count("schema") == 1
+    assert producer.releases.count("stream") == int(stream_export)
+    assert producer.releases.count("array") == 0
+    assert array.release
+    array.release(array)
+    assert producer.releases.count("array") == 1
+    assert not array.release
+    assert not schema.release
+
+
 def test_array_snapshot():
     with IdSource([1, -1]) as ids:
         assert len(ids) == 2

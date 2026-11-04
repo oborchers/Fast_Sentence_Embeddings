@@ -1,6 +1,8 @@
 # Primitive int64 columns only. No table projection and no producer dependency.
 
 cdef void _id_schema(ArrowSchema *schema) except *:
+    if schema.release == NULL:
+        raise ValueError("the Arrow schema was released already")
     if (_c_string(schema.format, "format") != b"l" or schema.n_children != 0
             or schema.dictionary != NULL or _extension_name(schema.metadata) is not None):
         raise TypeError("doc_ids must be a primitive Arrow int64 column without nulls")
