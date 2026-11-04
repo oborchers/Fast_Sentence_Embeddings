@@ -162,7 +162,8 @@ def test_explicit_import_names_keep_output_order(kind, standalone, dtype, tmp_pa
     import fse
     from support.encoder import finished
 
-    encoder = finished(normalize=True)
+    # Standalone export folds raw means, while complete files also support normalization.
+    encoder = finished(normalize=not standalone)
     texts = [f"w{i}" for i in range(40)]
     x = encoder.encode(texts)
     if kind == "multilabel":
