@@ -111,14 +111,111 @@ static int fse_finite_row(const float *row, int n) {
     return 1;
 }
 
+/* Independent rows share no accumulators. Keep each lane's FMA order and the
+   dot16 reduction tree, including unpadded dimension tails. */
+static void fse_norm2_portable(const float *a, const float *b, int n, float *s) {
+    float p[16] = {0}, q[16] = {0};
+    for (int i = 0; i < n; i++) {
+        p[i & 15] = fmaf(a[i], a[i], p[i & 15]);
+        q[i & 15] = fmaf(b[i], b[i], q[i & 15]);
+    }
+    s[0] = fse_reduce16(p);
+    s[1] = fse_reduce16(q);
+}
+
+#if defined(FSE_X86)
+FSE_AVX2_TARGET static void fse_norm2_avx2(const float *a, const float *b, int n, float *s) {
+    __m256 a0 = _mm256_setzero_ps(), a1 = _mm256_setzero_ps();
+    __m256 b0 = _mm256_setzero_ps(), b1 = _mm256_setzero_ps();
+    int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        __m256 xa0 = _mm256_loadu_ps(a + i + 0);
+        a0 = _mm256_fmadd_ps(xa0, xa0, a0);
+        __m256 xb0 = _mm256_loadu_ps(b + i + 0);
+        b0 = _mm256_fmadd_ps(xb0, xb0, b0);
+        __m256 xa1 = _mm256_loadu_ps(a + i + 8);
+        a1 = _mm256_fmadd_ps(xa1, xa1, a1);
+        __m256 xb1 = _mm256_loadu_ps(b + i + 8);
+        b1 = _mm256_fmadd_ps(xb1, xb1, b1);
+    }
+    float p[16], q[16];
+    _mm256_storeu_ps(p + 0, a0);
+    _mm256_storeu_ps(p + 8, a1);
+    _mm256_storeu_ps(q + 0, b0);
+    _mm256_storeu_ps(q + 8, b1);
+    for (; i < n; i++) {
+        p[i & 15] = fse_fma1_avx2(a[i], a[i], p[i & 15]);
+        q[i & 15] = fse_fma1_avx2(b[i], b[i], q[i & 15]);
+    }
+    s[0] = fse_reduce16(p);
+    s[1] = fse_reduce16(q);
+}
+#endif
+
+#if defined(FSE_NEON)
+static void fse_norm2_neon(const float *a, const float *b, int n, float *s) {
+    float32x4_t a0 = vdupq_n_f32(0), a1 = vdupq_n_f32(0), a2 = vdupq_n_f32(0), a3 = vdupq_n_f32(0);
+    float32x4_t b0 = vdupq_n_f32(0), b1 = vdupq_n_f32(0), b2 = vdupq_n_f32(0), b3 = vdupq_n_f32(0);
+    int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        float32x4_t xa0 = vld1q_f32(a + i + 0);
+        a0 = vfmaq_f32(a0, xa0, xa0);
+        float32x4_t xb0 = vld1q_f32(b + i + 0);
+        b0 = vfmaq_f32(b0, xb0, xb0);
+        float32x4_t xa1 = vld1q_f32(a + i + 4);
+        a1 = vfmaq_f32(a1, xa1, xa1);
+        float32x4_t xb1 = vld1q_f32(b + i + 4);
+        b1 = vfmaq_f32(b1, xb1, xb1);
+        float32x4_t xa2 = vld1q_f32(a + i + 8);
+        a2 = vfmaq_f32(a2, xa2, xa2);
+        float32x4_t xb2 = vld1q_f32(b + i + 8);
+        b2 = vfmaq_f32(b2, xb2, xb2);
+        float32x4_t xa3 = vld1q_f32(a + i + 12);
+        a3 = vfmaq_f32(a3, xa3, xa3);
+        float32x4_t xb3 = vld1q_f32(b + i + 12);
+        b3 = vfmaq_f32(b3, xb3, xb3);
+    }
+    float p[16], q[16];
+    vst1q_f32(p + 0, a0);
+    vst1q_f32(p + 4, a1);
+    vst1q_f32(p + 8, a2);
+    vst1q_f32(p + 12, a3);
+    vst1q_f32(q + 0, b0);
+    vst1q_f32(q + 4, b1);
+    vst1q_f32(q + 8, b2);
+    vst1q_f32(q + 12, b3);
+    for (; i < n; i++) {
+        p[i & 15] = fmaf(a[i], a[i], p[i & 15]);
+        q[i & 15] = fmaf(b[i], b[i], q[i & 15]);
+    }
+    s[0] = fse_reduce16(p);
+    s[1] = fse_reduce16(q);
+}
+#endif
+
+static void fse_norm2(int isa, const float *a, const float *b, int n, float *s) {
+#if defined(FSE_X86)
+    if (isa == FSE_ISA_AVX2) { fse_norm2_avx2(a, b, n, s); return; }
+#endif
+#if defined(FSE_NEON)
+    if (isa == FSE_ISA_NEON) { fse_norm2_neon(a, b, n, s); return; }
+#endif
+    fse_norm2_portable(a, b, n, s);
+}
+
 /* normalize@1 in place. Returns the first nonzero row whose sum of squares underflows to
    0 or overflows in *unnormalizable (else -1), and the first non-finite row, or -1. */
 FSE_NOINLINE static int64_t fse_normalize_body(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) {
     int64_t bad = -1;
     *unnormalizable = -1;
+    float sums[2];
     for (int64_t r = 0; r < n; r++) {
         float *row = rows + (size_t)r * (size_t)dim;
-        float s = fse_dot16(isa, row, row, dim);
+        if ((r & 1) == 0) {
+            if (r + 1 < n) fse_norm2(isa, row, row + dim, dim, sums);
+            else sums[0] = fse_dot16(isa, row, row, dim);
+        }
+        float s = sums[r & 1];
         int nonzero = 0;
         for (int i = 0; i < dim; i++)
             if (row[i] != 0.0f) { nonzero = 1; break; }

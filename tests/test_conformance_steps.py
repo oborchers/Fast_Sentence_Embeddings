@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fse import _reference
+from fse import _native, _reference
 from fse._contract import Normalize
 from support.conformance import BACKENDS, BIG, F32, _rng, assert_bits_equal
 
@@ -77,3 +77,45 @@ def test_a_bias_beyond_float32_raises_the_overflow(backend):
 def test_score_weights_beyond_float32_raise_the_overflow(backend):
     with pytest.raises(ValueError, match="score of row 0 overflows"):
         backend.score(np.ones((1, 2), F32), None, np.array([1e100, 0.0]), 0.0)
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+@pytest.mark.parametrize("dim", [1, 15, 16, 17, 31, 32, 33, 255, 256, 257])
+@pytest.mark.parametrize("count", [1, 2, 3, 5])
+def test_normalize_row_and_dimension_tails(backend, dim, count):
+    rows = _rng(dim + count).standard_normal((count, dim)).astype(F32)
+    rows[0] = 0
+    if count > 1:
+        rows[1] *= F32(1e-20)
+    want = _reference.postprocess(rows, [Normalize()])
+    assert_bits_equal(backend.postprocess(rows, [Normalize()]), want)
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+@pytest.mark.parametrize("dim", [1, 17, 256, 257])
+@pytest.mark.parametrize("bad_row", range(5))
+@pytest.mark.parametrize("value", [1e-30, 3e38])
+def test_normalize_errors_preserve_serial_partial_writes(isa, dim, bad_row, value):
+    rows = _rng(dim).standard_normal((5, dim)).astype(F32)
+    rows[bad_row] = F32(value)
+    # A later invalid row must not replace the first error. Other rows still finish.
+    if bad_row < 4:
+        rows[4] = F32(value)
+    want = rows.copy()
+    for r in range(len(want)):
+        try:
+            _native.postprocess_pooled(want[r : r + 1], [Normalize()], isa=isa)
+        except ValueError:
+            pass
+    got = rows.copy()
+    with pytest.raises(ValueError, match=f"row {10 + bad_row} cannot be normalized"):
+        _native.postprocess_pooled(got, [Normalize()], first_row=10, isa=isa)
+    assert_bits_equal(got, want)
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+def test_normalize_signed_zero_rows_are_untouched(isa):
+    rows = np.zeros((5, 17), dtype=F32)
+    rows[::2] = F32(-0.0)
+    want = _reference.postprocess(rows, [Normalize()])
+    assert_bits_equal(_native.postprocess(rows, [Normalize()], isa=isa), want)
