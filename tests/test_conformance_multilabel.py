@@ -83,9 +83,9 @@ def test_native_multilabel_restores_the_float_environment(isa):
 @pytest.mark.parametrize("backend", BACKENDS, ids=lambda item: item[1] or item[0])
 def test_decisions_preserve_subnormal_probabilities_and_strict_ties(backend):
     name, isa = backend
-    probabilities = np.array(
-        [[0, 0x80000000, 1, 3, 0x3F000000, 0x3F800000]], np.uint32
-    ).view(np.float32)
+    probabilities = np.array([[0, 0x80000000, 1, 3, 0x3F000000, 0x3F800000]], np.uint32).view(
+        np.float32
+    )
     thresholds = np.array([0x80000000, 0, 0, 1, 0x3F000000, 0x3F800000], np.uint32).view(np.float32)
     out = np.empty(probabilities.shape, np.bool_)
     get_backend(name, isa=isa).decisions(probabilities, thresholds, out)
