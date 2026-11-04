@@ -121,6 +121,8 @@ def proba(logits, link: Link) -> ndarray:
     for k = 1, (n, 2) ``softmax@1`` of ``[-z, z]`` for one logit with softmax (scikit-learn's
     binary multinomial model), else (n, k) of ``softmax@1`` or ``ovr@1``."""
     z = np.asarray(logits, dtype=_F32)
+    if link is Link.MULTILABEL:
+        return sigmoid(z)
     if link is Link.SIGMOID:
         if z.shape[1] != 1:
             raise ValueError("sigmoid@1 takes one logit per row")
@@ -140,6 +142,11 @@ def labels(logits) -> ndarray:
     if z.shape[1] == 1:
         return (z[:, 0] > 0).astype(np.int64)
     return np.argmax(z, axis=1).astype(np.int64)
+
+
+def multilabel(logits, thresholds) -> ndarray:
+    """linear@2: independent sigmoid@1 probabilities strictly above each F32 cutoff."""
+    return sigmoid(np.asarray(logits, dtype=_F32)) > np.asarray(thresholds, dtype=_F32)
 
 
 def fold(stored: ndarray, scales: ndarray | None, weight: ndarray) -> ndarray:

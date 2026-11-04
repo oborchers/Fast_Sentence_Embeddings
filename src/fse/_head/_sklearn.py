@@ -28,6 +28,8 @@ from numpy import ndarray
 
 from fse import _log
 
+from . import _sklearn_ovr
+
 
 @dataclass(frozen=True)
 class Found:
@@ -170,6 +172,8 @@ _REGRESSORS = frozenset(
 
 def _estimator(model: Any, task: str) -> Found:
     name = _name(model)
+    if name == "OneVsRestClassifier" and task == "classification":
+        return Found(*_sklearn_ovr.read(model, _read))
     known = _CLASSIFIERS if task == "classification" else _REGRESSORS
     if name not in known:
         kinds = ", ".join(sorted(known))

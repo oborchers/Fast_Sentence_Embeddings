@@ -24,6 +24,7 @@ from numpy import ndarray
 
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._cpus import usable_cpus
+from fse._contract import Link
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
@@ -62,7 +63,7 @@ def finish(model: Any, rows: ndarray, output: str) -> ndarray:
     """The outputs as a caller gets them: labels from their indices, one column flattened
     where the head gives (n,)."""
     if output == "labels":
-        return model.classes_[rows]
+        return rows if model._content.link is Link.MULTILABEL else model.classes_[rows]
     if output != "proba" and rows.shape[1] == 1 and model._content.flat:
         return rows[:, 0].copy()
     return rows
@@ -97,8 +98,10 @@ def _joined(model: Any, parts: list, output: str, sink: Any) -> Any:
         flush(sink)
         return None
     width = model._head.width(RUNTIME[output])
-    dtype = np.int64 if output == "labels" else np.float32
-    empty = np.empty((0,) if output == "labels" else (0, width), dtype=dtype)
+    multi = model._content.link is Link.MULTILABEL
+    dtype = (np.bool_ if multi else np.int64) if output == "labels" else np.float32
+    shape = (0,) if output == "labels" and not multi else (0, width)
+    empty = np.empty(shape, dtype=dtype)
     return finish(model, np.concatenate(parts) if parts else empty, output)
 
 
@@ -190,6 +193,10 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
     def outputs(first_row: int, z: ndarray) -> ndarray:
         if kind == "logits":
             return z
+        if kind == "labels" and head.link is Link.MULTILABEL:
+            probabilities = np.empty_like(z)
+            host.outputs(z, "proba", head.link, probabilities, first_row)
+            return probabilities > head.thresholds
         out = np.empty(
             len(z) if kind == "labels" else (len(z), head.width(kind)),
             dtype=np.int64 if kind == "labels" else np.float32,

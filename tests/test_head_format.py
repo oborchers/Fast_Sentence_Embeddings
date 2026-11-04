@@ -101,9 +101,9 @@ def _set(key, value):
     ("edit", "error", "match"),
     [
         (_set("fse.kind", "encoder"), UnsupportedArtifactError, "'encoder', not 'linear_head'"),
-        (_set("fse.format_version", "2"), UnsupportedArtifactError, "format version '2'"),
+        (_set("fse.format_version", "3"), UnsupportedArtifactError, "format version '3'"),
         (_set("fse.head.extra", "1"), UnsupportedArtifactError, "unknown metadata keys"),
-        (_set("fse.head", "linear@2"), UnsupportedArtifactError, "head linear@2 is not supported"),
+        (_set("fse.head", "linear@3"), UnsupportedArtifactError, "head linear@3 is not supported"),
         (_set("fse.head.task", None), ValueError, "needs the metadata key fse.head.task"),
         (_set("fse.head.task", "ranking"), ValueError, "fse.head.task must be one of"),
         (_set("fse.head.normalized", "yes"), ValueError, "fse.head.normalized must be one of"),

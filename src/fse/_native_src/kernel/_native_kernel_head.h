@@ -14,7 +14,7 @@
 #include "_native_kernel_base.h"
 #include "_native_kernel_steps.h"
 
-enum { FSE_LINK_SIGMOID = 0, FSE_LINK_SOFTMAX = 1, FSE_LINK_OVR = 2 };
+enum { FSE_LINK_SIGMOID = 0, FSE_LINK_SOFTMAX = 1, FSE_LINK_OVR = 2, FSE_LINK_MULTILABEL = 3 };
 
 /* The constants of exp@1 (the hex floats of fse._reference_head), written as the exact
    decimal values of those float32 numbers, which every compiler converts exactly. */
@@ -275,7 +275,7 @@ static void fse_ovr_row(int isa, const float *z, int k, float *o) {
 FSE_NOINLINE static int64_t fse_head_proba_body(int isa, int link, const float *logits, int64_t n,
                                                 int k, float *out) {
     int64_t bad = -1;
-    const int width = k == 1 ? 2 : k;
+    const int width = k == 1 && link != FSE_LINK_MULTILABEL ? 2 : k;
     for (int64_t r = 0; r < n; r++) {
         const float *z = logits + (size_t)r * (size_t)k;
         float *o = out + (size_t)r * (size_t)width;
@@ -292,6 +292,8 @@ FSE_NOINLINE static int64_t fse_head_proba_body(int isa, int link, const float *
             fse_softmax_row(isa, pair, 2, o);
         } else if (link == FSE_LINK_SOFTMAX) {
             fse_softmax_row(isa, z, k, o);
+        } else if (link == FSE_LINK_MULTILABEL) {
+            fse_sigmoid1_block(isa, z, k, o);
         } else {
             fse_ovr_row(isa, z, k, o);
         }

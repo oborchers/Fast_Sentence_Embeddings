@@ -37,10 +37,12 @@ class Classifier(LinearModel):
 
     @classmethod
     @validate_arguments
-    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+    def from_sklearn(
+        cls, encoder: Any, model: Any, *, normalized: bool | None = None, thresholds: Any = None
+    ):
         """The head of a fitted scikit-learn classifier (or a Pipeline of an optional
         ``StandardScaler`` and the classifier) on the rows of
-        ``encoder``, with the probabilities of the installed version's rule. Reads its
+        ``encoder``, including a multilabel OneVsRestClassifier, with the probabilities of the installed version's rule. Reads its
         attributes and imports nothing of scikit-learn. ``normalized``: whether it was
         trained on normalized vectors; by default the encoder's setting. A Pipeline with a
         ``Normalizer`` raises: train on a normalizing encoder's vectors instead."""
@@ -53,6 +55,7 @@ class Classifier(LinearModel):
             link=found.link,
             labels=found.labels,
             source=found.source,
+            thresholds=thresholds,
         )
 
     @classmethod
@@ -64,16 +67,25 @@ class Classifier(LinearModel):
         bias: Any = None,
         *,
         labels: Any = None,  # required; a default keeps pydantic 2.5 from refusing the order
-        link: Literal["auto", "sigmoid", "softmax", "ovr", "none"] = "auto",
+        link: Literal["auto", "sigmoid", "softmax", "ovr", "none", "multilabel"] = "auto",
         normalized: bool | None = None,
+        thresholds: Any = None,
     ):
         """The head ``weight`` (k, d) or (d,) and ``bias`` (k, a scalar or None) on the rows
         of ``encoder``, d its ``output_dim``: ``labels`` are k labels, or two for k = 1
         (negative first, as ``classes_``), all int or all str. ``link``: ``"sigmoid"`` (k =
         1), ``"softmax"`` or ``"ovr"`` (k >= 2), ``"none"`` (no probabilities); ``"auto"``
         is sigmoid for one output and softmax else. ``normalized``: whether the head was
-        trained on normalized rows, by default the encoder's setting."""
-        return cls._build(encoder, weight, bias, normalized=normalized, link=link, labels=labels)
+        trained on normalized rows, by default the encoder's setting.
+
+        ``multilabel`` gives one independent sigmoid per label, including k = 1.
+        ``thresholds``: None (0.5 each), a scalar, a vector, or a partial mapping from
+        labels to cutoffs in [0, 1]; unnamed labels keep 0.5. Predictions are boolean
+        (n, k), true strictly above the cutoff. Other links refuse thresholds."""
+        return cls._build(
+            encoder, weight, bias, normalized=normalized, link=link, labels=labels,
+            thresholds=thresholds,
+        )
 
     @classmethod
     @validate_arguments
@@ -110,8 +122,9 @@ class Classifier(LinearModel):
     def predict(
         self, texts: Any, *, workers: PositiveInt | None = None, backend: str = "cpu"
     ) -> ndarray:
-        """The label of every text (as ``Encoder.encode`` takes them) or of every row of a
-        ``fse.VectorStore`` of the encoder's rows, as an array of ``classes_``."""
+        """The label of each text or VectorStore row. For multilabel heads, a boolean
+        (n, k) indicator in classes_ order, true strictly above each stored cutoff.
+        Other classifiers return one class per row as before."""
         return _run.infer(self, texts, "labels", workers, backend, None)
 
     @validate_arguments

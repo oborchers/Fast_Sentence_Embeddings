@@ -88,11 +88,12 @@ def parse_config(config: dict, where: Path) -> dict:
             f"version {CONFIG_VERSION} (a newer fse wrote it)"
         )
     version = config["fse_format_version"]
-    if config["fse_kind"] not in KINDS or not _is_int(version) or version != 1:
+    allowed = (1, 2) if config["fse_kind"] == "linear_head" else (1,)
+    if config["fse_kind"] not in KINDS or not _is_int(version) or version not in allowed:
         raise UnsupportedArtifactError(
             f"{where} names a {config['fse_kind']!r} of format version "
             f"{config['fse_format_version']!r}; this fse reads encoders and linear heads of "
-            "version 1"
+            "version 1, and linear heads of version 2"
         )
     if config["model"] != MODEL:
         raise CorruptArtifactError(f"{where}: model must be {MODEL!r}, not {config['model']!r}")

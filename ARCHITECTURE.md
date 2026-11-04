@@ -30,7 +30,7 @@ Sections formerly under "2.0 design" are binding for every 2.0 module.
 | [persistence.md](docs/architecture/persistence.md) | Identifiers and versions, Identities, Persistence names replace class paths, Migration |
 | [tokenizers.md](docs/architecture/tokenizers.md) | Tokenizers, wordpiece@1, unigram@1 |
 | [runtime.md](docs/architecture/runtime.md) | Runtime, Defaults |
-| [formats.md](docs/architecture/formats.md) | Artifacts, safetensors 1, NpyContainer 1, word_vectors 1, encoder 1, linear_head 1 |
+| [formats.md](docs/architecture/formats.md) | Artifacts, safetensors 1, NpyContainer 1, word_vectors 1, encoder 1, linear_head 1, linear_head 2 |
 | [hub.md](docs/architecture/hub.md) | Model2Vec models and from_pretrained, model2vec compatibility (fse.StaticModel), sentence-transformers models, Hub folders |
 | [store.md](docs/architecture/store.md) | sentence_vectors 1 |
 
@@ -65,7 +65,7 @@ Old fragment links land here. Follow the section link to its current location.
 | <a id="model2vec-models-and-from_pretrained"></a>Model2Vec models and from_pretrained | [Model2Vec models and from_pretrained](docs/architecture/hub.md#model2vec-models-and-from_pretrained) |
 | <a id="model2vec-compatibility-fsestaticmodel"></a>model2vec compatibility (fse.StaticModel) | [model2vec compatibility (fse.StaticModel)](docs/architecture/hub.md#model2vec-compatibility-fsestaticmodel) |
 | <a id="sentence-transformers-models"></a>sentence-transformers models | [sentence-transformers models](docs/architecture/hub.md#sentence-transformers-models) |
-| <a id="linear_head-1"></a>linear_head 1 | [linear_head 1](docs/architecture/formats.md#linear_head-1) |
+| <a id="linear_head-1"></a>linear_head 1, linear_head 2 | [linear_head 1](docs/architecture/formats.md#linear_head-1) |
 | <a id="hub-folders"></a>Hub folders | [Hub folders](docs/architecture/hub.md#hub-folders) |
 | <a id="identities"></a>Identities | [Identities](docs/architecture/persistence.md#identities) |
 | <a id="persistence-names-replace-class-paths"></a>Persistence names replace class paths | [Persistence names replace class paths](docs/architecture/persistence.md#persistence-names-replace-class-paths) |

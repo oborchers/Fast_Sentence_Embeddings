@@ -106,3 +106,38 @@ A linear model (`fse._head`, `fse.Classifier` and `fse.Regressor`) in one `.safe
 - **Store mode.** `predict*` of a `VectorStore` computes the logits from the stored rows by `score` block by block in row order (`fse._store._search.score_blocks`), in worker threads that also make the outputs, so `predict_batches` of a store holds a few blocks whatever its size. The store must hold the model's encoder (`encoder_fingerprint`) and the head's flag must equal the encoder's normalization; a standalone model has no weights for it.
 - **Quantized models.** `Classifier.quantize(dtype)` and `Regressor.quantize(dtype)` (`LinearModel.quantize`) return a new model of the same class whose encoder is `Encoder.quantize(dtype)` (see *Quantized models* of encoder 1) and whose head is copied unchanged: A and b keep their bits, a loaded model's compared with their checksums first (`CorruptArtifactError` if a mapped file changed). Nothing else changes, so there is no new identifier and no version: `fse.encoder_fingerprint` and the model's fingerprint are those of the quantized encoder and the head. A head on raw means folds into the quantized rows (`t[w, j] = score(stored_w, scale_w, a_j, 0)`, FastText ngrams on their own), a normalized head reads the quantized rows after `normalize@1`; on every CPU backend the predictions are bit-identical to the reference applied to the quantized table (`tests/support/quantized.py`, `tests/test_head_model_quantize.py`), and how close they are to the float32 model's is measured, not promised. A standalone model raises `ValueError` (its folded float32 table is not the encoder's table); quantize the complete model, then `save(standalone=True)`, which folds the quantized rows into a float32 table. A model of a float16 or int8 encoder raises, as the encoder does. In store mode the store must hold the quantized encoder's rows: a store written by the float32 encoder is refused by the quantized model, and the other way round.
 - **Golden files**: `tests/test_data/v2/finished/classifier_float32.safetensors` (on `encoder_float32`: FastText, `fse_words@1`, normalized, softmax, three str labels), `regressor_int8.safetensors` (on `encoder_int8`: int8, `external`, raw means, two targets) and `classifier_standalone.safetensors` (a binary classifier on raw means, standalone), written by `make_golden.py` with pinned fingerprints and output bits; never rewritten.
+
+
+## linear_head 2
+
+A multilabel classifier keeps the encoder and linear-head layout of version 1, with
+`fse.kind=linear_head`, `fse.format_version=2`, `fse.head=linear@2` and
+`fse.head.link=multilabel@1`. `fse.head.task` remains `classification`. Its k labels
+name k independent positive outputs, including one label for k=1. `head.thresholds`
+is mandatory F32 `(k,)`, finite and in [0,1], covered by its checksum and the model
+fingerprint. No other metadata key is added. `fse.head.flat` is forbidden.
+
+Probabilities and decision values both have shape `(n,k)`. Predictions are a bool
+indicator `(n,k)`, true exactly when the bit-defined independent sigmoid probability
+is strictly above the corresponding stored threshold. Empty outputs keep two
+dimensions. Partial named thresholds are resolved in classes_ order, with 0.5 for
+unnamed labels, then rounded once to F32. Invalid values are rejected before rounding.
+Names must match their label types exactly. A scalar applies to all labels and a
+vector must have exactly k values. Labels remain unique int64 or valid UTF-8 strings.
+
+`Classifier.from_arrays(..., link="multilabel", thresholds={"sport": 0.4})` creates
+this schema. `Classifier.from_sklearn` imports fitted multilabel
+`OneVsRestClassifier` objects with affine binary sigmoid heads and classes [0,1].
+An optional StandardScaler folds into the imported coefficients. Constant binary
+outputs use zero weights and finite logits -104 or +104, yielding exactly 0 or 1
+under exp@1. Unfitted, non-affine, decision-only and inconsistent wrappers raise.
+The importer never trains and never imports scikit-learn.
+
+Complete and standalone saves include the threshold tensor. Standalone retains
+the folded path and its bits. Quantization checks loaded threshold checksums and
+keeps their bits. Hub config files permit version 2 only for linear_head, not encoder.
+Readers retain version 1 with its original closed schema and old golden artifacts.
+Version/link/head mismatches, missing thresholds and threshold tensors in version 1
+are refused. Other existing classifiers and regressors still write version 1.
+
+The sigmoid calibration and temperature importers remain separate later work.

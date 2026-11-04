@@ -23,7 +23,6 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -31,10 +30,11 @@ from numpy import ndarray
 
 from fse import _codes, _log
 from fse._backends import PoolInput, get_backend
-from fse._contract import Link, Normalize, Step
+from fse._contract import Link
 from fse._cpus import usable_cpus
 
 from ._errors import earliest, first_rows
+from ._head_spec import HeadSpec
 from ._executor import run
 from ._pipeline import STEP_ROW_BYTES, Pipeline, check_sink_rows, check_workers
 from ._sinks import ArrayRows, GrowingRows, Sink, sink_dtype, split_target, wants_inverse_norms
@@ -47,62 +47,6 @@ OUTPUTS = ("logits", "proba", "labels")
 # The rows of a table folded at once by one task of the fold.
 _FOLD_ROWS = 1 << 14
 
-
-@dataclass(frozen=True, eq=False)
-class HeadSpec:
-    """A linear head: ``weight`` (k, d) float32 and ``bias`` (k,), or for a standalone head
-    (whose table is folded already) no weight; ``normalized``: it reads normalized rows;
-    ``link``: the link of its probabilities, or None. Owns read-only copies."""
-
-    weight: ndarray | None
-    bias: ndarray
-    normalized: bool
-    link: Link | None
-
-    def __post_init__(self):
-        bias = _frozen(self.bias, "bias", 1)
-        object.__setattr__(self, "bias", bias)
-        if self.weight is not None:
-            weight = _frozen(self.weight, "weight", 2)
-            if len(weight) != len(bias):
-                raise ValueError(f"weight has {len(weight)} rows, but bias {len(bias)} values")
-            object.__setattr__(self, "weight", weight)
-        elif self.normalized:
-            raise ValueError("a standalone head reads raw means; it cannot be normalized")
-        if not isinstance(self.normalized, bool):
-            raise TypeError("normalized must be a bool")
-        if self.link is not None and not isinstance(self.link, Link):
-            raise TypeError("link must be a Link or None")
-
-    @property
-    def k(self) -> int:
-        return len(self.bias)
-
-    @property
-    def steps(self) -> tuple[Step, ...]:
-        """The step of the rows the head reads unfolded."""
-        return (Normalize(),) if self.normalized else ()
-
-    def width(self, output: str) -> int:
-        """The values per row of ``output``: k logits, 2 probabilities for k = 1 (else k),
-        one label index."""
-        if output == "labels":
-            return 1
-        if output == "proba":
-            if self.link is None:
-                raise ValueError("the head has no link, so no probabilities")
-            return 2 if self.k == 1 else self.k
-        return self.k
-
-
-def _frozen(value: object, name: str, ndim: int) -> ndarray:
-    if not isinstance(value, ndarray) or value.dtype != F32 or value.ndim != ndim or not value.size:
-        raise ValueError(f"{name} must be a non-empty float32 array of {ndim} dimensions")
-    copy = np.array(value, copy=True, order="C")
-    if not np.isfinite(copy).all():
-        raise ValueError(f"{name} must be finite")
-    copy.setflags(write=False)
-    return copy
 
 
 def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolInput:
@@ -227,8 +171,11 @@ class HeadPipeline:
         scratch as the encoder's pipeline counts them."""
         reader = self.reader.output_dim
         steps = STEP_ROW_BYTES * reader if self.head.normalized and not self.folded else 0
-        out = 8 if output == "labels" else 4 * self.head.width(output)
+        multi = self.head.link is Link.MULTILABEL
+        out = (self.head.k if multi else 8) if output == "labels" else 4 * self.head.width(output)
         total = 4 * reader + steps + 4 * self.head.k + out
+        if multi and output == "labels":
+            total += 4 * self.head.k
         if self.with_vectors:
             total += (self.vectors or self.reader)._row_bytes(vdtype, inverse)
         return total
@@ -258,7 +205,7 @@ class HeadPipeline:
         tasks, window, stop = self.reader.plan_tasks(
             source, workers, chunk_bytes, row_bytes, first_row
         )
-        outputs = sink if sink is not None else _own(tasks.rows, width, output)
+        outputs = sink if sink is not None else _own(tasks.rows, width, output, self.head.link is Link.MULTILABEL)
         vectors: Any = vector_sink
         if self.with_vectors and vectors is None:
             vectors = _own_vectors(tasks.rows, self.vector_dim, vector_dtype)
@@ -359,7 +306,12 @@ class HeadPipeline:
         if output == "proba":
             backend.outputs(logits, "proba", self.head.link, target, first)
         elif output == "labels":
-            backend.outputs(logits, "labels", None, target, first)
+            if self.head.link is Link.MULTILABEL:
+                probabilities = _buffer(local, "head_proba", n, self.head.k)
+                backend.outputs(logits, "proba", self.head.link, probabilities, first)
+                np.greater(probabilities, self.head.thresholds, out=target)
+            else:
+                backend.outputs(logits, "labels", None, target, first)
         if vectors is not None:
             assert vrows is not None
             assert vsplit is not None
@@ -380,14 +332,16 @@ class _Labels:
 
     dim = 1
 
-    def __init__(self, rows: int | None):
+    def __init__(self, rows: int | None, width: int | None = None):
         self.next_row = 0
-        self._out = None if rows is None else np.empty(rows, dtype=np.int64)
+        self._shape = () if width is None else (width,)
+        self._dtype = np.int64 if width is None else np.bool_
+        self._out = None if rows is None else np.empty((rows, *self._shape), dtype=self._dtype)
         self._parts: list[ndarray] = []
 
     def target(self, first_row: int, n_rows: int) -> ndarray:
         if self._out is None:
-            return np.empty(n_rows, dtype=np.int64)
+            return np.empty((n_rows, *self._shape), dtype=self._dtype)
         return self._out[first_row : first_row + n_rows]
 
     def commit(self, first_row: int, rows: ndarray) -> None:
@@ -400,12 +354,12 @@ class _Labels:
     def result(self) -> ndarray:
         if self._out is not None:
             return self._out
-        return np.concatenate(self._parts) if self._parts else np.empty(0, dtype=np.int64)
+        return np.concatenate(self._parts) if self._parts else np.empty((0, *self._shape), dtype=self._dtype)
 
 
-def _own(rows: int | None, width: int, output: str) -> Any:
+def _own(rows: int | None, width: int, output: str, multilabel: bool = False) -> Any:
     if output == "labels":
-        return _Labels(rows)
+        return _Labels(rows, width if multilabel else None)
     return GrowingRows(width) if rows is None else ArrayRows(rows, width)
 
 

@@ -370,7 +370,9 @@ def check_outputs_input(logits: object, kind: object, link: object, out: object)
         _int64_vector(out, "out", n)
     elif kind == "proba":
         _check_link(link, k)
-        _float32_matrix(out, "out", n, 2 if k == 1 else k, writable=True)
+        _float32_matrix(
+            out, "out", n, 2 if k == 1 and link is not Link.MULTILABEL else k, writable=True
+        )
     else:
         raise ValueError(f"kind must be 'proba' or 'labels', not {kind!r}")
     if np.may_share_memory(out, logits):

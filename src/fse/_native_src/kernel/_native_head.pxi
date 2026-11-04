@@ -115,14 +115,14 @@ def _head_outputs(logits, kind, link, out, first_row, int isa):
             with nogil:
                 bad = fse_head_labels(&z[0, 0], n, k, &labels[0])
     elif kind == "proba":
-        codes = {Link.SIGMOID: 0, Link.SOFTMAX: 1, Link.OVR: 2}
+        codes = {Link.SIGMOID: 0, Link.SOFTMAX: 1, Link.OVR: 2, Link.MULTILABEL: 3}
         if link not in codes:
             raise ValueError(f"link must be one of {[str(member) for member in Link]}")
         if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
             want = "one logit" if link is Link.SIGMOID else "at least two logits"
             raise ValueError(f"{link} takes {want} per row")
         code = codes[link]
-        _matrix32(out, "out", n, 2 if k == 1 else k, writable=True)
+        _matrix32(out, "out", n, 2 if k == 1 and link is not Link.MULTILABEL else k, writable=True)
         if n:
             o = out
             with nogil:

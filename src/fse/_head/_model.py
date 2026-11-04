@@ -36,9 +36,9 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import UnsupportedArtifactError
+from fse._contract import Link, UnsupportedArtifactError
 from fse._cpus import usable_cpus
-from fse._encoder import Encoder, _folder, _pretrained
+from fse._encoder import Encoder, _pretrained
 from fse._encoder._format import to_artifact as encoder_artifact
 from fse._runtime import HeadPipeline, HeadSpec, make_head
 from fse._runtime._head import fold
@@ -48,6 +48,8 @@ from fse._wordvectors import _created_by
 from . import _content, _format
 from ._content import HeadContent
 from ._outputs import output_identity
+from ._model_hub import HubModel
+from ._thresholds import thresholds as read_thresholds
 
 # The tensors of a standalone file made new by the fold, and the tensors of the encoder
 # that the fold reads, by their fields in a PoolInput.
@@ -60,7 +62,7 @@ _POOL_TENSORS = {
 }
 
 
-class LinearModel:
+class LinearModel(HubModel):
     """An encoder and a linear head; ``fse.Classifier`` and ``fse.Regressor`` are its two
     tasks. Made by ``from_arrays``, ``from_sklearn`` or ``load``."""
 
@@ -107,7 +109,9 @@ class LinearModel:
         out = object.__new__(cls)
         out._encoder = encoder
         out._content = content
-        out._head = HeadSpec(content.weight, content.bias, content.normalized, content.link)
+        out._head = HeadSpec(
+            content.weight, content.bias, content.normalized, content.link, content.thresholds
+        )
         out._source = source
         out._path = path
         out._checksums = checksums
@@ -128,6 +132,7 @@ class LinearModel:
         labels: Any = None,
         source: str | None = None,
         flat: bool | None = None,
+        thresholds: Any = None,
     ):
         """A model of ``encoder`` and the head of ``weight`` and ``bias``, checked."""
         if not isinstance(encoder, Encoder):
@@ -139,10 +144,16 @@ class LinearModel:
         if cls.TASK == "classification" and labels is None:
             raise TypeError("a classifier needs labels, one per output (two for one output)")
         chosen = None if cls.TASK == "regression" else _content.link(link, k)
-        names = None if cls.TASK == "regression" else _content.labels(labels, k)
+        multi = chosen is Link.MULTILABEL
+        names = None if cls.TASK == "regression" else _content.labels(labels, k, multilabel=multi)
+        limits = read_thresholds(thresholds, names) if multi and names is not None else None
+        if not multi and thresholds is not None:
+            raise ValueError("thresholds are given only for multilabel heads")
         if flat is None:
-            flat = cls.TASK == "classification" or np.ndim(weight) == 1
-        content = HeadContent(cls.TASK, w, b, normalized, chosen, names, flat=flat)
+            flat = not multi and (cls.TASK == "classification" or np.ndim(weight) == 1)
+        content = HeadContent(
+            cls.TASK, w, b, normalized, chosen, names, flat=flat, thresholds=limits
+        )
         return cls._new(encoder, content, source=source)
 
     # --- the head on a backend --------------------------------------------------------
@@ -184,7 +195,11 @@ class LinearModel:
         bias = self._verified("head.bias", self._content.bias)
         for array in (weight, bias):
             array.setflags(write=False)
-        content = dataclasses.replace(self._content, weight=weight, bias=bias)
+        limits = self._content.thresholds
+        if limits is not None:
+            limits = self._verified("head.thresholds", limits)
+            limits.setflags(write=False)
+        content = dataclasses.replace(self._content, weight=weight, bias=bias, thresholds=limits)
         return type(self)._new(self._encoder.quantize(dtype), content, source=self._source)
 
     # --- persistence ------------------------------------------------------------------
@@ -343,62 +358,6 @@ class LinearModel:
             model = cls._load(found.path, mmap)
         _pretrained.check_loaded(found, model._fingerprint, _format.KIND)
         return model
-
-    @validate_arguments
-    def save_pretrained(
-        self,
-        path: PathLike,
-        *,
-        standalone: bool = False,
-        license: str | list[str] | None = None,
-        language: list[str] | None = None,
-        model_name: str | None = None,
-        extra_files: dict[str, PathLike] | None = None,
-    ) -> Path:
-        """Write the model as a Hugging Face folder at the new ``path`` (never half written
-        or replaced): ``config.json``, ``model.safetensors`` (as ``save`` writes it,
-        complete or ``standalone``), a ``README.md`` model card of that file with the
-        license its encoder records (or ``license`` if it records none) and
-        ``extra_files`` (name to local text file, such as LICENSE). ``from_pretrained``
-        reads it. docs/architecture/hub.md, "Hub folders"."""
-
-        def write(file: Path) -> None:
-            self.save(file, standalone=standalone)
-
-        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
-        return _folder.save(path, write, model_name=model_name, **card)[0]
-
-    @validate_arguments
-    def push_to_hub(
-        self,
-        repo_id: str,
-        *,
-        standalone: bool = False,
-        token: str | bool | None = None,
-        private: bool | None = None,
-        revision: str | None = None,
-        create_pr: bool = False,
-        commit_message: str | None = None,
-        replace: bool = False,
-        license: str | list[str] | None = None,
-        language: list[str] | None = None,
-        extra_files: dict[str, PathLike] | None = None,
-    ) -> str:
-        """Publish the folder of ``save_pretrained`` to the Hub repository ``repo_id`` in
-        one commit and return its URL, as ``Encoder.push_to_hub`` does: a license is
-        required, other content under the same names and other files are refused unless
-        ``replace=True``, license files already there are kept, every file is checked at
-        the new commit."""
-
-        def write(file: Path) -> None:
-            self.save(file, standalone=standalone)
-
-        hub = {"token": token, "private": private, "revision": revision, "replace": replace}
-        hub |= {"create_pr": create_pr, "commit_message": commit_message}
-        card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
-        return _folder.push(
-            repo_id, write, type(self).__name__.lower(), hub, card | {"model_name": repo_id}
-        )
 
     # --- properties -------------------------------------------------------------------
 

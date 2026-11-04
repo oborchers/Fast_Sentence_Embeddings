@@ -42,6 +42,7 @@ from ._content import TASKS, HeadContent
 
 KIND = "linear_head"
 FORMAT_VERSION = "1"
+MULTILABEL_VERSION = "2"
 _HEAD = "fse.head"
 _KEYS = frozenset(
     {
@@ -57,7 +58,7 @@ _KEYS = frozenset(
 )
 # Keys given only for some heads: the labels of a classifier, the shape of one target.
 _OPTIONAL = frozenset({"fse.head.labels", "fse.head.flat"})
-TENSORS = ("head.weight", "head.bias")
+TENSORS = ("head.weight", "head.bias", "head.thresholds")
 _BOOLS = {"true": True, "false": False}
 
 
@@ -76,6 +77,9 @@ def to_artifact(
     if content.weight is not None:
         out["head.weight"] = content.weight
     out["head.bias"] = content.bias
+    multi = content.link is Link.MULTILABEL
+    if multi:
+        out["head.thresholds"] = content.thresholds
     keys = {
         k: v
         for k, v in metadata.items()
@@ -84,8 +88,8 @@ def to_artifact(
     keys.update(
         {
             "fse.kind": KIND,
-            "fse.format_version": FORMAT_VERSION,
-            _HEAD: Head.LINEAR.id,
+            "fse.format_version": MULTILABEL_VERSION if multi else FORMAT_VERSION,
+            _HEAD: Head.LINEAR2.id if multi else Head.LINEAR.id,
             "fse.head.task": content.task,
             "fse.head.normalized": str(content.normalized).lower(),
             "fse.head.link": content.link_id,
@@ -113,15 +117,18 @@ def from_artifact(
     if standalone and normalized:
         raise ValueError("a standalone head reads raw means; fse.head.normalized must be false")
     weight, bias = _head_tensors(tensors, standalone)
+    chosen = _link(metadata, task, len(bias))
+    limits = _thresholds(tensors, metadata, chosen, len(bias))
     content = HeadContent(
         task,
         weight,
         bias,
         normalized,
-        _link(metadata, task, len(bias)),
+        chosen,
         _labels(metadata, task, len(bias)),
         standalone,
-        _flat(metadata, task, len(bias)),
+        False if chosen is Link.MULTILABEL else _flat(metadata, task, len(bias)),
+        limits,
     )
     return (content, *_encoder_part(tensors, metadata, content))
 
@@ -187,10 +194,10 @@ def _check_kind(metadata: dict[str, str]) -> None:
     kind = metadata.get("fse.kind")
     if kind != KIND:
         raise UnsupportedArtifactError(f"the artifact is a {kind!r}, not {KIND!r}")
-    if metadata.get("fse.format_version") != FORMAT_VERSION:
+    if metadata.get("fse.format_version") not in (FORMAT_VERSION, MULTILABEL_VERSION):
         raise UnsupportedArtifactError(
             f"linear heads of format version {metadata.get('fse.format_version')!r} are not "
-            f"supported by this fse; supported: {FORMAT_VERSION}"
+            f"supported by this fse; supported: {FORMAT_VERSION}, {MULTILABEL_VERSION}"
         )
     unknown = sorted(k for k in metadata if k.startswith(_HEAD + ".") and k not in _KEYS)
     if unknown:
@@ -257,4 +264,23 @@ def _labels(metadata: dict[str, str], task: str, k: int) -> tuple | None:
         raise ValueError("fse.head.labels must be a canonical JSON list")
     if any(isinstance(v, float) for v in values):
         raise ValueError("fse.head.labels must hold int or str labels")
-    return _content.labels(values, k)
+    return _content.labels(values, k, multilabel=metadata["fse.head.link"] == Link.MULTILABEL.id)
+
+
+def _thresholds(tensors, metadata, link, k) -> ndarray | None:
+    """Version 2 couples linear@2, multilabel@1 and one strict F32 cutoff per label."""
+    multi = link is Link.MULTILABEL
+    version = MULTILABEL_VERSION if multi else FORMAT_VERSION
+    rule = Head.LINEAR2 if multi else Head.LINEAR
+    if metadata["fse.format_version"] != version or metadata[_HEAD] != rule.id:
+        raise ValueError(f"{metadata['fse.head.link']} requires linear_head {version}, {rule.id}")
+    if not multi:
+        if "head.thresholds" in tensors:
+            raise ValueError("head.thresholds is given only for multilabel@1")
+        return None
+    if "fse.head.flat" in metadata:
+        raise ValueError("fse.head.flat is given exactly for regression heads of one output")
+    limits = _tensor(tensors, "head.thresholds", 1)
+    if limits.shape != (k,) or ((limits < 0) | (limits > 1)).any():
+        raise ValueError(f"head.thresholds must hold {k} F32 values in [0, 1]")
+    return limits
