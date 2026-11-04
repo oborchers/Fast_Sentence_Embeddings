@@ -6,6 +6,7 @@ import sys
 from contextlib import suppress
 from pathlib import Path
 
+from _development_budget import stopped
 from _development_locks import coordinated
 from _development_process import checked, interpreter, launch
 from _development_system import LABEL
@@ -32,7 +33,7 @@ def prepare(args, cells, ledger):
         args.worker_name,
         "prepare pinned development inputs",
         notify,
-        lambda: ledger.stopping,
+        lambda: stopped(ledger),
     ):
         receipt = launch(
             args,

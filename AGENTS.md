@@ -28,7 +28,19 @@ For measurement planning, rehearsal and audits, use the shared [fse-benchmark sk
 
 Use the two central measurement entries, `benchmarks/quality.py` and `benchmarks/speed.py`, and follow [the measurement guide](docs/benchmarks/measurement.md). Studies, source pins and dependency locks live in `benchmarks/config/`. Add a data cell or native adapter instead of another runner. Do not add tests for measurement scripts. Existing 1.1.0 numerical and quality baselines stay in `benchmarks/baseline/`.
 
-Every hot-path or performance change still needs a paired base/candidate end-to-end float32 comparison on one Linux machine, including CPU and memory profiling of a representative deciding configuration. Use enough input for every measured fse call to last at least two seconds, at least three alternating rounds, and checked equivalent output. Include the machine, input, model, worker path, median, paired factor and profile attribution in the PR. No Mac speed claims or millisecond-call measurements. A reduced Linux rehearsal checks functionality only. When machine code merely moves, identical normalized disassembly or the same preprocessed header can replace timing.
+Before an experiment, declare its question, claim class, resulting decision, workload, relevant effect boundary, total wall-time budget, estimated cost and stop rule. Choose the least costly protocol that can support that claim:
+
+| Class | Evidence and limit |
+| :--- | :--- |
+| K, correctness | Functional probes, bits, conformance and quality. No speed claim. |
+| D, descriptive costs | One arm, fixed repetitions, absolute median and IQR. No comparison claim. |
+| R, regression | Paired base/candidate with a declared relevant boundary. Short screens remain preliminary without sufficient uncertainty evidence. |
+| O, optimization | Full local v2 controls, independent A/A validation and confirmation. A screen never decides keep. |
+| P, publication | Existing Linux publication protocol and release guarantees. |
+
+Budget includes preparation, warmups and load/lock waits across all selected cells. Stop at a safe operation boundary when exhausted, preserve raw data and report inconclusive. Never extend or retry automatically. Before long runs, use small adapter/reference and provenance probes. Stabilize APIs first. Review fixes use affected tests and conformance, with one full `make check` on the final state, repeated only for a new risk or failed gate. Profile representative changed paths and resource risks, verifying which children execute them.
+
+Every hot-path or performance change still needs a paired base/candidate end-to-end float32 comparison on one Linux machine, including CPU and memory profiling of a representative deciding configuration. Use enough input for every measured fse call to last at least two seconds, at least three alternating rounds, and checked equivalent output. Include the machine, input, model, worker path, median, paired factor and profile attribution in the PR. No Mac speed claims or millisecond-call measurements. A reduced Linux rehearsal checks functionality only. When machine code merely moves, identical normalized disassembly or the same preprocessed header can replace timing. A local screen does not replace this requirement, numerical conformance or persistence guarantees.
 
 Before a paid run, agree on the workload, resources, soft runtime/cost limits and collection owner. Rehearse both the selected adapters and lifecycle controls in the pinned Linux image. Results and model caches stay outside the checkout. Do not commit model weights, matrices, raw data or reconstruction output, including on the evidence branch. No single file above 10 MB without the coordinator's approval. Inspect `git diff --stat` and file sizes before every push. The guide specifies continuous results, correctness checks, telemetry, safe restart and collection. It replaces the former advice to trim local comparisons to a few minutes.
 

@@ -44,6 +44,54 @@ flowchart LR
 10. Agree on cost and runtime before allocation, including setup, full warmups, slow arms, storage and collection reserve. Admission limits are soft and do not kill an active pair. Bootstrap remains in `sleep infinity` after success or failure. A restart never launches another measurement. The lifecycle owner collects, verifies and promptly deletes the allocation.
 11. A watcher separates transport failure from a missing file during setup. Read-only monitoring must never start a second controller. Fetch progress and results continuously. On failure, preserve and collect first, then analyze locally.
 
+## Match effort to the claim
+
+Declare the question, class, decision, workload, practically relevant effect boundary,
+total wall-time budget, estimated runtime/resources and stop rule before starting.
+An estimate is a planning assumption, not a guaranteed duration. Include setup,
+warmups, slow arms, waiting and collection reserve. Reject a plan whose known costs
+cannot fit. Escalate exhausted budgets to the owner instead of extending them.
+
+| Class | Question and protocol | Planning starting point |
+| :--- | :--- | :--- |
+| K, correctness | Does it work? Small reference probes, full applicable bits/conformance/quality gates. No speed decision. | No measurement minutes |
+| D, descriptive costs | What does this feature cost? One arm, fixed repetitions, absolute median/IQR, no A/A or confirmation. | About 15 minutes per cell |
+| R, regression | Could existing work become meaningfully slower? Paired builds and a predeclared relevant slowdown. A short screen can expose concerns or require escalation. | About 30 to 45 minutes total |
+| O, optimization | Keep or reject? Full v2 tuning, independent A/A validation, comparison and confirmation. | Up to about 120 minutes after estimating costs |
+| P, publication | What public claim can we support? Existing pinned Linux publication protocol and release evidence. | Separately agreed budget |
+
+These are planning suggestions, not empirical fse runtime guarantees. D never
+establishes a speedup or absence of regression. Comparing two D medians does not
+establish an optimization. A small R median, including a value within one percent,
+does not prove equivalence. This suite supplies no new equivalence test or screen
+PASS heuristic. Short screens remain preliminary or inconclusive. O screens never
+return keep. Only the full O protocol can justify that local decision.
+
+Small probes precede long timing blocks: check the selected adapter against an
+independent reference, full shape/dtype/count/bits, input checksums and actual build
+identities. Then retain the complete applicable quality gate. Cache that gate only
+within the invocation for identical model, corpus, table dtype and workers. Each
+later child must still match its recorded build. These probes never replace full
+conformance, persistence checks or Linux hot-path/publication evidence.
+
+Stabilize APIs before timing. Use affected tests and conformance for small review
+fixes, then run the complete required `make check` on the final state. Repeat it
+only for a new justified risk or failed gate. Profile representative changed paths
+and resource risks rather than every parameter combination. Verify the executing
+children, and retain the existing identity and age rules for evidence reuse. The
+same calendar day alone never permits reuse. Existing and running v2 studies retain
+their original contracts and interpretation.
+
+Methodological basis: [pyperf runner](https://pyperf.readthedocs.io/en/stable/runner.html)
+separates quick rough answers from rigorous runs and makes repetition explicit.
+[pyperf analysis](https://pyperf.readthedocs.io/en/latest/analyze.html) retains raw
+observations and reports variation. [ASV](https://asv.readthedocs.io/en/stable/commands.html)
+labels quick runs as functional checks with unusable performance results.
+[Kalibera and Jones](https://kar.kent.ac.uk/33611/) allocate repetitions to sources
+of uncertainty. [Lakens](https://doi.org/10.1177/1948550617697177) distinguishes
+absence of a detected difference from evidence within predeclared equivalence bounds.
+These sources motivate proportional effort, not the numeric planning suggestions above.
+
 ## Local Unix development
 
 The explicit `--diagnose` mode compares installed builds on macOS, Linux and other
@@ -61,6 +109,53 @@ python benchmarks/quality.py --diagnose \
   --base-python /external/base/bin/python --candidate-python /external/candidate/bin/python \
   --worker-name feature-owner --results /external/quality-01 --work /external/quality-work-01
 ```
+
+For class D, select the explicit candidate-only phase:
+
+```sh
+python benchmarks/speed.py --diagnose --local-phase descriptive \
+  --candidate-python /external/candidate/bin/python \
+  --cells potion-stsb-tokenizer --descriptive-repetitions 5 \
+  --wall-time-seconds 900 --estimated-seconds 600 \
+  --results /external/costs-01 --work /external/costs-work-01
+```
+
+D uses the declared `resident_cycles` and `iterations` without sizing or A/A.
+It runs exactly `warmup_calls` warmups per repetition, without a duration-driven
+warmup loop, then one measured group. All measured repetitions enter the absolute
+seconds median and IQR. It checks the candidate's complete direct/store quality
+outputs and independently probes the selected adapter. No base interpreter, paired
+factor, confirmation or optimization decision is used. D refuses reused controls.
+`decision_gate: false` in an existing v2 contract retains its original paired
+behavior and label. Only the new explicit phase selects this one-arm protocol.
+
+For a short R screen, use `--local-phase regression-screen --regression-limit 0.02`
+with both interpreters. The limit is the predeclared relevant slowdown fraction,
+not a statistical acceptance rule. This phase sizes common fixed inputs once and
+runs five alternating pairs without A/A or confirmation. It always reports
+`screen_requires_full_evidence`, status `inconclusive`, and a nonzero DONE, unless
+it is a functional rehearsal. Inspect the raw pairs before requesting further work.
+The existing O `screen` phase retains controls but cannot return keep.
+
+Both local entries accept `--wall-time-seconds` and optional `--estimated-seconds`.
+A declared estimate exceeding the budget is refused before result directories are
+created. Defaults are 900 seconds for D and 7200 seconds for other local phases,
+shared by the entire invocation, never multiplied by selected cells. Set an
+explicit budget appropriate to the declared claim and workload. The monotonic
+clock starts when the local session opens, before directory/environment capture.
+Preparation, quality, warmups, calibration, comparison and lock/load waits all count.
+The existing active calibration limit applies in addition.
+
+Checks run before waits, children and stage transitions, including child warmup
+boundaries. An active operation, verification or preparation child may finish safely
+past the deadline. The next operation is refused. This is an admission budget,
+not a hard process-kill timeout. Progress records the remaining budget and overrun,
+with unknown remaining workload time as `null` rather than a fixed estimate.
+Budget exhaustion produces `inconclusive_budget` for an active cell or a session
+budget record when preparation stops. Unstarted cells remain `not_started`. Partial
+blocks never become valid decisions. Raw receipts, final manifest and nonzero DONE
+remain collectible, and owned locks are released. No automatic retry or extension
+occurs. A functional rehearsal still enforces this wall-time budget.
 
 `benchmarks/config/development.json` declares two pinned public models, STS-B and
 WikiText, and four stages. Select cells explicitly for a bounded study. `--input`
@@ -116,7 +211,8 @@ They never enter paired decision summaries. Calibration measures
 A/A at targets six, twelve and twenty-four seconds, seeking a ratio IQR below 0.02.
 The first suitable tier needs an independent A/A validation block. Limits are three
 tiers, twenty-four seconds target and sixty active calibration minutes per cell.
-Load/lock waiting is separate from active work. An active operation finishes before
+Load/lock waiting is separate from the active calibration counter, but counts
+against the total session wall-time budget. An active operation finishes before
 a soft budget stop. Exhausted noise or resource limits produce an explicit inconclusive
 or non-executable cell. No outliers are removed or repeated until a favorable sample.
 These longer defaults are a policy choice, not a proven guarantee of lower noise.
@@ -127,10 +223,11 @@ Keep requires saving at least `max(3 * same-cell A/A IQR, 0.02)` and an independ
 confirmation with positive saving and at least half the main effect.
 Active decision gates cannot lower the noise multiplier below three, minimum saving
 below two percent or confirmation fraction below one half. Weaker configurations
-require `decision_gate: false` and produce descriptive results only.
+require `decision_gate: false` and retain the legacy paired `descriptive_only` label.
+They do not select the new one-arm D phase.
 Maximum factor and maximum distance from one remain descriptive. Required cells cannot offset one
-another. `--local-phase` selects `prepare`, `calibrate`, `aa`, `screen`, `compare` or
-`confirm`; the default `compare` includes controls and confirmation. A screen cannot
+another. `--local-phase` selects `prepare`, `descriptive`, `regression-screen`, `calibrate`,
+`aa`, `screen`, `compare` or `confirm`; the default `compare` includes controls and confirmation. A screen cannot
 yield a final keep decision. Separate confirmation requires `--comparison-results`.
 `--aa-results` can reuse a completed matching control with `compare` or `screen`.
 `--reuse-work` reuses prepared external inputs. Reuse checks final manifests, source

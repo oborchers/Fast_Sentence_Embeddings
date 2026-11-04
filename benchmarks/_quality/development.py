@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 import time
 
+from _development_budget import WallBudgetExpiredError, check_args, stopped
 from _development_config import load
 from _development_data import prepare
 from _development_locks import coordinated
@@ -96,9 +97,14 @@ def quality_gate(args, cell, prepared, ledger, tag):
         append(args.results / "coordination.jsonl", row)
 
     with coordinated(
-        "heavy", args.worker_name, "full output quality gate", notify, lambda: ledger.stopping
+        "heavy", args.worker_name, "full output quality gate", notify, lambda: stopped(ledger)
     ):
-        for name, python in (("base", args.base_python), ("candidate", args.candidate_python)):
+        builds = (
+            [("candidate", args.candidate_python)]
+            if getattr(args, "local_phase", None) == "descriptive"
+            else [("base", args.base_python), ("candidate", args.candidate_python)]
+        )
+        for name, python in builds:
             job = dict(
                 action="quality",
                 artifact=model["artifacts"][cell["table_dtype"]],
@@ -107,12 +113,15 @@ def quality_gate(args, cell, prepared, ledger, tag):
                 output=str(args.work / (tag + "-" + name)),
             )
             records.append(launch(args, job, python, tag + "-" + name))
-        bits = compare(*records)
+        bits = compare(records[0], records[-1])
     if cell["corpus"] == "stsb" and set(bits) != {"train", "dev", "test"}:
         raise ValueError("complete STS-B score splits required")
     result = {
         **LABEL,
         "bit_identical": True,
+        "scope": "within_build_direct_store"
+        if len(records) == 1
+        else "base_candidate_direct_store",
         "score_bits": bits,
         "identities": [r["identity"] for r in records],
     }
@@ -132,6 +141,7 @@ def run(args):
     spec["cells"] = cells
     with session(args, spec) as ledger:
         prepared = prepare(args, cells, ledger)
+        check_args(args)
         for cell in cells:
             if ledger.stopping:
                 break
@@ -139,6 +149,18 @@ def run(args):
             started = time.monotonic()
             try:
                 result = quality_gate(args, cell, prepared, ledger, cell["id"] + "-quality")
+                check_args(args)
+            except WallBudgetExpiredError as error:
+                record_result(
+                    ledger,
+                    cell,
+                    started,
+                    status="inconclusive",
+                    decision="inconclusive_budget",
+                    reason=str(error),
+                )
+                ledger.stopping = True
+                break
             except Exception as error:
                 record_result(ledger, cell, started, status="failed", reason=repr(error))
                 break

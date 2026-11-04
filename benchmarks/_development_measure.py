@@ -12,6 +12,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+from _development_budget import check
 from _development_encode import operation as encode_operation
 from _development_encode import output_identity
 from _development_locks import busy, lock_paths
@@ -52,6 +53,7 @@ def _quiet(job, waiting):
     bench, heavy = lock_paths()
     started = time.monotonic()
     while True:
+        check(job.get("wall_deadline"))
         anchor = job.get("session_last_operation_at_unix")
         if anchor is not None and time.time() - anchor >= 900:
             raise TimeoutError("reused cell expired before operation; fresh A/A required")
@@ -92,7 +94,11 @@ def _call(operation, job, phase, number, waiting):
             "sizing_only": job.get("sizing_only", False),
             "functional_only": job.get("functional_only", False),
             "valid_for_comparison": phase == "measured"
-            and not (job.get("sizing_only", False) or job.get("functional_only", False)),
+            and not (
+                job.get("sizing_only", False)
+                or job.get("functional_only", False)
+                or job.get("descriptive_only", False)
+            ),
             "seconds": seconds,
             "including_open_seconds": including_open,
             "telemetry_before": before,
@@ -112,6 +118,7 @@ def measure(job):
     waiting = [0.0]
     _quiet(job, waiting)
     model, texts = inputs(job)
+    check(job.get("wall_deadline"))
     factories = {
         "tokenizer": lambda: tokenizer(model, texts),
         "pooling": lambda: pooling(model, job),
@@ -119,6 +126,7 @@ def measure(job):
         "encode-sink": lambda: encode_operation(model, texts, job),
     }
     operation = factories[job["stage"]]()
+    check(job.get("wall_deadline"))
     warmups, warm_seconds, expected = [], 0.0, None
     while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
         seconds, proof, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)

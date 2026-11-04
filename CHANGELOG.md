@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Couple measurement effort to claim classes. Add candidate-only descriptive costs, a conservative five-pair regression screen, small independent adapter probes and a total local wall-time admission budget including preparation and load/lock waits. Existing numerical, persistence, optimization and Linux publication guarantees remain unchanged.
+
 - Add an evidence-grounded fse walkthrough skill with offline synthetic demonstrations and one-item pacing. Skill-only instruction and metadata changes skip heavy PR and ordinary master CI jobs; release publication still requires full master CI.
 
 - Limit macOS tests on pull requests and release tags to Python 3.13, alongside arm64 wheel builds. Master pushes retain the full Python 3.11 to 3.15 macOS matrix and sentence-transformers comparison. Release publication now requires successful full master CI for the exact tagged commit, verified through the GitHub API.

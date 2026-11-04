@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 
+from _development_budget import WallBudgetExpiredError, check, check_args
 from _development_system import LABEL, configure_child, require_unix
 from _measurement import atomic, document, package_identity, sha256
 
@@ -29,7 +30,14 @@ def interpreter(value):
 
 
 def launch(args, job, python, tag, timed=False):
-    job = {**job, **LABEL, "receipt": str(args.results / (tag + ".json")), "work": str(args.work)}
+    check_args(args)
+    job = {
+        **job,
+        "wall_deadline": getattr(args, "wall_deadline", None),
+        **LABEL,
+        "receipt": str(args.results / (tag + ".json")),
+        "work": str(args.work),
+    }
     file = args.results / (tag + ".job.json")
     atomic(file, job)
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
@@ -59,6 +67,8 @@ def _failed(job, code, log):
     receipt = Path(job["receipt"])
     if receipt.is_file():
         failure = document(receipt)
+        if failure.get("error") == "wall_budget":
+            raise WallBudgetExpiredError(failure["reason"])
         if failure.get("error") == "session_expired":
             raise TimeoutError(failure["reason"])
     raise RuntimeError(f"development child exited with status {code}; see {log}")
@@ -80,32 +90,49 @@ def child(file):
     job = document(file)
     workers = job.get("workers", 1)
     configure_child(workers)
+    try:
+        check(job.get("wall_deadline"))
+    except WallBudgetExpiredError as error:
+        atomic(Path(job["receipt"]), {**LABEL, "error": "wall_budget", "reason": str(error)})
+        raise
     started = time.monotonic()
     before = identity()
-    if job["action"] == "prepare":
-        from _development_data import prepare_child
+    try:
+        check(job.get("wall_deadline"))
+        if job["action"] == "prepare":
+            from _development_data import prepare_child
 
-        result = prepare_child(job)
-    elif job["action"] == "quality":
-        from _quality.development_child import export
+            result = prepare_child(job)
+        elif job["action"] == "probe":
+            from _development_preflight import probe
 
-        result = export(job)
-    elif job["action"] == "measure":
-        from _development_measure import measure
+            result = probe(job)
+        elif job["action"] == "quality":
+            from _quality.development_child import export
 
-        try:
+            result = export(job)
+        elif job["action"] == "measure":
+            from _development_measure import measure
+
             result = measure(job)
-        except TimeoutError as error:
-            atomic(
-                Path(job["receipt"]), {**LABEL, "error": "session_expired", "reason": str(error)}
-            )
-            raise
-    elif job["action"] == "pooling-input":
-        from _development_stages import prepare_batch
+        elif job["action"] == "pooling-input":
+            from _development_stages import prepare_batch
 
-        result = {"batch": prepare_batch(job)}
-    else:
-        raise ValueError("unknown development child action")
+            result = {"batch": prepare_batch(job)}
+        else:
+            raise ValueError("unknown development child action")
+    except TimeoutError as error:
+        atomic(
+            Path(job["receipt"]),
+            {
+                **LABEL,
+                "error": "wall_budget"
+                if isinstance(error, WallBudgetExpiredError)
+                else "session_expired",
+                "reason": str(error),
+            },
+        )
+        raise
     if identity() != before:
         raise ValueError("installed build changed during development child execution")
     result["active_seconds"] = time.monotonic() - started - result.pop("wait_seconds", 0.0)
