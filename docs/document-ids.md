@@ -65,17 +65,17 @@ need a blockwise ID scan. Overlapping shard ranges may require visiting every
 shard. Writing document IDs in nondecreasing order is therefore recommended.
 
 The filter admission budget is 64 MiB at 24 bytes per input entry. This admits
-at most 2,796,202 entries before deduplication. A local allocation probe at that
-boundary measured 47,536,042 additional preparation bytes for list inputs and
-48,651,185 bytes for array inputs. The remaining budget covers block probes and a
-conservative margin.
+at most 2,796,202 entries before deduplication. Local allocation probes at that
+boundary measured at most 47,536,182 additional filter-workspace bytes for ordered
+and unordered ID columns, using the largest selection block of 65,536 rows.
+The remaining budget provides a conservative margin.
 Caller-owned inputs and numerical scoring buffers are separate. Larger filters
 raise before normalization with the required bytes and budget. They are never
 truncated. Split them into separate searches and merge hits by score and physical
 position when necessary.
 
 ID stores use store/format version 2 and are cleanly refused by fse 2.0.0.
-Ordinary stores remain version 1. IDs, checksums and statistics are published with
+Vector-only stores remain version 1. IDs, checksums and statistics are published with
 their vectors under the same durability policy. Explicit verification and repair
 check the ID column too. Repair quarantines whole shards, preserving the verified
 prefix. This change does not yet implement automatic resume.
