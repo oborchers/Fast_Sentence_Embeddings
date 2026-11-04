@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from _development_budget import check_args
+from _development_budget import check, check_args
 from _development_pairs import job_for
 from _development_process import checked, launch
 from _measurement import append, document
@@ -50,7 +50,9 @@ def probe(job):
     from fse import Encoder
     from fse._backends._numpy import NumpyBackend
 
+    check(job.get("wall_deadline"))
     model = Encoder.load(checked(job["artifact"]["path"], job["artifact"]["sha256"]), mmap=True)
+    check(job.get("wall_deadline"))
     data = document(checked(job["corpus"]["path"], job["corpus"]["sha256"]))
     if len(data["timing_texts"]) != job["corpus"]["texts"]:
         raise ValueError("preflight corpus row count differs from prepared provenance")
@@ -58,10 +60,13 @@ def probe(job):
     if not texts:
         raise ValueError("preflight requires nonempty source rows")
     job["texts"] = len(texts)
+    check(job.get("wall_deadline"))
     batch = tokenizer(model, texts)()
+    check(job.get("wall_deadline"))
     expected_batch = reference_batch(model, texts)
     if output_identity(batch) != output_identity(expected_batch):
         raise ValueError("preflight tokenizer differs from independent reference")
+    check(job.get("wall_deadline"))
     if job["stage"] == "tokenizer":
         proof = output_identity(batch)
     elif job["stage"] == "pooling":
@@ -72,6 +77,7 @@ def probe(job):
         atomic(small, {"timing_texts": texts})
         small_job = {**job, "corpus": {"path": str(small), "sha256": sha256(small)}}
         small_job["batch"] = prepare_batch(small_job)
+        check(job.get("wall_deadline"))
         got = pooling(model, small_job)()
         backend = NumpyBackend()
         expected = np.empty_like(got)
@@ -79,6 +85,7 @@ def probe(job):
         proof = _equal(got, expected)
     else:
         expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
+        check(job.get("wall_deadline"))
         _, got, _ = repeat(operation(model, texts, job), 1)
         if job["stage"] == "encode-sink":
             _store(got["folder"], expected)

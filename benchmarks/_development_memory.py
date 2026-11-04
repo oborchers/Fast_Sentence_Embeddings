@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from _development_budget import check
+
 
 class _Target:
     """One run owns a fresh sink wrapper and reuses only the allocated arrays."""
@@ -39,9 +41,11 @@ def operation(model, texts, job):
     import numpy as np
     from _development_encode import output_identity
 
+    check(job.get("wall_deadline"))
     dtype = job["output_dtype"]
     codes = np.empty((len(texts), model.output_dim), dtype=dtype)
     scales = np.empty(len(texts), dtype=np.float32) if dtype == "int8" else None
+    check(job.get("wall_deadline"))
     reference = model.encode(texts, workers=job["workers"], dtype=dtype)
     expected = output_identity(reference)
     del reference
@@ -51,6 +55,7 @@ def operation(model, texts, job):
         model.encode(texts, workers=job["workers"], sink=sink)
         return sink.result()
 
+    check(job.get("wall_deadline"))
     if output_identity(encode()) != expected:
         raise ValueError("reused memory Sink differs from regular encode output")
     return encode

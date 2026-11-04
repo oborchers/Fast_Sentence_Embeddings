@@ -148,8 +148,8 @@ Preparation, quality, warmups, calibration, comparison and lock/load waits all c
 The existing active calibration limit applies in addition.
 
 Checks run before waits, children and stage transitions, including child warmup
-boundaries. An active operation, verification or preparation child may finish safely
-past the deadline. The next operation is refused. This is an admission budget,
+boundaries. An active operation, verification, download or model load may finish safely
+past the deadline. Preparation also checks between corpora, models and dtype exports. The next operation is refused. This is an admission budget,
 not a hard process-kill timeout. Progress records the remaining budget and overrun,
 with unknown remaining workload time as `null` rather than a fixed estimate.
 Budget exhaustion produces `inconclusive_budget` for an active cell or a session
