@@ -31,7 +31,8 @@ def admission(cell, prepared, count, work, requested_limit=None):
         "workers": cell["workers"] * 64 * 1024**2,
     }
     if cell["profile"] == "linear-heads@1" and cell["stage"] in (
-        "head-folded", "head-with-vectors"
+        "head-folded",
+        "head-with-vectors",
     ):
         # Four probabilities per row, two live public results plus bounded workspaces.
         # Folded mode retains its prepared word table; vectors mode holds full means.
