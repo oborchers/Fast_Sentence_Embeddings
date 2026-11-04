@@ -152,7 +152,9 @@ def test_real_one_vs_rest_round_trip_and_named_cutoffs(normalize, tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["binary", "multiclass", "multilabel"])
-def test_explicit_import_names_keep_output_order(kind):
+@pytest.mark.parametrize("standalone", [False, True])
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_explicit_import_names_keep_output_order(kind, standalone, dtype, tmp_path):
     pytest.importorskip("sklearn")
     from sklearn.linear_model import LogisticRegression
     from sklearn.multiclass import OneVsRestClassifier
@@ -180,6 +182,16 @@ def test_explicit_import_names_keep_output_order(kind):
             getattr(original, method)(texts).view(np.uint32),
         )
     assert renamed.fingerprint != original.fingerprint
+    persisted = renamed if dtype == "float32" else renamed.quantize(dtype)
+    path = tmp_path / "renamed.safetensors"
+    persisted.save(path, standalone=standalone)
+    loaded = fse.Classifier.load(path, mmap=True)
+    assert loaded.classes_.tolist() == names
+    assert loaded.standalone is standalone
+    np.testing.assert_array_equal(
+        loaded.predict_proba(texts).view(np.uint32),
+        persisted.predict_proba(texts).view(np.uint32),
+    )
     if kind == "multilabel":
         named = fse.Classifier.from_sklearn(
             encoder, trained, labels=names, thresholds={"sport": 0.4}
