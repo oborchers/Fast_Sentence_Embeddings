@@ -6,6 +6,8 @@ tests/test_conformance.py holds the weighted mean cases and the meta-tests.
 
 from __future__ import annotations
 
+from contextlib import suppress
+
 import numpy as np
 import pytest
 
@@ -103,10 +105,8 @@ def test_normalize_errors_preserve_serial_partial_writes(isa, dim, bad_row, valu
         rows[4] = F32(value)
     want = rows.copy()
     for r in range(len(want)):
-        try:
+        with suppress(ValueError):
             _native.postprocess_pooled(want[r : r + 1], [Normalize()], isa=isa)
-        except ValueError:
-            pass
     got = rows.copy()
     with pytest.raises(ValueError, match=f"row {10 + bad_row} cannot be normalized"):
         _native.postprocess_pooled(got, [Normalize()], first_row=10, isa=isa)
