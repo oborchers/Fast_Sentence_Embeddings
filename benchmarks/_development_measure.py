@@ -12,6 +12,7 @@ import time
 from contextlib import nullcontext, suppress
 from pathlib import Path
 
+from _development_budget import check
 from _development_encode import operation as encode_operation
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
@@ -54,6 +55,7 @@ def _quiet(job, waiting):
     bench, heavy = lock_paths()
     started = time.monotonic()
     while True:
+        check(job.get("wall_deadline"))
         anchor = job.get("session_last_operation_at_unix")
         if anchor is not None and time.time() - anchor >= 900:
             raise TimeoutError("reused cell expired before operation; fresh A/A required")
@@ -95,7 +97,11 @@ def _call(operation, job, phase, number, waiting):
             "sizing_only": job.get("sizing_only", False),
             "functional_only": job.get("functional_only", False),
             "valid_for_comparison": phase == "measured"
-            and not (job.get("sizing_only", False) or job.get("functional_only", False)),
+            and not (
+                job.get("sizing_only", False)
+                or job.get("functional_only", False)
+                or job.get("descriptive_only", False)
+            ),
             "seconds": seconds,
             "including_open_seconds": including_open,
             "telemetry_before": before,
@@ -115,6 +121,7 @@ def measure(job):
     waiting = [0.0]
     _quiet(job, waiting)
     model, texts = inputs(job)
+    check(job.get("wall_deadline"))
     job["dimensions"] = model.output_dim
     factories = {
         "tokenizer": lambda: tokenizer(model, texts),
@@ -129,6 +136,7 @@ def measure(job):
     else:
         context = nullcontext(factories[job["stage"]]())
     with context as operation:
+        check(job.get("wall_deadline"))
         return _measured(operation, job, waiting, policy, resource)
 
 

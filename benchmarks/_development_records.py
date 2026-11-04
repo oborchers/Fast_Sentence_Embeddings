@@ -8,6 +8,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from _development_budget import WallBudgetExpiredError, minimum_measured_seconds
 from _development_system import LABEL, machine, observations, source_identity
 from _measurement import Ledger, append, atomic, heartbeat, sha256
 from _measurement_setup import outside_checkout
@@ -19,14 +20,11 @@ class LocalLedger(Ledger):
     def __init__(self, root, contract, allocated_at):
         super().__init__(root, contract, allocated_at)
         self.reused_completed_at = {}
+        self.wall_deadline = None
+        self.quality_cache = {}
 
     def progress(self, terminal=False):
         with self.lock:
-            remaining = [
-                c
-                for c in self.contract["cells"]
-                if c["id"] not in {r["cell_id"] for r in self.finished}
-            ]
             atomic(
                 self.root / "progress.json",
                 {
@@ -35,8 +33,14 @@ class LocalLedger(Ledger):
                     "cell": "DONE" if terminal else self.current,
                     "finished": len(self.finished),
                     "planned": len(self.contract["cells"]),
-                    "elapsed_seconds": time.time() - self.allocated_at,
-                    "estimated_remaining_seconds": sum(c["estimated_seconds"] for c in remaining),
+                    "elapsed_seconds": self.contract["wall_time_budget_seconds"]
+                    - self.wall_deadline
+                    + time.monotonic(),
+                    "wall_time_overrun_seconds": max(0, time.monotonic() - self.wall_deadline),
+                    "wall_time_budget_seconds": self.contract["wall_time_budget_seconds"],
+                    "wall_time_remaining_seconds": max(0, self.wall_deadline - time.monotonic()),
+                    "estimated_remaining_seconds": None,
+                    "declared_estimated_seconds": self.contract.get("declared_estimated_seconds"),
                 },
             )
 
@@ -68,12 +72,30 @@ class LocalLedger(Ledger):
 
 @contextmanager
 def session(args, spec):
+    started = time.monotonic()
+    seconds = args.wall_time_seconds
+    if seconds is None:
+        seconds = 900.0 if getattr(args, "local_phase", None) == "descriptive" else 7200.0
+    args.wall_deadline = started + seconds
+    if args.estimated_seconds is not None and args.estimated_seconds > seconds:
+        raise ValueError("declared runtime estimate exceeds the total wall-time budget")
+    minimum = minimum_measured_seconds(args, spec["cells"])
+    if minimum >= seconds:
+        raise ValueError("known measured-group duration cannot fit the total wall-time budget")
     for name in ("results", "work"):
         path = getattr(args, name).resolve()
         outside_checkout(path)
         path.mkdir(parents=True, exist_ok=False)
         setattr(args, name, path)
-    spec = {**spec, **LABEL, "cells": [{**c, "estimated_seconds": 3600} for c in spec["cells"]]}
+    spec = {
+        **spec,
+        **LABEL,
+        "declared_estimated_seconds": args.estimated_seconds,
+        "wall_time_budget_seconds": seconds,
+        "local_phase": getattr(args, "local_phase", "quality"),
+        "descriptive_repetitions": getattr(args, "descriptive_repetitions", None),
+        "regression_limit": getattr(args, "regression_limit", None),
+    }
     atomic(
         args.results / "environment.json",
         {
@@ -90,6 +112,7 @@ def session(args, spec):
         },
     )
     ledger = LocalLedger(args.results, spec, time.time())
+    ledger.wall_deadline = args.wall_deadline
     stop = threading.Event()
     watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
     previous = {
@@ -99,6 +122,12 @@ def session(args, spec):
     watcher.start()
     try:
         yield ledger
+    except WallBudgetExpiredError as error:
+        ledger.stopping = True
+        atomic(
+            args.results / "budget.json",
+            {**LABEL, "decision": "inconclusive_budget", "reason": str(error)},
+        )
     except Exception as error:
         append(args.results / "fatal.jsonl", {**LABEL, "error": repr(error)})
     finally:
@@ -118,9 +147,12 @@ def _missing(ledger):
                 time.monotonic(),
                 **LABEL,
                 status="not_started",
-                reason="stop or earlier failure",
+                decision="not_run",
+                reason="total wall-time budget exhausted"
+                if time.monotonic() >= ledger.wall_deadline
+                else "stop or earlier failure",
             )
 
 
 def record_result(ledger, cell, started, **values):
-    ledger.result({**cell, "estimated_seconds": 3600}, started, **LABEL, **values)
+    ledger.result(cell, started, **LABEL, **values)

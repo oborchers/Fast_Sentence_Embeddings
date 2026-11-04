@@ -25,6 +25,24 @@ Recommend one explicit study contract. Never silently shrink only a slow counter
 Different pairs may use different agreed workloads. Label their counts and digests separately.
 Such pairs do not establish a fixed-input worker-scaling curve.
 
+Choose the claim class before the protocol. Record question, decision, workload,
+relevant effect boundary, total wall-time budget, estimated cost and stop rule.
+
+| Class | Required evidence |
+| :--- | :--- |
+| K | Function, bits, conformance and quality. No speed decision. |
+| D | Candidate-only fixed repetitions, absolute median/IQR. No A/A or confirmation. |
+| R | Paired builds and a relevant slowdown boundary. Short screens remain preliminary without sufficient uncertainty evidence. |
+| O | Full v2 controls, independent A/A validation and confirmation. Screens never decide keep. |
+| P | Existing Linux publication and release evidence. |
+
+Use the guide's planning suggestions, not universal runtime promises. Reject plans
+whose known costs exceed their budgets. Count preparation, warmups and lock/load
+waits across all cells. Stop safely as inconclusive on exhaustion, retain raw data
+and escalate without automatic extension. Never reinterpret historical or active runs.
+A small R median does not establish equivalence. Comparing D medians does not prove
+an optimization. Full numerical, persistence and Linux hot-path guarantees remain.
+
 ## 2. Select the existing entry
 
 | Need | Entry | Definition |
@@ -52,7 +70,26 @@ shows the local contract without optional evaluation packages. Windows is refuse
 Local results on macOS, Linux and other Unix systems always say `publishable: false`.
 They never replace the Linux publication protocol or justify publishing Mac speeds.
 
-The v2 local timer uses six-second continuous groups, at least two warmups totaling twelve seconds,
+For D, use `--local-phase descriptive --candidate-python ...` without a base.
+Declare `--descriptive-repetitions` (default five), fixed `iterations` and
+`resident_cycles`, and `--wall-time-seconds`. This path has no sizing, A/A or
+confirmation. Warmups use the fixed `warmup_calls`, without a duration loop.
+Legacy `decision_gate: false` keeps its paired meaning.
+For a short R probe, `--local-phase regression-screen --regression-limit FRACTION`
+uses five alternating pairs and always remains inconclusive. No screen PASS rule
+or equivalence test is supplied. Both interpreters are required.
+
+Both entries accept total `--wall-time-seconds` and optional `--estimated-seconds`.
+Defaults are fifteen minutes for D and two hours otherwise, for the whole invocation.
+Estimate first and set an appropriate explicit budget. A declared estimate above
+the budget is refused. Active operations may finish past the admission deadline,
+then no further operation starts. Record overruns, failed and unstarted cells.
+Before long timing blocks, independently probe the adapter and verify actual builds,
+inputs and metadata. Retain complete applicable quality checks, reused only for
+identical configurations in the current invocation. Apply existing evidence reuse
+identity and age checks, never a calendar-day shortcut.
+
+The full O v2 local timer uses six-second continuous groups, at least two warmups totaling twelve seconds,
 and fifteen alternating pairs per block. A/A adapts through six/twelve/twenty-four
 seconds until its same-cell IQR is below two percent, with an independent control
 block and a sixty-active-minute calibration limit. Calibration increases repetitions
@@ -149,6 +186,11 @@ Check row count, codes, scales and file digests. Synchronize and remove owned ou
 Do not let cleanup writeback overlap the next timer. Follow the owner's deletion authorization.
 Report logical file bytes separately from physical device writes and state the RSS measurement scope.
 Use telemetry to investigate drift. A quiet start does not prove a quiet run.
+
+Stabilize APIs before timing. For small review fixes, run affected tests and
+conformance, then the complete required `make check` on the final state. Repeat
+only for new risk or a failed gate. Profile representative changed paths and
+resource risks rather than every parameter combination.
 
 For hot-path changes, retain the paired base/candidate float32 comparison and representative profiles required by AGENTS.md.
 Use the profiling targets in AGENTS.md, but verify which processes each profiler captures.

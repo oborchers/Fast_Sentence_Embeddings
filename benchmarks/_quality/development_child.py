@@ -7,6 +7,7 @@ import math
 import tempfile
 from pathlib import Path
 
+from _development_budget import check
 from _development_process import checked
 from _measurement import document, sha256
 
@@ -127,11 +128,13 @@ def export(job):
     root.mkdir(parents=True, exist_ok=False)
     outputs, scores = {}, {}
     for dtype in ("float32", "float16", "int8"):
+        check(job.get("wall_deadline"))
         direct, rows = _direct(model, texts, root, job["workers"], dtype)
         if dtype == "float32":
             scores = _scores(rows, data["score_slices"])
         del rows
         gc.collect()
+        check(job.get("wall_deadline"))
         stored = _stored(job, model, texts, root, dtype)
         outputs[dtype] = {"direct": direct, "stored": stored}
     return {

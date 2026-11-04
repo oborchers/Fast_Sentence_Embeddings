@@ -6,6 +6,7 @@ import sys
 from contextlib import suppress
 from pathlib import Path
 
+from _development_budget import check, check_args, stopped
 from _development_locks import coordinated
 from _development_process import checked, interpreter, launch
 from _development_system import LABEL
@@ -15,12 +16,13 @@ from _measurement_setup import outside_checkout
 
 
 def prepare(args, cells, ledger):
+    check_args(args)
     interpreter(args.base_python)
     interpreter(args.candidate_python)
     if args.reuse_work:
         root = args.reuse_work.resolve()
         receipt = document(root / "prepared.json")
-        _verify(receipt, cells)
+        _verify(receipt, cells, args.wall_deadline)
         atomic(args.results / "inputs.json", receipt)
         return receipt
 
@@ -32,7 +34,7 @@ def prepare(args, cells, ledger):
         args.worker_name,
         "prepare pinned development inputs",
         notify,
-        lambda: ledger.stopping,
+        lambda: stopped(ledger),
     ):
         receipt = launch(
             args,
@@ -45,19 +47,21 @@ def prepare(args, cells, ledger):
             "preparation",
         )
     atomic(args.work / "prepared.json", receipt)
-    _verify(receipt, cells)
+    _verify(receipt, cells, args.wall_deadline)
     atomic(args.results / "inputs.json", receipt)
     return receipt
 
 
-def _verify(receipt, cells):
+def _verify(receipt, cells, deadline=None):
     if receipt.get("mode") != "local-development" or receipt.get("publishable") is not False:
         raise ValueError("prepared data must identify local development mode")
     for cell in cells:
+        check(deadline)
         model = receipt["models"][cell["model"]]
         if model["revision"] != MODEL_PINS[cell["model"]]:
             raise ValueError("prepared model pin differs")
         for record in model["artifacts"].values():
+            check(deadline)
             checked(record["path"], record["sha256"])
         corpus = receipt["corpora"][cell["corpus"]]
         checked(corpus["path"], corpus["sha256"])
@@ -82,13 +86,14 @@ def _snapshot(repo, revision, work, existing, dataset=False, patterns=None):
     return Path(snapshot_download(repo, cache_dir=work / "hub", max_workers=2, **options))
 
 
-def _stsb():
+def _stsb(deadline=None):
     # Reuse the original labels and checksum-verified Git/download fallback.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
     from stsb import CHECKSUMS, COMMIT, read_rows
 
     texts, sections = [], []
     for split in ("train", "dev", "test"):
+        check(deadline)
         rows = read_rows(split)
         sections.append(
             dict(split=split, begin=len(texts), pairs=len(rows), labels=[float(r[4]) for r in rows])
@@ -98,7 +103,7 @@ def _stsb():
     return dict(texts=texts, score_slices=sections, source=dict(commit=COMMIT, checksums=CHECKSUMS))
 
 
-def _wikitext(work, cache):
+def _wikitext(work, cache, deadline=None):
     import pyarrow.parquet as pq
 
     pin = PINS["corpus"]
@@ -110,6 +115,7 @@ def _wikitext(work, cache):
         dataset=True,
         patterns=["wikitext-103-raw-v1/test-*.parquet"],
     )
+    check(deadline)
     parts = sorted((snapshot / "wikitext-103-raw-v1").glob("test-*.parquet"))
     if not parts:
         raise ValueError("pinned WikiText test split is missing")
@@ -133,11 +139,12 @@ def _wikitext(work, cache):
     )
 
 
-def _models(cells, work, cache):
+def _models(cells, work, cache, deadline=None):
     from fse import Encoder, StaticModel
 
     result = {}
     for repo in sorted({cell["model"] for cell in cells}):
+        check(deadline)
         revision = MODEL_PINS[repo]
         snapshot = _snapshot(
             repo,
@@ -146,6 +153,7 @@ def _models(cells, work, cache):
             cache,
             patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
+        check(deadline)
         model = (
             StaticModel.from_pretrained(str(snapshot), normalize=True).encoder
             if repo.startswith("minishlab/")
@@ -153,6 +161,7 @@ def _models(cells, work, cache):
         )
         artifacts = {}
         for dtype in ("float32", "float16", "int8"):
+            check(deadline)
             path = work / (repo.replace("/", "--") + "-" + dtype + ".safetensors")
             current = model if dtype == "float32" else model.quantize(dtype)
             current.save(path)
@@ -164,11 +173,13 @@ def _models(cells, work, cache):
 
 
 def prepare_child(job):
+    deadline = job.get("wall_deadline")
     work = Path(job["work"])
     cache = job.get("hf_cache")
     corpora = {}
     for name in sorted({cell["corpus"] for cell in job["cells"]}):
-        data = _stsb() if name == "stsb" else _wikitext(work, cache)
+        check(deadline)
+        data = _stsb(deadline) if name == "stsb" else _wikitext(work, cache, deadline)
         data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
         data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
         path = work / (name + ".json")
@@ -181,4 +192,4 @@ def prepare_child(job):
             timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in data["timing_texts"]),
             timing_policy=data["timing_policy"],
         )
-    return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache)}
+    return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache, deadline)}

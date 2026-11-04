@@ -195,16 +195,44 @@ def add_arguments(parser, mode, quality=False):
         parser.add_argument("--cells", nargs="+")
         parser.add_argument(
             "--local-phase",
-            choices=("prepare", "calibrate", "aa", "screen", "compare", "confirm"),
+            choices=(
+                "prepare",
+                "descriptive",
+                "regression-screen",
+                "calibrate",
+                "aa",
+                "screen",
+                "compare",
+                "confirm",
+            ),
             default="compare",
         )
         parser.add_argument("--aa-results", type=Path)
         parser.add_argument("--comparison-results", type=Path)
+    parser.add_argument(
+        "--wall-time-seconds",
+        type=float,
+        help="total local wall-time admission budget, including preparation and load waits",
+    )
+    parser.add_argument(
+        "--estimated-seconds", type=float, help="declared total runtime estimate, not a guarantee"
+    )
+    if not quality:
+        parser.add_argument("--descriptive-repetitions", type=int, default=5)
+        parser.add_argument(
+            "--regression-limit",
+            type=float,
+            help="predeclared relevant slowdown fraction for regression-screen",
+        )
     parser.add_argument("local_command", nargs="*", help="command after -- for --local-heavy")
 
 
 def dispatch(args, quality=False):
     """Handle only explicitly local utilities; leave every publication path alone."""
+    if (
+        args.wall_time_seconds is not None or args.estimated_seconds is not None
+    ) and not args.diagnose:
+        raise ValueError("local wall-time and estimate options require --diagnose")
     if args.development_job:
         from _development_process import child
 
@@ -241,8 +269,34 @@ def dispatch(args, quality=False):
     return 0
 
 
+def _local_arguments(args, quality):
+    if args.wall_time_seconds is not None:
+        _positive(args.wall_time_seconds, "--wall-time-seconds")
+    if args.estimated_seconds is not None:
+        _positive(args.estimated_seconds, "--estimated-seconds")
+    if not quality:
+        _phase_arguments(args)
+
+
+def _phase_arguments(args):
+    _positive(args.descriptive_repetitions, "--descriptive-repetitions", integral=True)
+    if args.local_phase == "regression-screen":
+        _positive(args.regression_limit, "--regression-limit")
+        if args.aa_results or args.comparison_results:
+            raise ValueError("regression-screen does not reuse controls")
+    elif args.regression_limit is not None:
+        raise ValueError("--regression-limit requires regression-screen")
+    if args.local_phase == "descriptive":
+        if args.base_python or args.aa_results or args.comparison_results:
+            raise ValueError(
+                "descriptive mode uses only --candidate-python, without reused controls"
+            )
+        args.base_python = args.candidate_python
+
+
 def _diagnose(args, quality):
     require_unix()
+    _local_arguments(args, quality)
     if args.local_command:
         raise ValueError("a trailing command requires --local-heavy")
     default_input = CONFIG / ("quality.json" if quality else "speed.json")

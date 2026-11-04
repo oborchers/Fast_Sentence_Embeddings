@@ -6,6 +6,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from _development_budget import check
 from _development_encode import _sync, _sync_directory, output_identity
 from _development_ids import check_store, values
 from _development_search import enabled as search_cost
@@ -68,6 +69,7 @@ class StoreOperation:
         from fse import ShardSink, VectorStore
 
         job = self.job
+        check(job.get("wall_deadline"))
         self.labels = values(len(self.texts), job["doc_ids"], job["id_chunks"])
         options = {} if self.labels is None else {"doc_ids": True}
         encode_options = {} if self.labels is None else {"doc_ids": self.labels}
@@ -80,6 +82,7 @@ class StoreOperation:
             check_store(store, job["doc_ids"], job["id_chunks"])
         _sync(self.path)
         self.shape = np.asarray([len(self.texts), self.model.output_dim], dtype="int64")
+        check(job.get("wall_deadline"))
         if job["stage"] == "store-search":
             self.query = np.ones((job["queries"], self.model.output_dim), dtype="float32")
             self.store = VectorStore.open(self.path)

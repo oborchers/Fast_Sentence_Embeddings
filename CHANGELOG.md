@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Make all macOS PR jobs optional, including wheels. Add a targeted manual macOS scope bound to an open PR and its immutable current head SHA, with explicit source/artifact identities and stale-head rejection. Preserve automatic master/tag coverage, full manual verification and release gates. CI summaries fail closed on failed, cancelled, abandoned or unknown started jobs.
+
+- Couple measurement effort to claim classes. Add candidate-only descriptive costs, a conservative five-pair regression screen, small independent adapter probes and a total local wall-time admission budget including preparation and load/lock waits. Existing numerical, persistence, optimization and Linux publication guarantees remain unchanged.
+
 - Reject already released Arrow document-ID schemas before reading their fields.
 
 - Add document-ID write, unfiltered-search and filtered-search cost profiles to shared local diagnosis, including normalized public-call latency and filter-workspace measurements. Numerical checks, timing floors and resource guards remain enforced.

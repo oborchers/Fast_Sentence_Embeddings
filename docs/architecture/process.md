@@ -151,15 +151,16 @@ The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one 
 
 ## Test scheduling and release checks
 
-Pull requests that trigger native tests and release tags run one macOS test
-job on CPython 3.13, plus the macOS arm64 wheel job when selected.
-Python 3.13 is the newest interpreter where the optional gensim tests also run.
-The separate sentence-transformers jobs run on Linux for PRs and tags.
+Automatic pull requests do not allocate macOS runners, including wheel jobs.
+Their Linux, Windows, minimum-dependency and packaging selection is unchanged.
+Documentation-only PRs still skip tests. Optional macOS evidence uses the explicit
+`pr-macos` manual scope described below, never a comment bot or `pull_request_target`.
 
-Pushes to master run the full macOS test matrix (CPython 3.11 to 3.15),
-including the macOS sentence-transformers comparison. Scheduled and manual
-runs also retain this full matrix. Documentation-only PRs still skip tests.
-This keeps PR and release runner demand low while master verifies every version.
+Pushes to master retain the full macOS test matrix (CPython 3.11 to 3.15),
+including the macOS sentence-transformers comparison and arm64 wheels when selected.
+Release tags retain one macOS test on Python 3.13 plus arm64 wheels, and Linux-only
+sentence-transformers jobs. Python 3.13 is the newest interpreter where gensim runs.
+Scheduled runs and manual `scope=full` runs retain their existing full selection.
 
 Create a release tag only on a commit whose full master CI has already passed.
 Before downloading or publishing artifacts, the release job queries the GitHub
@@ -168,17 +169,68 @@ The newest matching run must be completed and successful. A missing, running,
 failed or cancelled run blocks publication with an explicit error.
 The gate does not accept PR, manual, scheduled or tag runs as substitutes.
 
-The required branch check is `check`. It aggregates `changes`, `lint`, `test`,
-`test-st`, `coverage`, `sdist` and `wheels` through alls-green. Only PRs allow
-intentional job skips. All these jobs run on release tags, including the
-Linux-only `test-st` matrix and coverage from the reduced test matrix.
-The release job needs `check`, so a failed or unexpectedly skipped tag job
-blocks publication. No dependency names an omitted macOS matrix entry.
+The required branch check is `check`. It requires every selected job among
+`changes`, `lint`, `test`, `test-st`, `coverage`, `sdist` and `wheels` to succeed.
+Only jobs intentionally omitted by the declared selection may be skipped. The
+summary also inspects individual matrix jobs through the Actions API. Failure,
+cancellation, `abandoned`, unknown results and unfinished work fail closed, including
+optional jobs that actually started. Failed-only reruns retain earlier successful jobs,
+while the newest attempt of each exact job name supplies its current outcome.
+A runner outage is missing evidence, never success.
+All existing tag prerequisites and the release gate remain required.
+
+### Optional macOS evidence for a PR
+
+The existing `ci.yml` manual entry accepts `scope=full` (the default) or `scope=pr-macos`.
+The latter requires `pr_number` and the complete lowercase 40-character `head_sha`.
+It runs only a macOS Python 3.13 test, a macOS Python 3.13 sentence-transformers
+comparison and macOS arm64 wheels with all supported wheel interpreters tested.
+Linux jobs resolve the source and summarize the results. It starts no new full matrix,
+Linux/Windows builds, minimum job, coverage merge, release or publication.
+
+The controller checks that the PR is open against this repository's master and that
+its current head exactly equals the supplied SHA. Each executing macOS job checks
+out that immutable commit from the PR's source repository, verifies `git rev-parse HEAD`
+and builds/tests that checkout. Credentials are not persisted, job tokens remain read-only,
+and the targeted Python jobs do not save caches into the controller branch.
+No repository or branch-protection setting changes are involved.
+
+Before the new definition is integrated, use the reviewed feature ref explicitly.
+For this change, from its checkout:
+
+```sh
+gh workflow view ci.yml --ref fse-experiments --yaml
+ci_pr="$(gh pr view --json number --jq .number)"
+ci_sha="$(gh pr view "$ci_pr" --json headRefOid --jq .headRefOid)"
+gh workflow run ci.yml --ref fse-experiments \
+  -f scope=pr-macos -f pr_number="$ci_pr" -f head_sha="$ci_sha"
+```
+
+Inspect that feature definition before dispatching. Do not omit `scope=pr-macos`:
+the default intentionally retains the old full manual matrix. Do not substitute
+`--ref master` until master contains the new inputs and selection.
+After integration the targeted invocation is:
+
+```sh
+gh workflow run ci.yml --ref master \
+  -f scope=pr-macos -f pr_number="$ci_pr" -f head_sha="$ci_sha"
+```
+
+The run's controller SHA/ref may differ from the tested PR SHA. Executing job names,
+source summaries and wheel artifact names identify the complete tested SHA. Targeted
+wheel artifacts use `dist-wheels-macos-latest-manylinux-pr-NUMBER-SHA`. The final
+summary rechecks the current PR head. A changed or closed PR makes it fail, even if
+all tests of the older SHA passed. Do not transfer a successful result to a newer head.
+These manual results remain separate optional evidence, not an automatic status check
+attached to a different commit. Record the run URL and tested SHA when reviewing them.
+
+The ordinary full manual command remains `gh workflow run ci.yml --ref BRANCH -f scope=full`.
+It is a different operation from targeted PR verification.
 
 ## Wheel verification
 
 CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects
-CPython 3.11 to 3.15, without free-threaded variants. Tags and `workflow_dispatch`
+CPython 3.11 to 3.15, without free-threaded variants. Tags and full `workflow_dispatch` runs
 build and test all 30 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
 macOS arm64, and Windows x86_64. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
 with `RENAME_NOREPLACE` when libc has no wrapper. It never falls back to a rename
@@ -186,8 +238,8 @@ that could overwrite an existing directory. Unsupported syscall architectures fa
 explicitly. Linux images are pinned by digest to
 [cibuildwheel's 2026.10.21-1 images](https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg).
 A manual run on a branch verifies the release matrix without publishing. Publication
-requires a tag push and approval in the release environment. PRs keep the four
-runner jobs, without musllinux, and test only CPython 3.15
+requires a tag push and approval in the release environment. Automatic PRs keep the three
+Linux/Windows runner jobs, without musllinux, and test only CPython 3.15
 (Windows also tests 3.11). macOS wheel builds explicitly select arm64.
 The path filter still omits wheels when an unrelated file changes. Store/container source changes and their tests trigger the wheel jobs so the store suite also runs on real Windows.
 
