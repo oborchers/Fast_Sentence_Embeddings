@@ -79,6 +79,7 @@ def to_artifact(
     out["head.bias"] = content.bias
     multi = content.link is Link.MULTILABEL
     if multi:
+        assert content.thresholds is not None
         out["head.thresholds"] = content.thresholds
     keys = {
         k: v
@@ -275,7 +276,7 @@ def _thresholds(tensors, metadata, link, k) -> ndarray | None:
     if metadata["fse.format_version"] != version or metadata[_HEAD] != rule.id:
         raise ValueError(f"{metadata['fse.head.link']} requires linear_head {version}, {rule.id}")
     if not multi:
-        if "head.thresholds" in tensors:
+        if "head.thresholds" in tensors or CHECKSUM_PREFIX + "head.thresholds" in metadata:
             raise ValueError("head.thresholds is given only for multilabel@1")
         return None
     if "fse.head.flat" in metadata:

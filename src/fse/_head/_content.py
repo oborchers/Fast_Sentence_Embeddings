@@ -26,8 +26,13 @@ from fse._contract import LINK_NONE, Link
 
 TASKS = ("classification", "regression")
 # The links a caller names, and what "auto" takes for k outputs.
-LINK_NAMES = {"sigmoid": Link.SIGMOID, "softmax": Link.SOFTMAX, "ovr": Link.OVR, "none": None,
-              "multilabel": Link.MULTILABEL}
+LINK_NAMES = {
+    "sigmoid": Link.SIGMOID,
+    "softmax": Link.SOFTMAX,
+    "ovr": Link.OVR,
+    "none": None,
+    "multilabel": Link.MULTILABEL,
+}
 _INT64 = (-(2**63), 2**63 - 1)
 
 

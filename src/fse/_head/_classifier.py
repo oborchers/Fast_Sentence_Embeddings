@@ -83,7 +83,12 @@ class Classifier(LinearModel):
         labels to cutoffs in [0, 1]; unnamed labels keep 0.5. Predictions are boolean
         (n, k), true strictly above the cutoff. Other links refuse thresholds."""
         return cls._build(
-            encoder, weight, bias, normalized=normalized, link=link, labels=labels,
+            encoder,
+            weight,
+            bias,
+            normalized=normalized,
+            link=link,
+            labels=labels,
             thresholds=thresholds,
         )
 

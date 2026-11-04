@@ -17,9 +17,13 @@ def test_hub_mixin_requires_a_concrete_artifact_writer():
 
 def test_multilabel_hub_folder_round_trip(tmp_path):
     encoder = finished(normalize=False)
-    model = fse.Classifier.from_arrays(encoder, np.ones((2, encoder.output_dim), np.float32),
-                                       labels=["sport", "news"], link="multilabel",
-                                       thresholds={"sport": 0.4})
+    model = fse.Classifier.from_arrays(
+        encoder,
+        np.ones((2, encoder.output_dim), np.float32),
+        labels=["sport", "news"],
+        link="multilabel",
+        thresholds={"sport": 0.4},
+    )
     folder = model.save_pretrained(tmp_path / "classifier", license="mit")
     config = json.loads((folder / "config.json").read_text())
     assert config["fse_format_version"] == 2

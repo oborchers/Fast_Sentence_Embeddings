@@ -40,7 +40,9 @@ class HeadSpec:
             raise TypeError("link must be a Link or None")
 
         if self.link is Link.MULTILABEL:
-            given = np.full(len(bias), 0.5, dtype=F32) if self.thresholds is None else self.thresholds
+            given = (
+                np.full(len(bias), 0.5, dtype=F32) if self.thresholds is None else self.thresholds
+            )
             limits = _frozen(given, "thresholds", 1)
             if limits.shape != bias.shape or ((limits < 0) | (limits > 1)).any():
                 raise ValueError("thresholds must hold one value in [0, 1] per output")
@@ -77,5 +79,3 @@ def _frozen(value: object, name: str, ndim: int) -> ndarray:
         raise ValueError(f"{name} must be finite")
     copy.setflags(write=False)
     return copy
-
-

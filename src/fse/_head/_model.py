@@ -47,8 +47,8 @@ from fse._wordvectors import _created_by
 
 from . import _content, _format
 from ._content import HeadContent
-from ._outputs import output_identity
 from ._model_hub import HubModel
+from ._outputs import output_identity
 from ._thresholds import thresholds as read_thresholds
 
 # The tensors of a standalone file made new by the fold, and the tensors of the encoder

@@ -25,13 +25,21 @@ def test_every_path_matches_reference(backend, k, dtype, path):
     limits = np.resize(np.array([0, 0.5, 0.2, 1], np.float32), k)
     head = HeadSpec(base.weight, base.bias, base.normalized, Link.MULTILABEL, limits)
     own = Pipeline(spec, name, isa=isa, vocabulary=make_vocabulary(spec.word_vectors))
-    pipeline = make_head(spec, head, name, own=own, with_vectors=path == "vectors", isa=isa, workers=1)
+    pipeline = make_head(
+        spec, head, name, own=own, with_vectors=path == "vectors", isa=isa, workers=1
+    )
     if path == "standalone":
         head = HeadSpec(None, head.bias, False, Link.MULTILABEL, limits)
         pipeline = type(pipeline)(pipeline.reader, head, folded=True)
     texts = sentences(16)
-    z = support.logits(spec, base.weight, base.bias, texts, normalized=base.normalized,
-                       folded=path in ("folded", "standalone"))
+    z = support.logits(
+        spec,
+        base.weight,
+        base.bias,
+        texts,
+        normalized=base.normalized,
+        folded=path in ("folded", "standalone"),
+    )
     for output in ("logits", "proba", "labels"):
         got, _ = pipeline.infer(StringSource(texts), output=output, workers=2, chunk_bytes=8192)
         if output == "labels":

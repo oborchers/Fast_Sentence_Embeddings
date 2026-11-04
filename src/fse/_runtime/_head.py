@@ -34,8 +34,8 @@ from fse._contract import Link
 from fse._cpus import usable_cpus
 
 from ._errors import earliest, first_rows
-from ._head_spec import HeadSpec
 from ._executor import run
+from ._head_spec import HeadSpec
 from ._pipeline import STEP_ROW_BYTES, Pipeline, check_sink_rows, check_workers
 from ._sinks import ArrayRows, GrowingRows, Sink, sink_dtype, split_target, wants_inverse_norms
 from ._spec import EncodeSpec
@@ -46,7 +46,6 @@ F32 = np.float32
 OUTPUTS = ("logits", "proba", "labels")
 # The rows of a table folded at once by one task of the fold.
 _FOLD_ROWS = 1 << 14
-
 
 
 def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolInput:
@@ -205,7 +204,11 @@ class HeadPipeline:
         tasks, window, stop = self.reader.plan_tasks(
             source, workers, chunk_bytes, row_bytes, first_row
         )
-        outputs = sink if sink is not None else _own(tasks.rows, width, output, self.head.link is Link.MULTILABEL)
+        outputs = (
+            sink
+            if sink is not None
+            else _own(tasks.rows, width, output, self.head.link is Link.MULTILABEL)
+        )
         vectors: Any = vector_sink
         if self.with_vectors and vectors is None:
             vectors = _own_vectors(tasks.rows, self.vector_dim, vector_dtype)
@@ -303,19 +306,23 @@ class HeadPipeline:
         logits = target if output == "logits" else _buffer(local, "head_logits", n, self.head.k)
         weight = None if self.folded else self.head.weight
         backend.logits(rows, weight, self.head.bias, logits, first)
-        if output == "proba":
-            backend.outputs(logits, "proba", self.head.link, target, first)
-        elif output == "labels":
-            if self.head.link is Link.MULTILABEL:
-                probabilities = _buffer(local, "head_proba", n, self.head.k)
-                backend.outputs(logits, "proba", self.head.link, probabilities, first)
-                np.greater(probabilities, self.head.thresholds, out=target)
-            else:
-                backend.outputs(logits, "labels", None, target, first)
+        if output in ("proba", "labels"):
+            self._write_outputs(backend, local, logits, target, output, first)
         if vectors is not None:
             assert vrows is not None
             assert vsplit is not None
             vectors.stored(vrows, vsplit, first)
+
+    def _write_outputs(self, backend, local, logits, target, output, first) -> None:
+        if output == "proba":
+            backend.outputs(logits, "proba", self.head.link, target, first)
+        elif self.head.link is Link.MULTILABEL:
+            probabilities = _buffer(local, "head_proba", len(logits), self.head.k)
+            backend.outputs(logits, "proba", self.head.link, probabilities, first)
+            assert self.head.thresholds is not None
+            np.greater(probabilities, self.head.thresholds, out=target)
+        else:
+            backend.outputs(logits, "labels", None, target, first)
 
 
 def _buffer(local: threading.local, name: str, n_rows: int, dim: int) -> ndarray:
@@ -354,7 +361,11 @@ class _Labels:
     def result(self) -> ndarray:
         if self._out is not None:
             return self._out
-        return np.concatenate(self._parts) if self._parts else np.empty((0, *self._shape), dtype=self._dtype)
+        return (
+            np.concatenate(self._parts)
+            if self._parts
+            else np.empty((0, *self._shape), dtype=self._dtype)
+        )
 
 
 def _own(rows: int | None, width: int, output: str, multilabel: bool = False) -> Any:

@@ -3,11 +3,9 @@ bit for bit, composed from fse._reference, fse._reference_text and fse._referenc
 
 import numpy as np
 
-from fse._contract import Link
-
 from fse import _reference, _reference_text
 from fse import _reference_head as ref
-from fse._contract import Normalize
+from fse._contract import Link, Normalize
 
 F32 = np.float32
 

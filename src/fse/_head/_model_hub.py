@@ -74,4 +74,3 @@ class HubModel(ABC):
         return _folder.push(
             repo_id, write, type(self).__name__.lower(), hub, card | {"model_name": repo_id}
         )
-

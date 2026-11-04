@@ -12,8 +12,13 @@ from support.encoder import finished
 
 def _artifact():
     encoder = finished(normalize=False)
-    model = fse.Classifier.from_arrays(encoder, np.ones((2, encoder.output_dim)), labels=["a", "b"],
-                                       link="multilabel", thresholds={"b": 0.3})
+    model = fse.Classifier.from_arrays(
+        encoder,
+        np.ones((2, encoder.output_dim)),
+        labels=["a", "b"],
+        link="multilabel",
+        thresholds={"b": 0.3},
+    )
     tensors, metadata, _ = model._artifact()
     metadata.update({CHECKSUM_PREFIX + name: checksum(value) for name, value in tensors.items()})
     return tensors, metadata
@@ -34,13 +39,15 @@ def test_schema_and_encoder_fingerprint():
 
 @pytest.mark.parametrize(
     ("name", "value", "match"),
-    [("head.thresholds", None, "needs the tensor head.thresholds"),
-     ("head.thresholds", np.zeros(2), "F32"),
-     ("head.thresholds", np.zeros((2, 1), np.float32), "F32"),
-     ("head.thresholds", np.zeros(1, np.float32), "2 F32 values"),
-     ("head.thresholds", np.array([0, np.nan], np.float32), "not finite"),
-     ("head.thresholds", np.array([-0.1, 0.5], np.float32), "in \\[0, 1\\]"),
-     ("head.thresholds", np.array([0.5, 1.1], np.float32), "in \\[0, 1\\]")],
+    [
+        ("head.thresholds", None, "needs the tensor head.thresholds"),
+        ("head.thresholds", np.zeros(2), "F32"),
+        ("head.thresholds", np.zeros((2, 1), np.float32), "F32"),
+        ("head.thresholds", np.zeros(1, np.float32), "2 F32 values"),
+        ("head.thresholds", np.array([0, np.nan], np.float32), "not finite"),
+        ("head.thresholds", np.array([-0.1, 0.5], np.float32), "in \\[0, 1\\]"),
+        ("head.thresholds", np.array([0.5, 1.1], np.float32), "in \\[0, 1\\]"),
+    ],
 )
 def test_invalid_threshold_tensors(name, value, match):
     tensors, metadata = _artifact()
@@ -54,15 +61,17 @@ def test_invalid_threshold_tensors(name, value, match):
 
 @pytest.mark.parametrize(
     ("key", "value", "error"),
-    [("fse.format_version", "1", ValueError),
-     ("fse.head", "linear@1", ValueError),
-     ("fse.head.link", "softmax@1", ValueError),
-     ("fse.head.flat", "true", ValueError),
-     ("fse.head.task", "regression", ValueError),
-     ("fse.head.labels", '["a","b","c"]', ValueError),
-     ("fse.head", "linear@3", UnsupportedArtifactError),
-     ("fse.head.link", "multilabel@2", UnsupportedArtifactError),
-     ("fse.format_version", "3", UnsupportedArtifactError)],
+    [
+        ("fse.format_version", "1", ValueError),
+        ("fse.head", "linear@1", ValueError),
+        ("fse.head.link", "softmax@1", ValueError),
+        ("fse.head.flat", "true", ValueError),
+        ("fse.head.task", "regression", ValueError),
+        ("fse.head.labels", '["a","b","c"]', ValueError),
+        ("fse.head", "linear@3", UnsupportedArtifactError),
+        ("fse.head.link", "multilabel@2", UnsupportedArtifactError),
+        ("fse.format_version", "3", UnsupportedArtifactError),
+    ],
 )
 def test_mismatched_or_unknown_schema(key, value, error):
     tensors, metadata = _artifact()
@@ -73,6 +82,8 @@ def test_mismatched_or_unknown_schema(key, value, error):
 
 def test_version_one_cannot_smuggle_a_threshold_tensor():
     tensors, metadata = _artifact()
-    metadata.update({"fse.format_version": "1", "fse.head": "linear@1", "fse.head.link": "softmax@1"})
+    metadata.update(
+        {"fse.format_version": "1", "fse.head": "linear@1", "fse.head.link": "softmax@1"}
+    )
     with pytest.raises(ValueError, match="only for multilabel"):
         from_artifact(tensors, metadata)

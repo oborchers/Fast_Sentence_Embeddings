@@ -23,8 +23,8 @@ import numpy as np
 from numpy import ndarray
 
 from fse._backends import BACKEND_NAMES, get_backend
-from fse._cpus import usable_cpus
 from fse._contract import Link
+from fse._cpus import usable_cpus
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
