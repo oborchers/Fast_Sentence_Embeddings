@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Add document-ID write and filtered-search cost profiles to shared local diagnosis, including normalized public-call latency and filter-workspace measurements. Numerical checks, timing floors and resource guards remain enforced.
+- Add document-ID write, unfiltered-search and filtered-search cost profiles to shared local diagnosis, including normalized public-call latency and filter-workspace measurements. Numerical checks, timing floors and resource guards remain enforced.
 
 - Add optional int64 document IDs to vector stores, per-batch ID input, and exact filtered search by document IDs or physical rows. Duplicate document IDs retain every matching row. New ID-enabled stores use format 2 while ordinary stores remain format 1. DR-215 (Eigene Dokument-IDs im Store speichern (row_ids)).
 

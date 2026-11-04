@@ -55,7 +55,7 @@ def validate(cell):
         "store-open",
     ):
         raise ValueError("document IDs require a persistent store adapter")
-    if cell["filter_kind"] not in ("doc_ids", "rows") or cell["filter_layout"] not in (
+    if cell["filter_kind"] not in ("none", "doc_ids", "rows") or cell["filter_layout"] not in (
         "range",
         "spread",
         "missing",

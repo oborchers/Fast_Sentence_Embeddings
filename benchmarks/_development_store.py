@@ -37,6 +37,8 @@ def checked_query(value):
 def _filter(job, count, labels):
     import numpy as np
 
+    if job["filter_kind"] == "none":
+        return {}, np.arange(count, dtype="int64")
     universe = (
         count
         if job["filter_kind"] == "rows"

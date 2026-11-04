@@ -254,6 +254,13 @@ full verification, synchronization and filter preparation happen outside the tim
 Search repeats exact scoring on an already open store. Open repeats opening and closing
 the same store with warm OS caches. It does not measure cold storage latency.
 Range, spread and missing filters use `filter_fraction` of the row or document domain.
+`filter_kind: "none"` supplies no filter argument to public `store.search`; it does
+not construct a full-domain row filter. `document-search-unfiltered-local.json`
+compares master with the candidate on ordinary float32 stores without document IDs.
+It uses one shared calibrated loop count and retains complete output bit checks.
+Its explicit non-regression assessment requires median paired relative time overhead
+in both comparison and confirmation below `max(3 * validated A/A IQR, 0.02)`.
+The `descriptive_only` tool label does not establish that assessment.
 `filter_kind` selects physical `rows` or logical `doc_ids`; `queries` and `k` are explicit.
 Both installed builds must support the selected filter API. Use two candidate
 interpreters for functional probes or controls where master lacks that API.
@@ -268,6 +275,9 @@ document values on ordered or seed-zero shuffled IDs. Both interpreters execute 
 same candidate. The base arm calls the public `store.search` without a filter;
 the candidate arm supplies `doc_ids`. Each store contains 1,002,340 real WikiText
 rows with float32 POTION vectors, one fixed query, k=10 and two requested workers.
+These cost cells use `decision_gate: false` and begin calibration at twelve seconds.
+Independent A/A validation, fifteen pairs per block, confirmation and the 3,600-active-second
+calibration budget remain required. Exhausted calibration stays inconclusive.
 
 Before timing, the filter includes every unfiltered exact top-k document value and
 a deterministic unique augmentation to its declared size. Its input order is then

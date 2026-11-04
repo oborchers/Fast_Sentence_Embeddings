@@ -1,0 +1,34 @@
+{
+  "format": "local-development-v2",
+  "description": "Unfiltered public store.search cost check: master versus candidate, no stored document IDs, identical float32 POTION stores with 1,002,340 WikiText rows. Fresh controls and confirmation. Assess non-regression explicitly from paired time overhead, not the descriptive_only tool label.",
+  "defaults": {
+    "profile": "document-ids-1m@1",
+    "base_doc_ids": "none",
+    "candidate_doc_ids": "none",
+    "filter_kind": "none",
+    "resident_cycles": 230,
+    "workers": 2,
+    "table_dtype": "float32",
+    "output_dtype": "float32",
+    "queries": 1,
+    "k": 10,
+    "pairs": 15,
+    "warmup_calls": 2,
+    "warmup_seconds": 12.0,
+    "target_seconds": 12.0,
+    "target_aa_iqr": 0.02,
+    "active_calibration_seconds": 3600.0,
+    "noise_multiplier": 3.0,
+    "minimum_saving": 0.02,
+    "confirmation_fraction": 0.5,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "local-wikitext-1002340-search-unfiltered-master-vs-branch",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search"
+    }
+  ]
+}
