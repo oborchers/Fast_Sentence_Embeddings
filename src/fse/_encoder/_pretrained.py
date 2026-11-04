@@ -269,12 +269,12 @@ def fse_model(files: Files | LocalFiles, config: dict, kind: str, mmap: bool) ->
     return Found(data=(data, path), config=config, config_path=where)
 
 
-def check_loaded(found: Found, fingerprint: str | None, kind: str) -> None:
+def check_loaded(found: Found, fingerprint: str | None, kind: str, format_version: int = 1) -> None:
     """The model loaded from an fse folder is the one its config.json names, compared
     with the metadata actually loaded, so a file swapped after a first look cannot pass."""
     if found.config is not None:
         assert found.config_path is not None
-        _folder.check_loaded(found.config, fingerprint, kind, found.config_path)
+        _folder.check_loaded(found.config, fingerprint, kind, found.config_path, format_version)
 
 
 def _check_modules(files: Files | LocalFiles, kind: Any) -> None:

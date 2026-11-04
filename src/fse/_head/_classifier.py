@@ -212,7 +212,8 @@ class Classifier(LinearModel):
         backend: str = "cpu",
         sink: Any = None,
     ) -> ndarray | None:
-        """The logits of every text, float32 (n,) for one output, else (n, k)."""
+        """The logits of every text as float32. Multilabel always returns (n, k),
+        including k = 1. Single-label heads return (n,) for one output, else (n, k)."""
         return _run.infer(self, texts, "decision", workers, backend, sink)
 
     @validate_arguments

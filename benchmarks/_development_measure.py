@@ -19,7 +19,7 @@ from _development_heads import operation as head_operation
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
 from _development_stages import inputs, pooling, tokenizer
-from _development_system import LABEL, observations
+from _development_system import LABEL, apply_affinity, observations
 from _measurement import append
 
 
@@ -38,15 +38,7 @@ def _policy(job):
                 ).returncode
                 result["background_policy_cleared"] = status == 0
                 result["taskpolicy_exit_status"] = status
-    affinity = job.get("cpu_affinity")
-    if affinity is not None:
-        if not hasattr(os, "sched_setaffinity"):
-            raise ValueError("requested CPU affinity is unsupported on this Unix system")
-        allowed = os.sched_getaffinity(0)
-        if not set(affinity) <= allowed:
-            raise ValueError("requested CPU affinity exceeds available CPUs")
-        os.sched_setaffinity(0, affinity)
-        result["affinity"] = sorted(os.sched_getaffinity(0))
+    result["affinity"] = apply_affinity(job.get("cpu_affinity"))
     return result
 
 

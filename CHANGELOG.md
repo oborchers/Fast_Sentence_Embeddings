@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Preserve subnormal multilabel decisions under foreign floating-point settings and reject Hub folders whose declared format version disagrees with the model. Correct the one-label multilabel output description. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
+
 - Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
 - Add independent multilabel classifiers (`multilabel@1`, `linear@2`) with strict per-label thresholds, including partial named overrides such as `thresholds={"sport": 0.4}`. Import fitted multilabel OneVsRestClassifier models with supported affine sigmoid heads. New models use linear_head format 2 and `head.thresholds`; existing format 1 models keep their identifiers, fingerprints and predictions. (DR-199: Lineare Köpfe zum vollwertigen Bestandteil von fse machen)

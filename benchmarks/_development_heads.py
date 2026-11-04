@@ -86,7 +86,9 @@ def profile(job):
     """Untimed reproduction for externally coordinated CPU/allocation/RSS profiling."""
     from _development_encode import output_identity
     from _development_stages import inputs
+    from _development_system import apply_affinity
 
+    policy = {"affinity": apply_affinity(job.get("cpu_affinity"))}
     encoder, texts = inputs(job)
     predict = operation(encoder, texts, job)
     iterations = job["iterations"]
@@ -103,6 +105,7 @@ def profile(job):
         "profile": PROFILE,
         "head_spec": SPEC,
         "worker_path": job["stage"],
+        "policy": policy,
         "operation_repetitions": iterations,
         "output": output_identity(output),
     }

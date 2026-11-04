@@ -356,7 +356,13 @@ class LinearModel(HubModel):
         else:
             assert found.path is not None
             model = cls._load(found.path, mmap)
-        _pretrained.check_loaded(found, model._fingerprint, _format.KIND)
+        # The closed artifact schema permits version 2 exactly for multilabel heads.
+        version = (
+            _format.MULTILABEL_VERSION
+            if model._content.link is Link.MULTILABEL
+            else _format.FORMAT_VERSION
+        )
+        _pretrained.check_loaded(found, model._fingerprint, _format.KIND, int(version))
         return model
 
     # --- properties -------------------------------------------------------------------

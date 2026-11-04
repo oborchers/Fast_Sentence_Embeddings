@@ -63,6 +63,9 @@ threshold, is false. Every row produces a bool vector in class order.
 The reference is `fse._reference_head.multilabel` for decisions and its `sigmoid`
 for probabilities. CPU backends reuse the existing SIMD sigmoid@1 implementation.
 The threshold comparison is a whole-array comparison, with no per-row Python hook.
+The CPU backend performs that comparison under its protected floating-point environment
+and restores the caller's state afterwards. Positive subnormal probabilities must remain
+greater than a zero cutoff even when the caller enables flush-to-zero or denormals-as-zero.
 This introduces no rounding operation beyond the existing sigmoid. The old
 linear@1 label rule, all existing links, and transform_version 2 remain unchanged.
 

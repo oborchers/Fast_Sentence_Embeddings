@@ -106,12 +106,19 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def check_loaded(config: dict, metadata_fingerprint: str | None, kind: str, where: Path) -> None:
-    """The model that was loaded is the one the config names: its kind, and the
+def check_loaded(
+    config: dict, metadata_fingerprint: str | None, kind: str, where: Path, format_version: int = 1
+) -> None:
+    """The model that was loaded is the one the config names: its kind, format, and the
     fingerprint of the metadata actually loaded (not of an earlier look at the file)."""
     if config["fse_kind"] != kind:
         raise CorruptArtifactError(
             f"{where} names the kind {config['fse_kind']}, the file holds a {kind}"
+        )
+    if config["fse_format_version"] != format_version:
+        raise CorruptArtifactError(
+            f"{where} names format version {config['fse_format_version']}, "
+            f"the file holds version {format_version}"
         )
     if metadata_fingerprint != config["fingerprint"]:
         raise CorruptArtifactError(

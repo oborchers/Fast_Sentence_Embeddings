@@ -173,6 +173,13 @@ class Backend(Protocol):
         ``out``, as ``fse._reference_head.proba`` and ``labels``; no bias is added."""
         ...
 
+    def decisions(self, probabilities: ndarray, thresholds: ndarray, out: ndarray) -> None:
+        """Strict multilabel cutoffs into bool (n, k), preserving subnormal probabilities.
+
+        The CPU backend ignores and restores the caller's floating-point environment.
+        """
+        ...
+
 
 def check_pool_input(pool: PoolInput) -> PoolInput:
     """Check the arrays of ``pool`` against each other, as the native kernel does."""
@@ -377,6 +384,28 @@ def check_outputs_input(logits: object, kind: object, link: object, out: object)
         raise ValueError(f"kind must be 'proba' or 'labels', not {kind!r}")
     if np.may_share_memory(out, logits):
         raise ValueError("out must not share memory with the logits")
+
+
+def check_decisions_input(probabilities: object, thresholds: object, out: object) -> None:
+    """C-contiguous F32 probabilities and cutoffs, with a separate writable bool result."""
+    _float32_matrix(probabilities, "probabilities", None, None)
+    assert isinstance(probabilities, ndarray)
+    _float32_vector(thresholds, "thresholds", probabilities.shape[1])
+    assert isinstance(thresholds, ndarray)
+    if (
+        probabilities.shape[1] < 1
+        or not isinstance(out, ndarray)
+        or out.dtype != np.bool_
+        or out.shape != probabilities.shape
+        or not out.flags.c_contiguous
+        or not out.flags.writeable
+    ):
+        raise ValueError("out must be a writable C-contiguous bool matrix matching probabilities")
+    if any(np.may_share_memory(out, kept) for kept in (probabilities, thresholds)):
+        raise ValueError("out must not share memory with probabilities or thresholds")
+    for name, values in (("probabilities", probabilities), ("thresholds", thresholds)):
+        if not np.isfinite(values).all() or np.any((values < 0) | (values > 1)):
+            raise ValueError(f"{name} must be finite and in [0, 1]")
 
 
 def _int64_vector(value: object, name: str, length: int):

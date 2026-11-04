@@ -320,7 +320,7 @@ class HeadPipeline:
             probabilities = _buffer(local, "head_proba", len(logits), self.head.k)
             backend.outputs(logits, "proba", self.head.link, probabilities, first)
             assert self.head.thresholds is not None
-            np.greater(probabilities, self.head.thresholds, out=target)
+            backend.decisions(probabilities, self.head.thresholds, target)
         else:
             backend.outputs(logits, "labels", None, target, first)
 

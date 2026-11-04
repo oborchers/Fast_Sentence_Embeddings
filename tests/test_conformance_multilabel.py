@@ -80,6 +80,65 @@ def test_native_multilabel_restores_the_float_environment(isa):
     np.testing.assert_array_equal(out.view(np.uint32), want.view(np.uint32))
 
 
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda item: item[1] or item[0])
+def test_decisions_preserve_subnormal_probabilities_and_strict_ties(backend):
+    name, isa = backend
+    probabilities = np.array(
+        [[0, 0x80000000, 1, 3, 0x3F000000, 0x3F800000]], np.uint32
+    ).view(np.float32)
+    thresholds = np.array([0x80000000, 0, 0, 1, 0x3F000000, 0x3F800000], np.uint32).view(np.float32)
+    out = np.empty(probabilities.shape, np.bool_)
+    get_backend(name, isa=isa).decisions(probabilities, thresholds, out)
+    assert out.tolist() == [[False, False, True, True, False, False]]
+    get_backend(name, isa=isa).decisions(
+        np.empty((0, 6), np.float32), thresholds, np.empty((0, 6), np.bool_)
+    )
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+@pytest.mark.parametrize(
+    "env", [{"flush": True}, {"round_up": True}, {"flush": True, "round_up": True}]
+)
+def test_complete_decisions_ignore_and_restore_the_float_environment(isa, env):
+    host = get_backend("cpu", isa=isa)
+    z = np.array([[-100, -104, 0, 104]], np.float32)
+    thresholds = np.array([0, 0, 0.5, 1], np.float32)
+    probabilities = np.empty_like(z)
+    out = np.empty(z.shape, np.bool_)
+    saved = _native._test_fpenv_set(**env)
+    try:
+        before = _native._test_fpenv_get()
+        host.outputs(z, "proba", Link.MULTILABEL, probabilities)
+        host.decisions(probabilities, thresholds, out)
+        assert _native._test_fpenv_get() == before
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert out.tolist() == [[True, False, False, False]]
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda item: item[1] or item[0])
+@pytest.mark.parametrize("bad", ["probabilities", "thresholds", "out", "alias", "nan", "range"])
+def test_decision_inputs_are_checked_before_writing(backend, bad):
+    name, isa = backend
+    probabilities = np.full((1, 3), 0.5, np.float32)
+    thresholds = np.zeros(3, np.float32)
+    out = np.zeros((1, 3), np.bool_)
+    if bad == "probabilities":
+        probabilities = probabilities.astype(np.float64)
+    elif bad == "thresholds":
+        thresholds = thresholds[:2]
+    elif bad == "out":
+        out.setflags(write=False)
+    elif bad == "alias":
+        out = np.ndarray((1, 3), np.bool_, buffer=probabilities)
+    elif bad == "nan":
+        probabilities[0, 0] = np.nan
+    else:
+        thresholds[0] = -1
+    with pytest.raises(ValueError):
+        get_backend(name, isa=isa).decisions(probabilities, thresholds, out)
+
+
 def test_cases_distinguish_normalized_ovr_and_wrong_threshold_comparison():
     z = np.zeros((2, 3), np.float32)
     limits = np.full(3, 0.5, np.float32)

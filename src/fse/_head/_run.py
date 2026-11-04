@@ -196,7 +196,10 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
         if kind == "labels" and head.link is Link.MULTILABEL:
             probabilities = np.empty_like(z)
             host.outputs(z, "proba", head.link, probabilities, first_row)
-            return probabilities > head.thresholds
+            out = np.empty(z.shape, dtype=np.bool_)
+            assert head.thresholds is not None
+            host.decisions(probabilities, head.thresholds, out)
+            return out
         out = np.empty(
             len(z) if kind == "labels" else (len(z), head.width(kind)),
             dtype=np.int64 if kind == "labels" else np.float32,
