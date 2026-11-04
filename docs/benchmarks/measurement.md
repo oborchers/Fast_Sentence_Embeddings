@@ -309,3 +309,51 @@ Collection rejects changed bytes, unsafe paths, symlinks and extra files. It wri
 The original pre-consolidation source is preserved byte-for-byte at [evidence commit `1e1165b`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/1e1165b7a892555b201897fc91377a68f31f298f/archives/measurement-tools-before-consolidation.tar.gz), SHA256 `9c81b21dcd56b393e50292c188b9aa656a7ff4716cd569df6e7e6d4a6c6acad0`. This archive holds source, not measurement output. Historical result provenance remains in [the comparison guide](../fse-comparison.md).
 
 Primary API references: [ST process-pool API](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html), [PyTorch file-descriptor sharing](https://docs.pytorch.org/docs/2.15/multiprocessing.html#file-descriptor-file-descriptor).
+
+
+## PR-1 linear-head development profile
+
+`benchmarks/config/linear-heads-local.json` defines `linear-heads@1` for
+DR-199 (Lineare Köpfe zum vollwertigen Bestandteil von fse machen). It adds two
+stages to the existing `speed.py --diagnose` controller, without another runner:
+
+- `heads-single-folded`: one four-output softmax classifier on raw means, using
+  the folded table through the public predict_proba API.
+- `heads-single-with-vectors`: the same classifier through public predict_batches
+  with return_vectors=True, checking both probabilities and raw vectors.
+
+Each stage compares the previous installed build with the candidate on exactly
+the same path. Coefficients are F32 from NumPy PCG64 seed 17, with four ordered
+classes and no training. The model/corpus pins, complete quality gate, resident
+input, continuous groups, fresh A/A, fifteen pairs and independent confirmation
+are the existing local-development-v2 contract. The folded table is prepared
+outside timing. Every complete output is byte-checked, not just a sample.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/linear-heads-local.json \
+  --base-python /external/base/bin/python \
+  --candidate-python /external/candidate/bin/python \
+  --cells heads-single-folded heads-single-with-vectors \
+  --worker-name dr199-linear-heads \
+  --results /external/heads-results-01 --work /external/heads-work-01
+```
+
+These cells are regression checks, not a request for a speedup. They use
+`decision_gate=false`; the ordinary gain decision remains descriptive and its
+thresholds are unchanged. A separate nonregression field records whether both
+comparison and confirmation stay within three times the same-cell A/A factor
+IQR. A noisy control or a regression makes the cell unsuccessful. This is an
+explicit noise-limited local indication, never proof of exactly zero slowdown.
+It must not become a README speed claim.
+
+For an untimed CPU/allocation/RSS reproduction, copy a completed cell's child
+job outside the checkout, set action to `profile-head`, choose a fresh receipt
+and execute it through `speed.py --development-job` under the shared heavy lock.
+The job preserves stage, corpus/artifact hashes, profile, workers and calibrated
+iterations. External profilers must target this executing Python process, not
+only its parent controller. It emits profile_ready after preparation. The receipt
+is marked diagnostic_profile=true and valid_for_comparison=false. Such runs do
+not enter speed summaries. No profile or timing may run during another worker's
+Mac reservation. Linux publication remains separate work in DR-225 (Lineare Köpfe
+auf Linux messen und Tempozahlen für die README belegen).

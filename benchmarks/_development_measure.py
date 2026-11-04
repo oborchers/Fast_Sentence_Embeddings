@@ -14,6 +14,8 @@ from pathlib import Path
 
 from _development_encode import operation as encode_operation
 from _development_encode import output_identity
+from _development_heads import SPEC as HEAD_SPEC
+from _development_heads import operation as head_operation
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
 from _development_stages import inputs, pooling, tokenizer
@@ -117,6 +119,8 @@ def measure(job):
         "pooling": lambda: pooling(model, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),
+        "head-folded": lambda: head_operation(model, texts, job),
+        "head-with-vectors": lambda: head_operation(model, texts, job),
     }
     operation = factories[job["stage"]]()
     warmups, warm_seconds, expected = [], 0.0, None
@@ -149,6 +153,8 @@ def measure(job):
         * (1 if sys.platform == "darwin" else 1024),
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
+        "profile": job["profile"],
+        "head_spec": HEAD_SPEC if job["profile"] == "linear-heads@1" else None,
         "requested_workers": job["workers"],
         "input": {
             **job["corpus"],

@@ -7,6 +7,7 @@ import time
 from _development_calibrate import calibrate
 from _development_config import load
 from _development_data import prepare
+from _development_heads import nonregression
 from _development_locks import coordinated
 from _development_pairs import block
 from _development_records import record_result, session
@@ -92,10 +93,12 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             threshold=threshold,
         )
     confirmation = block(*arguments, "confirmation", **options)
-    result = decide(current, control["aa"], main, confirmation)
+    result = nonregression(current, decide(current, control["aa"], main, confirmation))
     if args.diagnostic_rehearsal:
         result["decision"] = "functional_only"
     valid = result["decision"] in ("keep", "descriptive_only", "functional_only")
+    if "nonregression" in result and not args.diagnostic_rehearsal:
+        valid = valid and result["nonregression"]["passed"]
     return dict(status="valid" if valid else "rejected", **result)
 
 

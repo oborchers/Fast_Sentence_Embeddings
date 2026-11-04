@@ -13,7 +13,12 @@ def inputs(job):
 
     artifact = job["artifact"]
     corpus = job["corpus"]
-    model = Encoder.load(checked(artifact["path"], artifact["sha256"]), mmap=True)
+    path = checked(artifact["path"], artifact["sha256"])
+    model = (
+        Encoder.from_pretrained(path, normalize=False, mmap=True)
+        if job["stage"] in ("head-folded", "head-with-vectors")
+        else Encoder.load(path, mmap=True)
+    )
     data = document(checked(corpus["path"], corpus["sha256"]))
     source = data["timing_texts"]
     if not source or job["texts"] % len(source):

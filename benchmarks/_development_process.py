@@ -100,6 +100,10 @@ def child(file):
                 Path(job["receipt"]), {**LABEL, "error": "session_expired", "reason": str(error)}
             )
             raise
+    elif job["action"] == "profile-head":
+        from _development_heads import profile
+
+        result = profile(job)
     elif job["action"] == "pooling-input":
         from _development_stages import prepare_batch
 

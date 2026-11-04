@@ -30,6 +30,15 @@ def admission(cell, prepared, count, work, requested_limit=None):
         else min(output, 64 * 1024**2),
         "workers": cell["workers"] * 64 * 1024**2,
     }
+    if cell["profile"] == "linear-heads@1" and cell["stage"] in (
+        "head-folded", "head-with-vectors"
+    ):
+        # Four probabilities per row, two live public results plus bounded workspaces.
+        # Folded mode retains its prepared word table; vectors mode holds full means.
+        table = prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]]
+        components["head_table_reserve"] = Path(table["path"]).stat().st_size
+        components["head_probabilities_and_copies"] = count * 4 * 4 * 2
+        components["output_and_copies"] = output * 2 if cell["stage"] == "head-with-vectors" else 0
     disk = int(count * (mean_bytes + 1) + 1024**3)
     if cell["stage"] == "encode-sink":
         disk += output * cell["iterations"] * 2
