@@ -69,7 +69,9 @@ return keep. Only the full O protocol can justify that local decision.
 
 Small probes precede long timing blocks: check the selected adapter against an
 independent reference, full shape/dtype/count/bits, input checksums and actual build
-identities. Then retain the complete applicable quality gate. Cache that gate only
+identities. Tiny store probes record adjusted nonempty partial filters separately
+from the declared study. The missing layout uses absent keys and still expects no hits.
+Then retain the complete applicable quality gate. Cache that gate only
 within the invocation for identical model, corpus, table dtype, workers and
 document-ID profile/modes. Each
 later child must still match its recorded build. These probes never replace full

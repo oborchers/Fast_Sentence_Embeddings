@@ -13,11 +13,7 @@ from _development_store import StoreOperation
 def probe_store(model, texts, job, verify_payload):
     import numpy as np
 
-    if search_cost(job):
-        # A functional probe has fewer resident rows than the actual study. Keep
-        # every tiny-domain winner, record this count, and never use its time.
-        domain = (len(texts) + job["id_chunks"] - 1) // job["id_chunks"]
-        job["filter_count"] = min(job["filter_count"], domain)
+    _fit_filter(job, len(texts))
     check(job.get("wall_deadline"))
     expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
     check(job.get("wall_deadline"))
@@ -38,3 +34,19 @@ def probe_store(model, texts, job, verify_payload):
         elif not np.array_equal(result, np.array([len(texts), model.output_dim], dtype="int64")):
             raise ValueError("preflight store-open count or dimensions differ")
         return output_identity(result)
+
+
+def _fit_filter(job, count):
+    if search_cost(job):
+        domain = (count + job["id_chunks"] - 1) // job["id_chunks"]
+        job["filter_count"] = min(job["filter_count"], domain)
+    elif job["stage"] == "store-search" and job["filter_kind"] != "none":
+        domain = (
+            count
+            if job["filter_kind"] == "rows"
+            else (count + job["id_chunks"] - 1) // job["id_chunks"]
+        )
+        # Tiny probes must exercise a real filter, including absent keys for the
+        # missing layout. Keep a proper subset when the tiny domain permits it.
+        size = max(1, min(max(1, domain - 1), int(domain * job["filter_fraction"])))
+        job["filter_fraction"] = size / domain

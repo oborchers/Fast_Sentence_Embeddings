@@ -6,6 +6,7 @@ import json
 import math
 import time
 
+from _development_budget import check_args
 from _development_pairs import arm, block, job_for
 from _development_process import launch
 from _development_resources import admission
@@ -77,6 +78,7 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
 
     def remaining():
         # Arm-level load waits are recorded separately; charge only executed child work.
+        check_args(args)
         return cell["active_calibration_seconds"] - _active_seconds(args, cell["id"])
 
     for step in range(cell["max_calibration_steps"]):

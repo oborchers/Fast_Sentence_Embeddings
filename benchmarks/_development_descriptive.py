@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from _development_budget import check_args
 from _development_calibrate import _active_seconds, _admit, _batch, _size
 from _development_pairs import arm, block
@@ -61,6 +59,11 @@ def describe(args, cell, prepared, ledger, owner, identities):
 
 def regression_screen(args, cell, prepared, ledger, owner, identities):
     current = {**cell, "pairs": 5}
+
+    def remaining():
+        check_args(args)
+        return cell["active_calibration_seconds"] - _active_seconds(args, cell["id"])
+
     count, batch, iterations = _size(
         args,
         current,
@@ -69,10 +72,7 @@ def regression_screen(args, cell, prepared, ledger, owner, identities):
         owner,
         cell["target_seconds"],
         "screen",
-        lambda: min(
-            args.wall_deadline - time.monotonic(),
-            cell["active_calibration_seconds"] - _active_seconds(args, cell["id"]),
-        ),
+        remaining,
     )
     current["iterations"] = iterations
     main = block(

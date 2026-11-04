@@ -63,6 +63,7 @@ def probe(job):
     if not texts:
         raise ValueError("preflight requires nonempty source rows")
     job["texts"] = len(texts)
+    requested_fraction = job.get("filter_fraction")
     check(job.get("wall_deadline"))
     batch = tokenizer(model, texts)()
     check(job.get("wall_deadline"))
@@ -92,6 +93,8 @@ def probe(job):
         "output": proof,
         "source_rows": len(texts),
         "probe_filter_count": job.get("filter_count"),
+        "requested_filter_fraction": requested_fraction,
+        "probe_filter_fraction": job.get("filter_fraction"),
         "document_ids": job.get("doc_ids", "none"),
         "encoder_fingerprint": model.fingerprint,
         "dimensions": model.output_dim,

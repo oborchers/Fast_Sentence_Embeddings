@@ -464,6 +464,9 @@ jobs:
           EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          # Preserve setup-uv's auto policy outside the targeted PR checkout.
+          enable-cache: ${{ needs.changes.outputs.targeted == 'true' && 'false' || 'auto' }}
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e  # v4.3.5
         env:
           # A pull request builds every wheel but tests only those of the newest Python; the
