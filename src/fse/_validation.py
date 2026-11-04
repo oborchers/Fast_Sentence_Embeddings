@@ -6,12 +6,20 @@ loading and the similarity searches. Per-element methods such as ``similarity`` 
 """
 
 import functools
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Annotated, Any, TypeAlias, TypeVar
 
 import numpy as np
-from pydantic import BeforeValidator, ConfigDict, Field, validate_call
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StrictStr,
+    validate_call,
+)
 
 # strict: nothing is coerced, for example "4" is not accepted for an int.
 # arbitrary_types_allowed: gensim and numpy objects are checked with isinstance.
@@ -66,3 +74,41 @@ def _numpy_floating_to_float(value: object) -> object:
 Similarity = Annotated[
     float, BeforeValidator(_numpy_floating_to_float), Field(ge=-1, le=1, allow_inf_nan=False)
 ]
+
+
+def _probability(value: object) -> float:
+    if isinstance(value, bool | np.bool_) or not isinstance(
+        value, int | float | np.integer | np.floating
+    ):
+        raise ValueError("a probability must be a number, not a bool or string")
+    if not 0 <= value <= 1:
+        raise ValueError("a probability must be finite and in [0, 1]")
+    return float(value)
+
+
+def _threshold_label(value: object) -> object:
+    return int(value) if isinstance(value, np.integer) else value
+
+
+def _threshold_vector(value: np.ndarray) -> np.ndarray:
+    if value.ndim != 1:
+        raise ValueError("thresholds must be a one-dimensional vector")
+    for item in value:
+        _probability(item)
+    return value
+
+
+_Probability = Annotated[
+    float, BeforeValidator(_probability), Field(ge=0, le=1, allow_inf_nan=False)
+]
+_ThresholdLabel = Annotated[StrictStr | StrictInt, BeforeValidator(_threshold_label)]
+_ThresholdVector = Annotated[np.ndarray, AfterValidator(_threshold_vector)]
+#: Validated cutoffs, not a runtime object to construct. Arrays are checked without copying.
+ThresholdInput: TypeAlias = (
+    _Probability
+    | list[_Probability]
+    | tuple[_Probability, ...]
+    | Mapping[_ThresholdLabel, _Probability]
+    | _ThresholdVector
+    | None
+)

@@ -141,3 +141,57 @@ Version/link/head mismatches, missing thresholds and threshold tensors in versio
 are refused. Other existing classifiers and regressors still write version 1.
 
 The sigmoid calibration and temperature importers remain separate later work.
+
+
+### Inspecting and changing multilabel thresholds
+
+`fse.ThresholdInput` is a public type alias for strictly validated scalar, vector,
+or named cutoffs, plus None. It is not an object users construct. Pydantic checks
+finite numbers in [0,1], numeric label types and vector shape. NumPy arrays are
+checked without a validation copy. The classifier then resolves the names and
+checks the vector length before the existing F32 conversion. Booleans and numeric
+strings are refused.
+
+`classifier.thresholds` is a read-only complete snapshot in classes_ order. Python
+floats expose the effective stored F32 values, not rounded display values.
+`classifier.with_thresholds({"sport": 0.3})` returns a new classifier and keeps all
+unnamed current cutoffs. A scalar or full vector replaces all cutoffs; explicit
+None resets them to 0.5. At construction, unnamed cutoffs still default to 0.5.
+These operations require multilabel@1 and work after load, quantization and
+standalone export. The new object retains the encoder and coefficients, with fresh
+pipeline caches and a newly computed fingerprint. Changed loaded head tensors
+are refused, not adopted. Changing thresholds does not train, tokenize or fold.
+
+### From external training to named deployment outputs
+
+Train outside fse on this encoder's vectors. Indicate the class names in the same
+order as the training target columns. OneVsRestClassifier fitted on an indicator
+matrix usually keeps numeric column indices, not the original application names.
+`labels=` on from_sklearn explicitly renames every output class without reordering
+weights. This also works for ordinary binary and multiclass classifiers.
+
+```python
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier
+from fse import Classifier
+
+# encoder, training_texts and Y belong to the application.
+# Y[:, 0] is sport, Y[:, 1] is news, each containing 0 or 1.
+trained = OneVsRestClassifier(LogisticRegression()).fit(
+    encoder.encode(training_texts), Y
+)
+classifier = Classifier.from_sklearn(
+    encoder, trained, labels=["sport", "news"], thresholds={"sport": 0.4}
+)
+probabilities = classifier.predict_proba(new_texts)
+labels = classifier.predict(new_texts)  # bool (rows, 2) in classes_ order
+changed = classifier.with_thresholds({"news": 0.7})  # sport keeps 0.4
+changed.save("classifier.safetensors")
+deployed = Classifier.load("classifier.safetensors")
+```
+
+The imported binary estimators must provide supported affine sigmoid outputs,
+such as LogisticRegression or SGDClassifier with log_loss. Constant binary
+outputs are supported. Calibration wrappers and decision-only estimators are
+not supported by this importer yet. ovr@1 normalizes competing classes to sum
+one; multilabel@1 never normalizes across labels.

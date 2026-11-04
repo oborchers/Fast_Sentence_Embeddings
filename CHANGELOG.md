@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
+
 - Add independent multilabel classifiers (`multilabel@1`, `linear@2`) with strict per-label thresholds, including partial named overrides such as `thresholds={"sport": 0.4}`. Import fitted multilabel OneVsRestClassifier models with supported affine sigmoid heads. New models use linear_head format 2 and `head.thresholds`; existing format 1 models keep their identifiers, fingerprints and predictions. (DR-199: Lineare Köpfe zum vollwertigen Bestandteil von fse machen)
 
 - Limit macOS tests on pull requests and release tags to Python 3.13, alongside arm64 wheel builds. Master pushes retain the full Python 3.11 to 3.15 macOS matrix and sentence-transformers comparison. Release publication now requires successful full master CI for the exact tagged commit, verified through the GitHub API.

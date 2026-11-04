@@ -149,3 +149,42 @@ def test_real_one_vs_rest_round_trip_and_named_cutoffs(normalize, tmp_path):
     loaded = fse.Classifier.load(path)
     assert loaded.fingerprint == model.fingerprint
     np.testing.assert_array_equal(loaded.predict(texts), model.predict(texts))
+
+
+@pytest.mark.parametrize("kind", ["binary", "multiclass", "multilabel"])
+def test_explicit_import_names_keep_output_order(kind):
+    pytest.importorskip("sklearn")
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.multiclass import OneVsRestClassifier
+
+    import fse
+    from support.encoder import finished
+
+    encoder = finished(normalize=True)
+    texts = [f"w{i}" for i in range(40)]
+    x = encoder.encode(texts)
+    if kind == "multilabel":
+        y = np.column_stack([np.arange(40) % 2, np.arange(40) % 3 == 0]).astype(int)
+        trained = OneVsRestClassifier(LogisticRegression(max_iter=500)).fit(x, y)
+        names = ["sport", "news"]
+    else:
+        k = 2 if kind == "binary" else 3
+        trained = LogisticRegression(max_iter=500).fit(x, np.arange(40) % k)
+        names = [f"label_{i}" for i in range(k)]
+    original = fse.Classifier.from_sklearn(encoder, trained)
+    renamed = fse.Classifier.from_sklearn(encoder, trained, labels=names)
+    assert renamed.classes_.tolist() == names
+    for method in ("decision_function", "predict_proba"):
+        np.testing.assert_array_equal(
+            getattr(renamed, method)(texts).view(np.uint32),
+            getattr(original, method)(texts).view(np.uint32),
+        )
+    assert renamed.fingerprint != original.fingerprint
+    if kind == "multilabel":
+        named = fse.Classifier.from_sklearn(
+            encoder, trained, labels=names, thresholds={"sport": 0.4}
+        )
+        assert named.thresholds["sport"] == float(np.float32(0.4))
+    for bad in (["missing"], ["same"] * len(names)):
+        with pytest.raises(ValueError, match=r"needs|unique"):
+            fse.Classifier.from_sklearn(encoder, trained, labels=bad)

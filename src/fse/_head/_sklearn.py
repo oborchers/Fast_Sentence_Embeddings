@@ -85,7 +85,7 @@ def _classes(model: Any, k: int) -> list:
     if kind == "multilabel-indicator":
         raise ValueError(
             f"{type(model).__name__} was fitted on multi-label targets (one decision per "
-            "label); multi-label classifiers are not supported"
+            "label); this estimator has no supported multilabel probability rule; use a supported OneVsRestClassifier"
         )
     classes = getattr(model, "classes_", None)
     if not isinstance(classes, ndarray) or classes.ndim != 1:
@@ -176,7 +176,9 @@ def _estimator(model: Any, task: str) -> Found:
         return Found(*_sklearn_ovr.read(model, _read))
     known = _CLASSIFIERS if task == "classification" else _REGRESSORS
     if name not in known:
-        kinds = ", ".join(sorted(known))
+        kinds = ", ".join(
+            sorted({*known, "OneVsRestClassifier"} if task == "classification" else known)
+        )
         raise ValueError(
             f"{type(model).__module__}.{type(model).__name__} is not a scikit-learn {task} "
             f"head fse can read; supported: {kinds}, alone or in a Pipeline"

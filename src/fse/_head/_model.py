@@ -376,7 +376,7 @@ class LinearModel(HubModel):
 
     @property
     def link(self) -> str:
-        """``sigmoid@1``, ``softmax@1``, ``ovr@1`` or ``none`` (no probabilities)."""
+        """``sigmoid@1``, ``softmax@1``, ``ovr@1``, ``multilabel@1`` or ``none`` (no probabilities)."""
         return self._content.link_id
 
     @property

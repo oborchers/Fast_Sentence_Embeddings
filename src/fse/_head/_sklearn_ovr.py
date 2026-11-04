@@ -45,7 +45,7 @@ def _binary(estimator: Any, binary: Callable, dim: int) -> tuple:
     if found.link != "sigmoid" or found.labels != [0, 1]:
         raise ValueError(
             "each OneVsRestClassifier estimator needs sigmoid probabilities and classes [0, 1]; "
-            "calibrate decision-only models outside fse before importing"
+            "decision-only and calibration wrappers are not supported by this importer"
         )
     return found.weight, found.bias
 
