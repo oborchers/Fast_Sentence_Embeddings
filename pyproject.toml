@@ -318,6 +318,7 @@ generated = [
 # the package _text for stages 1 and 2, the cpu backend for the kernels of stages 2 to 4.
 native-importers = [
     "src/fse/_text/_arrow.py",
+    "src/fse/_text/_ids.py",
     "src/fse/_text/_lookup.py",
     "src/fse/_text/_scan.py",
     "src/fse/_text/_strings.py",
@@ -383,7 +384,7 @@ layers = [
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram | _log_config",
     # Independent of each other: the references never share code with what they check.
-    "_container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
+    "_ids | _container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
     # The parameters of unigram@1, which TokenizerSpec holds.
     "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
@@ -403,7 +404,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_shard | _writer | _search | _recovery", "_layout"]
+layers = ["_sink | _vectorstore | _repair", "_filtered", "_shard | _writer | _search | _recovery", "_selection | _result", "_layout | _id_writer", "_id_stats"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"
@@ -424,7 +425,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"
@@ -438,7 +439,7 @@ name = "Text: the sources and the lookup on the scan of one buffer"
 type = "layers"
 containers = ["fse._text"]
 exhaustive = true
-layers = ["_arrow | _strings | _lookup", "_scan", "_plan"]
+layers = ["_arrow | _ids | _strings | _lookup", "_scan", "_plan"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"

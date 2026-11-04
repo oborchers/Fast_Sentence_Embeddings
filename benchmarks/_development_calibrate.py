@@ -9,6 +9,7 @@ import time
 from _development_pairs import arm, block, job_for
 from _development_process import launch
 from _development_resources import admission
+from _development_search import enabled as search_cost
 from _development_system import LABEL
 from _measurement import append, atomic, document
 
@@ -30,6 +31,10 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
     count = cycle * cell["resident_cycles"]
     iterations = cell["iterations"]
     _admit(args, cell, prepared, count, step)
+    if search_cost(cell):
+        from _development_search_sizing import size
+
+        return size(args, cell, prepared, ledger, owner, target, step, remaining)
     batch = _batch(args, cell, prepared, count, owner, f"{cell['id']}-size-{step}-batch")
     attempt = 0
     while True:

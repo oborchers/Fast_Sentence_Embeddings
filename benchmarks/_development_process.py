@@ -104,6 +104,10 @@ def child(file):
         from _development_stages import prepare_batch
 
         result = {"batch": prepare_batch(job)}
+    elif job["action"] == "filter-memory":
+        from _development_filter_memory import profile
+
+        result = profile(job)
     else:
         raise ValueError("unknown development child action")
     if identity() != before:

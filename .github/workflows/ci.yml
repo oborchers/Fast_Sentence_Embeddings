@@ -214,10 +214,20 @@ jobs:
       - run: uv sync $UV_SYNC_FLAGS --group test --python ${{ matrix.python-version }}
       - name: Pin minimum dependencies
         if: matrix.deps == 'min'
+        # Arrow 25.0.1 supports NumPy >=1.21.2 and datasets' pyarrow>=24 requirement.
+        # Keep real Arrow/Parquet producers active with NumPy 1.26.4; Arrow 26 needs 2.x.
         run: >-
           uv pip install
           "numpy==1.26.4" "pydantic==2.5.0" "xxhash==3.2.0" "gensim==4.3.3" "safetensors==0.4.0"
-          "scikit-learn==1.5.0" "huggingface-hub==1.0.0" "pytest-xdist==3.6.1"
+          "scikit-learn==1.5.0" "huggingface-hub==1.0.0" "pytest-xdist==3.6.1" "pyarrow==25.0.1"
+      - name: Verify Arrow ID and Parquet tests on minimum dependencies
+        if: matrix.deps == 'min'
+        run: >-
+          uv run pytest -vv -rA
+          tests/test_text_ids.py::test_arrow_chunk_offsets_and_nulls
+          tests/test_encoder_doc_ids.py::test_parquet_recipe
+        env:
+          UV_NO_SYNC: "1"
       # A pull request skips the coverage (the merged report runs on master and tags only)
       # and so runs faster.
       - name: Run tests${{ github.event_name != 'pull_request' && ' with coverage' || '' }}

@@ -7,6 +7,7 @@ import time
 
 from _development_locks import busy, lock_paths
 from _development_process import launch
+from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
 from _measurement import append
@@ -50,6 +51,10 @@ def arm(
     ledger.progress()
     tag = f"{cell['id']}-{phase}-{pair}-{position}"
     job = job_for(cell, prepared, count, tag, owner, batch)
+    from _development_ids import mode_for
+
+    job["doc_ids"] = mode_for(cell, candidate=not control and name == "candidate")
+    configure(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.diagnostic_rehearsal
     job["sizing_only"] = phase.startswith("size-")

@@ -12,6 +12,7 @@ from numpy import ndarray
 
 from fse._container import CorruptArtifactError, checksum
 
+from ._id_stats import verify_stats
 from ._layout import SHARD_PREFIX, Shard, StoreInfo, open_shard, shard_name
 
 _VALUE_BYTES = 1 << 20
@@ -121,6 +122,8 @@ def check_values(shard: Shard, tensors: dict[str, ndarray]) -> None:
         if values is not None:
             _nonnegative(shard, name, values)
     _vectors(shard, tensors["vectors"])
+    if shard.id_stats is not None:
+        verify_stats(tensors["row_ids"], shard.id_stats, shard.name)
 
 
 def _blocks(array: ndarray):

@@ -186,6 +186,147 @@ this checkout's extension on Linux using CPython 3.13.16, keeps models/data outs
 the image and is never pushed to a registry. Rebuild after product changes. A container
 functional probe establishes function only, with no Linux or host-Mac speed claim.
 
+### Document-ID adapter profile
+
+`profile: "document-ids@1"` and `document-ids-1m@1` extend the same v2 controller with optional stored IDs,
+`store-search` and `store-open`. It does not add another timer or publication path.
+`base_doc_ids` and `candidate_doc_ids` accept `none`, `ordered` or `shuffled`.
+IDs are int64 row positions divided by `id_chunks` (default four), with seed-zero
+shuffling when selected. All written labels are checked against their source rows.
+Numerical tensors remain the common paired output proof. Search additionally checks
+every returned label against its physical position and every position against the filter.
+
+`benchmarks/config/document-ids-1m-local.json` defines the active smaller workload:
+1,002,340 rows from 230 complete WikiText test cycles, two workers and float32 tables.
+Both builds use the same resident count and complete corpus order. Every cell needs
+fresh same-cell controls. Float32 without IDs versus ordered IDs precedes int8.
+All v2 gates remain active: fifteen pairs, at least twelve seconds of warmup, A/A IQR
+below two percent, at most sixty active calibration minutes, a saving threshold of
+`max(3 * A/A IQR, 0.02)` and independent confirmation. A rejected speed decision does
+not establish a numerical difference; complete byte checks are a separate gate.
+
+The retained `benchmarks/config/document-ids-local.json` defines the earlier 10,001,610-row workload,
+2295 complete WikiText test cycles, with two workers and float32 tables. It is not
+the 100-million-row Linux headline or the earlier ten-million-row training-text study.
+Float32 ordered-ID writing precedes the int8 configurations. These comparisons are
+descriptive because optional ID work is an added feature, not a speed optimization.
+Its first float32 cell was inconclusive when the active calibration budget expired
+after nine of fifteen A/A pairs. Neither its partial observations nor its controls
+are reused for the smaller profile. Raw evidence remains retained.
+
+Both profiles require at least 30 GiB to remain
+free after the conservative planned output allocation. Admission checks each cell and
+each write group. Every repeated store is fully verified, synchronized and removed
+outside its group's timer. `*.stores.jsonl` records logical file bytes and ID payload
+bytes separately; these are not physical device writes.
+
+This profile's file-write RAM admission counts common live inputs plus the larger
+of encoding and complete store verification. FileSource maps the entire UTF-8 file.
+It tokenizes bounded tasks rather than allocating a token array for all input rows.
+The encode estimate includes the full mapped file, the 512 MiB runtime window,
+both 64 MiB writer queues and an additional 1 GiB native-workspace allowance per
+worker. Verification includes the full float32-sized store mapping, inverse norms,
+scales and IDs, even for smaller output formats. Common state retains the general
+reserve, model, Python-text, worker and ID budgets. The ledger records both phase
+estimates. The safety fraction remains 85 percent. These are conservative admission
+estimates, not observed RSS. Other profiles and stages retain their existing planner.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/document-ids-1m-local.json \
+  --cells local-wikitext-1002340-float32-ordered-ids \
+  --base-python /external/master/bin/python --candidate-python /external/candidate/bin/python \
+  --worker-name document-ids --results /external/ids-results --work /external/ids-work
+python benchmarks/quality.py --diagnose \
+  --development-input benchmarks/config/quality-local.json \
+  --base-python /external/master/bin/python --candidate-python /external/candidate/bin/python \
+  --worker-name document-ids --results /external/ids-quality --work /external/ids-quality-work
+```
+
+The normal A/A blocks always use the base interpreter and base ID mode for both arms.
+For the explicit ID-control cells, pass the candidate interpreter as both interpreters.
+Their base and candidate ID modes are both ordered. Such controls are separate cells,
+not reusable controls for a differently configured base/candidate comparison.
+
+`document-ids-store-local.json` defines small, complete 4358-row WikiText stores.
+These are explicitly separate from large-store evidence. Source-store construction,
+full verification, synchronization and filter preparation happen outside the timer.
+Search repeats exact scoring on an already open store. Open repeats opening and closing
+the same store with warm OS caches. It does not measure cold storage latency.
+Range, spread and missing filters use `filter_fraction` of the row or document domain.
+`filter_kind: "none"` supplies no filter argument to public `store.search`; it does
+not construct a full-domain row filter. `document-search-unfiltered-local.json`
+compares master with the candidate on ordinary float32 stores without document IDs.
+It uses one shared calibrated loop count and retains complete output bit checks.
+Its explicit non-regression assessment requires median paired relative time overhead
+in both comparison and confirmation below `max(3 * validated A/A IQR, 0.02)`.
+The `descriptive_only` tool label does not establish that assessment.
+`filter_kind` selects physical `rows` or logical `doc_ids`; `queries` and `k` are explicit.
+Both installed builds must support the selected filter API. Use two candidate
+interpreters for functional probes or controls where master lacks that API.
+Run `--diagnostic-rehearsal` with a separately named small-cycle configuration for
+functional probes. Never report those observations as the large workload's throughput.
+
+### Filtered-search cost profile
+
+`document-search-cost@1` is an explicit extension of the shared v2 controller.
+`benchmarks/config/document-search-cost-local.json` selects four pairs: 64 or 65,536
+document values on ordered or seed-zero shuffled IDs. Both interpreters execute the
+same candidate. The base arm calls the public `store.search` without a filter;
+the candidate arm supplies `doc_ids`. Each store contains 1,002,340 real WikiText
+rows with float32 POTION vectors, one fixed query, k=10 and two requested workers.
+These cost cells use `decision_gate: false` and begin calibration at twelve seconds.
+Independent A/A validation, fifteen pairs per block, confirmation and the 3,600-active-second
+calibration budget remain required. Exhausted calibration stays inconclusive.
+
+Before timing, the filter includes every unfiltered exact top-k document value and
+a deterministic unique augmentation to its declared size. Its input order is then
+permuted. This is a winner-inclusive workload, not random metadata filtering.
+Both arms must retain identical complete positions and score bits, and every returned
+document value is checked against its physical row and the unfiltered reference.
+The numerical checks are never replaced with a boolean success marker.
+
+Only this profile calibrates and freezes `base_iterations` and `candidate_iterations`
+separately. The continuous group timer, duration floors, warmups, fifteen alternating
+pairs, independent A/A validation and active calibration budget remain unchanged.
+A/A uses the unfiltered base operation and its loop count in both arms. Paired ratios
+use each arm's total seconds divided by its total public-call count, including ABBA.
+Raw group seconds and actual loop counts remain in every record. The one-call output
+proof compares the full numerical payload independently of different repetition counts.
+All other profiles retain their original common-count formula and proof.
+
+Results additionally contain `milliseconds_per_call` for both arms. These are medians
+and IQRs of group-normalized public-call latencies, not a p95 distribution of individual
+calls. Show each filtered result beside its own paired unfiltered reference. Model
+loading, source-store construction, synchronization, reference search and filter input
+generation remain outside the timer. Public validation, filter normalization and exact
+search are inside. Stores and OS caches are warmed, not forcibly cleared.
+
+Use the same declared cost rule for comparison and confirmation: median paired
+relative overhead strictly below `max(3 * validated A/A IQR, 0.02)`. A raw tool reject
+for lack of speedup is separate from this cost assessment. Keep all observations.
+
+Filter memory uses the existing internal `speed.py --development-job` action
+`filter-memory`, under `speed.py --local-heavy`. It reports warm incremental filter
+preparation plus block selection separately from the full public search (which also
+includes numerical scoring buffers). Caller arrays/lists and the independent row
+oracle are created outside the traced interval. Array data bytes and list/element
+representation sizes are separate from the measured incremental peak. Whole-child
+RSS includes source-store construction and the oracle as well.
+The filter-only probe uses the largest legal selection block, 65,536 rows, even
+when the actual vector width makes the public search use smaller scoring blocks.
+Both block sizes are recorded, so the budget evidence covers the general bound.
+
+Probe counts include the actual admitted boundary `FILTER_BYTES // FILTER_ROW_BYTES`
+and one entry above it. The latter must raise the filter-budget error before a large
+internal allocation. Existing 64 MiB admission and 24 bytes per input entry remain
+unchanged unless the recorded measurements justify a separately reviewed change.
+No index or sorted copy of the store's ID column is introduced.
+
+Calibrated loop counts and per-loop normalization follow the pattern documented in
+the [pyperf runner](https://pyperf.readthedocs.io/en/latest/runner.html) and
+[pyperf Run API](https://pyperf.readthedocs.io/en/latest/api.html#run-class).
+
 ## Inspect and set up
 
 Describe without importing optional measurement packages:

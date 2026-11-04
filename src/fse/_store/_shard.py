@@ -39,6 +39,7 @@ from fse._container import Hasher, checksum, remove_temporary, tensor_code
 from fse._container._npy import write_manifest
 from fse._container._npy_inplace import create, publish_directory, shrink, sync_data, write_at
 
+from ._id_writer import IdColumn
 from ._layout import StoreInfo, shard_metadata, shard_name
 
 
@@ -64,6 +65,7 @@ class ShardWriter:
         # vectors.npy is created at the first write, so the shards reserved ahead of their
         # writes (a task over many small shards) hold no open file.
         self.fd, self.offset = -1, 0
+        self.ids = IdColumn(self.tmp, capacity) if info.has_doc_ids else None
         self.scales = np.empty(capacity, np.float32) if info.dtype == "int8" else None
         self.norms = np.empty(capacity, np.float32)
         self.reserved = self.committed = self.written = 0
@@ -94,7 +96,7 @@ class ShardWriter:
         scales = None if self.scales is None else self.scales[begin:end]
         return codes, scales, self.norms[begin:end]
 
-    def commit(self, begin: int, codes: ndarray) -> None:
+    def commit(self, begin: int, codes: ndarray, doc_ids: ndarray | None = None) -> None:
         """The rows from ``begin`` (in the shard), which must be the codes reserved there,
         are finished: written into the file and hashed."""
         if begin != self.committed or begin not in self._open:
@@ -103,6 +105,10 @@ class ShardWriter:
             )
         if codes is not self._open[begin]:
             raise ValueError(f"the rows from {begin} are not the target reserved for them")
+        if self.ids is not None:
+            if doc_ids is None or len(doc_ids) != len(codes):
+                raise ValueError("missing document IDs for committed rows")
+            self.ids.commit(doc_ids)
         self.digest.update(codes)
         del self._open[begin]  # only once the commit is checked
         self.committed += len(codes)
@@ -114,11 +120,15 @@ class ShardWriter:
                 self.tmp / "vectors.npy", self.dtype, (self.capacity, self.info.dim)
             )
 
-    def write(self, begin: int, codes: ndarray) -> None:
+    def write(self, begin: int, codes: ndarray, doc_ids: ndarray | None = None) -> None:
         """Write the committed rows from ``begin`` (in the shard) into the file; positional,
         so it may run in another thread than ``commit`` (only one thread writes)."""
         self._file()
         write_at(self.fd, memoryview(codes).cast("B"), self.offset + begin * self.row_bytes)
+        if self.ids is not None:
+            if doc_ids is None:
+                raise ValueError("missing document IDs for written rows")
+            self.ids.write(begin, doc_ids)
         with self._written_rows:
             self.written += len(codes)
             self._written_rows.notify_all()
@@ -163,6 +173,8 @@ class ShardWriter:
         self.fd = -1
         code = tensor_code(np.empty(0, self.dtype))
         entries = {"vectors": (code, (rows, self.info.dim), self.digest.checksum())}
+        if self.ids is not None:
+            entries["row_ids"] = self.ids.finish(rows, synced=self.synced)
         extra = {"inv_norms": self.norms[:rows]}
         if self.scales is not None:
             extra["scales"] = self.scales[:rows]
@@ -175,6 +187,8 @@ class ShardWriter:
         metadata = shard_metadata(
             self.info, self.first_row, rows, self.created_by, unsynced=not self.synced
         )
+        if self.ids is not None:
+            metadata.update(self.ids.stats.metadata())
         manifest_tmp = self.tmp / f".manifest.json.writing-{secrets.token_hex(4)}"
         # Two full syncs on macOS: the directory before the rename makes the files and
         # the manifest durable, the store after it the rename (docs/architecture/store.md,
@@ -200,6 +214,8 @@ class ShardWriter:
         """Drop the shard: removes the temporary directory; returns the error of a removal
         that failed (None once it is gone, also if it was gone already)."""
         self._open.clear()
+        if self.ids is not None:
+            self.ids.close()
         if self.fd >= 0:
             os.close(self.fd)
             self.fd = -1

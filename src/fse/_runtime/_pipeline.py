@@ -138,7 +138,11 @@ class Pipeline:
         else:
             dtype = _codes.check_dtype(dtype)
         tasks, window, stop = self.plan_tasks(
-            source, workers, chunk_bytes, self._row_bytes(dtype, inverse), base
+            source,
+            workers,
+            chunk_bytes,
+            self._row_bytes(dtype, inverse) + getattr(sink, "extra_row_bytes", 0),
+            base,
         )
         self._planned(source, tasks, workers, window, dtype, sink)
         own: ArrayRows | GrowingRows | None = None
