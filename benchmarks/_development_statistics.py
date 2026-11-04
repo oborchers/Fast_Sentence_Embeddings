@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import statistics
 
+from _development_search import enabled as search_cost
+
 GATE_MINIMUMS = {"noise_multiplier": 3.0, "minimum_saving": 0.02, "confirmation_fraction": 0.5}
 
 
@@ -47,7 +49,7 @@ def paired(cell, records):
     factors = [_ratio(cell, records, number) for number in range(cell["pairs"])]
     if len(records) != cell["pairs"] * len(order(cell, 0)):
         raise ValueError("unexpected extra paired observations")
-    return {
+    result = {
         "factor": summary(factors),
         "seconds": {
             name: summary([r["seconds"] for r in records if r["arm"] == name])
@@ -55,6 +57,18 @@ def paired(cell, records):
         },
         "time_saving": 1 - 1 / statistics.median(factors),
     }
+    if search_cost(cell):
+        result["milliseconds_per_call"] = {
+            name: summary(
+                [
+                    1000 * r["seconds"] / r["operation_repetitions"]
+                    for r in records
+                    if r["arm"] == name
+                ]
+            )
+            for name in ("base", "candidate")
+        }
+    return result
 
 
 def _ratio(cell, records, number):
@@ -68,6 +82,14 @@ def _ratio(cell, records, number):
     b = sum(r["seconds"] for r in rows if r["arm"] == "candidate")
     if a <= 0 or b <= 0:
         raise ValueError("nonpositive paired arm time")
+    if search_cost(cell):
+        counts = {
+            name: sum(row["operation_repetitions"] for row in rows if row["arm"] == name)
+            for name in ("base", "candidate")
+        }
+        if min(counts.values()) <= 0:
+            raise ValueError("positive search call counts required")
+        return (a / counts["base"]) / (b / counts["candidate"])
     return a / b
 
 

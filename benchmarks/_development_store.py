@@ -8,6 +8,7 @@ from pathlib import Path
 
 from _development_encode import _sync, _sync_directory, output_identity
 from _development_ids import check_store, values
+from _development_search import enabled as search_cost
 
 
 @dataclass
@@ -15,12 +16,17 @@ class QueryOutput:
     found: object
     labels: object
     allowed: object
+    reference: object = None
 
 
 def checked_query(value):
     import numpy as np
 
     found = value.found
+    if value.reference is not None:
+        from _development_search_filters import check
+
+        check(found, value.reference)
     if not np.isin(found.ids, value.allowed).all():
         raise ValueError("filtered search returned an excluded row")
     if value.labels is not None and not np.array_equal(found.doc_ids, value.labels[found.ids]):
@@ -52,6 +58,7 @@ class StoreOperation:
         self.model, self.texts, self.job = model, texts, job
         self.path = Path(job["work"]) / (job["tag"] + "-source-store")
         self.store = None
+        self.reference = None
 
     def __enter__(self):
         import numpy as np
@@ -72,10 +79,23 @@ class StoreOperation:
         _sync(self.path)
         self.shape = np.asarray([len(self.texts), self.model.output_dim], dtype="int64")
         if job["stage"] == "store-search":
-            self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
             self.query = np.ones((job["queries"], self.model.output_dim), dtype="float32")
+            self.query.flags.writeable = False
             self.store = VectorStore.open(self.path)
+            try:
+                self._prepare_search(job)
+            except BaseException:
+                self.store.close()
+                raise
         return self
+
+    def _prepare_search(self, job):
+        if search_cost(job):
+            from _development_search_filters import prepare
+
+            self.filters, self.allowed, self.reference = prepare(self.store, self.query, job)
+        else:
+            self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
 
     def __call__(self):
         from fse import VectorStore
@@ -84,7 +104,7 @@ class StoreOperation:
             found = self.store.search(
                 self.query, self.job["k"], mode="exact", workers=self.job["workers"], **self.filters
             )
-            return QueryOutput(found, self.labels, self.allowed)
+            return QueryOutput(found, self.labels, self.allowed, self.reference)
         with VectorStore.open(self.path) as store:
             if len(store) != int(self.shape[0]) or store.dim != int(self.shape[1]):
                 raise ValueError("opened store shape differs")

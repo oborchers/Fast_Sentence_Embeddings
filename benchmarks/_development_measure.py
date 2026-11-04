@@ -13,10 +13,11 @@ from contextlib import nullcontext, suppress
 from pathlib import Path
 
 from _development_encode import operation as encode_operation
-from _development_encode import output_identity
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
 from _development_resources import check_write_disk
+from _development_search import metrics as search_metrics
+from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, observations
 from _measurement import append
@@ -101,7 +102,7 @@ def _call(operation, job, phase, number, waiting):
             "telemetry_after": after,
         },
     )
-    proof = {"operation_repetitions": job["iterations"], "one_iteration": output_identity(output)}
+    proof = output_proof(job, output)
     del output
     gc.collect()
     return seconds, proof, including_open, before, after
@@ -169,4 +170,5 @@ def _measured(operation, job, waiting, policy, resource):
             "timing_utf8_bytes": job["corpus"]["timing_utf8_bytes"]
             * (job["texts"] // job["corpus"]["texts"]),
         },
+        **search_metrics(job, seconds),
     }

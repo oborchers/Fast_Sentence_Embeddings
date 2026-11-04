@@ -21,6 +21,9 @@ DEFAULTS = {
     "filter_kind": "doc_ids",
     "filter_layout": "range",
     "filter_fraction": 0.01,
+    "filter_count": 64,
+    "base_iterations": 1,
+    "candidate_iterations": 1,
     "queries": 1,
     "k": 10,
     "resident_cycles": 1,
@@ -86,6 +89,9 @@ def validate_cell(raw, defaults):
         "id_chunks",
         "queries",
         "k",
+        "filter_count",
+        "base_iterations",
+        "candidate_iterations",
     ):
         _positive(cell[name], name, integral=True)
     for name in (
@@ -104,6 +110,9 @@ def validate_cell(raw, defaults):
     from _development_ids import validate
 
     validate(cell)
+    from _development_search import validate as validate_search
+
+    validate_search(cell)
     return cell
 
 

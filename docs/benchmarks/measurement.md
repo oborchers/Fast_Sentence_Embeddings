@@ -260,6 +260,60 @@ interpreters for functional probes or controls where master lacks that API.
 Run `--diagnostic-rehearsal` with a separately named small-cycle configuration for
 functional probes. Never report those observations as the large workload's throughput.
 
+### Filtered-search cost profile
+
+`document-search-cost@1` is an explicit extension of the shared v2 controller.
+`benchmarks/config/document-search-cost-local.json` selects four pairs: 64 or 65,536
+document values on ordered or seed-zero shuffled IDs. Both interpreters execute the
+same candidate. The base arm calls the public `store.search` without a filter;
+the candidate arm supplies `doc_ids`. Each store contains 1,002,340 real WikiText
+rows with float32 POTION vectors, one fixed query, k=10 and two requested workers.
+
+Before timing, the filter includes every unfiltered exact top-k document value and
+a deterministic unique augmentation to its declared size. Its input order is then
+permuted. This is a winner-inclusive workload, not random metadata filtering.
+Both arms must retain identical complete positions and score bits, and every returned
+document value is checked against its physical row and the unfiltered reference.
+The numerical checks are never replaced with a boolean success marker.
+
+Only this profile calibrates and freezes `base_iterations` and `candidate_iterations`
+separately. The continuous group timer, duration floors, warmups, fifteen alternating
+pairs, independent A/A validation and active calibration budget remain unchanged.
+A/A uses the unfiltered base operation and its loop count in both arms. Paired ratios
+use each arm's total seconds divided by its total public-call count, including ABBA.
+Raw group seconds and actual loop counts remain in every record. The one-call output
+proof compares the full numerical payload independently of different repetition counts.
+All other profiles retain their original common-count formula and proof.
+
+Results additionally contain `milliseconds_per_call` for both arms. These are medians
+and IQRs of group-normalized public-call latencies, not a p95 distribution of individual
+calls. Show each filtered result beside its own paired unfiltered reference. Model
+loading, source-store construction, synchronization, reference search and filter input
+generation remain outside the timer. Public validation, filter normalization and exact
+search are inside. Stores and OS caches are warmed, not forcibly cleared.
+
+Use the same declared cost rule for comparison and confirmation: median paired
+relative overhead strictly below `max(3 * validated A/A IQR, 0.02)`. A raw tool reject
+for lack of speedup is separate from this cost assessment. Keep all observations.
+
+Filter memory uses the existing internal `speed.py --development-job` action
+`filter-memory`, under `speed.py --local-heavy`. It reports warm incremental filter
+preparation plus block selection separately from the full public search (which also
+includes numerical scoring buffers). Caller arrays/lists and the independent row
+oracle are created outside the traced interval. Array data bytes and list/element
+representation sizes are separate from the measured incremental peak. Whole-child
+RSS includes source-store construction and the oracle as well.
+
+Probe counts include the actual admitted boundary `FILTER_BYTES // FILTER_ROW_BYTES`
+and one entry above it. The latter must raise the filter-budget error before a large
+internal allocation. Existing 64 MiB admission and 24 bytes per input entry remain
+unchanged unless the recorded measurements justify a separately reviewed change.
+No index or sorted copy of the store's ID column is introduced.
+
+Calibrated loop counts and per-loop normalization follow the pattern documented in
+the [pyperf runner](https://pyperf.readthedocs.io/en/latest/runner.html) and
+[pyperf Run API](https://pyperf.readthedocs.io/en/latest/api.html#run-class).
+
 ## Inspect and set up
 
 Describe without importing optional measurement packages:
