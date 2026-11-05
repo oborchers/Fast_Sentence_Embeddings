@@ -244,9 +244,9 @@ def test_a_model_that_is_no_model2vec_model_is_refused_with_the_reason(tmp_path)
         folder = sm.model_folder(tmp_path / layout, layout)
         path = folder / "model.safetensors"
         table = load_file(path)[tensor]
-        for extra in ("weights", "mapping"):
+        for extra, reason in (("weights", "separate token weights"), ("mapping", "quantization")):
             save_file({tensor: table, extra: np.zeros(len(table), np.float32)}, path)
-            with pytest.raises(UnsupportedArtifactError, match="vocabulary quantization"):
+            with pytest.raises(UnsupportedArtifactError, match=reason):
                 fse.StaticModel.from_pretrained(folder)
         if layout == "st-root":
             save_file({tensor: table.astype(np.float16)}, path)
