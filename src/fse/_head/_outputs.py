@@ -53,8 +53,12 @@ def output_identity(model_fingerprint: str, output: str) -> str:
 class HeadsBatch:
     """One batch of ``Heads.predict_batches``: its rows ``first_row`` to ``first_row +
     n_rows - 1`` of the run, the ``outputs`` of every head by name (as ``predict`` of that
-    head gives them, or the output asked for) and, with ``return_vectors=True``, the
-    ``vectors``, the rows of the encoder (else None).
+    head gives them, or the output asked for), with ``return_vectors=True`` the ``vectors``,
+    the rows of the encoder (else None), and with a ``score_sink`` the ``durable_rows``: the
+    rows of the run that were durable when the batch was given (the sink's ``durable_rows``
+    after its ``publish``; None without a sink). It is a snapshot: the last batch can report
+    fewer rows than the run has, as the sink's ``flush`` runs after it; the sink's own
+    ``durable_rows`` has the final count.
 
     Read the fields by name: a batch is not iterable and does not unpack, so a field added in
     a later minor release (with a default) breaks no caller."""
@@ -63,3 +67,4 @@ class HeadsBatch:
     n_rows: int
     outputs: Mapping[str, ndarray]
     vectors: ndarray | None
+    durable_rows: int | None = None

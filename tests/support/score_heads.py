@@ -15,7 +15,7 @@ def encoder(**kwargs):
     )
 
 
-def classifier(enc, k=3, *, link="auto", seed=None, labels=None, thresholds=None):
+def classifier(enc, k=3, *, link="auto", seed=None, labels=None, thresholds=None, normalized=False):
     rng = np.random.default_rng(k if seed is None else seed)
     weight = rng.standard_normal((k, enc.output_dim)).astype(F32)
     names = labels or (["no", "yes"] if k == 1 else [f"c{i}" for i in range(k)])
@@ -26,6 +26,7 @@ def classifier(enc, k=3, *, link="auto", seed=None, labels=None, thresholds=None
         labels=names,
         link=link,
         thresholds=thresholds,
+        normalized=normalized,
     )
 
 

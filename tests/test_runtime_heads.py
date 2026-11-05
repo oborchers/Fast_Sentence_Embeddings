@@ -147,3 +147,58 @@ def test_an_empty_source_gives_empty_arrays():
 def test_the_group_equals_each_head_alone_with_several_workers_and_a_stream(vectors):
     spec = case_spec("float32", fasttext=True, normalize=True)
     check_group(spec, members_of(spec, "M"), "cpu", None, vectors, sentences(80))
+
+
+class Collector:
+    """A tee that joins the rows of the tasks of a run."""
+
+    def __init__(self):
+        self.parts = {}
+
+    def target(self, first_row, n_rows):
+        pass
+
+    def commit(self, first_row, rows):
+        self.parts[first_row] = np.array(rows)
+
+    def joined(self):
+        return np.concatenate([self.parts[k] for k in sorted(self.parts)])
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b[1] or b[0])
+@pytest.mark.parametrize("name", ["F3", "N2"])
+def test_a_second_output_has_the_bits_of_that_output_alone(backend, name):
+    name_, isa = backend
+    spec = case_spec("float16", fasttext=True, normalize=False)
+    members = members_of(spec, name)
+    texts = sentences(120) * 4
+    pipe = group(spec, members, name_, isa)
+    # Each head returns its labels and gives its probabilities (or its logits) on the side.
+    labels = outputs_for(members, "labels")
+    extras = [("logits" if i % 2 else "proba", Collector()) for i in range(len(members))]
+    results, _ = pipe.infer(
+        StringSource(texts), outputs=labels, workers=3, extras=extras, tee_bytes=64
+    )
+    alone_labels = group(spec, members, name_, isa).infer(
+        StringSource(texts), outputs=labels, workers=1
+    )[0]
+    for got, want, output in zip(results, alone_labels, labels, strict=True):
+        assert_same(got, want, output)
+    for member, (kind, tee) in zip(members, extras, strict=True):
+        want, _ = alone(spec, member, name_, isa, False, texts, kind)
+        assert_same(tee.joined(), want, kind)
+
+
+def test_a_tee_on_the_main_output_and_a_second_output_do_not_change_the_window():
+    spec = case_spec("float32", fasttext=False)
+    pipe = group(spec, members_of(spec, "F3"))
+    outs = outputs_for(pipe.plan.members, "labels")
+    source = StringSource(["w1 w2"] * 40000)
+    plain = pipe.plan.row_bytes(outs, "float32", False)
+    extras = ("logits", None, "proba")
+    heavy = pipe.plan.row_bytes(outs, "float32", False, extras, 8 * 4 + 8)
+    assert heavy > plain
+    small, window, _ = pipe.plan.primary.plan_tasks(source, 4, None, heavy)
+    big, _, _ = pipe.plan.primary.plan_tasks(source, 4, None, plain)
+    assert max(t.n_rows for t in small.tasks) <= max(t.n_rows for t in big.tasks)
+    assert window >= 1

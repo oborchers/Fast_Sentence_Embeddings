@@ -134,14 +134,26 @@ class HeadsPlan:
 
     # --- the memory of a row --------------------------------------------------------
 
-    def row_bytes(self, outputs: tuple[str, ...], vdtype: str, inverse: bool) -> int:
+    def row_bytes(
+        self,
+        outputs: tuple[str, ...],
+        vdtype: str,
+        inverse: bool,
+        extras: tuple[str | None, ...] | None = None,
+        tee_bytes: int = 0,
+    ) -> int:
         """The bytes one row of a task takes at most: the rows the heads read (and their
         step), the logits and output targets of every head and, with the vectors, their
         target and scratch as the encoder's pipeline counts them. For one head the sum of
-        the former single-head pipeline."""
-        total = self._fixed_bytes
+        the former single-head pipeline. A head may give one more output (``extras``, one
+        entry per head: "logits", "proba" or None) into a target of its own, and a run that
+        copies its outputs on (a score sink) holds ``tee_bytes`` more per row (the matrix of
+        the sink and the document IDs); without them the sum is the one above."""
+        total = self._fixed_bytes + tee_bytes
         for member, output in zip(self.members, outputs, strict=True):
             total += _head_bytes(member.head, output)
+        for member, extra in zip(self.members, extras or (), strict=False):
+            total += 0 if extra is None else 4 * member.head.width(extra)
         if self.with_vectors:
             total += self.own._row_bytes(vdtype, inverse)
         return total

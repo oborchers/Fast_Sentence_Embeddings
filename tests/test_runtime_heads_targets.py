@@ -64,3 +64,63 @@ def test_a_sink_takes_the_rows_of_its_head_numbered_from_the_run():
     assert results[0] is None
     assert sink.result().tolist() == [[7, 7, 7]] * 2
     assert results[1].shape == (2, 2)
+
+
+class Recorder:
+    """A tee: it takes the rows of every task at the commit."""
+
+    def __init__(self):
+        self.opened, self.committed = [], []
+
+    def target(self, first_row, n_rows):
+        self.opened.append((first_row, n_rows))
+
+    def commit(self, first_row, rows):
+        self.committed.append((first_row, np.array(rows)))
+
+
+def test_a_tee_gets_the_rows_of_a_task_at_its_commit_numbered_from_the_run():
+    spec = case_spec("float32", False)
+    heads = [head_of(spec, 3, False)]
+    tee = Recorder()
+    targets = Targets(heads, ("logits",), [None], 5, base=100, vectors=None, tees=[tee])
+    first, task = _task(0, 2), _task(2, 3)
+    targets.commit(first, targets.reserve(first))
+    done = targets.reserve(task)
+    assert tee.opened == [(100, 2), (102, 3)]
+    assert [row for row, _ in tee.committed] == [100]  # only the first task is finished
+    done[0][0][...] = 7
+    targets.commit(task, done)
+    assert [(row, part.shape) for row, part in tee.committed] == [(100, (2, 3)), (102, (3, 3))]
+    assert (tee.committed[1][1] == 7).all()
+    results, _ = targets.results()
+    assert results[0].shape == (5, 3)  # the tee takes no part in the arrays returned
+
+
+def test_slots_add_one_scratch_slot_for_each_extra_output():
+    from fse._runtime._heads_targets import Scratch, Slots
+
+    spec = case_spec("float32", False)
+    heads = [head_of(spec, 1, False), head_of(spec, 4, False)]
+    tee_a, tee_b = Recorder(), Recorder()
+    slots = Slots(
+        heads, ("labels", "logits"), [None, None], [None, tee_a], [("proba", tee_b), None]
+    )
+    assert slots.outputs == ("labels", "logits", "proba")
+    assert slots.of_member == [[0, 2], [1]]
+    assert slots.extra_kinds == ("proba", None)
+    assert slots.tees == [None, tee_a, tee_b]
+    assert isinstance(slots.sinks[2], Scratch)
+    assert slots.heads(heads) == [heads[0], heads[1], heads[0]]
+    scratch = slots.sinks[2]
+    assert scratch.target(0, 4).shape == (4, 2)  # the two probabilities of one logit
+    scratch.commit(0, None)
+
+
+def test_slots_refuse_lists_of_other_lengths():
+    from fse._runtime._heads_targets import Slots
+
+    spec = case_spec("float32", False)
+    heads = [head_of(spec, 1, False)]
+    with pytest.raises(ValueError, match="one sink, tee and extra output"):
+        Slots(heads, ("logits",), [None], [None, None], None)

@@ -229,3 +229,40 @@ def test_the_bytes_of_a_row_are_counted_by_the_rule_of_the_kinds(shape, vectors)
     for count in (len(shape) - 1, len(shape) + 1):  # fewer or more outputs than heads
         with pytest.raises(ValueError, match="zip"):
             plan.row_bytes(("logits",) * count, "float32", False)
+
+
+def _frozen_row_bytes(plan, outputs, vdtype, inverse):
+    """The sum of a row before score sinks: one output per head."""
+    from fse._runtime._heads_plan import _head_bytes
+
+    total = plan._fixed_bytes
+    for member, output in zip(plan.members, outputs, strict=True):
+        total += _head_bytes(member.head, output)
+    if plan.with_vectors:
+        total += plan.own._row_bytes(vdtype, inverse)
+    return total
+
+
+@pytest.mark.parametrize("shape", ["F2", "F3", "N2", "M"])
+@pytest.mark.parametrize("vectors", [False, True])
+def test_without_a_sink_the_bytes_of_a_row_are_those_before_score_sinks(shape, vectors):
+    spec = case_spec("float32", fasttext=False)
+    plan = group(spec, members_of(spec, shape), vectors=vectors).plan
+    # The mixed group holds regressors and a head without a link: only logits fit them all.
+    for outputs in (("logits",),) if shape == "M" else (("logits",), ("proba",), ("labels",)):
+        outs = outputs * len(plan.members)
+        for extras in (None, (None,) * len(plan.members)):
+            for dtype, inverse in (("float32", False), ("int8", True)):
+                want = _frozen_row_bytes(plan, outs, dtype, inverse)
+                assert plan.row_bytes(outs, dtype, inverse, extras) == want
+                assert plan.row_bytes(outs, dtype, inverse) == want
+
+
+def test_a_second_output_and_the_sink_matrix_count_in_the_row():
+    spec = case_spec("float32", fasttext=False)
+    plan = group(spec, members_of(spec, "F2")).plan
+    base = plan.row_bytes(("labels", "labels"), "float32", False)
+    first, second = (m.head for m in plan.members)
+    extras = ("logits", "proba")
+    more = plan.row_bytes(("labels", "labels"), "float32", False, extras, 100)
+    assert more - base == 100 + 4 * first.width("logits") + 4 * second.width("proba")

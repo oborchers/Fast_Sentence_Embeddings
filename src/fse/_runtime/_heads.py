@@ -39,7 +39,7 @@ from ._heads_plan import (
     STANDALONE,
     HeadsPlan,
 )
-from ._heads_targets import Targets
+from ._heads_targets import Slots, Targets
 from ._pipeline import check_workers
 from ._sinks import Sink, split_target
 from ._tasks import Task
@@ -80,23 +80,42 @@ class HeadsPipeline:
         inverse: bool = False,
         chunk_bytes: int | None = None,
         first_row: int = 0,
+        tees: list[Sink | None] | None = None,
+        extras: list[tuple[str, Sink] | None] | None = None,
+        tee_bytes: int = 0,
     ) -> tuple[list[ndarray | None], Any]:
         """The ``outputs`` ("logits", "proba" or "labels" per head) of every sentence of
         ``source`` (and, if the plan has the vectors, the vectors, as ``vector_dtype``,
         with the inverse norms a ``vector_sink`` wants if ``inverse``), returned or
         committed to the sinks, numbered from ``first_row`` there; errors name the rows
         from ``first_row``. The caller checked every argument but ``workers`` before the
-        source is read."""
+        source is read.
+
+        A head may also give a second output (``extras``, per head: its runtime output
+        and a tee that gets its rows) and its main output may have a ``tee``; a tee gets the
+        finished rows of every task in the calling thread, numbered from ``first_row``,
+        and ``tee_bytes`` is what the tees hold per row (see ``HeadsPlan.row_bytes``). The
+        arrays returned are those of the main outputs."""
         plan = self.plan
         workers = check_workers(workers) or usable_cpus()
-        sinks = sinks or [None] * len(plan.members)
-        row_bytes = plan.row_bytes(outputs, vector_dtype, inverse)
+        count = len(plan.members)
+        sinks = sinks or [None] * count
+        heads = [m.head for m in plan.members]
+        slots = Slots(heads, outputs, sinks, tees, extras)
+        row_bytes = plan.row_bytes(outputs, vector_dtype, inverse, slots.extra_kinds, tee_bytes)
         tasks, window, stop = plan.primary.plan_tasks(
             source, workers, chunk_bytes, row_bytes, first_row
         )
-        heads = [m.head for m in plan.members]
         vectors = (self.vector_dim, vector_dtype, vector_sink) if plan.with_vectors else None
-        targets = Targets(heads, outputs, sinks, tasks.rows, base=first_row, vectors=vectors)
+        targets = Targets(
+            slots.heads(heads),
+            slots.outputs,
+            slots.sinks,
+            tasks.rows,
+            base=first_row,
+            vectors=vectors,
+            tees=slots.tees,
+        )
         local = threading.local()
 
         def work(item: tuple) -> tuple:
@@ -110,7 +129,7 @@ class HeadsPipeline:
                         [first_rows(t, n) for t in rows],
                         first_rows(vrows, n),
                         first_row,
-                        outputs,
+                        slots,
                         vector_dtype,
                         inverse,
                     )
@@ -134,31 +153,36 @@ class HeadsPipeline:
             reserve=lambda task: (task, targets.reserve(task)),
             stop=stop,
         )
-        return targets.results()
+        arrays, vectors = targets.results()
+        return arrays[:count], vectors
 
     # --- one task -------------------------------------------------------------------
 
-    def _work(self, local, task: Task, rows, vrows, base, outputs, vdtype, inverse) -> None:
+    def _work(self, local, task: Task, rows, vrows, base, slots, vdtype, inverse) -> None:
         """One task in its worker: the rows the heads read (and the vectors), then each
-        head's logits and output into its target (and the vectors into ``vrows``)."""
+        head's logits and outputs into its targets (and the vectors into ``vrows``)."""
         plan = self.plan
         batch = plan.primary.batch(local, task, base)
         first = base + task.first_row
-        direct = self._direct(rows, outputs)
+        direct = self._direct(rows, slots)
         vsplit = split_target(vrows, vdtype, inverse) if plan.with_vectors else None
         read = self._read(local, batch, task.n_rows, first, direct, vsplit)
-        for i, output in enumerate(outputs):
-            self._head(local, i, read, rows[i], output, first)
+        for i, own in enumerate(slots.of_member):
+            self._head(local, i, read, [(slots.outputs[s], rows[s]) for s in own], first)
         if vsplit is not None:
             # The vectors are stored (stage 5) after the heads (4b): for one row the heads'
             # error comes first.
             plan.own.stored(read.vectors, vsplit, first)
 
-    def _direct(self, rows: list, outputs: tuple[str, ...]) -> ndarray | None:
+    def _direct(self, rows: list, slots: Slots) -> ndarray | None:
         """The target of the logits of a lone folded head: pooled in place, the bias added
         there."""
         plan = self.plan
-        if len(rows) == 1 and outputs[0] == "logits" and plan.kinds[0] in (FOLDED, STANDALONE):
+        if (
+            len(rows) == 1
+            and slots.outputs[0] == "logits"
+            and plan.kinds[0] in (FOLDED, STANDALONE)
+        ):
             return rows[0]
         return None
 
@@ -222,20 +246,22 @@ class HeadsPipeline:
                 raise
             raise PoolingError(table, error) from None
 
-    def _head(self, local, i: int, read: Rows, target: ndarray, output: str, first: int) -> None:
-        """The logits of head ``i`` from the rows it reads, and its output into ``target``."""
+    def _head(self, local, i: int, read: Rows, outs: list, first: int) -> None:
+        """The logits of head ``i`` from the rows it reads, and each of its outputs
+        (``outs``: pairs of the output and its target) into its target."""
         plan = self.plan
         member, kind = plan.members[i], plan.kinds[i]
-        head, n = member.head, len(target)
+        head, n = member.head, len(outs[0][1])
         try:
             source, weight = self._source(local, i, kind, read, n)
             backend = plan.primary.backend
-            logits = (
-                target if output == "logits" else buffer(local, plan.logit_buffers[i], n, head.k)
-            )
+            logits = next((t for o, t in outs if o == "logits"), None)
+            if logits is None:
+                logits = buffer(local, plan.logit_buffers[i], n, head.k)
             backend.logits(source, weight, head.bias, logits, first)
-            if output in ("proba", "labels"):
-                write_outputs(backend, local, head, logits, target, output, first, plan.tags[i])
+            for output, target in outs:
+                if output in ("proba", "labels"):
+                    write_outputs(backend, local, head, logits, target, output, first, plan.tags[i])
         except ValueError as error:
             if not plan.named:
                 raise

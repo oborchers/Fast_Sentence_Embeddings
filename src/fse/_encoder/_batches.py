@@ -46,6 +46,11 @@ class EncodedBatch(NamedTuple):
 
 def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
     """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder."""
+    if hasattr(sink, "score_schema"):
+        raise ValueError(
+            "a ScoreSink stores the scores of fse.Heads, not rows of an encoder or the "
+            "outputs of one head; use fse.Heads(name=model).predict_batches(..., score_sink=sink)"
+        )
     if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
         raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))
