@@ -404,7 +404,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_filtered", "_shard | _writer | _search | _recovery", "_selection | _result", "_layout | _id_writer", "_id_stats"]
+layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_shard | _writer | _search | _recovery", "_selection | _result", "_layout | _id_writer", "_id_stats"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"
@@ -418,7 +418,7 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_heads", "_classifier | _regressor | _heads_run", "_model", "_run | _model_hub", "_sklearn | _format | _outputs", "_sklearn_ovr | _sklearn_calibrated | _thresholds", "_calibration", "_content"]
+layers = ["_heads", "_classifier | _regressor | _heads_run", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _model2vec", "_calibration", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"
@@ -452,7 +452,7 @@ layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
 type = "forbidden"
 source_modules = ["fse"]
-forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "sklearn", "pyarrow", "pandas", "polars", "datasets", "nanoarrow"]
+forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "model2vec", "sklearn", "pyarrow", "pandas", "polars", "datasets", "nanoarrow"]
 ignore_imports = ["fse.gensim -> gensim"]
 
 # --- Unused code and dependencies (make lint) ---

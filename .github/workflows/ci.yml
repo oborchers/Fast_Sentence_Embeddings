@@ -221,8 +221,9 @@ jobs:
             flag native '^tools/hub/|^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
             flag deps '^(pyproject\.toml|uv\.lock)$'
             # The converter, its tests and helpers (tests/support/converted.py builds the
-            # models of the conversion tests), and the pins of the st group.
-            flag st '^src/fse/_encoder/_sentence_transformers|^tests/test_encoder_sentence_transformers|^tests/support/(sentence_transformers|converted)\.py$|^(pyproject\.toml|uv\.lock)$'
+            # models of the conversion tests), the Model2Vec classifier importers (their trained-model
+            # tests need torch) and the pins of the st group.
+            flag st '^src/fse/_encoder/_sentence_transformers|^src/fse/_head/_model2vec|^tests/test_encoder_sentence_transformers|^tests/test_head_model2vec|^tests/support/(sentence_transformers|converted|model2vec|model2vec_head)\.py$|^(pyproject\.toml|uv\.lock)$'
             flag sdist '^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|^src/fse/(_native_src/.*|[^/]*)\.(pyx|pxd|pxi|h)$'
           } >> "$GITHUB_OUTPUT"
           # Linux on 3.13 and selected minimum dependencies. macOS is explicit only.

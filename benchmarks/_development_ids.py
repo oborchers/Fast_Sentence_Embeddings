@@ -40,6 +40,20 @@ def check_store(store, mode, chunks=4):
             raise ValueError("stored document IDs differ from their input row positions")
 
 
+def _check_unique(cell, modes):
+    if cell["max_per_doc"] is not None and (
+        cell["max_per_doc"] != 1
+        or cell["stage"] != "store-search"
+        or "none" in modes
+        or cell["filter_kind"] != "none"
+        or cell["profile"] == "document-search-cost@1"
+    ):
+        raise ValueError(
+            "max_per_doc needs 1 and unfiltered store-search on stores with IDs, "
+            "outside document-search-cost@1"
+        )
+
+
 def validate(cell):
     if cell["profile"] not in (
         "standard@1",
@@ -67,6 +81,7 @@ def validate(cell):
         "missing",
     ):
         raise ValueError("unknown development filter profile")
+    _check_unique(cell, modes)
     fraction = cell["filter_fraction"]
     if type(fraction) not in (int, float) or not 0 <= fraction <= 1:
         raise ValueError("filter_fraction must be a finite number between zero and one")
