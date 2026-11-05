@@ -21,7 +21,8 @@ Repeated document IDs do not group or deduplicate the results unless you pass
 
 ID inputs are Python integer lists, one-dimensional NumPy int64 arrays, or
 primitive Arrow int64 columns without nulls. Other dtypes, nulls, bools, floats
-and out-of-range integers raise. One ID is required per text. Keep input buffers
+and out-of-range integers raise. One ID is required per text. `encode(texts, doc_ids=ids, sink=sink)` takes the IDs themselves;
+`doc_ids=True` is the switch of `encode_batches`, and `encode` refuses it with a `TypeError`. Keep input buffers
 unchanged until processing finishes. IDs require an ID-enabled sink. Appending
 with a different ID mode raises rather than changing an existing store.
 
