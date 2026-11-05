@@ -33,6 +33,7 @@ DEFAULTS = {
     "filter_layout": "range",
     "filter_fraction": 0.01,
     "filter_count": 64,
+    "max_per_doc": None,
     "base_iterations": 1,
     "candidate_iterations": 1,
     "queries": 1,
@@ -91,6 +92,8 @@ def validate_cell(raw, defaults):
         raise ValueError("unknown table or output dtype")
     if type(cell["decision_gate"]) is not bool:
         raise ValueError("decision_gate must be a boolean")
+    if cell["max_per_doc"] is not None and type(cell["max_per_doc"]) is not int:
+        raise ValueError("max_per_doc must be null or 1")
     for name in (
         "workers",
         "pairs",

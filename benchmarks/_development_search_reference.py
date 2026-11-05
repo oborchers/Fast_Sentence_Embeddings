@@ -19,28 +19,56 @@ def _merge(ids, scores, new_ids, new_scores, k):
     return positions[best], values[best]
 
 
-def complete(store, query, k, allowed, labels):
+def _merge_unique(ids, scores, new_ids, new_scores, labels, width):
     import numpy as np
 
     from fse import _reference
 
+    positions = np.concatenate((ids, new_ids))
+    values = np.concatenate((scores, new_scores))
+    order = np.argsort(positions)
+    positions, values = positions[order], values[order]
+    best = _reference.top_k_unique(values, labels[positions], width)
+    return positions[best], values[best]
+
+
+def _scored(store, vector, allowed):
+    """(positions, cosines) of the allowed rows, block by block, by the reference."""
+    import numpy as np
+
+    from fse import _reference
+
+    for shard, tensors in store._shards:
+        for begin in range(0, shard.rows, 4096):
+            end = min(begin + 4096, shard.rows)
+            lo, hi = np.searchsorted(allowed, [shard.first_row + begin, shard.first_row + end])
+            positions = allowed[lo:hi]
+            if len(positions):
+                local = positions - shard.first_row
+                yield (
+                    positions,
+                    _reference.cosine(
+                        tensors["vectors"][local], tensors["inv_norms"][local], vector
+                    ),
+                )
+
+
+def complete(store, query, k, allowed, labels, one_per_doc=False):
+    import numpy as np
+
     width = min(k, len(allowed))
+    if one_per_doc:
+        width = min(k, len(np.unique(labels[allowed])))
     ids = np.empty((len(query), width), dtype="int64")
     scores = np.empty((len(query), width), dtype="float32")
     for q, vector in enumerate(query):
         best_ids, best_scores = np.empty(0, dtype="int64"), np.empty(0, dtype="float32")
-        for shard, tensors in store._shards:
-            for begin in range(0, shard.rows, 4096):
-                end = min(begin + 4096, shard.rows)
-                first = shard.first_row + begin
-                lo, hi = np.searchsorted(allowed, [first, shard.first_row + end])
-                positions = allowed[lo:hi]
-                if not len(positions):
-                    continue
-                local = positions - shard.first_row
-                values = _reference.cosine(
-                    tensors["vectors"][local], tensors["inv_norms"][local], vector
+        for positions, values in _scored(store, vector, allowed):
+            if one_per_doc:
+                best_ids, best_scores = _merge_unique(
+                    best_ids, best_scores, positions, values, labels, width
                 )
+            else:
                 best_ids, best_scores = _merge(best_ids, best_scores, positions, values, width)
         ids[q], scores[q] = best_ids, best_scores
     return SimpleNamespace(ids=ids, scores=scores, doc_ids=None if labels is None else labels[ids])

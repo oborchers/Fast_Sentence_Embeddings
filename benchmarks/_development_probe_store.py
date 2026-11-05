@@ -28,7 +28,12 @@ def probe_store(model, texts, job, verify_payload):
                 if operation.filters:
                     allowed = allowed[np.isin(operation.labels, operation.filters["doc_ids"])]
             reference = complete(
-                operation.store, operation.query, job["k"], allowed, operation.labels
+                operation.store,
+                operation.query,
+                job["k"],
+                allowed,
+                operation.labels,
+                one_per_doc=job["max_per_doc"] is not None,
             )
             check_search(result.found, reference)
         elif not np.array_equal(result, np.array([len(texts), model.output_dim], dtype="int64")):

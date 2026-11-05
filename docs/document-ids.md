@@ -1,7 +1,8 @@
 # Store document IDs and filter search
 
 Document IDs connect stored rows to your documents. They are signed int64 values.
-Several chunks may share one ID. fse returns each matching row separately.
+Several chunks may share one ID. fse returns each matching row separately, unless you
+ask for the best hit per document (see below).
 
 ```python
 with fse.ShardSink(path, encoder, doc_ids=True) as sink:
@@ -15,13 +16,49 @@ with fse.VectorStore.open(path) as store:
 
 `found.ids` still contains physical positions. `found.doc_ids` is an additional
 array on ID-enabled stores. Equal scores still prefer the smaller position.
-Repeated document IDs do not group or deduplicate the results.
+Repeated document IDs do not group or deduplicate the results unless you pass
+`max_per_doc=1`.
 
 ID inputs are Python integer lists, one-dimensional NumPy int64 arrays, or
 primitive Arrow int64 columns without nulls. Other dtypes, nulls, bools, floats
 and out-of-range integers raise. One ID is required per text. Keep input buffers
 unchanged until processing finishes. IDs require an ID-enabled sink. Appending
 with a different ID mode raises rather than changing an existing store.
+
+## Best hit per document
+
+With several chunks per document, the `k` best rows can all come from one document.
+`max_per_doc=1` (keyword only, a store with document IDs) returns the `k` best documents
+instead. Only the value 1 is allowed in this version; any other value raises a
+`ValueError`, and larger values may be added later. The default `None` keeps the
+ordinary search.
+
+```python
+found = store.search(query, 10, max_per_doc=1, mode="exact")
+found.ids        # the position of the best chunk of each document
+found.doc_ids    # ten different document IDs
+```
+
+Of every document ID only its best row counts: the largest score, and for equal scores
+the smaller position. The documents follow in the order of those rows: the larger score
+first, equal scores by the smaller position, never by the label. If all IDs are
+different, the result equals the ordinary search bit for bit. `mode="exact"` returns the
+scores and bits of the ordinary exact search for the rows it returns.
+
+`k` counts documents. A result has `min(k, documents)` entries per query, as many as
+the selection holds, without an error. This is the rule of every search: at most `k`
+results, fewer if there are fewer candidates, and no error when `k` is larger than the
+number of rows (earlier versions of 2.0 raised a `ValueError` for an unfiltered search).
+An empty selection gives empty arrays of the usual types. `doc_ids=[...]` and `rows=[...]`
+work as before and apply first: the rows are selected, then grouped by the IDs of the selected
+rows. Several queries group independently and give a rectangular result.
+
+fse does not fetch extra rows and cut them down. It keeps the best row per document in
+every block of the scan, so the result is exact and the memory stays bounded. Sorted IDs
+group by neighbouring values. Unordered IDs need one stable sort of the IDs of each
+block, so writing IDs in nondecreasing order stays cheaper. The memory per running
+task is a few times the 4 MiB of scores of a block; very many queries together with a
+large `k` need memory in proportion to both, as in the ordinary search.
 
 ## Batches and Parquet
 

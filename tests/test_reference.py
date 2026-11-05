@@ -16,6 +16,7 @@ from fse._reference import (
     quantize_rows,
     score,
     top_k,
+    top_k_unique,
 )
 
 F32 = np.float32
@@ -235,6 +236,10 @@ def test_scores_and_cosine():
     # The cosine ignores the scale: [127, 0] with scale 2 points along the query.
     np.testing.assert_allclose(cosine(stored, inverse, np.array([3, 0], F32)), [1, 0, 0])
     assert top_k(np.array([0.5, 0.9, 0.9, 0.1], F32), 3).tolist() == [1, 2, 0]
+    # top_k_unique: each label by its best row, the tie of rows 1 and 2 to the smaller row
+    scores, labels = np.array([0.5, 0.9, 0.9, 0.1], F32), np.array([4, 7, 7, 4])
+    assert top_k_unique(scores, labels, 3).tolist() == [1, 0]
+    assert top_k_unique(scores, labels, 1).tolist() == [1]
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
