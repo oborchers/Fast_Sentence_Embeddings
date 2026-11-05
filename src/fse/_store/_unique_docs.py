@@ -93,7 +93,7 @@ class DocumentCandidates:
     def __init__(self, n_queries: int, k: int):
         self.k = k
         self.floor = np.full(n_queries, _search.LOWEST, np.int32)
-        self._merged = (
+        self._merged: tuple[ndarray, ...] = (
             np.empty(0, np.int64),
             np.empty(0, F32),
             np.empty(0, np.int64),
