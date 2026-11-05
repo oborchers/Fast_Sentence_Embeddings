@@ -34,6 +34,8 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, dim, dtype, shard_rows, durability (`full`, `none`) | `ShardSink` |
 | `store.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ShardSink` (thread `fse-shard-publish`) |
 | `store.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds | `ShardSink.close` |
+| `scores.opened` | INFO | `fse.store` | rows, shards, heads, columns, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.open` |
+| `scores.verified` | INFO | `fse.store` | rows, shards, seconds | `ScoreStore.verify` |
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |

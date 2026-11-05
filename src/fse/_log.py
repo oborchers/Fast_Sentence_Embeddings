@@ -60,6 +60,8 @@ EVENTS: dict[str, tuple[str, int]] = {
     "scores.sink_opened": ("fse.store", INFO),
     "scores.shard_published": ("fse.store", DEBUG),
     "scores.sink_closed": ("fse.store", INFO),
+    "scores.opened": ("fse.store", INFO),
+    "scores.verified": ("fse.store", INFO),
 }
 
 _LOGGERS = {name: logging.getLogger(name) for name in LOGGER_NAMES}

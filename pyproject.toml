@@ -413,7 +413,7 @@ name = "Scores: the store on its predictions, those and the batches and sink on 
 type = "layers"
 containers = ["fse._scores"]
 exhaustive = true
-layers = ["_sink", "_schema"]
+layers = ["_scorestore", "_predict", "_batches | _sink", "_schema"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"
