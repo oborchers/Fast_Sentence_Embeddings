@@ -50,6 +50,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
     if cell["profile"] == "linear-heads@1" and cell["stage"] in (
         "head-folded",
         "head-with-vectors",
+        "head-labels",
     ):
         # Four probabilities per row, two live public results plus bounded workspaces.
         # Folded mode retains its prepared word table; vectors mode holds full means.

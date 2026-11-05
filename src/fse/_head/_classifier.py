@@ -68,7 +68,18 @@ class Classifier(LinearModel):
         without changing weights. Indicator-matrix OneVsRest training usually stores
         numeric column indices, not application names. Multilabel import requires
         affine sigmoid binary estimators (or constant outputs). ``thresholds`` accepts
-        the same forms as from_arrays, referring to the final class names."""
+        the same forms as from_arrays, referring to the final class names.
+
+        A ``CalibratedClassifierCV(method="sigmoid", ensemble=False)`` (binary or one-vs-rest,
+        its base model a linear classifier, alone or after a ``StandardScaler``, also frozen)
+        is imported with its Platt sigmoids folded into the weights and bias in float64, then
+        rounded once to float32. Its head has the label rule ``linear@2``: the first class
+        of largest probability, as ``predict`` of scikit-learn, so ``predict`` costs more
+        than for an uncalibrated head. fse stays within derived bounds of scikit-learn's
+        probabilities, except in the deep underflow of one-vs-rest (all logits below -104,
+        where fse returns the uniform row and the first class, and scikit-learn goes on in
+        float64). ``ensemble=True`` or ``"auto"``, ``method="isotonic"`` or ``"temperature"``,
+        and calibrated estimators inside a ``OneVsRestClassifier`` raise."""
         found = _sklearn.read(model, "classification")
         return cls._build(
             encoder,

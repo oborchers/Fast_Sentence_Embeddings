@@ -21,7 +21,9 @@ STAGES = (
     "store-open",
     "head-folded",
     "head-with-vectors",
+    "head-labels",
 )
+HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
     "profile": "standard@1",
     "base_doc_ids": "none",
@@ -54,6 +56,7 @@ DEFAULTS = {
     "minimum_saving": 0.02,
     "confirmation_fraction": 0.5,
     "decision_gate": True,
+    "rule": "linear@1",
 }
 
 
@@ -127,7 +130,11 @@ def validate_cell(raw, defaults):
 
 
 def _profile(cell):
-    heads = cell["stage"] in ("head-folded", "head-with-vectors")
+    heads = cell["stage"] in HEAD_STAGES
+    if cell["rule"] not in ("linear@1", "linear@2") or (
+        cell["rule"] != "linear@1" and cell["stage"] != "head-labels"
+    ):
+        raise ValueError("rule is linear@1, or linear@2 for the stage head-labels only")
     if heads != (cell["profile"] == "linear-heads@1"):
         raise ValueError(
             "head stages require linear-heads@1, and that profile requires a head stage"

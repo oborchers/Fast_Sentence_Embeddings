@@ -140,7 +140,29 @@ Readers retain version 1 with its original closed schema and old golden artifact
 Version/link/head mismatches, missing thresholds and threshold tensors in version 1
 are refused. Other existing classifiers and regressors still write version 1.
 
-The sigmoid calibration and temperature importers remain separate later work.
+### `linear@2` for single-label heads
+
+Format version 2 is written exactly with the rule `fse.head=linear@2` and read exactly
+with it; version 1 exactly with `linear@1`. Besides `multilabel@1`, a classifier with
+the link `sigmoid@1`, `softmax@1` or `ovr@1` can carry `linear@2`: its label is the
+first class of largest probability (see the numerical contract). It has `head.weight`
+and `head.bias`, the labels of version 1 (two for one output, negative first), no
+`head.thresholds` and no `fse.head.flat`. `linear@2` with the link `none`, a regression
+head, `multilabel@1` with `linear@1`, and the version 2 with `linear@1` (or version 1
+with `linear@2`) are refused. No metadata key and no tensor is added.
+
+Two imports write it: `Classifier.from_sklearn` of a Platt-calibrated
+`CalibratedClassifierCV(method="sigmoid", ensemble=False)` (link `sigmoid@1` for one
+decision column, else `ovr@1`) and `Classifier.from_arrays(..., temperature=T)` (link
+`softmax@1`). The calibration or temperature is folded into `head.weight` and
+`head.bias` before the rounding to F32 and is not recorded; a loaded model cannot tell
+that it was calibrated. The model card of a model made in memory carries a note about
+the folding, which a loaded model does not have. Existing format 1 artifacts and golden
+files are unchanged and keep their fingerprints.
+
+`from_sklearn` refuses `ensemble=True` and `"auto"`, `method="isotonic"` and
+`"temperature"`, nonlinear or nested base models, calibrated or nested estimators inside
+a `OneVsRestClassifier`, and every layout of the private attributes it does not know.
 
 
 ### Inspecting and changing multilabel thresholds

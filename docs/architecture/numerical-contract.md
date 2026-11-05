@@ -51,7 +51,7 @@ What is bit-identical across what:
 | 1.x and 2.0 | not identical (EPS, `saxpy`, BLAS in the removal); compared with tolerances, STS and MTEB |
 
 
-### Multilabel inference (`linear@2`, `multilabel@1`)
+### Label rule `linear@2` (`multilabel@1` and single-label heads)
 
 The aggregation, fold, dot16 and bias rules of linear@1 remain unchanged.
 `multilabel@1` applies sigmoid@1 independently to each finished logit, with no
@@ -68,6 +68,59 @@ and restores the caller's state afterwards. Positive subnormal probabilities mus
 greater than a zero cutoff even when the caller enables flush-to-zero or denormals-as-zero.
 This introduces no rounding operation beyond the existing sigmoid. The old
 linear@1 label rule, all existing links, and transform_version 2 remain unchanged.
+
+#### Single-label heads under `linear@2`
+
+For a single-label head with the link `sigmoid@1`, `softmax@1` or `ovr@1`, `linear@2`
+is the index of the first largest finished F32 probability of `predict_proba`
+(`argmax(proba(z, link), axis=1)`), so `predict == classes_[argmax(predict_proba)]` bit
+for bit on every path. For one logit the probabilities are the columns `[1 - p, p]`. The
+rule is undefined for the link `none` and for regression heads. No new rounding is
+added: the probabilities are those of the link, the argmax is a comparison, and the
+maximum of a row is at least 1/k and normal, so flush-to-zero cannot change it. The
+reference is `fse._reference_head.predicted`; the runtime writes the probabilities into
+a worker buffer of the width of `predict_proba` and takes the argmax into the label
+array, in the store path too.
+
+In exact arithmetic `linear@1` and `linear@2` agree. In F32 they differ only on ties of
+the probabilities: saturation (ovr logits 30 and 40 both give 1.0, `linear@2` takes the
+first), complete underflow (all ovr logits below -104 give the uniform row and class 0)
+and a binary logit so small that p is exactly 0.5 (class 0). `linear@2` decides by the
+same bits that `predict_proba` returns. `predict` costs more than under `linear@1`: it
+computes the probabilities (`exp@1` per output, and for ovr the sum and quotient) before
+the argmax.
+
+`v2.0.0` is released and contains `linear@1`, `sigmoid@1`, `softmax@1`, `ovr@1` and
+`exp@1`, not `linear@2` and not `multilabel@1`. The single-label rule is an additive
+definition for combinations that every earlier reader refuses (format version 2 without
+`multilabel@1`, and `linear@2` with a single-label link). Every combination that was
+valid keeps its meaning and its bits, so no version 3 is needed.
+
+#### Imported calibrations
+
+Platt scaling (`CalibratedClassifierCV(method="sigmoid", ensemble=False)`) and a softmax
+temperature are affine maps of the logits and fold into A and b on import, not at
+inference. With `a` and `c` the slope and intercept of a sigmoid calibrator (probability
+`sigmoid(-(a z + c))` of the response `z` of the base model) the head is
+`W' = (-a) W` and `b' = (-a) b + (-c)` in float64; a temperature T gives `W / T` and
+`b / T`. Negation is exact, so the bits are those of `-(a W)` and `-(a b + c)`. A
+`StandardScaler` outside folds afterwards in float64. The float64 values are rounded
+once to F32. The arithmetic runs on the backend (`affine64`, `quotient64`), under the
+floating-point environment of the kernels for the `cpu` backend, so a caller's
+flush-to-zero or rounding mode cannot change it. The calibration is not stored: the
+artifact holds the folded head and the rule `linear@2`.
+
+The comparison with scikit-learn is the sum of two bounds. fse against the float64
+folded head is the bound of `tests/support/head_bound.py`. That head against scikit-learn's
+own float64 evaluation of the calibrated model is a chain of `d + 6` float64 roundings of
+the magnitudes (`tests/support/sklearn_calibrated.py`). For one-vs-rest the probabilities
+are normalized by their sum, so a logit error `d` changes a component by the factor
+`e^d - 1` plus the rounding of `exp@1` (2 ulps), the sum (`gamma(k - 1)`) and the
+quotient; a component below `ln 2**-126` has an absolute error of at most `2**-126`. Rows
+whose F32 sum is below `4 k 2**-126` (the deep underflow, for example all logits below
+-104) are not compared with scikit-learn: fse returns the uniform row and class 0
+there, where scikit-learn continues in float64. This limit is stated in the docstring of
+`Classifier.from_sklearn`.
 
 The new conformance cases cover all available instruction sets and the NumPy
 backend, quantized tables, FastText, folded/normalized/vector/standalone paths,

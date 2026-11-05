@@ -79,7 +79,7 @@ def probe(job):
         proof = output_identity(batch)
     elif job["stage"] == "pooling":
         proof = _pool(model, texts, job, expected_batch)
-    elif job["stage"] in ("head-folded", "head-with-vectors"):
+    elif job["stage"] in ("head-folded", "head-with-vectors", "head-labels"):
         from _development_heads import probe as head_probe
 
         proof = head_probe(job, texts)

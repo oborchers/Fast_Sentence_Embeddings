@@ -556,13 +556,20 @@ Primary API references: [ST process-pool API](https://www.sbert.net/docs/package
 ## PR-1 linear-head development profile
 
 `benchmarks/config/linear-heads-local.json` defines `linear-heads@1` for
-DR-199 (Lineare Köpfe zum vollwertigen Bestandteil von fse machen). It adds two
+DR-199 (Lineare Köpfe zum vollwertigen Bestandteil von fse machen). It adds three
 stages to the existing `speed.py --diagnose` controller, without another runner:
 
 - `heads-single-folded`: one four-output softmax classifier on raw means, using
   the folded table through the public predict_proba API.
 - `heads-single-with-vectors`: the same classifier through public predict_batches
   with return_vectors=True, checking both probabilities and raw vectors.
+- `heads-single-labels`: the same classifier through public `predict`, so the label
+  path (an int64 vector of four ordered classes) of an existing `linear@1` head.
+- `heads-single-labels-linear2`: the same stage with `rule` `linear@2`
+  (`temperature=1.0`: the same weight bits, only the label rule differs). The base
+  build has no `linear@2`, so this cell exists for the candidate only: its untimed
+  functional probe checks the bits against the numpy reference, and its
+  `profile-head` job gives the CPU and allocation profile of the new rule.
 
 Each stage compares the previous installed build with the candidate on exactly
 the same path. Coefficients are F32 from NumPy PCG64 seed 17, with four ordered
@@ -576,7 +583,7 @@ python benchmarks/speed.py --diagnose \
   --development-input benchmarks/config/linear-heads-local.json \
   --base-python /external/base/bin/python \
   --candidate-python /external/candidate/bin/python \
-  --cells heads-single-folded heads-single-with-vectors \
+  --cells heads-single-folded heads-single-with-vectors heads-single-labels \
   --worker-name dr199-linear-heads \
   --results /external/heads-results-01 --work /external/heads-work-01
 ```
