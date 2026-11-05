@@ -22,11 +22,11 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from fse import _codes
-from fse._runtime import Pipeline, wants_inverse_norms
+from fse._runtime import Pipeline, check_workers, wants_inverse_norms
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
-from ._doc_ids import check_id_mode, infer_ids
+from ._doc_ids import check_batch_mode, check_id_mode, infer_ids
 from ._sources import opened
 
 
@@ -144,6 +144,22 @@ def durable(sink: Any, done: int, last: int | None) -> int | None:
     return int(rows)
 
 
+def prepare(
+    sink: Any, dtype: str | None, doc_ids: Any, fingerprint: str, dim: int, workers: Any
+) -> str:
+    """The dtype of an ``encode_batches`` run; checks the sink, the document-ID mode and the
+    workers when the method is called, before any batch is read."""
+    if not isinstance(doc_ids, bool):
+        raise TypeError(f"doc_ids must be a bool, not {type(doc_ids).__name__}")
+    if sink is not None:
+        dtype = check_sink(sink, dtype, fingerprint, dim)
+    else:
+        dtype = _codes.check_dtype("float32" if dtype is None else dtype)
+    check_batch_mode(sink, doc_ids)
+    check_workers(workers)
+    return dtype
+
+
 def _call(sink: Any, name: str) -> None:
     method = getattr(sink, name, None)
     if method is None:
@@ -161,13 +177,14 @@ def batches(
     dtype: str,
     workers: Any,
     sink: Any,
+    doc_ids: bool = False,
 ) -> Iterator[EncodedBatch]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
     lists) or an Arrow string column each."""
     row, last = 0, None
     for k, item in enumerate(items):
         ids = None
-        if getattr(sink, "has_doc_ids", False):
+        if doc_ids:
             if not isinstance(item, tuple) or len(item) != 2:
                 raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
             item, ids = item

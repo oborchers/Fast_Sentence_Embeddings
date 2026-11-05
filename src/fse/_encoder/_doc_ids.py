@@ -14,6 +14,17 @@ def check_id_mode(sink: Any, ids: Any) -> None:
         raise ValueError("doc_ids must be supplied exactly when the sink has doc_ids=True")
 
 
+def check_batch_mode(sink: Any, doc_ids: bool) -> None:
+    """The ``doc_ids`` argument of ``encode_batches`` must match the sink."""
+    enabled = getattr(sink, "has_doc_ids", False)
+    if doc_ids and not enabled:
+        raise ValueError(
+            "doc_ids=True needs a sink with doc_ids; EncodedBatch holds no document IDs"
+        )
+    if enabled and not doc_ids:
+        raise ValueError("the sink stores doc_ids; pass doc_ids=True and (texts, doc_ids) batches")
+
+
 def infer_ids(
     pipeline: Any, source: Any, sink: Any, workers: Any, first_row: int, ids: Any
 ) -> None:

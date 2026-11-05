@@ -39,7 +39,7 @@ def _tasks(shards: Any, n_queries: int, decode: int, values: Any, kind: str, cou
         shard, tensors = shards[index]
         stored = _filtered._part(tensors["vectors"], positions)
         inverse = _filtered._part(tensors["inv_norms"], positions)
-        docs = _filtered._part(tensors["row_ids"], positions)
+        docs = _filtered._part(tensors["doc_ids"], positions)
         physical = positions + shard.first_row
         count[0] += len(positions)
         for qb in _search.query_blocks(n_queries):

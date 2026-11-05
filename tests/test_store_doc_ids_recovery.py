@@ -20,31 +20,31 @@ from support.store_sync import Recorder
 @pytest.mark.parametrize("durability", ["full", "none"])
 def test_bad_ids_quarantine_the_whole_tail(tmp_path, durability):
     write_store(tmp_path / "s", list(range(12)), shard_rows=4, durability=durability)
-    file = tmp_path / "s" / "shard-0000000000000004" / "row_ids.npy"
+    file = tmp_path / "s" / "shard-0000000000000004" / "doc_ids.npy"
     damaged = np.load(file, mmap_mode="r+")
     damaged[0] = 99
     damaged.flush()
     del damaged
     if durability == "none":
-        with pytest.raises(fse.CorruptArtifactError, match="row_ids"):
+        with pytest.raises(fse.CorruptArtifactError, match="doc_ids"):
             fse.VectorStore.open(tmp_path / "s")
     else:
         with (
             fse.VectorStore.open(tmp_path / "s") as store,
-            pytest.raises(fse.CorruptArtifactError, match="row_ids"),
+            pytest.raises(fse.CorruptArtifactError, match="doc_ids"),
         ):
             store.verify()
     assert fse.repair_store(tmp_path / "s") == 4
     assert fse.repair_store(tmp_path / "s") == 4
     with fse.VectorStore.open(tmp_path / "s") as store:
-        assert list(column(store, "row_ids")) == [0, 1, 2, 3]
+        assert list(column(store, "doc_ids")) == [0, 1, 2, 3]
 
 
 def test_stats_are_recomputed_even_with_valid_checksums(tmp_path):
     write_store(tmp_path / "s", [1, 2, 3], shard_rows=4)
     directory = tmp_path / "s" / "shard-0000000000000000"
     tensors, metadata = NpyContainer().open(directory, mmap=False)
-    metadata["fse.row_ids_max"] = "4"
+    metadata["fse.doc_ids_max"] = "4"
     metadata = {
         k: v
         for k, v in metadata.items()
@@ -72,7 +72,7 @@ def test_future_resume_aborts_repair_without_mutation(tmp_path):
     }
     NpyContainer().write(tmp_path / "replacement", tensors, metadata)
     shutil.copyfile(tmp_path / "replacement" / "manifest.json", directory / "manifest.json")
-    first = tmp_path / "s" / "shard-0000000000000000" / "row_ids.npy"
+    first = tmp_path / "s" / "shard-0000000000000000" / "doc_ids.npy"
     with first.open("r+b") as stream:
         stream.truncate(4)
     before = sorted(p.name for p in (tmp_path / "s").iterdir())
@@ -88,7 +88,7 @@ def test_ids_are_synced_before_publication(tmp_path, monkeypatch):
         recorder = Recorder(monkeypatch, full=True)
         encoder.encode(["w1", "w2"], doc_ids=[1, 2], sink=sink)
     events = recorder.named(root)
-    assert events.index("fsync row_ids.npy") < events.index("rename")
+    assert events.index("fsync doc_ids.npy") < events.index("rename")
     # Windows publishes with MoveFileExW and does not synchronize directories.
     assert events[-1] == ("rename" if os.name == "nt" else "full store")
 
@@ -117,7 +117,7 @@ def test_power_loss_keeps_ids_and_vectors_together(tmp_path, monkeypatch, platfo
             assert len(store) >= confirmed
             store.verify()
             if len(store):
-                assert np.array_equal(column(store, "row_ids"), expected[: len(store)])
+                assert np.array_equal(column(store, "doc_ids"), expected[: len(store)])
                 assert np.all(column(store, "vectors") == 1)
         shutil.rmtree(target)
 

@@ -62,7 +62,9 @@ large `k` need memory in proportion to both, as in the ordinary search.
 
 ## Batches and Parquet
 
-An ID-enabled `encode_batches` call takes `(texts, doc_ids)` for each batch.
+An ID-enabled `encode_batches` call takes `doc_ids=True` and `(texts, doc_ids)` for each
+batch. fse checks when you call it, before it reads a batch, that the argument and the
+sink agree: `doc_ids=True` needs a sink with `doc_ids=True`, and such a sink needs `doc_ids=True`.
 Each tuple contains two whole columns, not one `(id, text)` row. Their lengths
 must agree. One sink spans all batches, filling shards across batch boundaries.
 Consume the iterator completely to flush the final partial shard.
@@ -76,7 +78,7 @@ with pq.ParquetFile(input_path) as parquet:
         for batch in parquet.iter_batches(columns=["text", "ticket_id"])
     )
     with fse.ShardSink(path, encoder, doc_ids=True) as sink:
-        for batch in encoder.encode_batches(parts, sink=sink):
+        for batch in encoder.encode_batches(parts, sink=sink, doc_ids=True):
             confirmed_rows = batch.durable_rows
 ```
 
@@ -86,6 +88,13 @@ You may explicitly convert the ID column with `to_numpy()` instead. That produce
 operation may copy a chunked column. fse does not import pyarrow, accept whole
 tables, read Parquet files itself or resolve column names passed as `doc_ids`.
 Without IDs, existing text-only `encode_batches` input remains unchanged.
+
+## Reading document IDs
+
+`store.has_doc_ids` tells whether every row has an ID. `store.get_doc_ids(start=0, stop=100)`
+returns the IDs of those rows as an int64 copy, like `get_vectors`. A store without IDs
+raises `ValueError`. `DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
+`repr`; `_make` raises `TypeError`, because two values hold no IDs.
 
 ## Filters and limits
 

@@ -150,7 +150,7 @@ def test_an_encoder_without_its_table_is_a_pre_release():
     ):
         from_artifact({}, metadata)
     with pytest.raises(ValueError, match="does not use"):
-        from_artifact({**tensors, "row_ids": np.ones(3, np.int64)}, metadata)
+        from_artifact({**tensors, "doc_ids": np.ones(3, np.int64)}, metadata)
 
 
 def test_the_table_is_checked_as_word_vectors(tmp_path):

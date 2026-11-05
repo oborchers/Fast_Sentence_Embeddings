@@ -11,8 +11,8 @@ import numpy as np
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError, parse_id
 
-ID_KEYS = ("fse.row_ids_min", "fse.row_ids_max", "fse.row_ids_sorted")
-MODE_KEYS = ("fse.row_ids", "fse.resume")
+ID_KEYS = ("fse.doc_ids_min", "fse.doc_ids_max", "fse.doc_ids_sorted")
+MODE_KEYS = ("fse.doc_ids", "fse.resume")
 _SIGNED = re.compile(r"(?:0|-?[1-9][0-9]*)\Z")
 
 
@@ -45,9 +45,19 @@ class IdStats:
         )
 
 
+def check_removed(metadata: dict[str, Any], file: Any) -> None:
+    """Refuse metadata that a pre-release of 2.1 wrote under the removed ``row_ids`` names."""
+    if any(key == "fse.row_ids" or key.startswith("fse.row_ids_") for key in metadata):
+        raise UnsupportedArtifactError(
+            f"{file}: written by a pre-release of fse 2.1 (fse.row_ids); "
+            "this fse stores document IDs as fse.doc_ids; write the store again"
+        )
+
+
 def check_mode(metadata: dict[str, Any], file: Any) -> None:
     """Recognize future capabilities before applying a closed known schema."""
-    for key, supported in (("fse.row_ids", ("none", "int64")), ("fse.resume", ("none",))):
+    check_removed(metadata, file)
+    for key, supported in (("fse.doc_ids", ("none", "int64")), ("fse.resume", ("none",))):
         value = metadata.get(key)
         if isinstance(value, str) and value not in supported:
             if key == "fse.resume":
@@ -64,10 +74,10 @@ def parsed_stats(metadata: dict[str, str], file: Any) -> IdStats:
         len(v) > 20 or not _SIGNED.fullmatch(v) or not -(2**63) <= int(v) < 2**63
         for v in values[:2]
     ):
-        raise CorruptArtifactError(f"{file}: row_ids bounds must be canonical signed int64 values")
+        raise CorruptArtifactError(f"{file}: doc_ids bounds must be canonical signed int64 values")
     lo, hi = map(int, values[:2])
     if lo > hi or values[2] not in ("true", "false"):
-        raise CorruptArtifactError(f"{file}: invalid row_ids bounds or sorted flag")
+        raise CorruptArtifactError(f"{file}: invalid doc_ids bounds or sorted flag")
     return IdStats(lo, hi, values[2] == "true")
 
 
@@ -76,4 +86,4 @@ def verify_stats(ids: np.ndarray, expected: IdStats, name: str) -> None:
     for begin in range(0, len(ids), (1 << 20) // 8):
         actual.update(ids[begin : begin + (1 << 20) // 8])
     if actual.metadata() != expected.metadata():
-        raise CorruptArtifactError(f"{name}: row_ids statistics do not match the stored IDs")
+        raise CorruptArtifactError(f"{name}: doc_ids statistics do not match the stored IDs")

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from collections.abc import Iterable
+from typing import Any, NamedTuple, Self
 
 from numpy import ndarray
 
@@ -14,8 +15,16 @@ class SearchResult(NamedTuple):
     scores: ndarray
 
 
+_FIELDS = ("ids", "scores", "doc_ids")
+
+
 class DocumentSearchResult(SearchResult):
-    """Keep two-item unpacking while exposing one document ID per hit."""
+    """Keep two-item unpacking while exposing one document ID per hit.
+
+    Unpacking, ``len`` (2), indexing and equality use the two tuple fields ``ids`` and
+    ``scores``. ``doc_ids`` is an attribute that ``_replace``, ``_asdict`` and ``repr``
+    keep; ``_make`` raises because two values hold no document IDs.
+    """
 
     doc_ids: ndarray
 
@@ -26,3 +35,29 @@ class DocumentSearchResult(SearchResult):
 
     def __reduce__(self):
         return type(self), (self.ids, self.scores, self.doc_ids)
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(ids={self.ids!r}, scores={self.scores!r}, "
+            f"doc_ids={self.doc_ids!r})"
+        )
+
+    def _asdict(self) -> dict[str, ndarray]:
+        return {"ids": self.ids, "scores": self.scores, "doc_ids": self.doc_ids}
+
+    def _replace(self, /, **changes: Any) -> DocumentSearchResult:
+        unknown = set(changes) - set(_FIELDS)
+        if unknown:
+            raise TypeError(f"Got unexpected field names: {sorted(unknown)!r}")
+        values = {**self._asdict(), **changes}
+        return type(self)(values["ids"], values["scores"], values["doc_ids"])
+
+    __replace__ = _replace
+
+    @classmethod
+    # mypy types the generated NamedTuple._make with a type variable that no override matches
+    def _make(cls, iterable: Iterable[Any]) -> Self:  # type: ignore[override]
+        del iterable
+        raise TypeError(
+            "DocumentSearchResult needs doc_ids; use DocumentSearchResult(ids, scores, doc_ids)"
+        )

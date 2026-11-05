@@ -57,5 +57,5 @@ def test_process_crash_prefix(tmp_path, policy, point, rows):
     assert result.returncode == 3, result.stderr
     with fse.VectorStore.open(root) as store:
         assert len(store) == rows
-        assert np.array_equal(column(store, "row_ids"), np.arange(rows))
+        assert np.array_equal(column(store, "doc_ids"), np.arange(rows))
         store.verify()

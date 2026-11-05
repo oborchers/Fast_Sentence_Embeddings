@@ -17,7 +17,7 @@ class IdColumn:
     """A positional file and an ordered digest; IO completion is owned by ShardWriter."""
 
     def __init__(self, directory: Path, capacity: int):
-        self.path, self.capacity = directory / "row_ids.npy", capacity
+        self.path, self.capacity = directory / "doc_ids.npy", capacity
         self.fd, self.offset = -1, 0
         self.digest, self.stats = Hasher(), IdStats()
 
@@ -32,7 +32,7 @@ class IdColumn:
 
     def finish(self, rows: int, *, synced: bool) -> tuple:
         if self.fd < 0:
-            raise RuntimeError("row_ids were not written; the shard is not published")
+            raise RuntimeError("doc_ids were not written; the shard is not published")
         if rows != self.capacity:
             shrink(self.fd, self.offset, np.dtype("<i8"), (rows,))
         if synced:
