@@ -47,3 +47,35 @@ def test_check_output_sink(tmp_path):
         check_output_sink(model, fse.ShardSink(tmp_path / "s", model.encoder), "proba")
     with pytest.raises(TypeError, match="target and commit"):
         check_output_sink(model, object(), "proba")
+
+
+class _IdSink(fse.MemorySink):
+    has_doc_ids = True
+
+
+def _flagged(value):
+    class Flagged(fse.MemorySink):
+        has_doc_ids = value
+
+    return Flagged
+
+
+def _poisoned():
+    yield from ()
+    raise AssertionError("a batch was read")
+
+
+def test_a_document_id_sink_takes_no_outputs():
+    model = _model(3)
+    with pytest.raises(ValueError, match="carry none"):
+        check_output_sink(model, _IdSink(3), "decision")
+
+
+@pytest.mark.parametrize("value", [1, 0, "yes"])
+def test_other_values_of_has_doc_ids_keep_the_2_0_behavior(value):
+    model = _model(3)
+    check_output_sink(model, _flagged(value)(3), "decision")
+    sink = _flagged(value)(model.encoder.output_dim)
+    batches = list(model.predict_batches([["w1", "w2"]], return_vectors=True, sink=sink))
+    assert batches[0].vectors is None
+    assert sink.result().shape == (2, model.encoder.output_dim)

@@ -26,6 +26,7 @@ from fse._backends import BACKEND_NAMES, get_backend
 from fse._contract import Head, Link
 from fse._cpus import usable_cpus
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
+from fse._encoder._doc_ids import id_mode
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import ShardSink, VectorStore
@@ -53,10 +54,34 @@ def check_output_sink(model: Any, sink: Any, output: str) -> None:
             "a ShardSink stores the vectors of an encoder, not the outputs of a head; take the "
             "outputs from predict_batches, or store the vectors with return_vectors=True"
         )
+    _refuse_doc_ids(model, sink, vectors=False)
     width = model._head.width(RUNTIME[output])
     dtype = check_sink(sink, None, model.output_identity(output), width)
     if dtype != "float32" or getattr(sink, "inverse_norms", False):
         raise ValueError("a sink of head outputs takes float32 rows without inverse norms")
+
+
+def _refuse_doc_ids(model: Any, sink: Any, *, vectors: bool) -> None:
+    """A sink in document-ID mode (``has_doc_ids`` exactly True) takes neither the outputs
+    of a head nor its vectors, as a head gives no IDs: refused before any batch is read."""
+    if not id_mode(sink):
+        return
+    if not vectors:
+        raise ValueError(
+            "the sink stores document IDs; the outputs of a head carry none, so give a sink "
+            "without doc_ids"
+        )
+    start = (
+        "the sink stores document IDs, which predict_batches does not give; write the vectors "
+        "with Encoder.encode_batches(..., doc_ids=True) into the sink"
+    )
+    if model.normalized == ("normalize@1" in model.encoder.steps):
+        raise ValueError(f"{start}, then predict from the store with predict_batches(store)")
+    reads = "normalized" if model.normalized else "raw"
+    raise ValueError(
+        f"{start} and predict from the texts with predict_batches(texts) without that sink "
+        f"(this head reads {reads} rows, the store holds the other)"
+    )
 
 
 def finish(model: Any, rows: ndarray, output: str) -> ndarray:
@@ -135,6 +160,7 @@ def batches(
             raise ValueError("a standalone model has no vectors: its table is folded")
         if sink is not None:  # the vectors go to the sink, the outputs stay in the batch
             check_sink(sink, None, model.encoder.fingerprint, model.encoder.output_dim)
+            _refuse_doc_ids(model, sink, vectors=True)
     elif sink is not None:
         check_output_sink(model, sink, output)
     head = model._pipeline(backend, with_vectors=return_vectors)
