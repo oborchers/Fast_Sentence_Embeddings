@@ -482,3 +482,11 @@ def test_reserved_names_are_rejected_on_read(tmp_path):
     _save_manifest(path, manifest)
     with pytest.raises(CorruptArtifactError, match="not a tensor name"):
         NpyContainer().open(path, mmap=False)
+
+
+def test_metadata_reads_only_the_manifest(tmp_path):
+    path = _written(tmp_path)
+    _, metadata = NpyContainer().open(path, mmap=False)
+    for tensor in path.glob("*.npy"):
+        tensor.write_bytes(b"damaged")
+    assert NpyContainer().metadata(path) == metadata

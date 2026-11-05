@@ -5,7 +5,7 @@ import pytest
 
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
-from fse._store._id_stats import IdStats, check_mode, parsed_stats, verify_stats
+from fse._store._id_stats import IdStats, check_mode, check_removed, parsed_stats, verify_stats
 
 
 def test_cross_block_order_and_extremes():
@@ -22,7 +22,7 @@ def test_cross_block_order_and_extremes():
 @pytest.mark.parametrize("value", ["-0", "+1", "01", str(2**63), "1.0", ""])
 def test_canonical_bounds(value):
     metadata = IdStats(1, 2).metadata()
-    metadata["fse.row_ids_min"] = value
+    metadata["fse.doc_ids_min"] = value
     with pytest.raises(CorruptArtifactError):
         parsed_stats(metadata, "test")
 
@@ -30,3 +30,11 @@ def test_canonical_bounds(value):
 def test_unknown_resume_is_unsupported():
     with pytest.raises(UnsupportedArtifactError, match="source_rows@1"):
         check_mode({"fse.resume": "source_rows@1"}, "test")
+
+
+@pytest.mark.parametrize("key", ["fse.row_ids", "fse.row_ids_min", "fse.row_ids_sorted"])
+def test_removed_pre_release_names_are_unsupported(key):
+    for check in (check_removed, check_mode):
+        with pytest.raises(UnsupportedArtifactError, match="write the store again"):
+            check({key: "int64"}, "test")
+    check_removed({"fse.doc_ids": "int64", "fse.doc_ids_min": "0"}, "test")

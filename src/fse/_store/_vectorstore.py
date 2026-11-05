@@ -34,6 +34,7 @@ from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _filtered, _search, _selection, _unique_search
+from ._id_stats import check_removed
 from ._layout import Shard, StoreInfo, read_store
 from ._recovery import check_values, clear_exception_frames, snapshot
 from ._result import DocumentSearchResult, SearchResult
@@ -79,6 +80,11 @@ class VectorStore:
     def encoder_fingerprint(self) -> str:
         """The fingerprint of the encoder of the rows (``open(encoder=)`` takes the encoder)."""
         return self._info.encoder
+
+    @property
+    def has_doc_ids(self) -> bool:
+        """True if every row of the store has a document ID (``ShardSink(doc_ids=True)``)."""
+        return self._info.has_doc_ids
 
     # --- search and score -----------------------------------------------------------
 
@@ -189,7 +195,8 @@ class VectorStore:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one
         per vector): shape (rows,) or (rows, vectors). ``mode`` as for ``search``: exact
-        for up to 8 weight vectors by default, BLAS above.
+        for up to 8 weight vectors by default, BLAS above. Every row is scored;
+        ``get_doc_ids`` returns the labels of the rows.
         """
         self._check_open()
         matrix, single = self._queries(weights, "weights")
@@ -211,6 +218,31 @@ class VectorStore:
         """A float32 copy of the rows ``start`` to ``stop - 1`` (all by default), decoded
         from the stored float16 or int8 values."""
         self._check_open()
+
+        def decode(tensors: Any, a: int, b: int) -> ndarray:
+            scales = tensors["scales"][a:b] if "scales" in tensors else None
+            return _codes.dequantize(tensors["vectors"][a:b], scales)
+
+        parts = self._row_parts(start, stop, decode)
+        return np.concatenate(parts) if parts else np.empty((0, self.dim), F32)
+
+    @validate_arguments
+    def get_doc_ids(
+        self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
+    ) -> ndarray:
+        """The document IDs (int64) of the rows ``start`` to ``stop - 1`` (all by default),
+        a copy."""
+        self._check_open()
+        if not self._info.has_doc_ids:
+            raise ValueError("this store has no doc_ids")
+        parts = self._row_parts(start, stop, lambda tensors, a, b: tensors["doc_ids"][a:b])
+        return (
+            np.concatenate(parts).astype(np.int64, copy=False) if parts else np.empty(0, np.int64)
+        )
+
+    def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
+        """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
+        ``np.concatenate`` of the parts copies them out of the mappings."""
         stop = len(self) if stop is None else stop
         if not start <= stop <= len(self):
             raise ValueError(f"rows {start} to {stop} are not within the {len(self)} rows")
@@ -219,18 +251,19 @@ class VectorStore:
             for shard, tensors in self._shards:
                 lo, hi = max(start, shard.first_row), min(stop, shard.first_row + shard.rows)
                 if lo < hi:
-                    a, b = lo - shard.first_row, hi - shard.first_row
-                    scales = tensors["scales"][a:b] if "scales" in tensors else None
-                    parts.append(_codes.dequantize(tensors["vectors"][a:b], scales))
-        return np.concatenate(parts) if parts else np.empty((0, self.dim), F32)
+                    parts.append(read(tensors, lo - shard.first_row, hi - shard.first_row))
+        return parts
 
     def verify(self) -> None:
         """Hash every shard on disk against its checksums and check its values: finite
         scales and inverse norms of at least 0, finite float rows, int8 codes within
         +-127."""
         start = time.perf_counter()
+        read_store(self.path)
         with self._using():
             for shard, tensors in self._shards:
+                file = self.path / shard.name / "manifest.json"
+                check_removed(NpyContainer().metadata(self.path / shard.name), file)
                 NpyContainer().verify(self.path / shard.name)
                 check_values(shard, tensors)
         _log.emit(

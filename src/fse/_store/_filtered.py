@@ -88,5 +88,5 @@ def document_ids(shards: Any, rows: np.ndarray) -> np.ndarray:
     out = np.empty(rows.shape, dtype=np.int64)
     for shard, tensors in shards:
         mask = (rows >= shard.first_row) & (rows < shard.first_row + shard.rows)
-        out[mask] = tensors["row_ids"][rows[mask] - shard.first_row]
+        out[mask] = tensors["doc_ids"][rows[mask] - shard.first_row]
     return out

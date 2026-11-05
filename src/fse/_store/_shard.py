@@ -174,7 +174,7 @@ class ShardWriter:
         code = tensor_code(np.empty(0, self.dtype))
         entries = {"vectors": (code, (rows, self.info.dim), self.digest.checksum())}
         if self.ids is not None:
-            entries["row_ids"] = self.ids.finish(rows, synced=self.synced)
+            entries["doc_ids"] = self.ids.finish(rows, synced=self.synced)
         extra = {"inv_norms": self.norms[:rows]}
         if self.scales is not None:
             extra["scales"] = self.scales[:rows]

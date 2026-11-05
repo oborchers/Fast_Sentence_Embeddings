@@ -32,10 +32,10 @@ def check_store(store, mode, chunks=4):
 
     expected = values(len(store), mode, chunks)
     for shard, tensors in store._shards:
-        if ("row_ids" in tensors) != (expected is not None):
+        if ("doc_ids" in tensors) != (expected is not None):
             raise ValueError("stored document-ID mode differs from the development profile")
         if expected is not None and not np.array_equal(
-            tensors["row_ids"], expected[shard.first_row : shard.first_row + shard.rows]
+            tensors["doc_ids"], expected[shard.first_row : shard.first_row + shard.rows]
         ):
             raise ValueError("stored document IDs differ from their input row positions")
 
