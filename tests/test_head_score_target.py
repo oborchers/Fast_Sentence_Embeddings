@@ -188,3 +188,12 @@ def test_a_sink_takes_one_run(tmp_path):
         list(heads.predict_batches([sh.texts(3)], score_sink=sink))
         with pytest.raises(RuntimeError, match="takes one run"):
             heads.predict_batches([sh.texts(3)], score_sink=sink)
+
+
+def test_missing_document_ids_are_refused_before_the_text_is_processed(tmp_path):
+    heads = sh.group()
+    with (
+        fse.ScoreSink(tmp_path / "s", heads, doc_ids=True) as sink,
+        pytest.raises(TypeError, match="doc_ids, not None"),
+    ):
+        list(heads.predict_batches([([], None)], score_sink=sink, doc_ids=True))

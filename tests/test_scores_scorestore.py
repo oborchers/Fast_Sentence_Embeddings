@@ -183,3 +183,12 @@ def test_only_the_shards_published_at_open_are_read(store_path):
     with fse.ScoreStore.open(store_path) as again:
         assert len(again) == 45
     store.close()
+
+
+def test_one_label_multilabel_probabilities_keep_their_column(tmp_path):
+    enc = sh.encoder()
+    heads = fse.Heads(one=sh.classifier(enc, 1, link="multilabel", labels=["a"]))
+    sc.write_store(tmp_path / "s", heads, sh.texts(6), store="proba")
+    with fse.ScoreStore.open(tmp_path / "s") as store:
+        assert store.get_scores("one", "proba").shape == (6, 1)
+        assert next(iter(store.iter_batches())).outputs["one"].shape == (6, 1)

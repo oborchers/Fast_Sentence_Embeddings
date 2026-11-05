@@ -225,10 +225,14 @@ def profile(job):
     if type(iterations) is not int or iterations < 1:
         raise ValueError("positive integral profile iterations required")
     print("profile_ready", flush=True)
-    output = None
+    output, first = None, None
     for _ in range(iterations):
         output = None
         output = predict()
+        if isinstance(output, dict) and first is None:
+            first = output["index"]  # a stored run: its first index, for the check of all stores
+    if first is not None:
+        output["first_index"] = first
     return {
         "diagnostic_profile": True,
         "valid_for_comparison": False,

@@ -164,6 +164,8 @@ def _batches(
             if not isinstance(item, tuple) or len(item) != 2:
                 raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
             item, ids = item
+            if ids is None:
+                raise TypeError(f"batch {k} must give its doc_ids, not None")
         with (
             _named(k, row, batch_size(k, item)),
             batch_source(item, heads._tokenizer) as (source, n),

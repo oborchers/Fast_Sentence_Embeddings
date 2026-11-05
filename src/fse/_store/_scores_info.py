@@ -201,6 +201,8 @@ def parse_info(metadata: Any, file: Path) -> ScoreInfo:
         _identifiers(heads, file)
     if set(metadata) != set(SHARED):
         raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(SHARED)}")
+    if not all(isinstance(value, str) for value in metadata.values()):
+        raise CorruptArtifactError(f"{file}: every value of the metadata must be text")
     if metadata["fse.kind"] != NAME or metadata["fse.transform_version"] != "2":
         raise UnsupportedArtifactError(
             f"{file} holds {metadata['fse.kind']!r} transform {metadata['fse.transform_version']!r}; "
@@ -358,8 +360,8 @@ def _classification_error(head: ScoreHead) -> str | None:
         return f"the rule {head.rule} does not go with the link {head.link}"
     if (
         labels is None
-        or len(set(labels)) != len(labels)
         or not (all(type(v) is int for v in labels) or all(type(v) is str for v in labels))
+        or len(set(labels)) != len(labels)
     ):
         return "labels must be unique, all int or all str"
     if head.stored == "proba" and head.link == LINK_NONE:
@@ -372,6 +374,8 @@ def _classification_error(head: ScoreHead) -> str | None:
 def _single_label_error(head: ScoreHead, labels: int) -> str | None:
     if labels < 2:
         return "a single-label head has at least two labels"
+    if head.link == "sigmoid@1" and labels != 2:
+        return "sigmoid has two labels"
     if head.stored == "proba":
         return None if head.width == labels else "probabilities are stored one per label"
     # The logits: one per label, or one for two labels.

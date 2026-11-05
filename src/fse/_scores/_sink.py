@@ -148,7 +148,7 @@ class ScoreSink(ShardSinkBase):
 
     # --- the sink protocol --------------------------------------------------------------
 
-    def target(self, first_row: int, n_rows: int) -> ndarray:  # type: ignore[override]
+    def target(self, first_row: int, n_rows: int) -> Any:  # the (n_rows, dim) matrix
         if not self._attached:
             raise RuntimeError("a ScoreSink takes rows only from fse.Heads.predict_batches")
         return super().target(first_row, n_rows)[0]

@@ -160,7 +160,7 @@ def test_the_keys_and_the_json_are_strict():
         parse_info({**metadata, "fse.encoder": "nope"}, FILE)
     with pytest.raises(UnsupportedArtifactError, match=r"fse.doc_ids"):
         parse_info({**metadata, "fse.doc_ids": "maybe"}, FILE)
-    with pytest.raises(CorruptArtifactError, match="document-ID"):
+    with pytest.raises(CorruptArtifactError, match="text"):
         parse_info({**metadata, "fse.doc_ids": 3}, FILE)
 
 
@@ -207,3 +207,21 @@ def test_a_root_beyond_1_mib_is_corrupt(tmp_path):
     create_store(tmp_path / "s", info)
     with pytest.raises(CorruptArtifactError, match="larger than 1048576 bytes"):
         read_store(tmp_path / "s")
+
+
+def test_review_fixes_in_the_root():
+    # Labels of mixed types, even unhashable ones, are corrupt, not a TypeError.
+    bad = sc.softmax(labels=(0, 1, 2))
+    entries = json.loads(sc.info(bad).metadata()["fse.score_heads"])
+    entries[0]["labels"] = [[], "b", "c"]
+    metadata = sc.info(bad).metadata()
+    metadata["fse.score_heads"] = canonical_json(entries)
+    with pytest.raises(CorruptArtifactError, match="labels"):
+        parse_info(metadata, FILE)
+    # A format version that is no text is corrupt.
+    for value in (7, None):
+        with pytest.raises(CorruptArtifactError, match="text"):
+            parse_info({**sc.default_info().metadata(), "fse.format_version": value}, FILE)
+    # Stored probabilities of a sigmoid head are two.
+    three = cls(link="sigmoid@1", stored="proba", width=3, labels=(1, 2, 3), columns=(0, 3))
+    assert combination_error(three) is not None

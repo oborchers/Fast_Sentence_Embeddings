@@ -291,7 +291,9 @@ def _threshold_names(heads: Mapping[str, ScoreHead], thresholds: Any) -> dict[st
 def _flat(head: ScoreHead) -> bool:
     """Whether one column of the head is given as (n,): as ``Heads`` gives a classifier's
     decision of one logit and the values of a regressor that was a vector."""
-    return head.width == 1 and (head.task == "classification" or head.flat is True)
+    if head.width != 1:
+        return False
+    return (head.task == "classification" and head.stored == "decision") or head.flat is True
 
 
 def _columns(head: ScoreHead, scores: ndarray) -> ndarray:

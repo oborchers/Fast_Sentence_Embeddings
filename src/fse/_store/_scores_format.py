@@ -152,13 +152,20 @@ def _finite_unit(shard: Shard, what: str, values: ndarray) -> None:
 
 
 def _scores(shard: ScoreShard, scores: ndarray) -> None:
-    step = max(1, _VALUE_BYTES // (4 * max(1, scores.shape[1])))
+    width = scores.shape[1]
+    cols = max(1, min(width, _VALUE_BYTES // 4))  # a row wider than a block is cut as well
+    step = max(1, _VALUE_BYTES // (4 * cols))
     for begin in range(0, len(scores), step):
-        part = scores[begin : begin + step]
-        if not np.isfinite(part).all():
-            raise CorruptArtifactError(f"{shard.name}: scores holds values that are not finite")
-        for start, stop in shard.proba_columns:
-            _finite_unit(shard, "the probabilities of scores", part[:, start:stop])
+        for left in range(0, width, cols):
+            part = scores[begin : begin + step, left : left + cols]
+            if not np.isfinite(part).all():
+                raise CorruptArtifactError(f"{shard.name}: scores holds values that are not finite")
+            for start, stop in shard.proba_columns:
+                low, high = max(start, left), min(stop, left + cols)
+                if low < high:
+                    _finite_unit(
+                        shard, "the probabilities of scores", part[:, low - left : high - left]
+                    )
 
 
 class ScoreKind:
