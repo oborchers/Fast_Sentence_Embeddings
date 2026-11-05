@@ -38,7 +38,7 @@ def _numbers(value: object, exact: bool) -> bool:
 
 
 def _matrix(value: object, name: str, exact: bool = True) -> int:
-    if not _numbers(value, exact) or value.ndim != 2:  # type: ignore[union-attr]
+    if not isinstance(value, ndarray) or not _numbers(value, exact) or value.ndim != 2:
         raise ValueError(f"{name} must be a {'float64' if exact else 'numeric'} matrix")
     if not value.shape[0] or not value.shape[1]:
         raise ValueError(f"{name} must not be empty")
@@ -46,7 +46,6 @@ def _matrix(value: object, name: str, exact: bool = True) -> int:
 
 
 def _vector(value: object, name: str, length: int, exact: bool = True) -> None:
-    if not _numbers(value, exact) or value.shape != (length,):  # type: ignore[union-attr]
-        raise ValueError(
-            f"{name} must be a {'float64' if exact else 'numeric'} vector of {length} values"
-        )
+    if not isinstance(value, ndarray) or not _numbers(value, exact) or value.shape != (length,):
+        kind = "float64" if exact else "numeric"
+        raise ValueError(f"{name} must be a {kind} vector of {length} values")
