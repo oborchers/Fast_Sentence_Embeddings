@@ -30,7 +30,7 @@ MAX_CONFIG_BYTES = 2**20
 # The tensors of vocabulary quantization (model2vec), which no reader of fse reads.
 QUANTIZED = frozenset({"weights", "mapping"})
 _DTYPE_OF_CODE = {"F32": "float32", "F16": "float16", "I8": "int8", "U8": "uint8"}
-_DTYPE_OF_CODE |= {"U32": "uint32", "I64": "int64"}
+_DTYPE_OF_CODE |= {"U32": "uint32", "I64": "int64", "F64": "float64"}
 
 # The type of a module in a modules.json of sentence-transformers, as its versions write
 # it: up to 5.3 the module of the class, from 5.4 the module and the class (Normalize
@@ -112,6 +112,12 @@ def read_table(
 
 
 def _check_header(path: Path, entries: dict, names: frozenset[str], n_tokens: int, check: Any):
+    if "weights" in entries and "mapping" not in entries:
+        raise UnsupportedArtifactError(
+            f"{path} holds separate token weights (the tensor weights without a mapping), which "
+            "this fse does not read; a table with the weights multiplied in, as Model2Vec's "
+            "to_pipeline and to_static_model write it, is read"
+        )
     quantized = sorted(QUANTIZED & set(entries))
     if quantized:
         raise UnsupportedArtifactError(
@@ -126,9 +132,14 @@ def _check_header(path: Path, entries: dict, names: frozenset[str], n_tokens: in
             else f"{path} must hold exactly the tensor {what}, not {sorted(entries)}"
         )
     code, shape, _, _ = next(iter(entries.values()))
+    check_table(path, _DTYPE_OF_CODE[code], shape, n_tokens, check)
+
+
+def check_table(path: Path, dtype: str, shape: tuple[int, ...], n_tokens: int, check: Any) -> None:
+    """The table of ``dtype`` and ``shape`` is a float32 matrix with one row per token
+    (``check(path, dtype, shape)`` may check more first); anything else raises."""
     if len(shape) != 2:
         raise CorruptArtifactError(f"{path}: the table must be a matrix, not of shape {shape}")
-    dtype = _DTYPE_OF_CODE[code]
     if check is not None:
         check(path, dtype, shape)
     if dtype != "float32":

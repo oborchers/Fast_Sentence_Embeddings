@@ -166,7 +166,7 @@ def test_heads_are_read_only_from_fse_models_of_their_task(tmp_path):
         UnsupportedArtifactError, match=r"open it with fse\.Encoder\.from_pretrained"
     ):
         fse.Classifier.from_pretrained(enc)
-    with pytest.raises(UnsupportedArtifactError, match="no fse folder"):
+    with pytest.raises(UnsupportedArtifactError, match="regression heads are not imported"):
         fse.Regressor.from_pretrained(mv.save_model(tmp_path / "m2v"))
     _classifier().save(tmp_path / "c.safetensors")
     assert fse.Classifier.from_pretrained(tmp_path / "c.safetensors").n_outputs == 3

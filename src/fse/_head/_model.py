@@ -349,19 +349,10 @@ class LinearModel(HubModel):
         )
 
     @classmethod
-    def _from_pretrained(
-        cls, repo_or_path: Any, *, revision, token, cache_dir, local_files_only, mmap
-    ):
-        """The model of a local ``.safetensors`` file, or of an fse folder (local or of
-        the Hub) whose config.json names a linear head; the config is compared with the
-        metadata actually loaded."""
-        files = _pretrained.files(
-            repo_or_path,
-            revision=revision,
-            token=token,
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-        )
+    def _from_files(cls, files: Any, mmap: bool):
+        """The model of a local ``.safetensors`` file, or of an fse folder (local or of the
+        Hub) whose config.json names a linear head; the config is compared with the
+        metadata actually loaded. ``files`` come from ``_pretrained.files``."""
         found = _pretrained.find_fse(files, _format.KIND, mmap)
         if found.data is not None:  # of the Hub, checked as these bytes
             tensors, metadata = SafetensorsContainer().open_bytes(*found.data)

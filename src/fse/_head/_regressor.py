@@ -13,9 +13,10 @@ from typing import Any, Literal
 
 from numpy import ndarray
 
+from fse._encoder import _pretrained
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from . import _run, _sklearn
+from . import _model2vec_files, _run, _sklearn
 from ._model import LinearModel
 from ._outputs import PredictedBatch
 
@@ -77,8 +78,15 @@ class Regressor(LinearModel):
         ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit; ``mmap`` as for
         ``load``, for local files."""
-        options = {"token": token, "cache_dir": cache_dir, "local_files_only": local_files_only}
-        return cls._from_pretrained(repo_or_path, revision=revision, mmap=mmap, **options)
+        files = _pretrained.files(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+        _model2vec_files.refuse_for_regressor(files)
+        return cls._from_files(files, mmap)
 
     @validate_arguments
     def predict(
