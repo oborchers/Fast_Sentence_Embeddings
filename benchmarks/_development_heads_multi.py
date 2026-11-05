@@ -48,8 +48,8 @@ def validate(cell):
 
 
 def _count(cell):
-    if type(cell["heads"]) is not int or cell["heads"] < 2:
-        raise ValueError("a head group needs at least two heads")
+    if type(cell["heads"]) is not int or cell["heads"] < 1:
+        raise ValueError("a head group needs at least one head")
     if cell["stage"] == "head-group-mixed" and cell["heads"] % 2:
         raise ValueError("a mixed head group needs an even number of heads")
     if type(cell["return_vectors"]) is not bool or type(cell["stop_session_on_reject"]) is not bool:

@@ -20,6 +20,14 @@
       "stop_session_on_reject": true
     },
     {
+      "id": "heads-multi-folded-1",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-folded",
+      "heads": 1,
+      "base_heads_mode": "one-pass"
+    },
+    {
       "id": "heads-multi-folded-2-separate",
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
