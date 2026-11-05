@@ -175,3 +175,14 @@ def real(value: object, name: str):
     """A real number, Python or numpy; arrays, strings and bools are refused."""
     if isinstance(value, bool) or not isinstance(value, int | float | np.integer | np.floating):
         raise TypeError(f"{name} must be a real number, not {type(value).__name__}")
+
+
+def check_pooled_input(rows: object, steps: object, first_row: object) -> None:
+    """The arguments of ``postprocess_pooled``, checked the same way by every backend:
+    writable C-contiguous float32 rows (already pooled, so finite), the steps of a
+    ``Prepared`` and the row the first row is."""
+    float32_matrix(rows, "rows", None, None, writable=True)
+    if not isinstance(steps, tuple):
+        raise ValueError("steps must be a tuple of steps")
+    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
+        raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")

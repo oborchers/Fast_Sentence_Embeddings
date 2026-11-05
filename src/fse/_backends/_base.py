@@ -122,6 +122,13 @@ class Backend(Protocol):
         """Stages 2 to 4 of ``batch`` into ``out``, ``(n_sentences, output_dim)`` float32."""
         ...
 
+    def postprocess_pooled(self, rows: ndarray, steps: tuple[Step, ...], first_row: int) -> None:
+        """The steps of a ``Prepared`` on ``rows``, in place: already pooled, finite,
+        writable C-contiguous float32 rows (the second half of ``rows`` of the backend, with
+        the same bits and errors; rows are numbered from ``first_row``). A head that
+        normalizes the pooled rows of the encoder in a copy uses it."""
+        ...
+
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray: ...

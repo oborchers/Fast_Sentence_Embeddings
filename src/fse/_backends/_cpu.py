@@ -34,6 +34,7 @@ from ._base import (
     dims,
 )
 from ._base_checks import (
+    check_pooled_input,
     check_score_input,
     check_scores_input,
     check_search_input,
@@ -94,6 +95,10 @@ class CpuBackend:
         state.kernel.pool(batch, out)
         if prepared.steps:  # normalize@1, in place
             _native.postprocess_pooled(out, prepared.steps, batch.first_row, isa=state.isa)
+
+    def postprocess_pooled(self, rows: ndarray, steps: tuple[Step, ...], first_row: int) -> None:
+        check_pooled_input(rows, steps, first_row)
+        _native.postprocess_pooled(rows, steps, int(first_row), isa=self.isa)
 
     def text_rows(
         self,
