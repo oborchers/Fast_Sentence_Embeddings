@@ -64,26 +64,29 @@ def note(value: float) -> str:
 
 
 def _checked(value: Any, name: str) -> ndarray:
-    """``value`` as an array of numbers, checked by the type before any conversion:
-    bools and wider floats raise, and so do integers beyond 2**53 (exact in float64 up to
-    there), also among the floats of a list, where numpy would round them silently."""
+    """``value`` as an array of numbers, checked by the type before any conversion: bools
+    and wider floats raise, and so do integers beyond 2**53 (exact in float64 up to there),
+    also among the floats of a list, where numpy would round them silently."""
     if not isinstance(value, ndarray):
         for item in np.asarray(value, dtype=object).ravel():
-            if isinstance(item, bool | np.bool_):
-                raise TypeError(f"{name} must be numbers (float or int), not bool")
-            if isinstance(item, int) and abs(item) > _EXACT:
-                raise ValueError(
-                    f"{name} holds integers beyond 2**53, which float64 cannot hold exactly"
-                )
+            _check_item(item, name)
     array = np.asarray(value)
     if array.dtype.kind not in "fiu" or array.dtype == np.bool_:
         raise TypeError(f"{name} must be numbers (float or int), not {array.dtype}")
     if array.dtype.kind == "f" and array.dtype.itemsize > 8:
         raise TypeError(f"{name} must not be wider than float64, not {array.dtype}")
-    if (
-        array.dtype.kind in "iu"
-        and array.size
-        and (int(array.max()) > _EXACT or int(array.min()) < -_EXACT)
-    ):
-        raise ValueError(f"{name} holds integers beyond 2**53, which float64 cannot hold exactly")
+    if array.dtype.kind in "iu" and array.size:
+        _check_range(int(array.max()), int(array.min()), name)
     return array
+
+
+def _check_item(item: Any, name: str) -> None:
+    if isinstance(item, bool | np.bool_):
+        raise TypeError(f"{name} must be numbers (float or int), not bool")
+    if isinstance(item, int):
+        _check_range(item, item, name)
+
+
+def _check_range(high: int, low: int, name: str) -> None:
+    if high > _EXACT or low < -_EXACT:
+        raise ValueError(f"{name} holds integers beyond 2**53, which float64 cannot hold exactly")
