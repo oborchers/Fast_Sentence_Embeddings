@@ -190,7 +190,7 @@ class HeadsPipeline:
             rows = self._guard(FULL, plan.own.pooled, local, batch, vsplit)
             if plan.encoder_normalizes:  # the vectors are the normalized rows
                 return Rows(folded, rows, None, rows)
-            normed = self._copy(local, rows, n, first) if plan.indices(NORMALIZED) else None
+            normed = self._copy(local, rows, n, first) if plan.has_normalized else None
             return Rows(folded, normed, rows, rows)
         raw = buffer(local, "head_rows", n, dim)  # the encoder normalizes, a head reads raw rows
         self._pool(FULL, plan.full, batch, raw)
@@ -230,10 +230,12 @@ class HeadsPipeline:
         try:
             source, weight = self._source(local, i, kind, read, n)
             backend = plan.primary.backend
-            logits = target if output == "logits" else buffer(local, f"head_logits{i}", n, head.k)
+            logits = (
+                target if output == "logits" else buffer(local, plan.logit_buffers[i], n, head.k)
+            )
             backend.logits(source, weight, head.bias, logits, first)
             if output in ("proba", "labels"):
-                write_outputs(backend, local, head, logits, target, output, first, f"{i}")
+                write_outputs(backend, local, head, logits, target, output, first, plan.tags[i])
         except ValueError as error:
             if not plan.named:
                 raise
@@ -241,12 +243,13 @@ class HeadsPipeline:
 
     def _source(self, local, i: int, kind: str, read: Rows, n: int) -> tuple[ndarray, Any]:
         """The rows head ``i`` of ``kind`` reads and its weight (None: the rows are folded)."""
-        head = self.plan.members[i].head
-        if kind == STANDALONE or (kind == FOLDED and len(self.plan.indices(FOLDED)) == 1):
+        plan = self.plan
+        head = plan.members[i].head
+        if plan.direct[i]:
             return read.folded, None
         if kind == FOLDED:  # the columns of the head, in a buffer of their own
-            start = self.plan.starts[i]
-            columns = buffer(local, f"head_columns{i}", n, head.k)
+            start = plan.starts[i]
+            columns = buffer(local, plan.column_buffers[i], n, head.k)
             columns[...] = read.folded[:, start : start + head.k]
             return columns, None
         return (read.normed if kind == NORMALIZED else read.raw), head.weight

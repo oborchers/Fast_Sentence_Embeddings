@@ -91,8 +91,32 @@ class HeadsPlan:
         self.named = any(m.name is not None for m in members)
         self.encoder_normalizes = tuple(spec.steps) == (Normalize(),)
         self.starts = _starts(members, kinds)
+        self._precompute()
         pipes = [p for p in (table, full, normed, own if self.with_vectors else None) if p]
         self.primary = max(pipes, key=lambda p: p.output_dim)
+
+    def _precompute(self) -> None:
+        """What a call and a task would otherwise recompute: the folded heads, the heads
+        that read the shared table as it is, the names of the worker buffers and the bytes
+        of a row that do not depend on the call."""
+        self.folded = self.indices(FOLDED)
+        self.has_normalized = bool(self.indices(NORMALIZED))
+        # A lone folded head (or a standalone one) reads the table as it is, with no columns.
+        self.direct = tuple(
+            kind == STANDALONE or (kind == FOLDED and len(self.folded) == 1) for kind in self.kinds
+        )
+        count = len(self.members)
+        self.logit_buffers = tuple(f"head_logits{i}" for i in range(count))
+        self.column_buffers = tuple(f"head_columns{i}" for i in range(count))
+        self.tags = tuple(f"{i}" for i in range(count))
+        total = 4 * (self.table.output_dim if self.table else 0)
+        if len(self.folded) > 1:
+            total += 4 * sum(self.members[i].head.k for i in self.folded)
+        full = 4 * self.spec.output_dim
+        if self.indices(NORMALIZED, RAW):
+            total += full + (STEP_ROW_BYTES * self.spec.output_dim if self.has_normalized else 0)
+            total += full if self.has_normalized and self.indices(RAW) else 0
+        self._fixed_bytes = total
 
     @property
     def folded_columns(self) -> int:
@@ -115,16 +139,7 @@ class HeadsPlan:
         step), the logits and output targets of every head and, with the vectors, their
         target and scratch as the encoder's pipeline counts them. For one head the sum of
         the former single-head pipeline."""
-        total = 4 * (self.table.output_dim if self.table else 0)
-        folded = self.indices(FOLDED)
-        if len(folded) > 1:
-            total += 4 * sum(self.members[i].head.k for i in folded)  # the columns of each head
-        full = 4 * self.spec.output_dim
-        if self.indices(NORMALIZED, RAW):
-            total += full + (
-                STEP_ROW_BYTES * self.spec.output_dim if self.indices(NORMALIZED) else 0
-            )
-            total += full if len(self.indices(NORMALIZED)) and len(self.indices(RAW)) else 0
+        total = self._fixed_bytes
         for member, output in zip(self.members, outputs, strict=True):
             total += _head_bytes(member.head, output)
         if self.with_vectors:
