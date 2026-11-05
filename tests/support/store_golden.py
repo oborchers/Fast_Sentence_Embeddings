@@ -11,7 +11,6 @@ builds, so ``created_by`` is fixed through the single ``_created_by`` of the sin
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -125,12 +124,6 @@ def observe(root: Path, spec: dict) -> dict:
 
 def _hash(path: Path) -> str:
     data = path.read_bytes()
-    if os.name == "nt" and path.name == "manifest.json":
-        # write_manifest writes in text mode, so Windows ends its lines with CRLF. The pinned
-        # bytes have LF; this folds only that difference, for manifests only, until the
-        # writer uses LF everywhere (DR-238, Manifeste auf allen Plattformen mit
-        # LF-Zeilenenden schreiben).
-        data = data.replace(b"\r\n", b"\n")
     digest = Hasher()
     digest.update(np.frombuffer(data, np.uint8))
     return digest.checksum()
