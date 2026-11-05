@@ -40,12 +40,12 @@ def test_a_store_has_the_pinned_bytes(tmp_path, name):
 
 
 def _differences(store, got, want):
-    """The files whose bytes differ, with their size and first and last bytes."""
+    """The files whose bytes differ: size, first 128 and last 64 bytes in hex."""
     lines = []
     for key in sorted(got):
         if got[key] != want.get(key):
             data = (store / key).read_bytes()
-            lines.append(f"{key}: {len(data)} bytes {data[:150]!r} ... {data[-40:]!r}")
+            lines.append(f"{key}: {len(data)} bytes {data[:128].hex()} ... {data[-64:].hex()}")
     return "\n".join(lines[:4])
 
 
