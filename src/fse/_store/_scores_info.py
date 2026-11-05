@@ -378,6 +378,10 @@ def _single_label_error(head: ScoreHead, labels: int) -> str | None:
         return "sigmoid has two labels"
     if head.stored == "proba":
         return None if head.width == labels else "probabilities are stored one per label"
+    return _logit_error(head, labels)
+
+
+def _logit_error(head: ScoreHead, labels: int) -> str | None:
     # The logits: one per label, or one for two labels.
     if not (head.width == labels or (head.width == 1 and labels == 2)):
         return "the logits are one per label, or one for two labels"
