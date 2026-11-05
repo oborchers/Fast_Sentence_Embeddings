@@ -10,7 +10,10 @@ docs/architecture/runtime.md, "Runtime". Private: PR 5's Encoder builds an Encod
 Pipeline; the public entry points come with it.
 """
 
-from ._head import OUTPUTS, HeadPipeline, HeadSpec, make_head
+from ._head import OUTPUTS, HeadPipeline, make_head
+from ._head_spec import HeadSpec
+from ._heads import HeadsPipeline
+from ._heads_plan import HeadsPlan, Member, plan_heads
 from ._pipeline import Pipeline, check_sink_rows, check_workers
 from ._sinks import (
     ArrayRows,
@@ -31,6 +34,9 @@ __all__ = [
     "GrowingRows",
     "HeadPipeline",
     "HeadSpec",
+    "HeadsPipeline",
+    "HeadsPlan",
+    "Member",
     "MemorySink",
     "Pipeline",
     "QuantizedRows",
@@ -40,5 +46,6 @@ __all__ = [
     "check_sink_rows",
     "check_workers",
     "make_head",
+    "plan_heads",
     "wants_inverse_norms",
 ]

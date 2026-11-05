@@ -147,14 +147,15 @@ def write_outputs(
     target: ndarray,
     output: str,
     first: int,
+    tag: str = "",
 ) -> None:
     """The ``output`` ("proba" or "labels") of the finished ``logits`` of ``head`` into
-    ``target``; the label rule linear@2 decides on the probabilities."""
+    ``target``; the label rule linear@2 decides on the probabilities, in the buffer ``tag``
+    of the worker."""
     if output == "proba":
         backend.outputs(logits, "proba", head.link, target, first)
     elif head.rule is Head.LINEAR2:
-        width = head.width("proba")
-        probabilities = buffer(local, "head_proba", len(logits), width)
+        probabilities = buffer(local, f"head_proba{tag}", len(logits), head.width("proba"))
         backend.outputs(logits, "proba", head.link, probabilities, first)
         if head.link is Link.MULTILABEL:
             assert head.thresholds is not None
