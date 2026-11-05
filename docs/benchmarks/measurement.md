@@ -68,8 +68,8 @@ PASS heuristic. Short screens remain preliminary or inconclusive. O screens neve
 return keep. Only the full O protocol can justify that local decision.
 
 Class P requires Linux publication evidence through the existing pinned protocol.
-The only other case that requires a paired Linux comparison is a Linux machine the
-maintainer has explicitly approved for the ticket. Such an approved comparison can
+The only other case that requires a paired Linux comparison is an explicit approval
+by the maintainer of a Linux machine for the ticket. Such an approved comparison can
 also serve class R or O. Voluntary Linux comparisons remain allowed. Local speed
 results for K, D, R and O are development indications with `publishable: false`.
 Local correctness and quality results keep their validity. The PR states the
