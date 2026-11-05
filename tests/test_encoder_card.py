@@ -215,3 +215,22 @@ def test_a_quantized_table_without_a_record_of_its_origin_names_only_its_rule(tm
     text = _card_of(tmp_path / "m.safetensors", tmp_path)[0].decode()
     assert "- table stored by `quantize_rows@1`\n" in text
     assert "from the float32 table" not in text
+
+
+def test_notes_are_paragraphs_after_the_facts_and_the_rule_is_a_fact(tmp_path):
+    encoder = finished(normalize=False)
+    model = fse.Classifier.from_arrays(
+        encoder, np.ones((3, encoder.output_dim)), labels=[0, 1, 2], temperature=2.0
+    )
+    path = tmp_path / "m.safetensors"
+    model.save(path)
+    with _open_regular(path) as handle:
+        _, entries, metadata = safetensors_header(handle, path)
+    shapes = {name: tuple(spec[1]) for name, spec in entries.items()}
+    kwargs = {"license": "mit", "language": None, "model_name": "m", "location": "m"}
+    text = _card.card(dict(metadata), shapes, notes=("A note.", "Another."), **kwargs).decode()
+    assert "- label rule: linear@2 (the first class of largest probability)" in text
+    assert text.index("A note.\n\nAnother.\n\n") > text.index("- fingerprint:")
+    assert text.index("Another.") < text.index("## Usage")
+    plain = _card.card(dict(metadata), shapes, **kwargs).decode()
+    assert "A note." not in plain

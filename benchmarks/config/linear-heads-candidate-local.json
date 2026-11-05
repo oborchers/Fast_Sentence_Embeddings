@@ -1,0 +1,18 @@
+{
+  "format": "local-development-v2",
+  "description": "linear-heads@1, candidate only: the label rule linear@2 does not exist in the base build. Use it for the functional probe and the profile-head job, never in a paired run.",
+  "defaults": {
+    "profile": "linear-heads@1",
+    "decision_gate": false,
+    "workers": 2
+  },
+  "cells": [
+    {
+      "id": "heads-single-labels-linear2",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-labels",
+      "rule": "linear@2"
+    }
+  ]
+}

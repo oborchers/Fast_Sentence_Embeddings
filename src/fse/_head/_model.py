@@ -36,7 +36,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._contract import Link, UnsupportedArtifactError
+from fse._contract import Head, Link, UnsupportedArtifactError
 from fse._cpus import usable_cpus
 from fse._encoder import Encoder, _pretrained
 from fse._encoder._format import to_artifact as encoder_artifact
@@ -73,6 +73,7 @@ class LinearModel(HubModel):
         "_fingerprint",
         "_head",
         "_lock",
+        "_note",
         "_path",
         "_pipelines",
         "_source",
@@ -83,6 +84,7 @@ class LinearModel(HubModel):
     _fingerprint: str | None
     _head: HeadSpec
     _lock: threading.Lock
+    _note: str | None
     _path: Path | None
     _pipelines: dict[tuple[str, bool], HeadPipeline]
     _source: str | None
@@ -102,6 +104,7 @@ class LinearModel(HubModel):
         content: HeadContent,
         *,
         source: str | None = None,
+        note: str | None = None,
         path: Path | None = None,
         checksums: dict[str, str] | None = None,
         fingerprint_: str | None = None,
@@ -110,9 +113,15 @@ class LinearModel(HubModel):
         out._encoder = encoder
         out._content = content
         out._head = HeadSpec(
-            content.weight, content.bias, content.normalized, content.link, content.thresholds
+            content.weight,
+            content.bias,
+            content.normalized,
+            content.link,
+            content.thresholds,
+            content.rule,
         )
         out._source = source
+        out._note = note  # for the model card; a loaded model has none
         out._path = path
         out._checksums = checksums
         out._fingerprint = fingerprint_
@@ -133,6 +142,8 @@ class LinearModel(HubModel):
         source: str | None = None,
         flat: bool | None = None,
         thresholds: Any = None,
+        rule: Head | None = None,
+        note: str | None = None,
     ):
         """A model of ``encoder`` and the head of ``weight`` and ``bias``, checked."""
         if not isinstance(encoder, Encoder):
@@ -152,9 +163,9 @@ class LinearModel(HubModel):
         if flat is None:
             flat = not multi and (cls.TASK == "classification" or np.ndim(weight) == 1)
         content = HeadContent(
-            cls.TASK, w, b, normalized, chosen, names, flat=flat, thresholds=limits
+            cls.TASK, w, b, normalized, chosen, names, flat=flat, thresholds=limits, rule=rule
         )
-        return cls._new(encoder, content, source=source)
+        return cls._new(encoder, content, source=source, note=note)
 
     # --- the head on a backend --------------------------------------------------------
 
@@ -200,7 +211,9 @@ class LinearModel(HubModel):
             limits = self._verified("head.thresholds", limits)
             limits.setflags(write=False)
         content = dataclasses.replace(self._content, weight=weight, bias=bias, thresholds=limits)
-        return type(self)._new(self._encoder.quantize(dtype), content, source=self._source)
+        return type(self)._new(
+            self._encoder.quantize(dtype), content, source=self._source, note=self._note
+        )
 
     # --- persistence ------------------------------------------------------------------
 
@@ -356,12 +369,8 @@ class LinearModel(HubModel):
         else:
             assert found.path is not None
             model = cls._load(found.path, mmap)
-        # The closed artifact schema permits version 2 exactly for multilabel heads.
-        version = (
-            _format.MULTILABEL_VERSION
-            if model._content.link is Link.MULTILABEL
-            else _format.FORMAT_VERSION
-        )
+        # The closed artifact schema permits version 2 exactly with the label rule linear@2.
+        version = _format.version_of(model._content.rule)
         _pretrained.check_loaded(found, model._fingerprint, _format.KIND, int(version))
         return model
 

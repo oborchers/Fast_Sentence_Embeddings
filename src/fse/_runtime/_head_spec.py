@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy import ndarray
 
-from fse._contract import Link, Normalize, Step
+from fse._contract import Head, Link, Normalize, Step
 
 F32 = np.float32
 
@@ -23,6 +23,8 @@ class HeadSpec:
     normalized: bool
     link: Link | None
     thresholds: ndarray | None = None
+    # None: the rule follows from the link, linear@2 for multilabel@1, else linear@1.
+    rule: Head | None = None
 
     def __post_init__(self):
         bias = _frozen(self.bias, "bias", 1)
@@ -39,6 +41,7 @@ class HeadSpec:
         if self.link is not None and not isinstance(self.link, Link):
             raise TypeError("link must be a Link or None")
 
+        object.__setattr__(self, "rule", head_rule(self.rule, self.link))
         if self.link is Link.MULTILABEL:
             given = (
                 np.full(len(bias), 0.5, dtype=F32) if self.thresholds is None else self.thresholds
@@ -69,6 +72,20 @@ class HeadSpec:
                 raise ValueError("the head has no link, so no probabilities")
             return 2 if self.k == 1 and self.link is not Link.MULTILABEL else self.k
         return self.k
+
+
+def head_rule(rule: Head | None, link: Link | None) -> Head:
+    """The label rule of a head: ``rule``, or by default linear@2 for multilabel@1 and
+    linear@1 else. linear@2 for a single-label head needs probabilities."""
+    if rule is None:
+        return Head.LINEAR2 if link is Link.MULTILABEL else Head.LINEAR
+    if not isinstance(rule, Head):
+        raise TypeError("rule must be a Head or None")
+    if link is Link.MULTILABEL and rule is not Head.LINEAR2:
+        raise ValueError("multilabel@1 needs the label rule linear@2")
+    if link is None and rule is Head.LINEAR2:
+        raise ValueError("the label rule linear@2 needs a link; a head without one has none")
+    return rule
 
 
 def _frozen(value: object, name: str, ndim: int) -> ndarray:

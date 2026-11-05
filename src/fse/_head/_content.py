@@ -22,7 +22,8 @@ import numpy as np
 from numpy import ndarray
 
 from fse._backends import get_backend
-from fse._contract import LINK_NONE, Link
+from fse._contract import LINK_NONE, Head, Link
+from fse._runtime._head_spec import head_rule
 
 TASKS = ("classification", "regression")
 # The links a caller names, and what "auto" takes for k outputs.
@@ -40,8 +41,8 @@ _INT64 = (-(2**63), 2**63 - 1)
 class HeadContent:
     """A checked head: ``weight`` (k, d) float32 (None for a standalone head, whose table
     is folded), ``bias`` (k,), whether it was trained on ``normalized`` rows, its ``link``
-    (None: no probabilities) and, for classification, its ``labels`` in output order (two
-    for k = 1, negative first, else k)."""
+    (None: no probabilities), its label ``rule`` and, for classification, its ``labels`` in
+    output order (two for k = 1, negative first, else k)."""
 
     task: str
     weight: ndarray | None
@@ -54,6 +55,14 @@ class HeadContent:
     # decision_function), for regression when the head was one vector (coef_ of shape (d,)).
     flat: bool = True
     thresholds: ndarray | None = None
+    # None: derived from the link (linear@2 for multilabel@1, else linear@1).
+    rule: Head | None = None
+
+    def __post_init__(self):
+        rule = head_rule(self.rule, self.link)
+        if self.task == "regression" and rule is not Head.LINEAR:
+            raise ValueError("a regression head has the label rule linear@1")
+        object.__setattr__(self, "rule", rule)
 
     @property
     def k(self) -> int:

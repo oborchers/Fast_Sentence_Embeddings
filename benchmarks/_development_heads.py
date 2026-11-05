@@ -2,6 +2,9 @@
 
 The profile fixes one four-output softmax head, without training. Both installed
 builds support it. Multilabel correctness stays in the product conformance suite.
+The stage head-labels times model.predict (int64 labels). Its option rule is linear@1
+(no temperature, in both builds) or linear@2 (temperature=1.0: the same weight bits,
+only the label rule differs; the candidate only).
 """
 
 from __future__ import annotations
@@ -9,7 +12,8 @@ from __future__ import annotations
 from typing import NamedTuple
 
 PROFILE = "linear-heads@1"
-STAGES = ("head-folded", "head-with-vectors")
+STAGES = ("head-folded", "head-with-vectors", "head-labels")
+RULES = ("linear@1", "linear@2")
 SPEC = {"outputs": 4, "seed": 17, "link": "softmax", "normalized": False}
 
 
@@ -28,16 +32,24 @@ def operation(encoder, texts, job, *, backend="cpu"):
     rng = np.random.default_rng(SPEC["seed"])
     weight = rng.standard_normal((SPEC["outputs"], encoder.output_dim)).astype(np.float32)
     bias = rng.standard_normal(SPEC["outputs"]).astype(np.float32)
+    labels_stage = job["stage"] == "head-labels"
+    extra = {"temperature": 1.0} if labels_stage and job.get("rule") == "linear@2" else {}
     model = Classifier.from_arrays(
         encoder,
         weight,
         bias,
-        labels=[f"class_{index}" for index in range(SPEC["outputs"])],
+        # Integer labels keep the labels output a plain int64 array to byte-check.
+        labels=list(range(SPEC["outputs"]))
+        if labels_stage
+        else [f"class_{index}" for index in range(SPEC["outputs"])],
         link=SPEC["link"],
         normalized=SPEC["normalized"],
+        **extra,
     )
 
     def predict():
+        if labels_stage:
+            return HeadOutput(model.predict(texts, workers=job["workers"], backend=backend), None)
         if job["stage"] == "head-folded":
             return HeadOutput(
                 model.predict_proba(texts, workers=job["workers"], backend=backend), None
@@ -50,7 +62,13 @@ def operation(encoder, texts, job, *, backend="cpu"):
     # Prepare the lazy folded table outside every timer. Verify the complete public
     # output shape once here; the controller checks every subsequent output's bytes.
     prepared = predict()
-    if prepared.probabilities.shape != (len(texts), SPEC["outputs"]):
+    if labels_stage:
+        if (
+            prepared.probabilities.shape != (len(texts),)
+            or prepared.probabilities.dtype.kind != "i"
+        ):
+            raise ValueError("head label shape or dtype differs from the fixed profile")
+    elif prepared.probabilities.shape != (len(texts), SPEC["outputs"]):
         raise ValueError("head probability shape differs from the fixed profile")
     if job["stage"] == "head-with-vectors" and prepared.vectors.shape != (
         len(texts),
