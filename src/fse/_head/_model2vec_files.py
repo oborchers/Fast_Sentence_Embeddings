@@ -61,7 +61,7 @@ def refuse_for_regressor(files: Any) -> None:
         )
 
 
-def read(files: Files, config: dict, mmap: bool) -> tuple[spec_.Imported, Encoder]:
+def read(files: Any, config: dict, mmap: bool) -> tuple[spec_.Imported, Encoder]:
     """The head and the encoder of the export in ``files`` with its parsed ``config``."""
     if mmap:
         raise ValueError(

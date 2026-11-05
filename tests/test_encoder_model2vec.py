@@ -189,6 +189,11 @@ def test_the_table_is_checked(tmp_path):
         (
             {"embeddings": table, "weights": table[:, 0]},
             UnsupportedArtifactError,
+            "separate token weights",
+        ),
+        (
+            {"embeddings": table, "weights": table[:, 0], "mapping": np.arange(len(table))},
+            UnsupportedArtifactError,
             "vocabulary quantization",
         ),
         ({"embeddings": table[0]}, CorruptArtifactError, "must be a matrix"),
