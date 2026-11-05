@@ -35,7 +35,7 @@ from ._base_sink import ShardSinkBase
 from ._layout import create_store, read_store
 from ._recovery import refuse_unsynced, snapshot
 from ._shard import ShardWriter
-from ._vectors_format import StoreInfo
+from ._vectors_format import VECTORS, StoreInfo
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
 # of vectors or rows.
@@ -95,7 +95,7 @@ class ShardSink(ShardSinkBase):
         new = not path.exists() and not path.is_symlink()
         if new:
             create_store(path, info)
-        existing = read_store(path)
+        existing = read_store(path, VECTORS.name)
         existing.check(info, path)
         info = existing
         synced = durability == "full"

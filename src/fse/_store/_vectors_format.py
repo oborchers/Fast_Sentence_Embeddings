@@ -74,6 +74,10 @@ class StoreInfo:
     has_doc_ids: bool = False
     version: int = 1
 
+    @property
+    def kind(self) -> str:
+        return NAME
+
     def metadata(self) -> dict[str, str]:
         metadata = {
             "fse.kind": NAME,

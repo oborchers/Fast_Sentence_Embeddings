@@ -7,7 +7,6 @@ bytes, and refuse the same stores with the same classes. The goldens are never r
 """
 
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -63,30 +62,32 @@ def _store_json(path, **change):
     file.write_text(json.dumps(store, sort_keys=True, indent=1) + "\n", encoding="utf-8")
 
 
-def test_a_foreign_kind_with_the_vector_keys_is_unsupported(tmp_path):
+def test_an_unknown_kind_with_the_vector_keys_is_unsupported(tmp_path):
     make_store(tmp_path / "s", sizes=(4,))
-    _store_json(tmp_path / "s", metadata={"fse.kind": "prediction_scores"})
+    _store_json(tmp_path / "s", metadata={"fse.kind": "something_else"})
     with pytest.raises(UnsupportedArtifactError) as raised:
         fse.VectorStore.open(tmp_path / "s")
-    assert str(raised.value).endswith(
-        "holds 'prediction_scores' format '1' transform '2'; this fse reads "
-        "sentence_vectors format 1, transform 2"
-    )
+    assert "the kind 'something_else'" in str(raised.value)
 
 
-def test_a_foreign_kind_with_its_own_keys_is_corrupt(tmp_path):
+def test_an_unknown_kind_with_its_own_keys_is_unsupported_not_corrupt(tmp_path):
+    # Before the score kind, a foreign kind with other keys was a CorruptArtifactError.
     make_store(tmp_path / "s", sizes=(4,))
-    _store_json(tmp_path / "s", metadata={"fse.kind": "prediction_scores", "fse.score_heads": "[]"})
-    with pytest.raises(CorruptArtifactError) as raised:
+    _store_json(tmp_path / "s", metadata={"fse.kind": "something_else", "fse.other": "[]"})
+    with pytest.raises(UnsupportedArtifactError, match="the kind 'something_else'"):
         fse.VectorStore.open(tmp_path / "s")
-    assert re.search(
-        r"the metadata must hold exactly fse\.kind, fse\.format_version", str(raised.value)
-    )
+
+
+def test_the_score_kind_needs_store_version_2(tmp_path):
+    make_store(tmp_path / "s", sizes=(4,))
+    _store_json(tmp_path / "s", metadata={"fse.kind": "prediction_scores"})
+    with pytest.raises(CorruptArtifactError, match="needs store version 2, not 1"):
+        fse.VectorStore.open(tmp_path / "s")
 
 
 def test_a_foreign_store_version_is_unsupported_before_the_metadata(tmp_path):
     make_store(tmp_path / "s", sizes=(4,))
-    _store_json(tmp_path / "s", store_version=2, metadata={"fse.kind": "unknown", "x": "y"})
+    _store_json(tmp_path / "s", store_version=2, metadata={"fse.kind": 3, "x": "y"})
     with pytest.raises(CorruptArtifactError):
         fse.VectorStore.open(tmp_path / "s")  # version 2 reads as the document-ID mode
     _store_json(tmp_path / "s", store_version=3)
