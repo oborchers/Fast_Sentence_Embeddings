@@ -5,7 +5,7 @@ import threading
 import pytest
 
 from fse import ShardSink
-from fse._store import _shard
+from fse._store import _columns, _shard
 from support.encoder import finished
 
 
@@ -35,7 +35,7 @@ def test_write_failure_survives_publication_and_hash_handover(
         publishing.set()
         real_wait(writer, failed)
 
-    monkeypatch.setattr(_shard, "write_at", fail_write)
+    monkeypatch.setattr(_columns, "write_at", fail_write)
     monkeypatch.setattr(_shard.ShardWriter, "commit", commit)
     monkeypatch.setattr(_shard.ShardWriter, "wait_written", wait_written)
     sink = ShardSink(tmp_path / "store", finished(), shard_rows=8, durability=durability)
@@ -79,7 +79,7 @@ def test_write_failure_between_commit_submissions_is_reported(tmp_path, monkeypa
         sink._io.settle()
         real_submit(*args, **kwargs)
 
-    monkeypatch.setattr(_shard, "write_at", fail_write)
+    monkeypatch.setattr(_columns, "write_at", fail_write)
     monkeypatch.setattr(sink._hash, "submit", after_write)
     try:
         target = sink.target(0, 8)

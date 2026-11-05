@@ -6,7 +6,7 @@ import threading
 import pytest
 
 import fse
-from fse._store import _recovery, _shard
+from fse._store import _columns, _recovery
 from support.encoder import finished
 from support.logs import captured
 from support.runtime import texts
@@ -72,7 +72,7 @@ def test_none_counts_unpublished_commits_as_dropped_after_a_write_failure(tmp_pa
         assert release.wait(10)
         raise OSError(5, "injected write failure")
 
-    monkeypatch.setattr(_shard, "write_at", fail)
+    monkeypatch.setattr(_columns, "write_at", fail)
     with captured() as records:
         target = sink.target(0, 8)
         target[0][...] = target[1][...] = 0

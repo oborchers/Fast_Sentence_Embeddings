@@ -21,19 +21,21 @@ import os, sys, threading
 from pathlib import Path
 sys.path.insert(0, sys.argv[3])
 import fse
-from fse._store import _shard
+from fse._store import _columns, _shard
 from support.encoder import finished
 from support.runtime import texts
 
 point, calls, real = sys.argv[2], [0], _shard.publish_directory
-real_write, real_shrink = _shard.ShardWriter.write, _shard.shrink
+real_write, real_shrink = _shard.ShardWriter.write, _columns.shrink
 first_published = threading.Event()
 
 def write(self, begin, codes):
     if point == "write" and self.first_row == 64:
         assert first_published.wait(30), "first shard was not published"
-        self._file()
-        _shard.write_at(self.fd, memoryview(codes).cast("B")[: codes.nbytes // 2], self.offset)
+        self.vectors.ensure()
+        _columns.write_at(
+            self.vectors.fd, memoryview(codes).cast("B")[: codes.nbytes // 2], self.vectors.offset
+        )
         os._exit(3)  # halfway through a write of the second shard
     real_write(self, begin, codes)
 
@@ -53,7 +55,7 @@ def publish(tmp, path, **kwargs):
         os._exit(3)  # the second shard is published, the sink never learns it
 
 _shard.publish_directory = publish
-_shard.ShardWriter.write, _shard.shrink = write, shrink
+_shard.ShardWriter.write, _columns.shrink = write, shrink
 encoder = finished()
 with fse.ShardSink(sys.argv[1], encoder, shard_rows=64, durability=sys.argv[4]) as sink:
     encoder.encode(texts(300), sink=sink, workers=2)
