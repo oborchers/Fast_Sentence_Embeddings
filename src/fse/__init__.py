@@ -23,7 +23,7 @@ from fse._wordvectors_format import FastTextParams
 
 if TYPE_CHECKING:
     from fse._encoder import EncodedBatch, Encoder, QuantizedRows
-    from fse._head import Classifier, PredictedBatch, Regressor
+    from fse._head import Classifier, Heads, HeadsBatch, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
     from fse._static_model import StaticModel
     from fse._store import SearchResult, ShardSink, VectorStore, repair_store
@@ -41,7 +41,9 @@ _LAZY = {
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
     "StaticModel": "fse._static_model",
     **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore", "repair_store"), "fse._store"),
-    **dict.fromkeys(("Classifier", "PredictedBatch", "Regressor"), "fse._head"),
+    **dict.fromkeys(
+        ("Classifier", "Heads", "HeadsBatch", "PredictedBatch", "Regressor"), "fse._head"
+    ),
 }
 
 _REMOVED = {
@@ -93,6 +95,8 @@ __all__ = [
     "EncodedBatch",
     "Encoder",
     "FastTextParams",
+    "Heads",
+    "HeadsBatch",
     "MemorySink",
     "PredictedBatch",
     "PublishedNotDurableError",
