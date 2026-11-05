@@ -42,3 +42,16 @@ def test_partial_named_thresholds_use_class_order_and_own_the_data():
 def test_invalid_thresholds_are_not_coerced(given, error, match):
     with pytest.raises(error, match=match):
         thresholds(given, ("sport", "news"))
+
+
+def test_updated_keeps_what_a_partial_mapping_does_not_name():
+    from fse._head._thresholds import updated
+
+    labels = ("a", "b", "c")
+    current = {"a": 0.1, "b": 0.2, "c": 0.3}
+    assert updated(current, {"b": 0.9}, labels).tolist() == pytest.approx([0.1, 0.9, 0.3])
+    assert updated(current, 0.4, labels).tolist() == pytest.approx([0.4] * 3)
+    assert updated(current, [0.6, 0.7, 0.8], labels).tolist() == pytest.approx([0.6, 0.7, 0.8])
+    assert updated(current, None, labels).tolist() == [0.5, 0.5, 0.5]
+    with pytest.raises(ValueError, match="unknown threshold label"):
+        updated(current, {"z": 0.5}, labels)

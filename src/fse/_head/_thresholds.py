@@ -29,6 +29,15 @@ def thresholds(value: Any, labels: tuple) -> ndarray:
     return result
 
 
+def updated(current: Mapping, given: Any, labels: tuple) -> ndarray:
+    """The cutoffs after ``given`` on top of ``current`` (label to value): a partial mapping
+    changes only the labels it names; a scalar or a vector replaces all; None resets all to
+    0.5."""
+    if isinstance(given, Mapping):
+        given = {**current, **given}
+    return thresholds(given, labels)
+
+
 def _named(given: Mapping, labels: tuple) -> list:
     indices = {label: index for index, label in enumerate(labels)}
     values = [0.5] * len(labels)

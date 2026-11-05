@@ -23,7 +23,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse._backends import BACKEND_NAMES, get_backend
-from fse._contract import Head, Link
+from fse._contract import Link
 from fse._cpus import usable_cpus
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._sources import opened
@@ -31,6 +31,7 @@ from fse._runtime import check_workers
 from fse._store import ShardSink, VectorStore
 from fse._store._search import score_blocks
 
+from ._derive import derive
 from ._outputs import PredictedBatch
 
 # The output a caller asks for, and what the runtime computes for it.
@@ -191,23 +192,15 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
     kind = RUNTIME[output]
 
     def outputs(first_row: int, z: ndarray) -> ndarray:
-        if kind == "logits":
-            return z
-        if kind == "labels" and head.rule is Head.LINEAR2:
-            probabilities = np.empty((len(z), head.width("proba")), dtype=np.float32)
-            host.outputs(z, "proba", head.link, probabilities, first_row)
-            if head.link is Link.MULTILABEL:
-                out = np.empty(z.shape, dtype=np.bool_)
-                assert head.thresholds is not None
-                host.decisions(probabilities, head.thresholds, out)
-                return out
-            return np.argmax(probabilities, axis=1).astype(np.int64)
-        out = np.empty(
-            len(z) if kind == "labels" else (len(z), head.width(kind)),
-            dtype=np.int64 if kind == "labels" else np.float32,
+        return derive(
+            host,
+            z,
+            kind,
+            rule=head.rule,
+            link=head.link,
+            thresholds=head.thresholds,
+            first_row=first_row,
         )
-        host.outputs(z, kind, head.link if kind == "proba" else None, out, first_row)
-        return out
 
     with store._using():
         yield from score_blocks(
