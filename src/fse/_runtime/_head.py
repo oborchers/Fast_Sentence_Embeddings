@@ -30,7 +30,7 @@ from numpy import ndarray
 
 from fse import _codes, _log
 from fse._backends import PoolInput, get_backend
-from fse._contract import Link
+from fse._contract import Head, Link
 from fse._cpus import usable_cpus
 
 from ._errors import earliest, first_rows
@@ -173,8 +173,10 @@ class HeadPipeline:
         multi = self.head.link is Link.MULTILABEL
         out = (self.head.k if multi else 8) if output == "labels" else 4 * self.head.width(output)
         total = 4 * reader + steps + 4 * self.head.k + out
-        if multi and output == "labels":
-            total += 4 * self.head.k
+        if output == "labels" and self.head.rule is Head.LINEAR2:
+            # The probabilities the label is decided on: k for multilabel, else the width
+            # of predict_proba (2 for one output).
+            total += 4 * self.head.width("proba")
         if self.with_vectors:
             total += (self.vectors or self.reader)._row_bytes(vdtype, inverse)
         return total
@@ -316,11 +318,17 @@ class HeadPipeline:
     def _write_outputs(self, backend, local, logits, target, output, first) -> None:
         if output == "proba":
             backend.outputs(logits, "proba", self.head.link, target, first)
-        elif self.head.link is Link.MULTILABEL:
-            probabilities = _buffer(local, "head_proba", len(logits), self.head.k)
+        elif self.head.rule is Head.LINEAR2:
+            width = self.head.width("proba")
+            probabilities = _buffer(local, "head_proba", len(logits), width)
             backend.outputs(logits, "proba", self.head.link, probabilities, first)
-            assert self.head.thresholds is not None
-            backend.decisions(probabilities, self.head.thresholds, target)
+            if self.head.link is Link.MULTILABEL:
+                assert self.head.thresholds is not None
+                backend.decisions(probabilities, self.head.thresholds, target)
+            else:
+                if target.dtype != np.intp:
+                    raise ValueError("the label rule linear@2 needs a platform whose int64 is intp")
+                np.argmax(probabilities, axis=1, out=target)
         else:
             backend.outputs(logits, "labels", None, target, first)
 

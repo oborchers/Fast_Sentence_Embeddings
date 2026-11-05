@@ -38,6 +38,7 @@ from ._base import (
     check_stored_input,
     dims,
 )
+from ._base_head import check_affine64_input, check_quotient64_input
 
 _CAPABILITIES = Capabilities(
     word_dtypes=frozenset({"float32", "float16", "int8"}),
@@ -133,6 +134,16 @@ class CpuBackend:
 
     def float32(self, values: object) -> ndarray:
         return _native.float32(values)
+
+    def affine64(
+        self, weight: ndarray, bias: ndarray, factor: ndarray, shift: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        check_affine64_input(weight, bias, factor, shift)
+        return _native.affine64(weight, bias, factor, shift)
+
+    def quotient64(self, weight: ndarray, bias: ndarray, divisor: float) -> tuple[ndarray, ndarray]:
+        check_quotient64_input(weight, bias, divisor)
+        return _native.quotient64(weight, bias, divisor)
 
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         check_stored_input(stored, first_row)

@@ -16,10 +16,16 @@ from typing import Any, Literal
 
 from numpy import ndarray
 
-from fse._contract import Link
-from fse._validation import PathLike, PositiveInt, ThresholdInput, validate_arguments
+from fse._contract import Head, Link
+from fse._validation import (
+    PathLike,
+    PositiveInt,
+    Temperature,
+    ThresholdInput,
+    validate_arguments,
+)
 
-from . import _run, _sklearn
+from . import _calibration, _run, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._outputs import PredictedBatch
@@ -73,6 +79,8 @@ class Classifier(LinearModel):
             labels=found.labels if labels is None else labels,
             source=found.source,
             thresholds=thresholds,
+            rule=found.rule,
+            note=found.note,
         )
 
     @classmethod
@@ -87,6 +95,7 @@ class Classifier(LinearModel):
         link: Literal["auto", "sigmoid", "softmax", "ovr", "none", "multilabel"] = "auto",
         normalized: bool | None = None,
         thresholds: ThresholdInput = None,
+        temperature: Temperature | None = None,
     ):
         """The head ``weight`` (k, d) or (d,) and ``bias`` (k, a scalar or None) on the rows
         of ``encoder``, d its ``output_dim``: ``labels`` are k labels for multilabel;
@@ -99,7 +108,20 @@ class Classifier(LinearModel):
         ``multilabel`` gives one independent sigmoid per label, including k = 1.
         ``thresholds``: None (0.5 each), a scalar, a vector, or a partial mapping from
         labels to cutoffs in [0, 1]; unnamed labels keep 0.5. Predictions are boolean
-        (n, k), true strictly above the cutoff. Other links refuse thresholds."""
+        (n, k), true strictly above the cutoff. Other links refuse thresholds.
+
+        ``temperature`` T (finite, greater than zero) is the softmax temperature of a head
+        whose logits are divided by it, ``softmax(z / T)``; only the link softmax takes it.
+        fse divides ``weight`` and ``bias`` by T in float64 and rounds once to float32;
+        nothing of T is stored. The label is then the first class of largest probability
+        (the rule ``linear@2``, format 2), so ``predict`` costs more than without a
+        temperature. Softmax of one logit ``z`` is ``sigmoid(2 z)``: for ``sigmoid(z / T)``
+        give ``2 T``."""
+        rule = None
+        note = None
+        if temperature is not None:
+            weight, bias = _calibration.temperature(weight, bias, temperature, link)
+            rule, note = Head.LINEAR2, _calibration.note(temperature)
         return cls._build(
             encoder,
             weight,
@@ -108,6 +130,8 @@ class Classifier(LinearModel):
             link=link,
             labels=labels,
             thresholds=thresholds,
+            rule=rule,
+            note=note,
         )
 
     @property
@@ -147,7 +171,7 @@ class Classifier(LinearModel):
             if array is not None:
                 array.setflags(write=False)
         content = replace(old, weight=weight, bias=bias, thresholds=limits)
-        return type(self)._new(self._encoder, content, source=self._source)
+        return type(self)._new(self._encoder, content, source=self._source, note=self._note)
 
     @classmethod
     @validate_arguments

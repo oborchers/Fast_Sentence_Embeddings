@@ -37,3 +37,41 @@ def test_invalid_thresholds_are_refused(limits):
 def test_other_links_do_not_accept_thresholds():
     with pytest.raises(ValueError, match="only for multilabel"):
         HeadSpec(None, np.zeros(2, np.float32), False, Link.SOFTMAX, np.zeros(2, np.float32))
+
+
+def test_the_rule_follows_the_link_unless_given():
+    from fse._contract import Head
+
+    def make(link, rule=None, k=2):
+        return HeadSpec(
+            np.ones((k, 3), np.float32), np.zeros(k, np.float32), False, link, rule=rule
+        )
+
+    assert make(Link.SOFTMAX).rule is Head.LINEAR
+    assert make(None).rule is Head.LINEAR
+    assert make(Link.MULTILABEL).rule is Head.LINEAR2
+    assert make(Link.OVR, Head.LINEAR2).rule is Head.LINEAR2
+    assert make(Link.SIGMOID, Head.LINEAR2, 1).rule is Head.LINEAR2
+    with pytest.raises(ValueError, match="multilabel@1 needs the label rule linear@2"):
+        make(Link.MULTILABEL, Head.LINEAR)
+    with pytest.raises(ValueError, match="linear@2 needs a link"):
+        make(None, Head.LINEAR2)
+    with pytest.raises(TypeError, match="rule must be a Head"):
+        make(Link.OVR, "linear@2")
+
+
+def test_a_probability_buffer_has_the_width_of_predict_proba():
+    from fse._contract import Head
+
+    one = HeadSpec(np.ones((1, 3), np.float32), np.zeros(1, np.float32), False, Link.SIGMOID)
+    assert one.width("proba") == 2
+    assert (
+        HeadSpec(
+            np.ones((1, 3), np.float32),
+            np.zeros(1, np.float32),
+            False,
+            Link.SIGMOID,
+            rule=Head.LINEAR2,
+        ).width("labels")
+        == 1
+    )

@@ -38,6 +38,7 @@ from ._base import (
     check_stored_input,
     dims,
 )
+from ._base_head import check_affine64_input, check_quotient64_input
 
 _CAPABILITIES = Capabilities(
     word_dtypes=frozenset({"float32", "float16", "int8"}),
@@ -80,6 +81,18 @@ class NumpyBackend:
     def float32(self, values: object) -> ndarray:
         with np.errstate(over="ignore", invalid="ignore"):
             return np.ascontiguousarray(values, dtype=np.float32)
+
+    def affine64(
+        self, weight: ndarray, bias: ndarray, factor: ndarray, shift: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        check_affine64_input(weight, bias, factor, shift)
+        with np.errstate(over="ignore", invalid="ignore"):
+            return factor[:, None] * weight, factor * bias + shift
+
+    def quotient64(self, weight: ndarray, bias: ndarray, divisor: float) -> tuple[ndarray, ndarray]:
+        check_quotient64_input(weight, bias, divisor)
+        with np.errstate(over="ignore", invalid="ignore"):
+            return weight / divisor, bias / divisor
 
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         check_stored_input(stored, first_row)

@@ -12,6 +12,22 @@ cdef extern from "_native_kernel.h":
     void fse_exp1_rows(int isa, const float *x, int64_t n, float *out) nogil
 
 
+def affine64(weight, bias, factor, shift):
+    """``factor[:, None] * weight`` and ``factor * bias + shift`` in float64, run in the
+    floating-point environment of the kernels (the import of a calibration into a head)."""
+    with _KernelEnv():
+        with np.errstate(over="ignore", invalid="ignore"):  # as the numpy backend
+            return factor[:, None] * weight, factor * bias + shift
+
+
+def quotient64(weight, bias, divisor):
+    """``weight / divisor`` and ``bias / divisor`` in float64 in the environment of the
+    kernels (the temperature of a softmax folded into a head)."""
+    with _KernelEnv():
+        with np.errstate(over="ignore", invalid="ignore"):
+            return weight / divisor, bias / divisor
+
+
 def exp1(x, *, isa=None):
     """``fse._reference_head.exp`` in the kernel: exp@1 of every value of a float32 array."""
     cdef int code = _check_isa(isa)

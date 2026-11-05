@@ -19,6 +19,10 @@ class HubModel(ABC):
     def save(self, path: PathLike, standalone: bool = False) -> None:
         """Write the concrete model artifact."""
 
+    def _notes(self) -> tuple[str, ...]:
+        note = getattr(self, "_note", None)
+        return () if note is None else (note,)
+
     @validate_arguments
     def save_pretrained(
         self,
@@ -41,6 +45,7 @@ class HubModel(ABC):
             self.save(file, standalone=standalone)
 
         card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        card["notes"] = self._notes()
         return _folder.save(path, write, model_name=model_name, **card)[0]
 
     @validate_arguments
@@ -71,6 +76,7 @@ class HubModel(ABC):
         hub = {"token": token, "private": private, "revision": revision, "replace": replace}
         hub |= {"create_pr": create_pr, "commit_message": commit_message}
         card: dict[str, Any] = {"license": license, "language": language, "extra": extra_files}
+        card["notes"] = self._notes()
         return _folder.push(
             repo_id, write, type(self).__name__.lower(), hub, card | {"model_name": repo_id}
         )

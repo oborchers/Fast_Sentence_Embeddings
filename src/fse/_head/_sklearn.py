@@ -27,8 +27,9 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _log
+from fse._contract import Head
 
-from . import _sklearn_ovr
+from . import _sklearn_calibrated, _sklearn_ovr
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,8 @@ class Found:
     labels: list | None
     source: str
     flat: bool = True  # coef_ of one dimension: predict gives (n,), not (n, 1)
+    rule: Head | None = None  # None: from the link; linear@2 for a calibrated head
+    note: str | None = None  # for the model card: what was folded into the head
 
 
 def _name(model: Any) -> str:
@@ -154,6 +157,7 @@ _CLASSIFIERS: dict[str, Callable[[Any, int], str]] = {
         lambda _model, _k: "none",
     ),
 }
+_WRAPPERS = frozenset({"CalibratedClassifierCV", "OneVsRestClassifier", "FrozenEstimator"})
 _REGRESSORS = frozenset(
     {
         "LinearRegression",
@@ -170,28 +174,61 @@ _REGRESSORS = frozenset(
 )
 
 
-def _estimator(model: Any, task: str) -> Found:
-    name = _name(model)
-    if name == "OneVsRestClassifier" and task == "classification":
-        return Found(*_sklearn_ovr.read(model, _read))
-    known = _CLASSIFIERS if task == "classification" else _REGRESSORS
-    if name not in known:
-        kinds = ", ".join(
-            sorted({*known, "OneVsRestClassifier"} if task == "classification" else known)
-        )
+def _wrapper(name: str, task: str, mode: str) -> None:
+    """The refusal of a wrapper (a calibrated or one-vs-rest classifier) where ``mode``
+    reads a plain linear classifier."""
+    if task != "classification" or mode == "head" or name not in _WRAPPERS:
+        return
+    if mode == "binary":
         raise ValueError(
-            f"{type(model).__module__}.{type(model).__name__} is not a scikit-learn {task} "
-            f"head fse can read; supported: {kinds}, alone or in a Pipeline"
+            "OneVsRestClassifier estimators must not be calibrated; import a multilabel "
+            "OneVsRestClassifier of uncalibrated sigmoid estimators"
         )
+    _not_linear(name)
+
+
+def _not_linear(name: str) -> None:
+    raise ValueError(
+        "the estimator of CalibratedClassifierCV must be a linear classifier fse reads, alone "
+        f"or in a Pipeline after a StandardScaler, not {name}"
+    )
+
+
+def _estimator(model: Any, task: str, mode: str = "head") -> Found:
+    name = _name(model)
+    _wrapper(name, task, mode)
+    if mode == "head" and task == "classification":
+        if name == "OneVsRestClassifier":
+            return Found(*_sklearn_ovr.read(model, _read_binary))
+        if name == "CalibratedClassifierCV":
+            return _sklearn_calibrated.read(model, _read_decision)
+    _check_known(model, name, task, mode)
     weight, bias = _linear(model)
     if task == "regression":
         flat = np.ndim(getattr(model, "coef_", None)) == 1
         return Found(weight, bias, "none", None, name, flat)
     labels = _classes(model, len(weight))
+    if mode == "decision":  # only the decision function: no rule for probabilities
+        return Found(weight, bias, "none", labels, name)
     link = _CLASSIFIERS[name](model, len(weight))
     if link == "softmax2":  # a binary multinomial model: one logit z, softmax of [-z, z]
         link = "softmax"
     return Found(weight, bias, link, labels, name)
+
+
+def _check_known(model: Any, name: str, task: str, mode: str) -> None:
+    known = _CLASSIFIERS if task == "classification" else _REGRESSORS
+    if name in known:
+        return
+    if mode == "decision":
+        _not_linear(name or type(model).__name__)
+    kinds = ", ".join(
+        sorted({*known, "OneVsRestClassifier"} if task == "classification" else known)
+    )
+    raise ValueError(
+        f"{type(model).__module__}.{type(model).__name__} is not a scikit-learn {task} "
+        f"head fse can read; supported: {kinds}, alone or in a Pipeline"
+    )
 
 
 def _scaled(found: Found, scaler: Any) -> Found:
@@ -249,9 +286,24 @@ def read(model: Any, task: str) -> Found:
     return found
 
 
-def _read(model: Any, task: str) -> Found:
+def _read_binary(model: Any, task: str) -> Found:
+    return _read(model, task, "binary")
+
+
+def _read_decision(model: Any, task: str = "classification") -> Found:
+    return _read(model, task, "decision")
+
+
+def _read(model: Any, task: str, mode: str = "head") -> Found:
+    """The head of ``model`` as ``mode`` reads it: ``"head"`` (``from_sklearn``: everything
+    fse imports, including calibrated and one-vs-rest classifiers), ``"decision"`` (the
+    classifier under a calibration: a linear classifier or a Pipeline of an optional
+    StandardScaler and one, also frozen, read for its decision function only) or
+    ``"binary"`` (an estimator of a one-vs-rest classifier: no wrapper)."""
+    if mode == "decision" and _name(model) == "FrozenEstimator":
+        model = getattr(model, "estimator", None)  # one level; the rest is read as ever
     if _name(model) != "Pipeline":
-        return _estimator(model, task)
+        return _estimator(model, task, mode)
     *before, last = _pipeline_steps(model)
     if any(_name(step) == "Normalizer" for step in before):
         raise ValueError(
@@ -260,7 +312,7 @@ def _read(model: Any, task: str) -> Found:
             "Train the head on the vectors of an encoder that normalizes (normalize=True) and "
             "import the estimator alone, or use from_arrays(..., normalized=True)"
         )
-    found = _estimator(last, task)
+    found = _estimator(last, task, mode)
     if before and _name(before[0]) == "StandardScaler":
         found = _scaled(found, before[0])
         before = before[1:]

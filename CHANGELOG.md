@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Import Platt-calibrated scikit-learn classifiers (CalibratedClassifierCV with method="sigmoid" and ensemble=False, binary or one-vs-rest) by folding the calibration into the head's weights and bias in float64 under the kernels' floating-point environment, rounded once to float32. Add softmax temperature to Classifier.from_arrays (finite, greater than zero). Both write linear_head format 2 with the label rule linear@2, now also defined for single-label heads as the first class of largest probability, so predict costs more than under linear@1; no new metadata key. ensemble=True or "auto", isotonic and temperature calibration, and calibrated OneVsRestClassifier estimators are refused. Existing format 1 heads keep their identifiers, fingerprints and predictions. (DR-227: Kalibrierte Klassifikatoren importieren und Softmax-Temperatur unterstützen)
+
 - Preserve subnormal multilabel decisions under foreign floating-point settings and reject Hub folders whose declared format version disagrees with the model. Correct the one-label multilabel output description. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
 - Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)

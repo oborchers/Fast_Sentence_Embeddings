@@ -72,9 +72,11 @@ def card(
     language: list[str] | None,
     model_name: str,
     location: str,
+    notes: tuple[str, ...] = (),
 ) -> bytes:
     """The card of the model file with ``metadata`` and tensor ``shapes``: its front matter
-    and its text; ``location`` is the repository or folder the usage snippet loads."""
+    and its text; ``location`` is the repository or folder the usage snippet loads;
+    ``notes`` are paragraphs a model remembers of its making (not stored in its file)."""
     if not isinstance(model_name, str) or not model_name.strip() or "\n" in model_name:
         raise ValueError(f"model_name must be a non-empty line of text, not {model_name!r}")
     for code in language or ():
@@ -84,6 +86,8 @@ def card(
     lines = ["---", *_front_matter(metadata, head, license, language), "---", ""]
     lines += [f"# {model_name.strip()}", "", _summary(metadata, head), ""]
     lines += ["## Model", "", *_facts(metadata, shapes, head), ""]
+    for note in notes:
+        lines += [note, ""]
     lines += ["## Usage", "", *_usage(head, location), ""]
     lines += ["## Source and license", "", *_source(metadata, license), ""]
     lines += ["## About fse", "", f"Made with [fse]({_ABOUT}), fast sentence embeddings.", ""]
@@ -188,6 +192,8 @@ def _head_facts(metadata: dict[str, str], shapes: dict[str, tuple[int, ...]]) ->
         + ("normalized" if metadata["fse.head.normalized"] == "true" else "raw")
         + " means",
     ]
+    if metadata.get("fse.head") == "linear@2" and metadata["fse.head.link"] != "multilabel@1":
+        out.append("- label rule: linear@2 (the first class of largest probability)")
     if standalone:
         out.append("- standalone: the head is folded into the table, which holds no vectors")
     if "fse.head.labels" in metadata:

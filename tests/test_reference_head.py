@@ -187,3 +187,21 @@ def test_logits_that_are_not_finite_name_their_row():
         ref.logits(rows, None, np.array([3e38], F32), first_row=10)
     with pytest.raises(ValueError, match="row 1 are not finite"):
         ref.logits(rows, np.array([[4.0]], F32), np.array([0.0], F32))
+
+
+def test_predicted_is_the_first_largest_probability():
+    # ovr saturates: sigmoid(30) = sigmoid(40) = 1.0, so the first of the equals; linear@1
+    # takes the larger logit.
+    z = np.array([[30, 40, 0], [-107, -106, -105], [1, 2, 3]], F32)
+    assert ref.predicted(z, Link.OVR).tolist() == [0, 0, 2]
+    assert ref.labels(z).tolist() == [1, 2, 2]
+    assert ref.predicted(z, Link.SOFTMAX).tolist() == [1, 2, 2]
+    assert ref.predicted(np.array([[2.0**-30], [-1.0], [1.0]], F32), Link.SIGMOID).tolist() == [
+        0,
+        0,
+        1,
+    ]
+    both = ref.predicted(np.array([[0.5], [-0.5]], F32), Link.SOFTMAX)  # softmax of [-z, z]
+    assert both.tolist() == [1, 0]
+    assert ref.predicted(z, Link.OVR).dtype == np.int64
+    assert ref.predicted(np.empty((0, 3), F32), Link.OVR).shape == (0,)

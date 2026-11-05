@@ -314,3 +314,28 @@ def test_errors_name_the_rows_of_the_run():
         pipeline.infer(
             source("strings", ["", "w1"], None), output="logits", sink=sink, first_row=50
         )
+
+
+def _bytes(head, output, **kwargs):
+    spec = _spec()
+    pipeline = make_head(spec, head, "cpu", own=_own(spec), workers=1, **kwargs)
+    return pipeline._row_bytes(output, "float32", False)
+
+
+def test_row_bytes_count_the_probabilities_the_label_is_decided_on():
+    from fse._contract import Head
+
+    spec = _spec()
+
+    def head(k, link, rule=None, thresholds=None):
+        base = _head(spec, k, link=link)
+        return HeadSpec(base.weight, base.bias, False, link, thresholds, rule)
+
+    for k, link in ((1, Link.SIGMOID), (3, Link.SOFTMAX), (3, Link.OVR)):
+        plain = _bytes(head(k, link), "labels")
+        two = _bytes(head(k, link, Head.LINEAR2), "labels")
+        width = 2 if k == 1 else k
+        assert two == plain + 4 * width
+        assert _bytes(head(k, link, Head.LINEAR2), "proba") == _bytes(head(k, link), "proba")
+    multi = head(3, Link.MULTILABEL)
+    assert _bytes(multi, "labels") == _bytes(head(3, Link.SOFTMAX), "labels") - 8 + 3 + 4 * 3
