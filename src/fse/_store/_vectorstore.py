@@ -262,10 +262,9 @@ class VectorStore:
         read_store(self.path)
         with self._using():
             for shard, tensors in self._shards:
-                check_removed(
-                    NpyContainer().verify(self.path / shard.name),
-                    self.path / shard.name / "manifest.json",
-                )
+                file = self.path / shard.name / "manifest.json"
+                check_removed(NpyContainer().metadata(self.path / shard.name), file)
+                NpyContainer().verify(self.path / shard.name)
                 check_values(shard, tensors)
         _log.emit(
             "store.verified",

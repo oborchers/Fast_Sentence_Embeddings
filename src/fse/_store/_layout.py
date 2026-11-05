@@ -44,7 +44,7 @@ from fse._container._common import _open_regular, _strict_json, _sync_directory
 from fse._container._npy_inplace import publish_directory, sync_file, write_at
 from fse._contract import UnsupportedArtifactError, parse_id
 
-from ._id_stats import ID_KEYS, MODE_KEYS, IdStats, check_mode, parsed_stats
+from ._id_stats import ID_KEYS, MODE_KEYS, IdStats, check_mode, check_removed, parsed_stats
 
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
@@ -280,8 +280,9 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
     directory = path / name
     if not directory.is_dir() or directory.is_symlink():
         raise CorruptArtifactError(f"{directory} is not a regular shard directory")
-    tensors, metadata = NpyContainer().open(directory, mmap=True)
     file = path / name / "manifest.json"
+    check_removed(NpyContainer().metadata(directory), file)
+    tensors, metadata = NpyContainer().open(directory, mmap=True)
     shard_info, unsynced = _shard_info(metadata, info, file)
     try:
         info.check(shard_info, path)

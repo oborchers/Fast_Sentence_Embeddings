@@ -342,6 +342,10 @@ class NpyContainer:
         specs = {n: (e["dtype"], tuple(e["shape"])) for n, e in manifest["tensors"].items()}
         return _integrity(path, specs, metadata)
 
+    def metadata(self, path) -> dict[str, str]:
+        """The metadata of the manifest only, without opening or hashing a tensor."""
+        return dict(_read_manifest(Path(path))["metadata"])
+
     def verify(self, path):
         path = Path(path)
         manifest = _read_manifest(path)
@@ -356,4 +360,3 @@ class NpyContainer:
                     digest.update(chunk)
             if digest.checksum() != entries[name][2]:
                 raise CorruptArtifactError(f"{file} does not match its checksum")
-        return metadata

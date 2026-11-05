@@ -141,3 +141,14 @@ def test_old_tensor_name_with_new_keys_is_corrupt(tmp_path):
     shutil.move(tmp_path / "r", directory)
     with pytest.raises(fse.CorruptArtifactError):
         fse.VectorStore.open(root)
+
+
+def test_a_damaged_old_shard_is_still_reported_as_old(tmp_path):
+    root = tmp_path / "s"
+    write_store(root, IDS, shard_rows=4)
+    with fse.VectorStore.open(root) as store:
+        prerelease_shard(root / "shard-0000000000000004")
+        (root / "shard-0000000000000004" / "vectors.npy").write_bytes(b"damaged")
+        refused(store.verify, root)
+    refused(lambda: fse.VectorStore.open(root), root)
+    refused(append(root), root)
