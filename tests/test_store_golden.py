@@ -33,9 +33,20 @@ def test_a_store_has_the_pinned_bytes(tmp_path, name):
     got = observe(tmp_path, scenarios()[name])
     want = GOLDEN[name]
     assert got["entries"] == want["entries"]
-    assert got["files"] == want["files"]
+    if got["files"] != want["files"]:
+        pytest.fail(_differences(tmp_path / "store", got["files"], want["files"]))
     assert got["fingerprints"] == want["fingerprints"]
     assert got["events"] == json.loads(json.dumps(want["events"]))  # tuples as lists
+
+
+def _differences(store, got, want):
+    """The files whose bytes differ, with their size and first and last bytes."""
+    lines = []
+    for key in sorted(got):
+        if got[key] != want.get(key):
+            data = (store / key).read_bytes()
+            lines.append(f"{key}: {len(data)} bytes {data[:150]!r} ... {data[-40:]!r}")
+    return "\n".join(lines[:4])
 
 
 # --- errors: the same class and message, in the same order of checks --------------------
