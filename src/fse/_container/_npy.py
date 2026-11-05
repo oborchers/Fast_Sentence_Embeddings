@@ -217,10 +217,11 @@ def write_manifest(
         "metadata": full,
     }
     text = json.dumps(manifest, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
-    if len(text.encode("utf-8")) > MAX_MANIFEST_BYTES:
+    data = text.encode("utf-8")  # bytes, so every platform writes LF and the limit counts them
+    if len(data) > MAX_MANIFEST_BYTES:
         raise ValueError(f"the manifest would exceed {MAX_MANIFEST_BYTES} bytes")
-    with tmp.open("w", encoding="utf-8") as f:
-        f.write(text)
+    with tmp.open("wb") as f:
+        f.write(data)
         f.flush()
         sync(f.fileno())
     if directories:
