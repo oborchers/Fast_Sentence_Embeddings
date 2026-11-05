@@ -16,7 +16,7 @@ from _development_preflight import preflight
 from _development_records import record_result, session
 from _development_reuse import context, load_control
 from _development_statistics import decide, decision_enabled
-from _development_system import LABEL, observations
+from _development_system import LABEL, observations, require_timing_priority
 from _measurement import append, atomic
 from _quality.development import quality_gate
 
@@ -115,6 +115,7 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
 def run(args):
     spec = load(args.development_input, args.cells)
     _arguments(args)
+    require_timing_priority(args)
     spec["functional_only"] = args.diagnostic_rehearsal
     with session(args, spec) as ledger:
         prepared = prepare(args, spec["cells"], ledger)
