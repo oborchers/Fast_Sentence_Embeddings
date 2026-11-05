@@ -103,7 +103,9 @@ temperature are affine maps of the logits and fold into A and b on import, not a
 inference. With `a` and `c` the slope and intercept of a sigmoid calibrator (probability
 `sigmoid(-(a z + c))` of the response `z` of the base model) the head is
 `W' = (-a) W` and `b' = (-a) b + (-c)` in float64; a temperature T gives `W / T` and
-`b / T`. Negation is exact, so the bits are those of `-(a W)` and `-(a b + c)`. A
+`b / T`. Negation is exact, so the bits are those of `-(a W)` and `-(a b + c)`, except that a
+zero may have the other sign (the probabilities do not change). The inputs are converted to
+float64 inside the same environment. A
 `StandardScaler` outside folds afterwards in float64. The float64 values are rounded
 once to F32. The arithmetic runs on the backend (`affine64`, `quotient64`), under the
 floating-point environment of the kernels for the `cpu` backend, so a caller's
