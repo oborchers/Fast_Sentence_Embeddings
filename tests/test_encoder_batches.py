@@ -274,7 +274,9 @@ def test_stopping_early_flushes_nothing_until_the_sink_is_closed(tmp_path):
 def test_a_sink_takes_one_run(tmp_path):
     with fse.ShardSink(tmp_path / "s", ENCODER, shard_rows=64) as sink:
         ENCODER.encode(texts(100), sink=sink)
-        with pytest.raises(ValueError, match="expected rows from 100"):
+        with pytest.raises(
+            ValueError, match="took 100 rows of a run already; a sink takes exactly one run"
+        ):
             ENCODER.encode(texts(50), sink=sink)
     memory = fse.MemorySink(ENCODER.output_dim)
     ENCODER.encode(texts(10), sink=memory)
@@ -308,3 +310,20 @@ def test_errors_of_a_later_batch_name_the_rows_of_the_run(sink):
     target = fse.MemorySink(4, "float16") if sink else None
     with pytest.raises(ValueError, match=r"batch 1 .*row 1005 has values beyond the float16"):
         list(encoder.encode_batches(batches, dtype=None if sink else "float16", sink=target))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "int8"])
+def test_vectors_is_the_alias_of_rows(dtype):
+    polls, _ = _polls([5, 3])
+    for batch in ENCODER.encode_batches(polls, dtype=dtype):
+        assert batch.vectors is batch.rows
+    assert fse.EncodedBatch._fields == ("first_row", "n_rows", "rows", "durable_rows")
+    first, n_rows, rows, durable = next(iter(ENCODER.encode_batches(_polls([2])[0])))
+    assert (first, n_rows, rows is not None, durable) == (0, 2, True, None)
+
+
+def test_vectors_is_none_when_a_sink_took_the_rows():
+    polls, _ = _polls([4])
+    sink = fse.MemorySink(ENCODER.output_dim)
+    (batch,) = ENCODER.encode_batches(polls, sink=sink)
+    assert batch.vectors is None

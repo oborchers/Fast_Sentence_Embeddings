@@ -97,6 +97,29 @@ returns the IDs of those rows as an int64 copy, like `get_vectors`. A store with
 raises `ValueError`. `fse.DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
 `repr`; `_make` raises `TypeError`, because two values hold no IDs.
 
+## Positions, counts and IDs
+
+Four different things are easy to mix up. Positions are indexes that start at 0:
+
+| Kind | Names |
+| :--- | :--- |
+| Store position | `SearchResult.ids`, `search(rows=)`, `get_vectors(start=, stop=)`, `get_doc_ids(start=, stop=)`, `ShardSink.first_row` (the store position of run position 0) |
+| Run position | `first_row` of `EncodedBatch`, `PredictedBatch` and `HeadsBatch`; `first_row` of `Sink.target` and `Sink.commit` |
+
+A store position is `ShardSink.first_row` plus the run position. A new store has
+`ShardSink.first_row == 0`; an appended run starts after the rows already there.
+
+Counts are lengths. `n_rows` of a batch is its length: the batch covers the run positions
+`first_row` to `first_row + n_rows - 1`.
+
+The durable prefix is a count too. `durable_rows` of `EncodedBatch`, `PredictedBatch` and
+of the sink says how many rows at the start of the run are durable. `durable_rows=210`
+means that the run positions 0 to 209 are durable. It is not a position.
+
+A document ID (`doc_ids`) is your own label for a document. It is not unique: several rows
+may share one. It appears in the input (`doc_ids=`), in filters, in
+`DocumentSearchResult.doc_ids` and in `get_doc_ids`.
+
 ## Filters and limits
 
 Use `rows=[...]` to search specified snapshot positions, including stores without

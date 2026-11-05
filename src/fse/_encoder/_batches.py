@@ -36,12 +36,18 @@ class EncodedBatch(NamedTuple):
     rows of the run that were durable when the batch was given (the sink's
     ``durable_rows`` after its ``publish``; None without a sink or for a sink that
     promises nothing). It is a snapshot: the last batch can report fewer rows than the
-    run has, as the sink's ``flush`` runs after it."""
+    run has, as the sink's ``flush`` runs after it. ``vectors`` is the same array as
+    ``rows``, named as in ``PredictedBatch`` and ``HeadsBatch``."""
 
     first_row: int
     n_rows: int
     rows: Any
     durable_rows: int | None
+
+    @property
+    def vectors(self) -> Any:
+        """An alias of ``rows``."""
+        return self.rows
 
 
 def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int, hint: str = "") -> str:
