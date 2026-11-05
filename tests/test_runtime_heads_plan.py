@@ -226,5 +226,6 @@ def test_the_bytes_of_a_row_are_counted_by_the_rule_of_the_kinds(shape, vectors)
         if vectors:
             expected += plan.own._row_bytes("float32", False)
         assert plan.row_bytes(outputs, "float32", False) == expected
-    with pytest.raises(ValueError, match="zip"):
-        plan.row_bytes(("logits",) * (len(shape) + 1), "float32", False)
+    for count in (len(shape) - 1, len(shape) + 1):  # fewer or more outputs than heads
+        with pytest.raises(ValueError, match="zip"):
+            plan.row_bytes(("logits",) * count, "float32", False)

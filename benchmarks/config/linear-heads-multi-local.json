@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "linear-heads-multi@1: n fixed four-output softmax heads, scored in n separate calls against one fse.Heads call, both arms on the candidate build (candidate_python for --base-python and --candidate-python). One O cell (heads-multi-folded-4, with its practical saving of 0.40 fixed before the run) and D cells (absolute costs of each mode, no comparison). M1 local indication only, no README speed claims. The D cells fix iterations so that a group lasts at least two seconds.",
+  "description": "linear-heads-multi@1: n fixed four-output softmax heads, scored in n separate calls against one fse.Heads call, both arms on the candidate build (candidate_python for --base-python and --candidate-python). One O cell (heads-multi-folded-4, with its practical saving of 0.40 fixed before the run) and D cells (absolute costs of each mode, no comparison). The cell heads-multi-folded-1 (DR-239) is the exception: a regression screen of a group of one head with both arms in one-pass mode, run with --local-phase regression-screen, a declared --regression-limit and a base interpreter of the build before the change. M1 local indication only, no README speed claims. The D cells fix iterations so that a group lasts at least two seconds.",
   "defaults": {
     "profile": "linear-heads-multi@1",
     "decision_gate": false,
