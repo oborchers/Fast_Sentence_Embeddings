@@ -92,7 +92,10 @@ class NumpyBackend:
     def quotient64(self, weight: ndarray, bias: ndarray, divisor: float) -> tuple[ndarray, ndarray]:
         check_quotient64_input(weight, bias, divisor)
         with np.errstate(over="ignore", invalid="ignore"):
-            return weight / divisor, bias / divisor
+            return (
+                np.asarray(weight, np.float64) / divisor,
+                np.asarray(bias, np.float64) / divisor,
+            )
 
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         check_stored_input(stored, first_row)

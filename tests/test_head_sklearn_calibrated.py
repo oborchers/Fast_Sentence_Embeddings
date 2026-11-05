@@ -451,3 +451,42 @@ def test_a_frozen_estimator_is_read_only_inside_a_calibration():
     _refused(twice, "must be a linear classifier fse reads", encoder)
     wrapped = cal.fit(_calibrated(FrozenEstimator(frozen)), x, y)
     _refused(wrapped, "must be a linear classifier fse reads", encoder)
+
+
+def test_every_route_uses_the_probabilities_where_the_logits_disagree(tmp_path):
+    """Saturated ovr: the logits 30 and 40 both give the probability 1.0. linear@2 takes the
+    first class on texts, vectors and store routes, where linear@1 takes the larger logit."""
+    encoder, sk = _fitted()
+    sk = copy.deepcopy(sk)
+    element = sk.calibrated_classifiers_[0]
+    element.estimator.coef_ = np.zeros_like(element.estimator.coef_)
+    element.estimator.intercept_ = np.array([30.0, 40.0, 0.0])
+    for calibrator in element.calibrators:
+        calibrator.a_, calibrator.b_ = np.float64(-1.0), np.float64(0.0)
+    clf = fse.Classifier.from_sklearn(encoder, sk)
+    texts = SENTENCES[:40]
+    assert clf.predict(texts).tolist() == [0] * 40
+    assert ref.labels(clf.decision_function(texts)).tolist() == [1] * 40  # linear@1
+    batches = list(clf.predict_batches([texts[:20], texts[20:]], return_vectors=True))
+    assert [v for b in batches for v in b.outputs.tolist()] == [0] * 40
+    with fse.ShardSink(tmp_path / "vectors", encoder) as sink:
+        encoder.encode(texts, workers=1, sink=sink)
+    with fse.VectorStore.open(tmp_path / "vectors") as store:
+        assert clf.predict(store, workers=2).tolist() == [0] * 40
+        proba = clf.predict_proba(store, workers=2)
+    assert (proba.argmax(axis=1) == 0).all()
+
+
+def test_classes_of_other_numpy_types_are_compared_by_value():
+    encoder, sk = _fitted(2)
+    for classes in (np.array([0, 1], np.uint64), np.array(["no", "yes"], dtype=object)):
+        model = copy.deepcopy(sk)
+        element = model.calibrated_classifiers_[0]
+        for target, name in (
+            (model, "classes_"),
+            (element, "classes"),
+            (element.estimator, "classes_"),
+        ):
+            setattr(target, name, classes)
+        clf = fse.Classifier.from_sklearn(encoder, model)
+        assert clf.classes_.tolist() == classes.tolist()

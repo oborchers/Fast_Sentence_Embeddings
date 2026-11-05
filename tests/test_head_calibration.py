@@ -93,6 +93,20 @@ def test_the_type_is_checked_before_any_conversion(weight, error, match):
         _calibration.temperature(weight, None, 2.0, "softmax")
 
 
+@pytest.mark.parametrize(
+    ("weight", "error", "match"),
+    [
+        ([[2**53 + 1, 1.0]], ValueError, "beyond 2\\*\\*53"),
+        ([[1.0, -(2**53) - 1]], ValueError, "beyond 2\\*\\*53"),
+        ([[True, 1.0]], TypeError, "not bool"),
+        ([[np.True_, 1]], TypeError, "not bool"),
+    ],
+)
+def test_mixed_python_lists_cannot_hide_a_large_integer_or_a_bool(weight, error, match):
+    with pytest.raises(error, match=match):
+        _calibration.temperature(weight, None, 2.0, "softmax")
+
+
 def test_the_largest_exact_integers_are_accepted():
     weight = np.array([[2**53, -(2**53)]], np.int64)
     got, _ = _calibration.temperature(weight, None, 4.0, "softmax")

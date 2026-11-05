@@ -92,13 +92,10 @@ def test_the_format_is_version_two_with_linear_two_and_no_new_key():
     assert metadata["fse.head.link"] == "softmax@1"
 
 
-@pytest.mark.parametrize("route", ["load", "pretrained", "mmap", "standalone", "quantize"])
+@pytest.mark.parametrize("route", ["load", "pretrained", "mmap", "standalone"])
 def test_bits_and_labels_survive_every_route(tmp_path, route):
     model = _model(1.7)
-    if route == "quantize":
-        model = model.quantize("float16")
-        other = model
-    elif route == "pretrained":
+    if route == "pretrained":
         model.save_pretrained(tmp_path / "folder", license="mit")
         other = fse.Classifier.from_pretrained(tmp_path / "folder")
     else:
@@ -113,13 +110,31 @@ def test_bits_and_labels_survive_every_route(tmp_path, route):
     )
 
 
-def test_the_store_route_decides_like_the_text_route(tmp_path):
-    model = _model(2.5)
+def test_a_quantized_model_keeps_the_head_bits_and_the_rule():
+    model = _model(1.7)
+    quantized = model.quantize("float16")
+    assert quantized._head.rule is Head.LINEAR2
+    np.testing.assert_array_equal(quantized.coef_.view(np.uint32), model.coef_.view(np.uint32))
+    np.testing.assert_array_equal(
+        quantized.intercept_.view(np.uint32), model.intercept_.view(np.uint32)
+    )
+    proba = quantized.predict_proba(TEXTS)
+    np.testing.assert_array_equal(quantized.predict(TEXTS), quantized.classes_[proba.argmax(1)])
+
+
+def _stored(model, tmp_path, texts):
     with fse.ShardSink(tmp_path / "vectors", model.encoder) as sink:
-        model.encoder.encode(TEXTS, workers=1, sink=sink)
-    with fse.VectorStore.open(tmp_path / "vectors") as store:
-        from_store = model.predict(store, workers=1)
-    np.testing.assert_array_equal(from_store, model.predict(TEXTS))
+        model.encoder.encode(texts, workers=1, sink=sink)
+    return fse.VectorStore.open(tmp_path / "vectors")
+
+
+def test_the_store_route_decides_by_the_probabilities_it_returns(tmp_path):
+    model = _model(2.5)
+    with _stored(model, tmp_path, TEXTS * 20) as store:
+        labels = model.predict(store, workers=2)
+        proba = model.predict_proba(store, workers=2)
+    np.testing.assert_array_equal(labels, model.classes_[proba.argmax(axis=1)])
+    np.testing.assert_array_equal(labels, model.predict(TEXTS * 20))
 
 
 def test_the_model_card_names_the_rule_and_the_temperature(tmp_path):
@@ -229,3 +244,26 @@ def test_a_wrong_shape_is_refused_as_without_a_temperature():
         fse.Classifier.from_arrays(
             encoder, np.ones((3, encoder.output_dim), bool), labels=[0, 1, 2], temperature=2.0
         )
+
+
+@pytest.mark.parametrize(
+    "env", [{"flush": True}, {"round_up": True}, {"flush": True, "round_up": True}]
+)
+def test_the_import_ignores_a_foreign_floating_point_environment(env):
+    """A subnormal float32 weight divided by an equal temperature is exactly one, whatever
+    flush-to-zero or rounding mode the caller set."""
+    from fse import _native
+
+    encoder = finished(normalize=False)
+    tiny = np.float32(2.0**-149)
+    weight = np.full((3, encoder.output_dim), tiny, np.float32)
+    bias, divisor = np.full(3, tiny, np.float32), float(tiny)
+    saved = _native._test_fpenv_set(**env)
+    try:
+        model = fse.Classifier.from_arrays(
+            encoder, weight, bias, labels=[0, 1, 2], temperature=divisor
+        )
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert (model.coef_ == 1).all()
+    assert (model.intercept_ == 1).all()

@@ -103,19 +103,20 @@ def _element(model: Any) -> Any:
 
 def _same_classes(model_classes: Any, element_classes: Any, labels: Any) -> None:
     """The classes of the model, of its calibrated classifier and of the classifier under it
-    must agree in value, order and type, or the columns of the sigmoids are ambiguous."""
-    arrays = [np.asarray(model_classes), np.asarray(element_classes), np.asarray(labels)]
-    first = arrays[0]
-    for other in arrays[1:]:
-        if (
-            first.shape != other.shape
-            or first.dtype.kind != other.dtype.kind
-            or not np.array_equal(first, other)
-        ):
+    must agree in value, order and type (int or str), or the columns of the sigmoids are
+    ambiguous. Compared as Python values, so the dtype of a numpy array does not matter."""
+    first = _values(model_classes)
+    for other in (_values(element_classes), _values(labels)):
+        if first != other:
             raise ValueError(
-                f"the classes of {_NAME} and of its estimator differ: "
-                f"{first.tolist()!r} and {other.tolist()!r}"
+                f"the classes of {_NAME} and of its estimator differ: {first[0]!r} and {other[0]!r}"
             )
+
+
+def _values(classes: Any) -> tuple[list, list]:
+    """The classes as Python values, and their types."""
+    items = classes.tolist() if isinstance(classes, np.ndarray) else list(classes)
+    return items, [type(item) for item in items]
 
 
 def _sigmoids(calibrators: Any) -> tuple[Any, Any]:

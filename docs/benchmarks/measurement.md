@@ -577,7 +577,7 @@ stages to the existing `speed.py --diagnose` controller, without another runner:
   with return_vectors=True, checking both probabilities and raw vectors.
 - `heads-single-labels`: the same classifier through public `predict`, so the label
   path (an int64 vector of four ordered classes) of an existing `linear@1` head.
-- `heads-single-labels-linear2`: the same stage with `rule` `linear@2`
+- `heads-single-labels-linear2` (its own file, `benchmarks/config/linear-heads-candidate-local.json`): the same stage with `rule` `linear@2`
   (`temperature=1.0`: the same weight bits, only the label rule differs). The base
   build has no `linear@2`, so this cell exists for the candidate only: its untimed
   functional probe checks the bits against the numpy reference, and its

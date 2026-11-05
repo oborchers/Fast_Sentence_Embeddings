@@ -107,8 +107,27 @@ def test_quotient_divisor_is_a_finite_positive_float(backend, divisor):
 
 def test_quotient_bias_and_weight_are_checked():
     weight, bias, _, _ = _head()
-    with pytest.raises(ValueError, match="bias must be a float64 vector of 2 values"):
+    with pytest.raises(ValueError, match="bias must be a numeric vector of 2 values"):
         check_quotient64_input(weight, bias[:1], 2.0)
-    with pytest.raises(ValueError, match="weight"):
-        check_quotient64_input(weight.astype(np.float32), bias, 2.0)
+    for bad in (weight.astype(bool), weight.astype(str), weight.astype(np.complex128)):
+        with pytest.raises(ValueError, match="weight must be a numeric matrix"):
+            check_quotient64_input(bad, bias, 2.0)
+    check_quotient64_input(weight.astype(np.float32), bias.astype(np.int8), 2.0)
     check_affine64_input(weight, bias, bias, bias)
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+@pytest.mark.parametrize("env", [{"flush": True}, {"flush": True, "round_up": True}])
+def test_the_conversion_to_float64_is_in_the_protected_environment(isa, env):
+    """A subnormal float32 weight survives the division under flush-to-zero: the conversion
+    to float64 happens in the kernel environment, not in the caller's."""
+    tiny = np.float32(2.0**-149)
+    weight, bias = np.full((1, 3), tiny, np.float32), np.full(1, tiny, np.float32)
+    divisor = float(tiny)
+    saved = _native._test_fpenv_set(**env)
+    try:
+        got_w, got_b = get_backend("cpu", isa=isa).quotient64(weight, bias, divisor)
+    finally:
+        _native._test_fpenv_restore(saved)
+    assert got_w.tolist() == [[1.0, 1.0, 1.0]]
+    assert got_b.tolist() == [1.0]

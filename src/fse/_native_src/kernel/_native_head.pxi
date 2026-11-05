@@ -25,7 +25,8 @@ def quotient64(weight, bias, divisor):
     kernels (the temperature of a softmax folded into a head)."""
     with _KernelEnv():
         with np.errstate(over="ignore", invalid="ignore"):
-            return weight / divisor, bias / divisor
+            return (np.asarray(weight, dtype=np.float64) / divisor,
+                    np.asarray(bias, dtype=np.float64) / divisor)
 
 
 def exp1(x, *, isa=None):
