@@ -57,6 +57,25 @@ def require_unix():
         raise RuntimeError("local development measurements require Unix; Windows is unsupported")
 
 
+def require_timing_priority(args):
+    """Refuse a timing controller with a nonzero nice before any directory or budget exists."""
+    if args.diagnostic_rehearsal or args.local_phase == "prepare":
+        return
+    if not hasattr(os, "getpriority"):
+        return
+    current = os.getpriority(os.PRIO_PROCESS, 0)
+    if current != 0:
+        raise ValueError(
+            f"timing requires nice 0, but this controller runs at nice {current}; "
+            "zsh adds 5 to the inherited nice value of jobs started with '&' "
+            "(option BG_NICE, on by default). Start the controller from a process "
+            "at nice 0: in the foreground, through a harness background shell without "
+            "'&', or after 'setopt NO_BG_NICE' in the same zsh command. "
+            "'nice -n 0' does not lower an inherited value. Untimed work may use "
+            "--diagnostic-rehearsal or --local-phase prepare."
+        )
+
+
 def _sysctl(name):
     with suppress(OSError):
         result = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, check=False)
