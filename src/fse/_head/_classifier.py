@@ -17,6 +17,7 @@ from typing import Any, Literal
 from numpy import ndarray
 
 from fse._contract import Head, Link
+from fse._encoder import _pretrained
 from fse._validation import (
     PathLike,
     PositiveInt,
@@ -25,7 +26,7 @@ from fse._validation import (
     validate_arguments,
 )
 
-from . import _calibration, _run, _sklearn
+from . import _calibration, _model2vec_files, _model2vec_objects, _run, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._outputs import PredictedBatch
@@ -205,9 +206,59 @@ class Classifier(LinearModel):
         """The classifier of a local ``.safetensors`` file or of an fse folder written by
         ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit; ``mmap`` as for
-        ``load``, for local files."""
-        options = {"token": token, "cache_dir": cache_dir, "local_files_only": local_files_only}
-        return cls._from_pretrained(repo_or_path, revision=revision, mmap=mmap, **options)
+        ``load``, for local files.
+
+        A folder or repository with the export of a Model2Vec ``StaticModelPipeline``
+        (``config.json`` with ``head_config``, ``head.safetensors``, ``model.safetensors``,
+        ``tokenizer.json``) is converted in memory: its table, tokenizer and one linear
+        layer with softmax or sigmoid (Model2Vec's ``n_layers=0``). Hidden layers, regression
+        heads, quantization, separate token weights and ``pipeline.skops`` raise; nothing is
+        trained and no pickle or skops is opened. Set cutoffs of a multilabel head with
+        ``with_thresholds``. A head trained with Model2Vec's default ``normalize=True`` runs
+        on the full mean; one trained with ``normalize=False`` folds into the table."""
+        files = _pretrained.files(
+            repo_or_path,
+            revision=revision,
+            token=token,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+        )
+        config = _model2vec_files.claimed(files)
+        if config is None:
+            return cls._from_files(files, mmap)
+        found, encoder = _model2vec_files.read(files, config, mmap)
+        return cls._imported(found, encoder, None, "Model2Vec export")
+
+    @classmethod
+    @validate_arguments
+    def from_model2vec(cls, model: Any, *, thresholds: ThresholdInput = None):  # -> Classifier
+        """The head of a finished Model2Vec classifier: a ``StaticModelPipeline`` or a
+        trained ``StaticModelForClassification`` (only its ``to_pipeline`` runs), with
+        its tokenizer and table, which may have been fine-tuned. Files go through
+        ``from_pretrained``. Only model2vec 0.10 objects with one linear layer
+        (``n_layers=0``) and the activation softmax or sigmoid are read; the refusals are
+        those of ``from_pretrained``. Imports nothing of model2vec or torch.
+
+        ``thresholds`` as for ``from_arrays``, for sigmoid (multilabel) heads only; the
+        default cutoff is 0.5 as Model2Vec's ``predict``. Single-label heads predict the
+        first class of largest logit, as Model2Vec; multilabel heads give a boolean
+        (n, k) matrix where Model2Vec gives lists of labels (``classes_[mask]``)."""
+        found, encoder = _model2vec_objects.read(model)
+        return cls._imported(found, encoder, thresholds, "Model2Vec pipeline")
+
+    @classmethod
+    def _imported(cls, found: Any, encoder: Any, thresholds: Any, source: str):
+        return cls._build(
+            encoder,
+            found.weight,
+            found.bias,
+            normalized=None,
+            link=found.link,
+            labels=found.labels,
+            source=source,
+            thresholds=thresholds,
+            note=found.note,
+        )
 
     @property
     def classes_(self) -> ndarray:

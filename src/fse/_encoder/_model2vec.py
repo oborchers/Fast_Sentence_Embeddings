@@ -25,6 +25,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from numpy import ndarray
+
 from fse import _log
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
@@ -33,7 +35,7 @@ from fse._tokenizer_json import tokenizer_of
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
-from ._files import Converted, Files, read_table
+from ._files import Converted, Files, check_table, read_table
 
 FILES = ("config.json", "model.safetensors", "tokenizer.json")
 DEFAULT_MAX_LENGTH = 512
@@ -44,7 +46,6 @@ _PROVENANCE = {"model_type", "architectures", "tokenizer_name", "apply_pca", "ap
 _PROVENANCE |= {"sif_coefficient", "seq_length", "pooling"}
 _REFUSED = {
     "vocabulary_quantization": "vocabulary quantization (a map of tokens to rows)",
-    "head_config": "a classification head",
 }
 _DTYPES = {"float32": "float32", "float16": "float16", "int8": "int8", "float64": "float64"}
 
@@ -69,6 +70,37 @@ def read_model2vec(
     table = model_table(files, config, len(tokens))
     # The table is a read-only view of the bytes that were read once and checked, which
     # nothing else holds: handed over without a copy, with every check of from_arrays.
+    return assemble(config, tokens, parameters, table, truncate, max_length, normalize)
+
+
+def read_object_table(
+    config: Any, tokenizer: bytes, table: Any, where: Path, **rules: Any
+) -> Converted:
+    """The encoder parts of the parts of a Model2Vec model object: its ``config`` (parsed,
+    ``where`` names it), the bytes of its tokenizer.json and its table, which must be a
+    float32 array. The checks are those of ``read_model2vec``; the table is copied."""
+    config = check_config(config, where)
+    if len(tokenizer) > MAX_TOKENIZER_BYTES:
+        raise CorruptArtifactError(
+            f"{where}: the tokenizer has more than {MAX_TOKENIZER_BYTES} bytes"
+        )
+    tokens, parameters = tokenizer_of(tokenizer, where)
+    if not isinstance(table, ndarray):
+        raise TypeError(f"the embeddings must be a numpy array, not {type(table).__name__}")
+    check = _table_check(config)
+    check_table(where, table.dtype.name, table.shape, len(tokens), check)
+    return assemble(config, tokens, parameters, table.copy(), **rules)
+
+
+def assemble(
+    config: dict[str, Any],
+    tokens: list[str],
+    parameters: Any,
+    table: ndarray,
+    truncate: bool = True,
+    max_length: Any = MODEL_RULE,
+    normalize: Any = MODEL_RULE,
+) -> Converted:
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
@@ -80,6 +112,11 @@ def read_model2vec(
 def check_config(config: Any, path: Path) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise CorruptArtifactError(f"{path} must be a JSON object")
+    if "head_config" in config:
+        raise UnsupportedArtifactError(
+            f"{path}: the model has a classification head (head_config); read its encoder "
+            "with fse.Classifier.from_pretrained(...).encoder"
+        )
     for key, what in _REFUSED.items():
         if key in config:
             raise UnsupportedArtifactError(
@@ -114,9 +151,7 @@ def check_config(config: Any, path: Path) -> dict[str, Any]:
     return config
 
 
-def model_table(files: Files, config: dict[str, Any], n_tokens: int):
-    """The tensor embeddings: float32 rows, one per token, as the config states them."""
-
+def _table_check(config: dict[str, Any]):
     def check(path, dtype: str, shape: tuple[int, ...]) -> None:
         declared = config.get("embedding_dtype")
         if declared is not None and _DTYPES.get(declared) != dtype:
@@ -128,7 +163,14 @@ def model_table(files: Files, config: dict[str, Any], n_tokens: int):
                 f"{path}: hidden_dim is {config['hidden_dim']!r}, the table has {shape[1]} columns"
             )
 
-    return read_table(files, "model.safetensors", frozenset({"embeddings"}), n_tokens, check)
+    return check
+
+
+def model_table(files: Files, config: dict[str, Any], n_tokens: int):
+    """The tensor embeddings: float32 rows, one per token, as the config states them."""
+    return read_table(
+        files, "model.safetensors", frozenset({"embeddings"}), n_tokens, _table_check(config)
+    )
 
 
 def _length(config: dict[str, Any], truncate: bool, max_length: Any) -> int | None:
