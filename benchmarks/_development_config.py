@@ -129,7 +129,9 @@ def validate_cell(raw, defaults):
 def _profile(cell):
     heads = cell["stage"] in ("head-folded", "head-with-vectors")
     if heads != (cell["profile"] == "linear-heads@1"):
-        raise ValueError("head stages require linear-heads@1, and that profile requires a head stage")
+        raise ValueError(
+            "head stages require linear-heads@1, and that profile requires a head stage"
+        )
     if heads and (cell["table_dtype"] != "float32" or cell["output_dtype"] != "float32"):
         raise ValueError("linear-heads@1 PR-1 comparisons require float32")
     if heads and cell["decision_gate"]:
