@@ -37,6 +37,26 @@ def ids_of(encoder, texts):
     ]
 
 
+def row_bounds(encoder, texts, normalize):
+    """The bound of each row of fse against the original library, as ``assert_close`` uses
+    it: a float, or None for a row that is zero before normalize (zero on both sides)."""
+    table = np.asarray(encoder.word_vectors.stored_vectors, np.float32)
+    out = []
+    for ids in ids_of(encoder, texts):
+        k = len(ids)
+        raw = _raw(ids, table)
+        if not raw.any():
+            out.append(None)
+            continue
+        m = np.linalg.norm(np.abs(table[ids].astype(np.float64)).sum(axis=0) / k)
+        bound = (TAU + 2 * gamma(k)) * m + DELTA * k * np.sqrt(table.shape[1])
+        if normalize:
+            r = np.linalg.norm(raw.astype(np.float64))
+            bound = 2 * bound / r + 2 * (gamma(table.shape[1]) / 2 + 4 * U)
+        out.append(bound)
+    return out
+
+
 def assert_close(got, want, encoder, texts, normalize):
     """``got`` (fse) and ``want`` (the original) agree within the bound, row by row; rows
     that are zero before normalize are zero on both sides. Gives the largest ratio of
@@ -44,18 +64,11 @@ def assert_close(got, want, encoder, texts, normalize):
     table = np.asarray(encoder.word_vectors.stored_vectors, np.float32)
     assert got.shape == want.shape == (len(texts), table.shape[1])
     worst = 0.0
-    for i, ids in enumerate(ids_of(encoder, texts)):
-        k = len(ids)
-        raw = _raw(ids, table)
-        if not raw.any():
+    for i, bound in enumerate(row_bounds(encoder, texts, normalize)):
+        if bound is None:
             assert not got[i].any(), i
             assert not want[i].any(), i
             continue
-        m = np.linalg.norm(np.abs(table[ids].astype(np.float64)).sum(axis=0) / k)
-        bound = (TAU + 2 * gamma(k)) * m + DELTA * k * np.sqrt(table.shape[1])
-        if normalize:
-            r = np.linalg.norm(raw.astype(np.float64))
-            bound = 2 * bound / r + 2 * (gamma(table.shape[1]) / 2 + 4 * U)
         error = np.linalg.norm(got[i].astype(np.float64) - want[i].astype(np.float64))
         assert error <= bound, f"text {i} ({texts[i][:40]!r}): {error} > {bound}"
         worst = max(worst, error / bound)
