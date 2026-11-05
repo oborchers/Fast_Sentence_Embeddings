@@ -38,7 +38,7 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
 | `store.repaired` | INFO | `fse.store` | rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
-| `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers | `VectorStore.search`, once per call |
+| `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
