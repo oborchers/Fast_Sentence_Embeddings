@@ -40,6 +40,13 @@ def check_store(store, mode, chunks=4):
             raise ValueError("stored document IDs differ from their input row positions")
 
 
+def _check_unique(cell, modes):
+    if cell["unique_doc_ids"] and (
+        cell["stage"] != "store-search" or "none" in modes or cell["filter_kind"] != "none"
+    ):
+        raise ValueError("unique_doc_ids needs unfiltered store-search on stores with IDs")
+
+
 def validate(cell):
     if cell["profile"] not in ("standard@1", "encoder@1", "linear-heads@1", *DOCUMENT_PROFILES):
         raise ValueError("unknown development adapter profile")
@@ -61,6 +68,7 @@ def validate(cell):
         "missing",
     ):
         raise ValueError("unknown development filter profile")
+    _check_unique(cell, modes)
     fraction = cell["filter_fraction"]
     if type(fraction) not in (int, float) or not 0 <= fraction <= 1:
         raise ValueError("filter_fraction must be a finite number between zero and one")

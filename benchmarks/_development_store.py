@@ -18,6 +18,7 @@ class QueryOutput:
     labels: object
     allowed: object
     reference: object = None
+    unique: bool = False
 
 
 def checked_query(value):
@@ -28,6 +29,10 @@ def checked_query(value):
         from _development_search_reference import check
 
         check(found, value.reference)
+    if value.unique and any(
+        len(np.unique(row)) != row.size for row in np.atleast_2d(found.doc_ids)
+    ):
+        raise ValueError("unique_doc_ids search returned a document twice")
     if not np.isin(found.ids, value.allowed).all():
         raise ValueError("filtered search returned an excluded row")
     if value.labels is not None and not np.array_equal(found.doc_ids, value.labels[found.ids]):
@@ -103,16 +108,29 @@ class StoreOperation:
             from _development_search_reference import complete
 
             self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
-            self.reference = complete(self.store, self.query, job["k"], self.allowed, self.labels)
+            self.reference = complete(
+                self.store,
+                self.query,
+                job["k"],
+                self.allowed,
+                self.labels,
+                unique_doc_ids=job["unique_doc_ids"],
+            )
 
     def __call__(self):
         from fse import VectorStore
 
         if self.store is not None:
+            unique = {"unique_doc_ids": True} if self.job["unique_doc_ids"] else {}
             found = self.store.search(
-                self.query, self.job["k"], mode="exact", workers=self.job["workers"], **self.filters
+                self.query,
+                self.job["k"],
+                mode="exact",
+                workers=self.job["workers"],
+                **self.filters,
+                **unique,
             )
-            return QueryOutput(found, self.labels, self.allowed, self.reference)
+            return QueryOutput(found, self.labels, self.allowed, self.reference, bool(unique))
         with VectorStore.open(self.path) as store:
             if len(store) != int(self.shape[0]) or store.dim != int(self.shape[1]):
                 raise ValueError("opened store shape differs")
