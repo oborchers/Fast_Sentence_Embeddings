@@ -162,3 +162,11 @@ def test_single_label_models_refuse_thresholds():
         fse.Classifier.from_arrays(
             encoder, np.ones((2, encoder.output_dim)), labels=[0, 1], thresholds={0: 0.4}
         )
+
+
+def test_single_label_models_have_no_thresholds():
+    encoder = finished()
+    head = fse.Classifier.from_arrays(encoder, np.ones((2, encoder.output_dim)), labels=[0, 1])
+    assert head.thresholds is None
+    with pytest.raises(ValueError, match="only for multilabel"):
+        head.with_thresholds({0: 0.4})

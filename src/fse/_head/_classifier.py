@@ -147,18 +147,20 @@ class Classifier(LinearModel):
         )
 
     @property
-    def thresholds(self) -> Mapping[int | str, float]:
+    def thresholds(self) -> Mapping[int | str, float] | None:
         """A read-only snapshot of effective F32 cutoffs in classes_ order.
 
-        Only multilabel heads have cutoffs. Values expose their actual stored precision.
+        Only multilabel heads have cutoffs; every other head gives None. Values expose
+        their actual stored precision.
         """
         if self._head.link is not Link.MULTILABEL:
-            raise ValueError("thresholds are available only for multilabel heads")
+            return None
+        return MappingProxyType(self._cutoffs())
+
+    def _cutoffs(self) -> dict[int | str, float]:
         assert self._head.thresholds is not None
         assert self._content.labels is not None
-        return MappingProxyType(
-            dict(zip(self._content.labels, map(float, self._head.thresholds), strict=True))
-        )
+        return dict(zip(self._content.labels, map(float, self._head.thresholds), strict=True))
 
     @validate_arguments
     def with_thresholds(self, thresholds: ThresholdInput):  # -> Classifier
@@ -166,9 +168,12 @@ class Classifier(LinearModel):
 
         A partial mapping keeps unnamed current values. A scalar or full vector replaces
         all values; explicit None resets all to 0.5. The original model is unchanged.
+        Heads that are not multilabel have no cutoffs and raise ValueError.
         No training, tokenization or folding runs here.
         """
-        current = dict(self.thresholds)
+        if self._head.link is not Link.MULTILABEL:
+            raise ValueError("with_thresholds is available only for multilabel heads")
+        current = self._cutoffs()
         # Compare loaded tensors before deriving a new model, as quantize does.
         old = self._content
         assert old.labels is not None

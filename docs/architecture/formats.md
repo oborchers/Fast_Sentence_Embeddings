@@ -175,7 +175,8 @@ checked without a validation copy. The classifier then resolves the names and
 checks the vector length before the existing F32 conversion. Booleans and numeric
 strings are refused.
 
-`classifier.thresholds` is a read-only complete snapshot in classes_ order. Python
+`classifier.thresholds` is a read-only complete snapshot in classes_ order, and None
+for every head that is not multilabel (`with_thresholds` raises `ValueError` there). Python
 floats expose the effective stored F32 values, not rounded display values.
 `classifier.with_thresholds({"sport": 0.3})` returns a new classifier and keeps all
 unnamed current cutoffs. A scalar or full vector replaces all cutoffs; explicit
