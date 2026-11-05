@@ -26,6 +26,7 @@ from fse._runtime import Pipeline, wants_inverse_norms
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
+from ._doc_ids import check_id_mode, infer_ids
 from ._sources import opened
 
 
@@ -109,9 +110,15 @@ def _named(k: int, row: int, n: int | None) -> Iterator[None]:
         raise type(error)(f"{where}: {error}") from None
 
 
-def run_into(pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int) -> None:
+def run_into(
+    pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int, doc_ids: Any = None
+) -> None:
     """Commit the rows of ``source`` to ``sink`` from ``first_row``."""
-    pipeline.infer(source, workers=workers, sink=sink, first_row=first_row)
+    check_id_mode(sink, doc_ids)
+    if doc_ids is None:
+        pipeline.infer(source, workers=workers, sink=sink, first_row=first_row)
+    else:
+        infer_ids(pipeline, source, sink, workers, first_row, doc_ids)
 
 
 def flush(sink: Any) -> None:
@@ -159,12 +166,17 @@ def batches(
     lists) or an Arrow string column each."""
     row, last = 0, None
     for k, item in enumerate(items):
+        ids = None
+        if getattr(sink, "has_doc_ids", False):
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
+            item, ids = item
         with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
             if sink is None:
                 rows = pipeline.infer(source, workers=workers, dtype=dtype, first_row=row)
                 found = EncodedBatch(row, n, rows, None)
             else:
-                run_into(pipeline, source, sink, workers, row)
+                run_into(pipeline, source, sink, workers, row, ids)
                 last = durable(sink, row + n, last)
                 found = EncodedBatch(row, n, None, last)
         yield found

@@ -1,0 +1,54 @@
+{
+  "format": "local-development-v2",
+  "description": "document-ids@1: small complete WikiText test store (4358 rows). Repeated warm open/search function and local controls; not the historical synthetic 100M store. Both interpreters must support document IDs for search.",
+  "defaults": {
+    "profile": "document-ids@1",
+    "base_doc_ids": "ordered",
+    "candidate_doc_ids": "ordered",
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "local-wikitext-store-open",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-open"
+    },
+    {
+      "id": "local-wikitext-search-ordered-range",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search"
+    },
+    {
+      "id": "local-wikitext-search-ordered-spread",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "filter_layout": "spread"
+    },
+    {
+      "id": "local-wikitext-search-shuffled-spread",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "base_doc_ids": "shuffled",
+      "candidate_doc_ids": "shuffled",
+      "filter_layout": "spread"
+    },
+    {
+      "id": "local-wikitext-search-missing",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "filter_layout": "missing"
+    },
+    {
+      "id": "local-wikitext-search-rows",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "filter_kind": "rows"
+    }
+  ]
+}

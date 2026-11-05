@@ -1,0 +1,61 @@
+{
+  "format": "local-development-v2",
+  "description": "document-search-cost@1: winner-inclusive filters, 1,002,340 WikiText rows, warm exact public store.search call latency. Same candidate in both arms; base unfiltered, candidate doc_ids filtered. Independent fixed loop counts, full identical result bits and fresh controls. Local non-publishable cost report.",
+  "defaults": {
+    "profile": "document-search-cost@1",
+    "resident_cycles": 230,
+    "workers": 2,
+    "table_dtype": "float32",
+    "output_dtype": "float32",
+    "queries": 1,
+    "k": 10,
+    "pairs": 15,
+    "warmup_calls": 2,
+    "warmup_seconds": 12.0,
+    "target_aa_iqr": 0.02,
+    "active_calibration_seconds": 3600.0,
+    "noise_multiplier": 3.0,
+    "minimum_saving": 0.02,
+    "confirmation_fraction": 0.5,
+    "decision_gate": false,
+    "target_seconds": 12.0
+  },
+  "cells": [
+    {
+      "id": "local-wikitext-1002340-search-ordered-64",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered",
+      "filter_count": 64
+    },
+    {
+      "id": "local-wikitext-1002340-search-ordered-65536",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered",
+      "filter_count": 65536
+    },
+    {
+      "id": "local-wikitext-1002340-search-shuffled-64",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "base_doc_ids": "shuffled",
+      "candidate_doc_ids": "shuffled",
+      "filter_count": 64
+    },
+    {
+      "id": "local-wikitext-1002340-search-shuffled-65536",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-search",
+      "base_doc_ids": "shuffled",
+      "candidate_doc_ids": "shuffled",
+      "filter_count": 65536
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "fse Walkthrough"
+  short_description: "Explain and demonstrate fse changes step by step"
+  default_prompt: "Use $walkthrough to explain and demonstrate the supplied fse work one concise item at a time."
+policy:
+  allow_implicit_invocation: true

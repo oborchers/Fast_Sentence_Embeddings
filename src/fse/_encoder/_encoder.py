@@ -39,6 +39,7 @@ from fse._wordvectors import WordVectors, _created_by
 
 from . import _batches, _folder, _persist, _pretrained
 from ._batches import EncodedBatch, check_sink, flush, run_into
+from ._doc_ids import check_id_mode
 from ._format import (
     EncoderContent,
     Source,
@@ -277,6 +278,7 @@ class Encoder:
         workers: int | None = None,
         backend: str = "cpu",
         sink: Any = None,
+        doc_ids: Any = None,
     ) -> ndarray | QuantizedRows | None:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
         default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
@@ -290,11 +292,12 @@ class Encoder:
         never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
         stream read once.
         """
+        check_id_mode(sink, doc_ids)
         if sink is not None:
             check_sink(sink, dtype, self.fingerprint, self.output_dim)
             pipeline = self._pipeline(backend)
             with opened(texts, self.tokenizer) as source:
-                run_into(pipeline, source, sink, workers, 0)
+                run_into(pipeline, source, sink, workers, 0, doc_ids)
             flush(sink)
             return None
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)

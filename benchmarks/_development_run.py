@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import time
 
+from _development_budget import WallBudgetExpiredError, check_args, stopped
 from _development_calibrate import calibrate
 from _development_config import load
 from _development_data import prepare
+from _development_descriptive import describe, regression_screen
 from _development_heads import nonregression
 from _development_locks import coordinated
 from _development_pairs import block
+from _development_preflight import preflight
 from _development_records import record_result, session
 from _development_reuse import context, load_control
 from _development_statistics import decide, decision_enabled
@@ -23,14 +26,21 @@ def _locked(args, cell, prepared, ledger, quality):
     stamp["cpu_affinity"] = args.cpu_affinity
 
     def notify(row):
+        if row["event"] == "waiting_for_lock":
+            ledger.stage = "waiting_for_lock_or_load"
+            ledger.progress()
         append(args.results / "coordination.jsonl", row)
 
     def admitted():
         return observations(args.work)["load"][0] < 5
 
     with coordinated(
-        "timing", args.worker_name, cell["id"], notify, lambda: ledger.stopping, admitted
+        "timing", args.worker_name, cell["id"], notify, lambda: stopped(ledger), admitted
     ) as owner:
+        if args.local_phase == "descriptive":
+            return describe(args, cell, prepared, ledger, owner, quality["identities"])
+        if args.local_phase == "regression-screen":
+            return regression_screen(args, cell, prepared, ledger, owner, quality["identities"])
         control = _control(args, cell, prepared, ledger, quality, stamp, owner)
         if args.local_phase in ("calibrate", "aa"):
             return dict(status="valid", decision="control_only", control=control)
@@ -87,8 +97,8 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
         )
         passed = main["time_saving"] >= threshold
         return dict(
-            status="valid" if passed else "rejected",
-            decision="screen_pass" if passed else "reject",
+            status="inconclusive" if passed else "rejected",
+            decision="screen_requires_full_evidence" if passed else "screen_reject",
             comparison=main,
             threshold=threshold,
         )
@@ -108,6 +118,7 @@ def run(args):
     spec["functional_only"] = args.diagnostic_rehearsal
     with session(args, spec) as ledger:
         prepared = prepare(args, spec["cells"], ledger)
+        check_args(args)
         for cell in spec["cells"]:
             if ledger.stopping:
                 break
@@ -140,8 +151,41 @@ def run(args):
 def _cell(args, cell, prepared, ledger):
     started = time.monotonic()
     try:
-        quality = quality_gate(args, cell, prepared, ledger, cell["id"] + "-quality")
+        with coordinated(
+            "heavy",
+            args.worker_name,
+            "small adapter preflight",
+            lambda row: append(args.results / "coordination.jsonl", row),
+            lambda: stopped(ledger),
+        ) as owner:
+            identities = preflight(args, cell, prepared, ledger, owner)
+        key = tuple(
+            cell[name]
+            for name in (
+                "model",
+                "corpus",
+                "table_dtype",
+                "workers",
+                "profile",
+                "base_doc_ids",
+                "candidate_doc_ids",
+                "id_chunks",
+            )
+        )
+        if key not in ledger.quality_cache:
+            ledger.stage = "full_output_quality_gate"
+            ledger.quality_cache[key] = quality_gate(
+                args, cell, prepared, ledger, cell["id"] + "-quality"
+            )
+        quality = ledger.quality_cache[key]
+        if quality["identities"] != identities:
+            raise ValueError("preflight build identities differ from the full quality gate")
+        check_args(args)
         result = _locked(args, cell, prepared, ledger, quality)
+        check_args(args)
+    except WallBudgetExpiredError as error:
+        ledger.stopping = True
+        result = dict(status="inconclusive", decision="inconclusive_budget", reason=str(error))
     except TimeoutError as error:
         result = dict(status="inconclusive", decision="inconclusive_noise", reason=str(error))
     except MemoryError as error:

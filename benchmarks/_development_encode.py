@@ -14,7 +14,17 @@ def operation(model, texts, job):
         from _development_memory import operation as memory_operation
 
         return memory_operation(model, texts, job)
+    from _development_ids import document_profile, values
+
     from fse import ShardSink
+
+    if document_profile(job):
+        from _development_file_resources import check_limits
+
+        check_limits()
+    ids = values(len(texts), job.get("doc_ids", "none"), job["id_chunks"])
+    sink_options = {} if ids is None else {"doc_ids": True}
+    encode_options = {} if ids is None else {"doc_ids": ids}
 
     source = Path(job["work"]) / (job["tag"] + "-timing.txt")
     with source.open("x", encoding="utf-8") as stream:
@@ -28,10 +38,12 @@ def operation(model, texts, job):
         index = next(counter)
         target = Path(job["work"]) / (job["tag"] + f"-sink-{index}")
         opened = time.perf_counter()
-        sink = ShardSink(target, model, dtype=job["output_dtype"], durability="none")
+        sink = ShardSink(
+            target, model, dtype=job["output_dtype"], durability="none", **sink_options
+        )
         first_read = time.perf_counter()
         with sink:
-            model.encode(source, workers=job["workers"], sink=sink)
+            model.encode(source, workers=job["workers"], sink=sink, **encode_options)
         seconds = time.perf_counter() - first_read
         if sink.published_rows != len(texts):
             raise ValueError("sink timing output row count differs")
@@ -40,6 +52,9 @@ def operation(model, texts, job):
             "index": index,
             "seconds": seconds,
             "including_open_seconds": time.perf_counter() - opened,
+            "doc_ids": job.get("doc_ids", "none"),
+            "id_chunks": job["id_chunks"],
+            "metrics_path": str(Path(job["receipt"]).with_suffix(".stores.jsonl")),
         }
 
     return encode
@@ -50,6 +65,10 @@ def output_identity(value):
 
     from fse._container._hash import checksum
 
+    if hasattr(value, "found"):
+        from _development_store import checked_query
+
+        return checked_query(value)
     if isinstance(value, dict):
         return _stores_identity(value)
     if hasattr(value, "probabilities"):
@@ -77,20 +96,28 @@ def _stores_identity(value):
     prefix = folder.name.rsplit("-", 1)[0]
     expected = None
     for index in range(value["first_index"], value["index"] + 1):
-        current = _store_identity(folder.parent / (prefix + "-" + str(index)))
+        current = _store_identity(
+            folder.parent / (prefix + "-" + str(index)),
+            value["doc_ids"],
+            value["id_chunks"],
+            value["metrics_path"],
+        )
         if expected is not None and current != expected:
             raise ValueError("repeated ShardSink outputs differ")
         expected = current
     return expected
 
 
-def _store_identity(folder):
+def _store_identity(folder, doc_ids, id_chunks, metrics_path):
+    from _development_ids import check_store
+
     from fse import VectorStore
     from fse._container._hash import Hasher
 
     hashes, dtypes, rows, dim = {}, {}, 0, None
     with VectorStore.open(folder) as store:
         store.verify()
+        check_store(store, doc_ids, id_chunks)
         rows, dim = len(store), store.dim
         for _, tensors in store._shards:
             for name in ("vectors", "scales", "inv_norms"):
@@ -98,6 +125,7 @@ def _store_identity(folder):
                     hashes.setdefault(name, Hasher()).update(tensors[name])
                     dtypes[name] = tensors[name].dtype.str
     _sync(folder)
+    _store_bytes(folder, doc_ids, rows, metrics_path)
     result = dict(
         rows=rows,
         dimensions=dim,
@@ -112,6 +140,26 @@ def _store_identity(folder):
     shutil.rmtree(folder)
     _sync_directory(folder.parent)
     return result
+
+
+def _store_bytes(folder, mode, rows, metrics_path):
+    from _measurement import append
+
+    files = [path for path in folder.rglob("*") if path.is_file()]
+    append(
+        Path(metrics_path),
+        {
+            "folder": str(folder),
+            "rows": rows,
+            "doc_ids": mode,
+            "logical_file_bytes": sum(path.stat().st_size for path in files),
+            "row_ids_file_bytes": sum(
+                path.stat().st_size for path in files if path.name == "row_ids.npy"
+            ),
+            "row_ids_payload_bytes": rows * 8 if mode != "none" else 0,
+            "scope": "logical files; not physical device writes",
+        },
+    )
 
 
 def _sync(folder):

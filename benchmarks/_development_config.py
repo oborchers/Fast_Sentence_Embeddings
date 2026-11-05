@@ -17,11 +17,24 @@ STAGES = (
     "pooling",
     "encode-memory",
     "encode-sink",
+    "store-search",
+    "store-open",
     "head-folded",
     "head-with-vectors",
 )
 DEFAULTS = {
-    "profile": "encoder@1",
+    "profile": "standard@1",
+    "base_doc_ids": "none",
+    "candidate_doc_ids": "none",
+    "id_chunks": 4,
+    "filter_kind": "doc_ids",
+    "filter_layout": "range",
+    "filter_fraction": 0.01,
+    "filter_count": 64,
+    "base_iterations": 1,
+    "candidate_iterations": 1,
+    "queries": 1,
+    "k": 10,
     "resident_cycles": 1,
     "iterations": 1,
     "workers": 1,
@@ -82,6 +95,12 @@ def validate_cell(raw, defaults):
         "max_calibration_steps",
         "resident_cycles",
         "iterations",
+        "id_chunks",
+        "queries",
+        "k",
+        "filter_count",
+        "base_iterations",
+        "candidate_iterations",
     ):
         _positive(cell[name], name, integral=True)
     for name in (
@@ -98,15 +117,19 @@ def validate_cell(raw, defaults):
         _positive(cell[name], name)
     _profile(cell)
     _bounds(cell)
+    from _development_ids import validate
+
+    validate(cell)
+    from _development_search import validate as validate_search
+
+    validate_search(cell)
     return cell
 
 
 def _profile(cell):
-    if cell["profile"] not in ("encoder@1", "linear-heads@1"):
-        raise ValueError("unknown development profile")
     heads = cell["stage"] in ("head-folded", "head-with-vectors")
     if heads != (cell["profile"] == "linear-heads@1"):
-        raise ValueError("head stages require linear-heads@1, encoder stages encoder@1")
+        raise ValueError("head stages require linear-heads@1, and that profile requires a head stage")
     if heads and (cell["table_dtype"] != "float32" or cell["output_dtype"] != "float32"):
         raise ValueError("linear-heads@1 PR-1 comparisons require float32")
     if heads and cell["decision_gate"]:
@@ -192,16 +215,44 @@ def add_arguments(parser, mode, quality=False):
         parser.add_argument("--cells", nargs="+")
         parser.add_argument(
             "--local-phase",
-            choices=("prepare", "calibrate", "aa", "screen", "compare", "confirm"),
+            choices=(
+                "prepare",
+                "descriptive",
+                "regression-screen",
+                "calibrate",
+                "aa",
+                "screen",
+                "compare",
+                "confirm",
+            ),
             default="compare",
         )
         parser.add_argument("--aa-results", type=Path)
         parser.add_argument("--comparison-results", type=Path)
+    parser.add_argument(
+        "--wall-time-seconds",
+        type=float,
+        help="total local wall-time admission budget, including preparation and load waits",
+    )
+    parser.add_argument(
+        "--estimated-seconds", type=float, help="declared total runtime estimate, not a guarantee"
+    )
+    if not quality:
+        parser.add_argument("--descriptive-repetitions", type=int, default=5)
+        parser.add_argument(
+            "--regression-limit",
+            type=float,
+            help="predeclared relevant slowdown fraction for regression-screen",
+        )
     parser.add_argument("local_command", nargs="*", help="command after -- for --local-heavy")
 
 
 def dispatch(args, quality=False):
     """Handle only explicitly local utilities; leave every publication path alone."""
+    if (
+        args.wall_time_seconds is not None or args.estimated_seconds is not None
+    ) and not args.diagnose:
+        raise ValueError("local wall-time and estimate options require --diagnose")
     if args.development_job:
         from _development_process import child
 
@@ -238,8 +289,34 @@ def dispatch(args, quality=False):
     return 0
 
 
+def _local_arguments(args, quality):
+    if args.wall_time_seconds is not None:
+        _positive(args.wall_time_seconds, "--wall-time-seconds")
+    if args.estimated_seconds is not None:
+        _positive(args.estimated_seconds, "--estimated-seconds")
+    if not quality:
+        _phase_arguments(args)
+
+
+def _phase_arguments(args):
+    _positive(args.descriptive_repetitions, "--descriptive-repetitions", integral=True)
+    if args.local_phase == "regression-screen":
+        _positive(args.regression_limit, "--regression-limit")
+        if args.aa_results or args.comparison_results:
+            raise ValueError("regression-screen does not reuse controls")
+    elif args.regression_limit is not None:
+        raise ValueError("--regression-limit requires regression-screen")
+    if args.local_phase == "descriptive":
+        if args.base_python or args.aa_results or args.comparison_results:
+            raise ValueError(
+                "descriptive mode uses only --candidate-python, without reused controls"
+            )
+        args.base_python = args.candidate_python
+
+
 def _diagnose(args, quality):
     require_unix()
+    _local_arguments(args, quality)
     if args.local_command:
         raise ValueError("a trailing command requires --local-heavy")
     default_input = CONFIG / ("quality.json" if quality else "speed.json")

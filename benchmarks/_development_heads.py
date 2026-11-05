@@ -18,7 +18,7 @@ class HeadOutput(NamedTuple):
     vectors: object
 
 
-def operation(encoder, texts, job):
+def operation(encoder, texts, job, *, backend="cpu"):
     import numpy as np
 
     from fse import Classifier
@@ -39,9 +39,11 @@ def operation(encoder, texts, job):
 
     def predict():
         if job["stage"] == "head-folded":
-            return HeadOutput(model.predict_proba(texts, workers=job["workers"]), None)
+            return HeadOutput(
+                model.predict_proba(texts, workers=job["workers"], backend=backend), None
+            )
         (batch,) = model.predict_batches(
-            (texts,), output="proba", return_vectors=True, workers=job["workers"]
+            (texts,), output="proba", return_vectors=True, workers=job["workers"], backend=backend
         )
         return HeadOutput(batch.outputs, batch.vectors)
 
@@ -56,6 +58,24 @@ def operation(encoder, texts, job):
     ):
         raise ValueError("head vector shape differs from the fixed profile")
     return predict
+
+
+def probe(job, texts):
+    """Integrate head stages into the shared untimed CPU/reference adapter preflight."""
+    from _development_encode import output_identity
+    from _development_process import checked
+
+    from fse import Encoder
+
+    artifact = job["artifact"]
+    encoder = Encoder.from_pretrained(
+        checked(artifact["path"], artifact["sha256"]), normalize=False, mmap=True
+    )
+    got = output_identity(operation(encoder, texts, job)())
+    expected = output_identity(operation(encoder, texts, job, backend="numpy")())
+    if got != expected:
+        raise ValueError("preflight head shape, dtype or bits differ from numpy reference")
+    return got
 
 
 def nonregression(cell, result):

@@ -109,12 +109,12 @@ def test_store_json_is_read_strictly(tmp_path):
     os.chmod(file, 0o644)
     store = json.loads(file.read_text())
     for change, error, match in [
-        ({"store_version": 2}, UnsupportedArtifactError, "version 2"),
+        ({"store_version": 3}, UnsupportedArtifactError, "version 3"),
         ({"extra": 1}, CorruptArtifactError, "exactly store, store_version and metadata"),
         (
-            {"metadata": {**store["metadata"], "fse.format_version": "2"}},
+            {"metadata": {**store["metadata"], "fse.format_version": "3"}},
             UnsupportedArtifactError,
-            "format '2'",
+            "format '3'",
         ),
         (
             {"metadata": {**store["metadata"], "fse.encoder": LEGACY}},

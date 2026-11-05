@@ -1,0 +1,73 @@
+{
+  "format": "local-development-v2",
+  "description": "document-ids-1m@1: 1,002,340 rows, 230 complete WikiText test cycles. Fresh local-development-v2 controls; no reuse of inconclusive 10M observations. All numerical bytes and ID alignment checked. At least 30 GiB free after planned output allocation.",
+  "defaults": {
+    "profile": "document-ids-1m@1",
+    "resident_cycles": 230,
+    "workers": 2,
+    "decision_gate": true,
+    "pairs": 15,
+    "warmup_calls": 2,
+    "warmup_seconds": 12.0,
+    "target_aa_iqr": 0.02,
+    "active_calibration_seconds": 3600.0,
+    "noise_multiplier": 3.0,
+    "minimum_saving": 0.02,
+    "confirmation_fraction": 0.5
+  },
+  "cells": [
+    {
+      "id": "local-wikitext-1002340-float32-ordered-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "ordered"
+    },
+    {
+      "id": "local-wikitext-1002340-float32-no-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink"
+    },
+    {
+      "id": "local-wikitext-1002340-int8-ordered-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "ordered",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-1002340-int8-no-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-1002340-int8-shuffled-ids",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "candidate_doc_ids": "shuffled",
+      "output_dtype": "int8"
+    },
+    {
+      "id": "local-wikitext-1002340-float32-ids-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered"
+    },
+    {
+      "id": "local-wikitext-1002340-int8-ids-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-sink",
+      "base_doc_ids": "ordered",
+      "candidate_doc_ids": "ordered",
+      "output_dtype": "int8"
+    }
+  ]
+}

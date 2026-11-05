@@ -9,6 +9,17 @@ All notable changes to this project are documented in this file. The format is b
 - Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
 - Add independent multilabel classifiers (`multilabel@1`, `linear@2`) with strict per-label thresholds, including partial named overrides such as `thresholds={"sport": 0.4}`. Import fitted multilabel OneVsRestClassifier models with supported affine sigmoid heads. New models use linear_head format 2 and `head.thresholds`; existing format 1 models keep their identifiers, fingerprints and predictions. (DR-199: Lineare Köpfe zum vollwertigen Bestandteil von fse machen)
+- Make all macOS PR jobs optional, including wheels. Add a targeted manual macOS scope bound to an open PR and its immutable current head SHA, with explicit source/artifact identities and stale-head rejection. Preserve automatic master/tag coverage, full manual verification and release gates. CI summaries fail closed on failed, cancelled, abandoned or unknown started jobs.
+
+- Couple measurement effort to claim classes. Add candidate-only descriptive costs, a conservative five-pair regression screen, small independent adapter probes and a total local wall-time admission budget including preparation and load/lock waits. Existing numerical, persistence, optimization and Linux publication guarantees remain unchanged.
+
+- Reject already released Arrow document-ID schemas before reading their fields.
+
+- Add document-ID write, unfiltered-search and filtered-search cost profiles to shared local diagnosis, including normalized public-call latency and filter-workspace measurements. Numerical checks, timing floors and resource guards remain enforced.
+
+- Add optional int64 document IDs to vector stores, per-batch ID input, and exact filtered search by document IDs or physical rows. Duplicate document IDs retain every matching row. New ID-enabled stores use format 2 while vector-only stores remain format 1. DR-215 (Eigene Dokument-IDs im Store speichern (row_ids)).
+
+- Add an evidence-grounded fse walkthrough skill with offline synthetic demonstrations and one-item pacing. Skill-only instruction and metadata changes skip heavy PR and ordinary master CI jobs; release publication still requires full master CI.
 
 - Limit macOS tests on pull requests and release tags to Python 3.13, alongside arm64 wheel builds. Master pushes retain the full Python 3.11 to 3.15 macOS matrix and sentence-transformers comparison. Release publication now requires successful full master CI for the exact tagged commit, verified through the GitHub API.
 

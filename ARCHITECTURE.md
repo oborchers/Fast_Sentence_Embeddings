@@ -33,6 +33,7 @@ Sections formerly under "2.0 design" are binding for every 2.0 module.
 | [formats.md](docs/architecture/formats.md) | Artifacts, safetensors 1, NpyContainer 1, word_vectors 1, encoder 1, linear_head 1, linear_head 2 |
 | [hub.md](docs/architecture/hub.md) | Model2Vec models and from_pretrained, model2vec compatibility (fse.StaticModel), sentence-transformers models, Hub folders |
 | [store.md](docs/architecture/store.md) | sentence_vectors 1 |
+| [document-ids.md](docs/architecture/document-ids.md) | sentence_vectors 2, document IDs and filtered search |
 
 ## Former sections
 

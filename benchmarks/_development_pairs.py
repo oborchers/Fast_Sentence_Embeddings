@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import time
 
+from _development_budget import check_args
 from _development_locks import busy, lock_paths
 from _development_process import launch
+from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
 from _measurement import append
@@ -29,6 +31,7 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
 def wait_for_arm(args, ledger, cell_id):
     _, heavy = lock_paths()
     while True:
+        check_args(args)
         if ledger.stopping:
             raise InterruptedError("stopped before next development arm")
         _session_gap(args, cell_id, ledger)
@@ -50,8 +53,13 @@ def arm(
     ledger.progress()
     tag = f"{cell['id']}-{phase}-{pair}-{position}"
     job = job_for(cell, prepared, count, tag, owner, batch)
+    from _development_ids import mode_for
+
+    job["doc_ids"] = mode_for(cell, candidate=not control and name == "candidate")
+    configure(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.diagnostic_rehearsal
+    job["descriptive_only"] = phase == "descriptive"
     job["sizing_only"] = phase.startswith("size-")
     if job["sizing_only"]:
         job["warmup_seconds"] = 0
@@ -68,7 +76,9 @@ def arm(
         texts=count,
         completed_at_unix=time.time(),
         sizing_only=job["sizing_only"],
-        valid_for_comparison=not (job["sizing_only"] or args.diagnostic_rehearsal),
+        valid_for_comparison=not (
+            job["sizing_only"] or job["descriptive_only"] or args.diagnostic_rehearsal
+        ),
     )
     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     return record
