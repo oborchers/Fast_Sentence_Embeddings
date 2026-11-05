@@ -46,10 +46,14 @@ What is bit-identical across what:
 | CPU instruction sets and operating systems (portable, NEON, AVX2) | bit-identical, through explicit fma and `dot16` |
 | the numpy reference and every CPU backend | bit-identical for every profile the conformance suite checks |
 | each path of a linear head (folded, normalized, unfolded, standalone, store mode) and its reference | bit-identical on every CPU backend; a standalone file gives the bits of its complete model |
+| each head of a group (`fse.Heads`) and the same head alone, on the same path | bit-identical on every CPU backend and instruction set: a group adds no arithmetic, the folded table shared by raw heads is the columns of their single tables side by side (`weighted_mean@1` is defined per value) and the shared normalization is `normalize@1` of the raw pooled rows |
 | the folded and the unfolded path of a head on raw means (`predict` against `return_vectors=True` or a float32 store) | within the rounding of the fold, not bit-identical: folding changes the order of the roundings, so about half the logits differ in their last bits (maintainer decision); a head on normalized means has one path, so its store mode gives the bits of its texts |
 | a head in fse and in scikit-learn | within the bound of `tests/support/head_bound.py` (the rounding of A and b, dot16, the fold, the pooling, the bias, in float64 per row); a label differs only where the top two logits are within their bounds, a probability by at most the bound through the link (`|dz| / 4` for sigmoid, `max |dz| / 2` for softmax) plus 8 u (sigmoid) or (k + 8) u (softmax) for the link's own roundings |
 | 1.x and 2.0 | not identical (EPS, `saxpy`, BLAS in the removal); compared with tolerances, STS and MTEB |
 
+### Groups of heads (`fse.Heads`)
+
+A group has no identifier and no `transform_version` of its own: it adds no arithmetic. Every head computes with the functions of its own path (`fold`, `weighted_mean@1`, `normalize@1`, `dot16`, the bias, the link, the label rule, the cutoffs) and gets the bits of the same head alone on the same backend, instruction set and path. The group shares only what does not depend on the head: the tokenization, the pooling of one table that holds the folded rows of all raw heads side by side (the score of a row with a weight row depends on that row and weight alone, and `weighted_mean@1` is defined per value, so a column has the bits of the table of its head alone, also across the blocks of the NEON kernel), and the `normalize@1` of the pooled raw rows. A lone head is a group of one. The reference of a group is the sequence of the single references (`fse._reference_head`); no function is added to it. A head on raw means takes the folded path without the vectors and the unfolded path with them (`Heads.paths`), the two only within the rounding of the fold, as for one head.
 
 ### Label rule `linear@2` (`multilabel@1` and single-label heads)
 

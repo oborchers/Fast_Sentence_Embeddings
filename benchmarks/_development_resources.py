@@ -25,6 +25,17 @@ def check_write_disk(job):
         raise MemoryError("document-ID write group would leave less than 30 GiB free")
 
 
+def _group_components(cell, prepared, count, output, components):
+    """n heads: their folded tables (one shared table or n separate ones) beside the table,
+    the probabilities of every head in both live results, and with vectors the full means."""
+    if cell["stage"] not in ("head-group-folded", "head-group-mixed"):
+        return
+    table = prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]]
+    components["head_table_reserve"] = Path(table["path"]).stat().st_size * cell["heads"]
+    components["head_probabilities_and_copies"] = count * 4 * 4 * 2 * cell["heads"]
+    components["output_and_copies"] = output * 2 if cell["return_vectors"] else 0
+
+
 def admission(cell, prepared, count, work, requested_limit=None):
     corpus = prepared["corpora"][cell["corpus"]]
     model = prepared["models"][cell["model"]]
@@ -58,6 +69,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
         components["head_table_reserve"] = Path(table["path"]).stat().st_size
         components["head_probabilities_and_copies"] = count * 4 * 4 * 2
         components["output_and_copies"] = output * 2 if cell["stage"] == "head-with-vectors" else 0
+    _group_components(cell, prepared, count, output, components)
     if (cell.get("base_doc_ids", "none"), cell.get("candidate_doc_ids", "none")) != (
         "none",
         "none",

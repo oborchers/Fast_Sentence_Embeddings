@@ -22,6 +22,8 @@ STAGES = (
     "head-folded",
     "head-with-vectors",
     "head-labels",
+    "head-group-folded",
+    "head-group-mixed",
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
@@ -58,6 +60,12 @@ DEFAULTS = {
     "confirmation_fraction": 0.5,
     "decision_gate": True,
     "rule": "linear@1",
+    "heads": 1,
+    "return_vectors": False,
+    "base_heads_mode": "separate",
+    "candidate_heads_mode": "separate",
+    "practical_saving": None,
+    "stop_session_on_reject": False,
 }
 
 
@@ -122,6 +130,9 @@ def validate_cell(raw, defaults):
     ):
         _positive(cell[name], name)
     _profile(cell)
+    from _development_heads_multi import validate as validate_group
+
+    validate_group(cell)
     _bounds(cell)
     from _development_ids import validate
 

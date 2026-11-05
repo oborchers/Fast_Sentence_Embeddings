@@ -136,7 +136,10 @@ def _action(job):
 
         result = measure(job)
     elif job["action"] == "profile-head":
-        from _development_heads import profile
+        if job["profile"] == "linear-heads-multi@1":
+            from _development_heads_multi import profile
+        else:
+            from _development_heads import profile
 
         result = profile(job)
     elif job["action"] == "pooling-input":

@@ -71,16 +71,7 @@ def output_identity(value):
         return checked_query(value)
     if isinstance(value, dict):
         return _stores_identity(value)
-    if hasattr(value, "probabilities"):
-        arrays = {"probabilities": value.probabilities}
-        if value.vectors is not None:
-            arrays["vectors"] = value.vectors
-    elif hasattr(value, "tokens"):
-        arrays = {"offsets": value.offsets, "tokens": value.tokens}
-    elif hasattr(value, "codes"):
-        arrays = {"vectors": value.codes, "scales": value.scales}
-    else:
-        arrays = {"vectors": value}
+    arrays = _arrays(value)
     result = {}
     for name, array in arrays.items():
         if not np.isfinite(array).all():
@@ -89,6 +80,21 @@ def output_identity(value):
             shape=list(array.shape), dtype=array.dtype.str, checksum=checksum(array)
         )
     return result
+
+
+def _arrays(value):
+    """The named arrays whose bytes identify an output."""
+    if hasattr(value, "outputs"):
+        arrays = {f"head:{name}": array for name, array in value.outputs.items()}
+        return {**arrays, **({} if value.vectors is None else {"vectors": value.vectors})}
+    if hasattr(value, "probabilities"):
+        arrays = {"probabilities": value.probabilities}
+        return {**arrays, **({} if value.vectors is None else {"vectors": value.vectors})}
+    if hasattr(value, "tokens"):
+        return {"offsets": value.offsets, "tokens": value.tokens}
+    if hasattr(value, "codes"):
+        return {"vectors": value.codes, "scales": value.scales}
+    return {"vectors": value}
 
 
 def _stores_identity(value):

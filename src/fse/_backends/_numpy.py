@@ -31,12 +31,15 @@ from ._base import (
     check_outputs_input,
     check_pool_input,
     check_prepared,
+    dims,
+)
+from ._base_checks import (
+    check_pooled_input,
     check_score_input,
     check_scores_input,
     check_search_input,
     check_store_input,
     check_stored_input,
-    dims,
 )
 from ._base_head import check_affine64_input, check_quotient64_input
 
@@ -71,6 +74,10 @@ class NumpyBackend:
         if prepared.steps:
             rows = _reference.postprocess(rows, prepared.steps, batch.first_row)
         out[...] = rows
+
+    def postprocess_pooled(self, rows: ndarray, steps: tuple[Step, ...], first_row: int) -> None:
+        check_pooled_input(rows, steps, first_row)
+        rows[...] = _reference.postprocess(rows, steps, int(first_row))
 
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float

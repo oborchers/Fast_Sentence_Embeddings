@@ -14,7 +14,11 @@ that identity only.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, NamedTuple
+
+from numpy import ndarray
 
 from fse._container import fingerprint
 
@@ -43,3 +47,19 @@ def output_identity(model_fingerprint: str, output: str) -> str:
     if output not in SINK_OUTPUTS:
         raise ValueError(f"output must be one of {', '.join(SINK_OUTPUTS)}, not {output!r}")
     return fingerprint({}, {"model": model_fingerprint, "output": output})
+
+
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class HeadsBatch:
+    """One batch of ``Heads.predict_batches``: its rows ``first_row`` to ``first_row +
+    n_rows - 1`` of the run, the ``outputs`` of every head by name (as ``predict`` of that
+    head gives them, or the output asked for) and, with ``return_vectors=True``, the
+    ``vectors``, the rows of the encoder (else None).
+
+    Read the fields by name: a batch is not iterable and does not unpack, so a field added in
+    a later minor release (with a default) breaks no caller."""
+
+    first_row: int
+    n_rows: int
+    outputs: Mapping[str, ndarray]
+    vectors: ndarray | None

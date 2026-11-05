@@ -126,3 +126,39 @@ def test_both_step_lists_are_the_reference(dtype, fasttext):
         backend.rows(batch, prepared, out)
         want = _reference.postprocess(rows, steps, 5) if steps else rows
         assert out.view(np.uint32).tolist() == want.view(np.uint32).tolist(), steps
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_postprocess_pooled_is_the_step_of_rows(isa, dtype):
+    pool = _pool(dtype)
+    backend = get_backend("cpu", isa=isa)
+    raw = backend.prepare(pool, ())
+    steps = backend.prepare(pool, (Normalize(),))
+    pooled = np.empty((3, 4), F32)
+    backend.rows(_batch(), raw, pooled)
+    want = np.empty((3, 4), F32)
+    backend.rows(_batch(), steps, want)
+    backend.postprocess_pooled(pooled, steps.steps, 5)
+    assert pooled.tobytes() == want.tobytes()
+
+
+def test_postprocess_pooled_refuses_rows_it_cannot_change_in_place():
+    backend = CpuBackend()
+    steps = (Normalize(),)
+    frozen = np.ones((3, 4), F32)
+    frozen.setflags(write=False)
+    for bad in (frozen, np.ones((3, 4), np.float64), np.ones((4, 3), F32).T, [[1.0] * 4]):
+        with pytest.raises(ValueError, match="writable C-contiguous float32"):
+            backend.postprocess_pooled(bad, steps, 0)
+    with pytest.raises(ValueError, match="tuple of steps"):
+        backend.postprocess_pooled(np.ones((3, 4), F32), [Normalize()], 0)
+    with pytest.raises(ValueError, match="first_row"):
+        backend.postprocess_pooled(np.ones((3, 4), F32), steps, -1)
+
+
+def test_postprocess_pooled_names_the_row_that_cannot_be_normalized():
+    rows = np.ones((3, 4), F32)
+    rows[1] = np.float32(3e38)  # the norm overflows
+    with pytest.raises(ValueError, match="row 11 "):
+        CpuBackend().postprocess_pooled(rows, (Normalize(),), 10)

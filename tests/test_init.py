@@ -133,6 +133,8 @@ def test_public_api_is_pinned():
         "EncodedBatch",
         "Encoder",
         "FastTextParams",
+        "Heads",
+        "HeadsBatch",
         "MemorySink",
         "PredictedBatch",
         "PublishedNotDurableError",

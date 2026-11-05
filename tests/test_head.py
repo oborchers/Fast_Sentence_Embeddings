@@ -5,7 +5,7 @@ import fse._head
 
 
 def test_the_public_names():
-    for name in ("Classifier", "Regressor", "PredictedBatch"):
+    for name in ("Classifier", "Regressor", "PredictedBatch", "Heads", "HeadsBatch"):
         assert getattr(fse, name) is getattr(fse._head, name)
         assert name in fse.__all__
-    assert fse._head.__all__ == ["Classifier", "PredictedBatch", "Regressor"]
+    assert fse._head.__all__ == ["Classifier", "Heads", "HeadsBatch", "PredictedBatch", "Regressor"]

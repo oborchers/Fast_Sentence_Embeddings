@@ -7,7 +7,8 @@
 """Linear heads on finished encoders: fse.Classifier and fse.Regressor (docs/architecture/formats.md, "linear_head 1"). fse imports heads trained elsewhere and trains nothing."""
 
 from ._classifier import Classifier
-from ._outputs import PredictedBatch
+from ._heads import Heads
+from ._outputs import HeadsBatch, PredictedBatch
 from ._regressor import Regressor
 
-__all__ = ["Classifier", "PredictedBatch", "Regressor"]
+__all__ = ["Classifier", "Heads", "HeadsBatch", "PredictedBatch", "Regressor"]

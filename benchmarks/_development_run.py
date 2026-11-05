@@ -10,6 +10,7 @@ from _development_config import load
 from _development_data import prepare
 from _development_descriptive import describe, regression_screen
 from _development_heads import nonregression
+from _development_heads_multi import practical
 from _development_locks import coordinated
 from _development_pairs import block
 from _development_preflight import preflight
@@ -93,7 +94,9 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
         if not decision_enabled(cell):
             return dict(status="valid", decision="descriptive_only", comparison=main)
         threshold = max(
-            cell["noise_multiplier"] * control["aa"]["factor"]["iqr"], cell["minimum_saving"]
+            cell["noise_multiplier"] * control["aa"]["factor"]["iqr"],
+            cell["minimum_saving"],
+            cell["practical_saving"] or 0,
         )
         passed = main["time_saving"] >= threshold
         return dict(
@@ -103,13 +106,26 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             threshold=threshold,
         )
     confirmation = block(*arguments, "confirmation", **options)
-    result = nonregression(current, decide(current, control["aa"], main, confirmation))
+    result = practical(
+        current, nonregression(current, decide(current, control["aa"], main, confirmation))
+    )
     if args.diagnostic_rehearsal:
         result["decision"] = "functional_only"
-    valid = result["decision"] in ("keep", "descriptive_only", "functional_only")
-    if "nonregression" in result and not args.diagnostic_rehearsal:
-        valid = valid and result["nonregression"]["passed"]
+    gate = result.get("practical")
+    if gate and not gate["passed"] and result["decision"] == "keep":
+        result["decision"] = "keep_below_practical_saving"  # decision.json must not say keep
+    valid = _valid(result, args.diagnostic_rehearsal)
     return dict(status="valid" if valid else "rejected", **result)
+
+
+def _valid(result, rehearsal):
+    """A decision is valid when it is keep (or descriptive, or functional), and where the
+    cell declared them, its noise-limited nonregression and its practical saving hold."""
+    valid = result["decision"] in ("keep", "descriptive_only", "functional_only")
+    for gate in ("nonregression", "practical"):
+        if gate in result and not rehearsal:
+            valid = valid and result[gate]["passed"]
+    return valid
 
 
 def run(args):
@@ -171,6 +187,10 @@ def _cell(args, cell, prepared, ledger):
                 "base_doc_ids",
                 "candidate_doc_ids",
                 "id_chunks",
+                "heads",
+                "return_vectors",
+                "base_heads_mode",
+                "candidate_heads_mode",
             )
         )
         if key not in ledger.quality_cache:
@@ -195,7 +215,15 @@ def _cell(args, cell, prepared, ledger):
         record_result(ledger, cell, started, status="failed", decision="failed", reason=repr(error))
         return False
     record_result(ledger, cell, started, **result)
+    if cell["stop_session_on_reject"] and _ended_badly(result):
+        ledger.stopping = True  # the cells after it stay not_started
     return True
+
+
+def _ended_badly(result):
+    """A decision that ends the session of a cell that asked for it: not valid, and not the
+    screen that passed and wants its full evidence."""
+    return result["status"] != "valid" and result.get("decision") != "screen_requires_full_evidence"
 
 
 def _arguments(args):
