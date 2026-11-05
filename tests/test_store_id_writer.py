@@ -13,8 +13,8 @@ def test_shrink_and_digest(tmp_path):
     writer.write(0, values)
     writer.commit(values)
     assert writer.finish(3, synced=True) == ("I64", (3,), checksum(values))
-    assert np.array_equal(np.load(tmp_path / "row_ids.npy"), values)
-    assert writer.stats.metadata()["fse.row_ids_sorted"] == "false"
+    assert np.array_equal(np.load(tmp_path / "doc_ids.npy"), values)
+    assert writer.stats.metadata()["fse.doc_ids_sorted"] == "false"
     writer.close()
 
 

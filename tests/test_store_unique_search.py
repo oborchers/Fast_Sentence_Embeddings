@@ -14,7 +14,7 @@ from support.document_ids import column, write_store
 
 def _want(store, queries, k, positions=None):
     """The reference rows, scores and labels of every query over the selected positions."""
-    vectors, inverse, labels = (column(store, n) for n in ("vectors", "inv_norms", "row_ids"))
+    vectors, inverse, labels = (column(store, n) for n in ("vectors", "inv_norms", "doc_ids"))
     positions = np.arange(len(labels)) if positions is None else positions
     values = _reference.cosines(vectors[positions], inverse[positions], queries)
     order = [
@@ -179,7 +179,7 @@ def test_blas_pick_is_the_reference_of_the_scores_it_scored(tmp_path, monkeypatc
         assert seen  # 9 queries are above the exact limit: the BLAS path ran
         full = np.concatenate([scores for _, scores in seen])
         assert full.shape == (70, 9)
-        order = [_reference.top_k_unique(full[:, q], column(store, "row_ids"), 5) for q in range(9)]
+        order = [_reference.top_k_unique(full[:, q], column(store, "doc_ids"), 5) for q in range(9)]
         assert np.array_equal(got.ids, np.stack(order))
         assert_bits_equal(got.scores, np.stack([full[o, q] for q, o in enumerate(order)]))
         assert (np.diff(got.scores, axis=1) <= 0).all()

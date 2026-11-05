@@ -153,10 +153,10 @@ def _store_bytes(folder, mode, rows, metrics_path):
             "rows": rows,
             "doc_ids": mode,
             "logical_file_bytes": sum(path.stat().st_size for path in files),
-            "row_ids_file_bytes": sum(
-                path.stat().st_size for path in files if path.name == "row_ids.npy"
+            "doc_ids_file_bytes": sum(
+                path.stat().st_size for path in files if path.name == "doc_ids.npy"
             ),
-            "row_ids_payload_bytes": rows * 8 if mode != "none" else 0,
+            "doc_ids_payload_bytes": rows * 8 if mode != "none" else 0,
             "scope": "logical files; not physical device writes",
         },
     )

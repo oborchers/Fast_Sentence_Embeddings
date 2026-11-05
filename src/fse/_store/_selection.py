@@ -103,5 +103,5 @@ def blocks(shards: Any, values: np.ndarray, kind: str, size: int):
             for start in range(int(lo), int(hi), size):
                 yield index, values[start : min(start + size, int(hi))] - shard.first_row
         else:
-            for selected in _doc_positions(shard, tensors["row_ids"], values, size):
+            for selected in _doc_positions(shard, tensors["doc_ids"], values, size):
                 yield index, selected

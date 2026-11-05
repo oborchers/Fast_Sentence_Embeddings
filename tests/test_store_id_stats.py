@@ -22,7 +22,7 @@ def test_cross_block_order_and_extremes():
 @pytest.mark.parametrize("value", ["-0", "+1", "01", str(2**63), "1.0", ""])
 def test_canonical_bounds(value):
     metadata = IdStats(1, 2).metadata()
-    metadata["fse.row_ids_min"] = value
+    metadata["fse.doc_ids_min"] = value
     with pytest.raises(CorruptArtifactError):
         parsed_stats(metadata, "test")
 

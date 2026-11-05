@@ -27,20 +27,20 @@ Vector-only stores without IDs or optional score tensors remain store version 1,
 sentence_vectors format 1.
 ID-enabled stores use `store_version=2` and `fse.format_version=2`, so 2.0.0
 rejects them before applying its closed metadata schema. NpyContainer stays at 1.
-Store metadata adds `fse.row_ids=int64|none` and `fse.resume=none`.
-Every shard repeats these keys and holds `row_ids.npy`, I64, shape `(rows,)`,
+Store metadata adds `fse.doc_ids=int64|none` and `fse.resume=none`.
+Every shard repeats these keys and holds `doc_ids.npy`, I64, shape `(rows,)`,
 exactly when enabled. Its checksum participates in the artifact fingerprint.
 
 The unpublished format 2 is shared with DR-199 (Lineare Köpfe zum vollwertigen
 Bestandteil von fse machen). Document IDs or optional score tensors require this
 same version, rather than separate format increments. Vectors, IDs and scores
 share one physical shard writer and store path. Optional scores do not imply
-document IDs: `row_ids.npy` remains present exactly when the ID mode is enabled.
+document IDs: `doc_ids.npy` remains present exactly when the ID mode is enabled.
 The score tensors and their metadata schema belong to that separate work. This
 document-ID implementation neither writes score columns nor reserves their names.
 
-ID shards also record `fse.row_ids_min`, `fse.row_ids_max` and
-`fse.row_ids_sorted=true|false`. Bounds are canonical signed int64 decimals.
+ID shards also record `fse.doc_ids_min`, `fse.doc_ids_max` and
+`fse.doc_ids_sorted=true|false`. Bounds are canonical signed int64 decimals.
 Sorted means nondecreasing within this shard, including duplicates.
 Verification recomputes all three statistics in bounded blocks.
 

@@ -90,7 +90,7 @@ class StoreInfo:
 
         if self.version == 2:
             metadata.update(
-                {"fse.row_ids": "int64" if self.has_doc_ids else "none", "fse.resume": "none"}
+                {"fse.doc_ids": "int64" if self.has_doc_ids else "none", "fse.resume": "none"}
             )
         return metadata
 
@@ -261,14 +261,14 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
         )
     if version == "2" and any(
         metadata.get(key) not in values
-        for key, values in (("fse.row_ids", ("none", "int64")), ("fse.resume", ("none",)))
+        for key, values in (("fse.doc_ids", ("none", "int64")), ("fse.resume", ("none",)))
     ):
         raise CorruptArtifactError(f"{file}: invalid document-ID or resume mode")
     return StoreInfo(
         metadata["fse.encoder"],
         metadata["fse.dtype"],
         int(dim),
-        metadata.get("fse.row_ids") == "int64",
+        metadata.get("fse.doc_ids") == "int64",
         int(str(version)),
     )
 
@@ -299,7 +299,7 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
     want = {"vectors", "inv_norms"} | ({"scales"} if info.dtype == "int8" else set())
     if info.has_doc_ids:
-        want.add("row_ids")
+        want.add("doc_ids")
     if set(tensors) != want:
         raise CorruptArtifactError(f"{file}: a {info.dtype} shard holds exactly {sorted(want)}")
     n = int(rows)
@@ -309,11 +309,11 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         raise CorruptArtifactError(f"{file}: the tensors do not hold {n} rows of {info.dim} values")
     if (
         tensors["vectors"].dtype != np.dtype(_codes.STORAGE_TYPES[info.dtype])
-        or any(tensors[k].dtype != np.float32 for k in want - {"vectors", "row_ids"})
-        or (info.has_doc_ids and tensors["row_ids"].dtype != np.dtype("<i8"))
+        or any(tensors[k].dtype != np.float32 for k in want - {"vectors", "doc_ids"})
+        or (info.has_doc_ids and tensors["doc_ids"].dtype != np.dtype("<i8"))
     ):
         raise CorruptArtifactError(
-            f"{file}: row_ids must be int64; the vectors must be {info.dtype}, the inverse norms and scales float32"
+            f"{file}: doc_ids must be int64; the vectors must be {info.dtype}, the inverse norms and scales float32"
         )
     expected = {key: metadata[CHECKSUM_PREFIX + key] for key in tensors}
     return Shard(

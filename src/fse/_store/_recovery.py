@@ -123,7 +123,7 @@ def check_values(shard: Shard, tensors: dict[str, ndarray]) -> None:
             _nonnegative(shard, name, values)
     _vectors(shard, tensors["vectors"])
     if shard.id_stats is not None:
-        verify_stats(tensors["row_ids"], shard.id_stats, shard.name)
+        verify_stats(tensors["doc_ids"], shard.id_stats, shard.name)
 
 
 def _blocks(array: ndarray):

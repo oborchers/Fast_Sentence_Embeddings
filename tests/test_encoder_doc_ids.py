@@ -16,13 +16,13 @@ def test_parts_fill_shards_and_append(tmp_path, dtype):
     encoder = write_store(tmp_path / "s", ids, dtype=dtype, shard_rows=4, batches=True)
     with fse.VectorStore.open(tmp_path / "s") as store:
         assert [s.rows for s, _ in store._shards] == [4, 4, 3]
-        assert list(column(store, "row_ids")) == ids
+        assert list(column(store, "doc_ids")) == ids
         store.verify()
     with fse.ShardSink(tmp_path / "s", encoder, dtype=dtype, doc_ids=True) as sink:
         assert sink.first_row == len(ids)
         encoder.encode(["w1"], doc_ids=[-(2**63)], sink=sink)
     with fse.VectorStore.open(tmp_path / "s") as store:
-        assert list(column(store, "row_ids")) == [*ids, -(2**63)]
+        assert list(column(store, "doc_ids")) == [*ids, -(2**63)]
     header = json.loads((tmp_path / "s" / "store.json").read_text())
     assert header["store_version"] == 2
     assert header["metadata"]["fse.format_version"] == "2"
@@ -41,7 +41,7 @@ def test_lengths_modes_and_batch_errors(tmp_path):
         with pytest.raises(ValueError, match="doc_ids has 0 rows for 1 texts"):
             next(it)
     with fse.VectorStore.open(tmp_path / "s") as store:
-        assert list(column(store, "row_ids")) == [1, 2]
+        assert list(column(store, "doc_ids")) == [1, 2]
 
 
 def test_parquet_recipe(tmp_path):
@@ -59,4 +59,4 @@ def test_parquet_recipe(tmp_path):
         list(encoder.encode_batches(parts, sink=sink))
     with fse.VectorStore.open(tmp_path / "s") as store:
         assert [s.rows for s, _ in store._shards] == [7, 7, 6]
-        assert np.array_equal(column(store, "row_ids"), ids)
+        assert np.array_equal(column(store, "doc_ids"), ids)
