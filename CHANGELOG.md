@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 - Add `unique_doc_ids=True` to `VectorStore.search`: the k best documents per query, each by its best-scoring row (ties to the smaller position), combinable with `doc_ids` and `rows` filters. Results have `min(k, documents)` entries. Exact mode keeps the bits of the ordinary search for the returned rows. (DR-218: Suche mit höchstens einem Treffer je Dokument anbieten)
 
+- Require a Linux speed comparison only for published speed numbers and release guarantees (class P) or when the maintainer has explicitly approved a Linux machine for the ticket. Pull requests name their claim classes and their actual Linux comparison status, and state explicitly when none was run. Numerical conformance, bit identity and persistence guarantees are unchanged.
+
 - Preserve subnormal multilabel decisions under foreign floating-point settings and reject Hub folders whose declared format version disagrees with the model. Correct the one-label multilabel output description. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
 - Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
