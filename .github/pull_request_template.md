@@ -14,8 +14,8 @@ Describe the problem and resulting behavior. Link the relevant issue with its ti
 - Factual claims and their sources (including documentation changes):
 
 For performance or hot-path changes, report paired alternating rounds, median and range, load, and an A/A control where the claim class requires them.
-Include the required kernel and end-to-end throughput comparisons.
-A Linux comparison is required only for class P or a Linux machine approved for the issue. Report its actual status, and state explicitly when none was run.
+Include the kernel and end-to-end throughput comparisons that the chosen claim class and protocol require.
+A Linux comparison is required only for class P or when the maintainer has explicitly approved a Linux machine for the issue. Report its actual status, and state explicitly when none was run.
 Attach CPU, allocation-memory and process-tree resident set size (RSS) profiles.
 Otherwise state why these do not apply.
 

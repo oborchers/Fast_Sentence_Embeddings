@@ -52,8 +52,8 @@ Follow the measurement rules in [AGENTS.md](AGENTS.md#commands). In particular:
 - For classes R, O and P, alternate base and change in paired rounds. Report the median, range and machine load.
 - Run an A/A control, comparing the base with itself, where the class requires one. Class O always needs its full controls, including independent A/A validation and confirmation.
 - Use the same data, settings and environment on both sides. Keep measurements within the repository's time budget.
-- A paired Linux end-to-end float32 comparison of both commits, following the [measurement guide](docs/benchmarks/measurement.md), is required only for published speed numbers or release guarantees (class P), or when a maintainer has approved a Linux machine for the issue. Voluntary Linux comparisons are welcome. Report the actual Linux comparison status, and state explicitly when none was run.
-- For performance changes, include the required kernel comparison against 1.1.0 and any relevant tokenizer measurements.
+- A paired Linux end-to-end float32 comparison of both commits, following the [measurement guide](docs/benchmarks/measurement.md), is required only for published speed numbers or release guarantees (class P), or when the maintainer has explicitly approved a Linux machine for the issue. Voluntary Linux comparisons are welcome. Report the actual Linux comparison status, and state explicitly when none was run.
+- For performance changes, include the kernel comparison against 1.1.0 and any relevant tokenizer measurements when the chosen claim class and protocol require them.
 - Profile hot-path or performance work end to end for CPU, allocation memory and process-tree resident memory.
   Name the time-consuming functions and memory peaks. Use `make profile-cpu`, `make profile-mem` and `make profile-rss`.
 - If code only moves, use the repository's accepted disassembly or preprocessed-header comparison where it replaces timing.
