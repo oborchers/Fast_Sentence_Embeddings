@@ -280,7 +280,7 @@ write rolls back only the lock directory and file created by that acquisition.
 
 Timing waits for `os.getloadavg()[0] < 5` before each cell, arm and measured call.
 Foreign processes above fifty percent CPU are telemetry only; process arguments are
-never collected. Measurement priority targets nice 0. Builds/checks use nice 10 when
+never collected. Measurement priority targets nice 0. `speed.py --diagnose` refuses a nonzero inherited nice before it creates directories or starts the budget, except with `--diagnostic-rehearsal` or `--local-phase prepare`, where `os.getpriority` is available. zsh's default BG_NICE adds 5 to the nice value of `cmd &` jobs and is the usual cause. Builds/checks use nice 10 when
 available. macOS uses `taskpolicy -B` when available. Linux supports explicitly
 requested `--cpu-affinity` and reports a readable governor without changing it.
 Optional capabilities are reported rather than required. Missing RAM detection needs

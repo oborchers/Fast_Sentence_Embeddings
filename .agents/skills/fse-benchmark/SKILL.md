@@ -111,6 +111,7 @@ Use `speed.py --local-heavy --worker-name NAME -- COMMAND ...` for builds/checks
 Timing waits for one-minute load below five before each cell and arm. Foreign CPU
 above fifty percent is telemetry only. macOS clears child background policy when
 available; Unix priority, Linux affinity and governor observations are capability-based.
+Timing requires a controller at nice 0. zsh adds 5 to the nice value of `cmd &` jobs (BG_NICE), so never background a timing controller with `&` in zsh; start it from a process at nice 0 through a harness background shell or after `setopt NO_BG_NICE`. `speed.py --diagnose` refuses a nonzero nice before any work, except with `--diagnostic-rehearsal` or `--local-phase prepare`, where `os.getpriority` is available. See [lessons](references/lessons.md#setup-and-lifecycle-traps).
 
 For a Linux functional probe, build the pinned development image:
 

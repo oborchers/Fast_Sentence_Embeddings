@@ -1,6 +1,6 @@
 # Lessons and their evidence
 
-These lessons come from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen), 1 and 2 November 2026.
+These lessons come from DR-151 (Tempo, Qualität und Kosten gegen die Alternativen vergleichen), 1 and 2 November 2026. Later lessons name their own ticket.
 Use the current [measurement guide](../../../../docs/benchmarks/measurement.md) for commands and policy.
 The [comparison guide](../../../../docs/fse-comparison.md) links compact summaries and immutable historical evidence.
 Historical snapshots are evidence, not current executables or permission to add raw files to Git.
@@ -67,6 +67,15 @@ The Rust receipt adds binary identity. Recheck identity after execution.
 - Large caches and fit artifacts can exhaust a developer machine. Keep generated files external and check disk.
   Arrange targeted cleanup of owned intermediates. Shared caches require their owner's approval.
   Source: [common contract](../../../../docs/benchmarks/measurement.md#common-contract).
+- zsh adds 5 to the inherited nice value of every background job (option BG_NICE, on by default), also in `zsh -fc` without job control or user startup files.
+  A controller started with `cmd &` or `nohup cmd &` from a zsh at nice 0 therefore runs at nice 5, and its timed children inherit that value.
+  `nice -n 0` adds nothing, and on macOS an ordinary unprivileged process cannot lower its nice value again.
+  Start timing from a process at nice 0: in the foreground, through a harness background shell without `&`, or after `setopt NO_BG_NICE` in the same zsh command.
+  `speed.py --diagnose` refuses a nonzero nice before it creates directories or starts the budget, except with `--diagnostic-rehearsal` or `--local-phase prepare`, where `os.getpriority` is available.
+  Observed 5 November 2026 in DR-218 (Suche mit höchstens einem Treffer je Dokument anbieten); fixed in DR-234 (zsh-Falle BG_NICE bei lokalen Messungen abfangen und dokumentieren).
+  Source: [zsh options, BG_NICE](https://zsh.sourceforge.io/Doc/Release/Options.html#Job-Control),
+  [zsh 5.9 exec.c](https://github.com/zsh-users/zsh/blob/zsh-5.9/Src/exec.c#L2689-L2696),
+  `require_timing_priority` in [the system module](../../../../benchmarks/_development_system.py).
 
 ## Quality traps
 
