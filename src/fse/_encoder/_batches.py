@@ -44,8 +44,9 @@ class EncodedBatch(NamedTuple):
     durable_rows: int | None
 
 
-def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
-    """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder."""
+def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int, hint: str = "") -> str:
+    """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder; ``hint``
+    ends the message about a wrong width."""
     if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
         raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))
@@ -56,7 +57,7 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
         raise ValueError(f"the sink takes the rows of encoder {takes}, not of {fingerprint}")
     if getattr(sink, "dim", None) != dim:
         raise ValueError(
-            f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}"
+            f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}{hint}"
         )
     wants_inverse_norms(sink)
     for name in ("flush", "publish"):

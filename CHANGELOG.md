@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file. The format is b
 
 - Write `manifest.json` of npy artifacts and store shards with LF line endings on every platform; Windows wrote CRLF before. Files, checksums and fingerprints are unchanged on Linux and macOS, and CRLF manifests written by 2.0.0 on Windows stay readable. (DR-238: Manifeste auf allen Plattformen mit LF-Zeilenenden schreiben)
 
+- Document which rows the `sink` of `predict_batches` takes with and without `return_vectors` in a table, and name that role in the error for a sink of the wrong width. (DR-240: Kleine API-Korrekturen aus dem zweiten API-Review vor 2.1 umsetzen)
+
 - A sink is in document-ID mode only with `has_doc_ids` exactly True; other values (0, 1, None) are ignored unless the call brings document IDs, where a value that is no bool raises a `TypeError`, so sinks of 2.0 keep running. `encode(doc_ids=True)` raises a `TypeError` that names the difference to `encode_batches(doc_ids=True)`. Heads refuse a sink with `has_doc_ids` True before reading a batch, with a hint for the working route. Document `has_doc_ids` and `commit(..., doc_ids=)` of `fse.Sink`. (DR-240: Kleine API-Korrekturen aus dem zweiten API-Review vor 2.1 umsetzen)
 
 - `Classifier.thresholds` is None for heads without cutoffs instead of raising; `with_thresholds` still raises `ValueError` there. (DR-240: Kleine API-Korrekturen aus dem zweiten API-Review vor 2.1 umsetzen)

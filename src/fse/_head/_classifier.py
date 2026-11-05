@@ -322,8 +322,15 @@ class Classifier(LinearModel):
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
         rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
         ``return_vectors=True`` also its vectors, the encoder's own rows (one pooling gives
-        both), and a ``sink`` takes the vectors; without it a ``sink`` takes the outputs
-        (not labels). Checked before any batch is read."""
+        both). What the ``sink`` takes depends on ``return_vectors``::
+
+            batches      return_vectors  the sink takes                 outputs       vectors
+            texts        False           the outputs (not labels)       None (sink)   None
+            texts        True            the vectors of the encoder     the outputs   None (sink)
+            VectorStore  False           the outputs (not labels)       None (sink)   None
+            VectorStore  True            raises ValueError
+
+        A sink with ``has_doc_ids`` True takes neither. Checked before any batch is read."""
         if output == "proba":
             self._check_proba()
         return _run.batches(self, batches, output, return_vectors, workers, backend, sink)

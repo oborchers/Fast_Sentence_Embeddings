@@ -79,3 +79,27 @@ def test_other_values_of_has_doc_ids_keep_the_2_0_behavior(value):
     batches = list(model.predict_batches([["w1", "w2"]], return_vectors=True, sink=sink))
     assert batches[0].vectors is None
     assert sink.result().shape == (2, model.encoder.output_dim)
+
+
+def test_the_width_error_names_the_role_of_the_sink():
+    model = _model(3)
+    with pytest.raises(
+        ValueError,
+        match=r"must take rows of 6 values.*without it the decision outputs \(3 values\)",
+    ):
+        model.predict_batches(
+            _poisoned(), output="decision", return_vectors=True, sink=fse.MemorySink(3)
+        )
+    with pytest.raises(
+        ValueError,
+        match=r"must take rows of 3 values.*with return_vectors=True the vectors of the encoder "
+        r"\(6 values\)",
+    ):
+        model.predict_batches(_poisoned(), output="decision", sink=fse.MemorySink(6))
+    with pytest.raises(ValueError, match="labels stay in the batch"):
+        model.predict_batches(
+            _poisoned(), output="labels", return_vectors=True, sink=fse.MemorySink(3)
+        )
+    with pytest.raises(ValueError, match="must take rows of 3 values") as error:
+        model.predict_proba(["w1"], sink=fse.MemorySink(6))
+    assert "return_vectors" not in str(error.value)
