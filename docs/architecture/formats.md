@@ -106,3 +106,92 @@ A linear model (`fse._head`, `fse.Classifier` and `fse.Regressor`) in one `.safe
 - **Store mode.** `predict*` of a `VectorStore` computes the logits from the stored rows by `score` block by block in row order (`fse._store._search.score_blocks`), in worker threads that also make the outputs, so `predict_batches` of a store holds a few blocks whatever its size. The store must hold the model's encoder (`encoder_fingerprint`) and the head's flag must equal the encoder's normalization; a standalone model has no weights for it.
 - **Quantized models.** `Classifier.quantize(dtype)` and `Regressor.quantize(dtype)` (`LinearModel.quantize`) return a new model of the same class whose encoder is `Encoder.quantize(dtype)` (see *Quantized models* of encoder 1) and whose head is copied unchanged: A and b keep their bits, a loaded model's compared with their checksums first (`CorruptArtifactError` if a mapped file changed). Nothing else changes, so there is no new identifier and no version: `fse.encoder_fingerprint` and the model's fingerprint are those of the quantized encoder and the head. A head on raw means folds into the quantized rows (`t[w, j] = score(stored_w, scale_w, a_j, 0)`, FastText ngrams on their own), a normalized head reads the quantized rows after `normalize@1`; on every CPU backend the predictions are bit-identical to the reference applied to the quantized table (`tests/support/quantized.py`, `tests/test_head_model_quantize.py`), and how close they are to the float32 model's is measured, not promised. A standalone model raises `ValueError` (its folded float32 table is not the encoder's table); quantize the complete model, then `save(standalone=True)`, which folds the quantized rows into a float32 table. A model of a float16 or int8 encoder raises, as the encoder does. In store mode the store must hold the quantized encoder's rows: a store written by the float32 encoder is refused by the quantized model, and the other way round.
 - **Golden files**: `tests/test_data/v2/finished/classifier_float32.safetensors` (on `encoder_float32`: FastText, `fse_words@1`, normalized, softmax, three str labels), `regressor_int8.safetensors` (on `encoder_int8`: int8, `external`, raw means, two targets) and `classifier_standalone.safetensors` (a binary classifier on raw means, standalone), written by `make_golden.py` with pinned fingerprints and output bits; never rewritten.
+
+
+## linear_head 2
+
+A multilabel classifier keeps the encoder and linear-head layout of version 1, with
+`fse.kind=linear_head`, `fse.format_version=2`, `fse.head=linear@2` and
+`fse.head.link=multilabel@1`. `fse.head.task` remains `classification`. Its k labels
+name k independent positive outputs, including one label for k=1. `head.thresholds`
+is mandatory F32 `(k,)`, finite and in [0,1], covered by its checksum and the model
+fingerprint. No other metadata key is added. `fse.head.flat` is forbidden.
+
+Probabilities and decision values both have shape `(n,k)`. Predictions are a bool
+indicator `(n,k)`, true exactly when the bit-defined independent sigmoid probability
+is strictly above the corresponding stored threshold. Empty outputs keep two
+dimensions. Partial named thresholds are resolved in classes_ order, with 0.5 for
+unnamed labels, then rounded once to F32. Invalid values are rejected before rounding.
+Names must match their label types exactly. A scalar applies to all labels and a
+vector must have exactly k values. Labels remain unique int64 or valid UTF-8 strings.
+
+`Classifier.from_arrays(..., link="multilabel", thresholds={"sport": 0.4})` creates
+this schema. `Classifier.from_sklearn` imports fitted multilabel
+`OneVsRestClassifier` objects with affine binary sigmoid heads and classes [0,1].
+An optional StandardScaler folds into the imported coefficients. Constant binary
+outputs use zero weights and finite logits -104 or +104, yielding exactly 0 or 1
+under exp@1. Unfitted, non-affine, decision-only and inconsistent wrappers raise.
+The importer never trains and never imports scikit-learn.
+
+Complete and standalone saves include the threshold tensor. Standalone retains
+the folded path and its bits. Quantization checks loaded threshold checksums and
+keeps their bits. Hub config files permit version 2 only for linear_head, not encoder.
+Readers retain version 1 with its original closed schema and old golden artifacts.
+Version/link/head mismatches, missing thresholds and threshold tensors in version 1
+are refused. Other existing classifiers and regressors still write version 1.
+
+The sigmoid calibration and temperature importers remain separate later work.
+
+
+### Inspecting and changing multilabel thresholds
+
+`fse.ThresholdInput` is a public type alias for strictly validated scalar, vector,
+or named cutoffs, plus None. It is not an object users construct. Pydantic checks
+finite numbers in [0,1], numeric label types and vector shape. NumPy arrays are
+checked without a validation copy. The classifier then resolves the names and
+checks the vector length before the existing F32 conversion. Booleans and numeric
+strings are refused.
+
+`classifier.thresholds` is a read-only complete snapshot in classes_ order. Python
+floats expose the effective stored F32 values, not rounded display values.
+`classifier.with_thresholds({"sport": 0.3})` returns a new classifier and keeps all
+unnamed current cutoffs. A scalar or full vector replaces all cutoffs; explicit
+None resets them to 0.5. At construction, unnamed cutoffs still default to 0.5.
+These operations require multilabel@1 and work after load, quantization and
+standalone export. The new object retains the encoder and coefficients, with fresh
+pipeline caches and a newly computed fingerprint. Changed loaded head tensors
+are refused, not adopted. Changing thresholds does not train, tokenize or fold.
+
+### From external training to named deployment outputs
+
+Train outside fse on this encoder's vectors. Indicate the class names in the same
+order as the training target columns. OneVsRestClassifier fitted on an indicator
+matrix usually keeps numeric column indices, not the original application names.
+`labels=` on from_sklearn explicitly renames every output class without reordering
+weights. This also works for ordinary binary and multiclass classifiers.
+
+```python
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier
+from fse import Classifier
+
+# encoder, training_texts and Y belong to the application.
+# Y[:, 0] is sport, Y[:, 1] is news, each containing 0 or 1.
+trained = OneVsRestClassifier(LogisticRegression()).fit(
+    encoder.encode(training_texts), Y
+)
+classifier = Classifier.from_sklearn(
+    encoder, trained, labels=["sport", "news"], thresholds={"sport": 0.4}
+)
+probabilities = classifier.predict_proba(new_texts)
+labels = classifier.predict(new_texts)  # bool (rows, 2) in classes_ order
+changed = classifier.with_thresholds({"news": 0.7})  # sport keeps 0.4
+changed.save("classifier.safetensors")
+deployed = Classifier.load("classifier.safetensors")
+```
+
+The imported binary estimators must provide supported affine sigmoid outputs,
+such as LogisticRegression or SGDClassifier with log_loss. Constant binary
+outputs are supported. Calibration wrappers and decision-only estimators are
+not supported by this importer yet. ovr@1 normalizes competing classes to sum
+one; multilabel@1 never normalizes across labels.

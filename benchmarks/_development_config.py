@@ -12,7 +12,16 @@ from _development_system import LABEL, require_unix
 from _measurement import document
 from _measurement_config import CONFIG, MODEL_PINS
 
-STAGES = ("tokenizer", "pooling", "encode-memory", "encode-sink", "store-search", "store-open")
+STAGES = (
+    "tokenizer",
+    "pooling",
+    "encode-memory",
+    "encode-sink",
+    "store-search",
+    "store-open",
+    "head-folded",
+    "head-with-vectors",
+)
 DEFAULTS = {
     "profile": "standard@1",
     "base_doc_ids": "none",
@@ -106,6 +115,7 @@ def validate_cell(raw, defaults):
         "confirmation_fraction",
     ):
         _positive(cell[name], name)
+    _profile(cell)
     _bounds(cell)
     from _development_ids import validate
 
@@ -114,6 +124,18 @@ def validate_cell(raw, defaults):
 
     validate_search(cell)
     return cell
+
+
+def _profile(cell):
+    heads = cell["stage"] in ("head-folded", "head-with-vectors")
+    if heads != (cell["profile"] == "linear-heads@1"):
+        raise ValueError(
+            "head stages require linear-heads@1, and that profile requires a head stage"
+        )
+    if heads and (cell["table_dtype"] != "float32" or cell["output_dtype"] != "float32"):
+        raise ValueError("linear-heads@1 PR-1 comparisons require float32")
+    if heads and cell["decision_gate"]:
+        raise ValueError("linear-heads@1 regression cells are descriptive, not speedup gates")
 
 
 def _bounds(cell):

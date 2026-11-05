@@ -168,3 +168,6 @@ class CpuBackend:
     ) -> None:
         check_outputs_input(logits, kind, link, out)
         _native.head_outputs(logits, kind, link, out, int(first_row), isa=self.isa)
+
+    def decisions(self, probabilities: ndarray, thresholds: ndarray, out: ndarray) -> None:
+        _native.head_decisions(probabilities, thresholds, out)

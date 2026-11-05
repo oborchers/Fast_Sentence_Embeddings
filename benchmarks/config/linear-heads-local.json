@@ -1,0 +1,23 @@
+{
+  "format": "local-development-v2",
+  "description": "linear-heads@1 PR 1: one fixed four-output softmax head, base versus candidate on the same path. M1 local indication only, no README speed claims.",
+  "defaults": {
+    "profile": "linear-heads@1",
+    "decision_gate": false,
+    "workers": 2
+  },
+  "cells": [
+    {
+      "id": "heads-single-folded",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-folded"
+    },
+    {
+      "id": "heads-single-with-vectors",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-with-vectors"
+    }
+  ]
+}

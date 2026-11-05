@@ -418,7 +418,7 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_classifier | _regressor", "_model", "_run", "_sklearn | _format | _outputs", "_content"]
+layers = ["_classifier | _regressor", "_model", "_run | _model_hub", "_sklearn | _format | _outputs", "_sklearn_ovr | _thresholds", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"
@@ -446,7 +446,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec | _errors"]
+layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec | _head_spec | _errors"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"

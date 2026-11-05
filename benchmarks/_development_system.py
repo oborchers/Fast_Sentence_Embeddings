@@ -14,6 +14,17 @@ from pathlib import Path
 LABEL = {"mode": "local-development", "publishable": False}
 
 
+def apply_affinity(affinity):
+    """Apply an explicit CPU set before preparation and report the effective CPU set."""
+    if affinity is not None:
+        if not hasattr(os, "sched_setaffinity"):
+            raise ValueError("requested CPU affinity is unsupported on this Unix system")
+        if not set(affinity) <= os.sched_getaffinity(0):
+            raise ValueError("requested CPU affinity exceeds available CPUs")
+        os.sched_setaffinity(0, affinity)
+    return sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None
+
+
 def source_identity():
     """Observe Git when available; file hashes remain authoritative without Git metadata."""
     unavailable = {"available": False, "revision": None, "tracked_working_tree_dirty": None}

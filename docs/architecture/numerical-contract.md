@@ -49,3 +49,27 @@ What is bit-identical across what:
 | the folded and the unfolded path of a head on raw means (`predict` against `return_vectors=True` or a float32 store) | within the rounding of the fold, not bit-identical: folding changes the order of the roundings, so about half the logits differ in their last bits (maintainer decision); a head on normalized means has one path, so its store mode gives the bits of its texts |
 | a head in fse and in scikit-learn | within the bound of `tests/support/head_bound.py` (the rounding of A and b, dot16, the fold, the pooling, the bias, in float64 per row); a label differs only where the top two logits are within their bounds, a probability by at most the bound through the link (`|dz| / 4` for sigmoid, `max |dz| / 2` for softmax) plus 8 u (sigmoid) or (k + 8) u (softmax) for the link's own roundings |
 | 1.x and 2.0 | not identical (EPS, `saxpy`, BLAS in the removal); compared with tolerances, STS and MTEB |
+
+
+### Multilabel inference (`linear@2`, `multilabel@1`)
+
+The aggregation, fold, dot16 and bias rules of linear@1 remain unchanged.
+`multilabel@1` applies sigmoid@1 independently to each finished logit, with no
+normalization across outputs and no negative-class expansion for a single column.
+`linear@2` compares each finished F32 probability with its stored F32 threshold
+using strict greater-than. Equality, including probability 0 or 1 at the same
+threshold, is false. Every row produces a bool vector in class order.
+
+The reference is `fse._reference_head.multilabel` for decisions and its `sigmoid`
+for probabilities. CPU backends reuse the existing SIMD sigmoid@1 implementation.
+The threshold comparison is a whole-array comparison, with no per-row Python hook.
+The CPU backend performs that comparison under its protected floating-point environment
+and restores the caller's state afterwards. Positive subnormal probabilities must remain
+greater than a zero cutoff even when the caller enables flush-to-zero or denormals-as-zero.
+This introduces no rounding operation beyond the existing sigmoid. The old
+linear@1 label rule, all existing links, and transform_version 2 remain unchanged.
+
+The new conformance cases cover all available instruction sets and the NumPy
+backend, quantized tables, FastText, folded/normalized/vector/standalone paths,
+k=1 and lane tails, threshold ties, saturation, subnormals and float-environment
+restoration. Existing conformance cases and numerical bounds remain in force.

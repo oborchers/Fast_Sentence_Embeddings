@@ -29,7 +29,13 @@ def test_identifiers_round_trip():
     assert str(Aggregation.WEIGHTED_MEAN) == "weighted_mean@1"
     assert Op.NORMALIZE.id == "normalize@1"
     assert parse_id("max@12") == ("max", 12)
-    assert [m.id for m in (Head.LINEAR, *Link)] == ["linear@1", "sigmoid@1", "softmax@1", "ovr@1"]
+    assert [m.id for m in (Head.LINEAR, *Link)] == [
+        "linear@1",
+        "sigmoid@1",
+        "softmax@1",
+        "ovr@1",
+        "multilabel@1",
+    ]
     assert (EXP, LINK_NONE) == ("exp@1", "none")  # exp@1 is not stored; none is no identifier
 
 
@@ -39,7 +45,7 @@ def test_identifiers_round_trip():
         (Aggregation, "max@1"),
         (Aggregation, "weighted_mean@2"),
         (Op, "normalize@9"),
-        (Head, "linear@2"),
+        (Head, "linear@3"),
         (Link, "tanh@1"),
     ],
 )

@@ -14,13 +14,15 @@ from pathlib import Path
 
 from _development_budget import check
 from _development_encode import operation as encode_operation
+from _development_heads import SPEC as HEAD_SPEC
+from _development_heads import operation as head_operation
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
 from _development_resources import check_write_disk
 from _development_search import metrics as search_metrics
 from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
-from _development_system import LABEL, observations
+from _development_system import LABEL, apply_affinity, observations
 from _measurement import append
 
 
@@ -39,15 +41,7 @@ def _policy(job):
                 ).returncode
                 result["background_policy_cleared"] = status == 0
                 result["taskpolicy_exit_status"] = status
-    affinity = job.get("cpu_affinity")
-    if affinity is not None:
-        if not hasattr(os, "sched_setaffinity"):
-            raise ValueError("requested CPU affinity is unsupported on this Unix system")
-        allowed = os.sched_getaffinity(0)
-        if not set(affinity) <= allowed:
-            raise ValueError("requested CPU affinity exceeds available CPUs")
-        os.sched_setaffinity(0, affinity)
-        result["affinity"] = sorted(os.sched_getaffinity(0))
+    result["affinity"] = apply_affinity(job.get("cpu_affinity"))
     return result
 
 
@@ -128,6 +122,8 @@ def measure(job):
         "pooling": lambda: pooling(model, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),
+        "head-folded": lambda: head_operation(model, texts, job),
+        "head-with-vectors": lambda: head_operation(model, texts, job),
     }
     if job["stage"] in ("store-open", "store-search"):
         from _development_store import StoreOperation
@@ -171,6 +167,8 @@ def _measured(operation, job, waiting, policy, resource):
         * (1 if sys.platform == "darwin" else 1024),
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
+        "profile": job["profile"],
+        "head_spec": HEAD_SPEC if job["profile"] == "linear-heads@1" else None,
         "requested_workers": job["workers"],
         "input": {
             **job["corpus"],

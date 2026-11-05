@@ -233,6 +233,7 @@ def head_logits(
     *,
     isa: str | None = None,
 ) -> None: ...
+def head_decisions(probabilities: ndarray, thresholds: ndarray, out: ndarray) -> None: ...
 def head_outputs(
     logits: ndarray,
     kind: str,

@@ -79,6 +79,10 @@ def probe(job):
         proof = output_identity(batch)
     elif job["stage"] == "pooling":
         proof = _pool(model, texts, job, expected_batch)
+    elif job["stage"] in ("head-folded", "head-with-vectors"):
+        from _development_heads import probe as head_probe
+
+        proof = head_probe(job, texts)
     else:
         expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
         check(job.get("wall_deadline"))

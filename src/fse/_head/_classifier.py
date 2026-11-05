@@ -9,22 +9,27 @@ its outputs (``predict``, ``predict_proba``, ``decision_function``, ``classes_``
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
+from dataclasses import replace
+from types import MappingProxyType
 from typing import Any, Literal
 
 from numpy import ndarray
 
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._contract import Link
+from fse._validation import PathLike, PositiveInt, ThresholdInput, validate_arguments
 
 from . import _run, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._outputs import PredictedBatch
+from ._thresholds import thresholds as read_thresholds
 
 
 class Classifier(LinearModel):
     """Predicts labels of texts with an encoder and a linear head ``z = A x + b`` on its
-    rows: ``labels[1]`` if ``z > 0`` for one output, else the label of the largest logit.
+    rows. Single-label heads choose one class. Multilabel heads independently compare
+    each probability with its stored cutoff, returning a boolean matrix.
 
     Make one with ``Classifier.from_sklearn`` (a fitted scikit-learn classifier),
     ``Classifier.from_arrays`` or ``Classifier.load``; fse trains nothing. A head trained
@@ -37,13 +42,27 @@ class Classifier(LinearModel):
 
     @classmethod
     @validate_arguments
-    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+    def from_sklearn(
+        cls,
+        encoder: Any,
+        model: Any,
+        *,
+        normalized: bool | None = None,
+        labels: Any = None,
+        thresholds: ThresholdInput = None,
+    ):
         """The head of a fitted scikit-learn classifier (or a Pipeline of an optional
         ``StandardScaler`` and the classifier) on the rows of
-        ``encoder``, with the probabilities of the installed version's rule. Reads its
+        ``encoder``, including a multilabel OneVsRestClassifier, with the probabilities of the installed version's rule. Reads its
         attributes and imports nothing of scikit-learn. ``normalized``: whether it was
         trained on normalized vectors; by default the encoder's setting. A Pipeline with a
-        ``Normalizer`` raises: train on a normalizing encoder's vectors instead."""
+        ``Normalizer`` raises: train on a normalizing encoder's vectors instead.
+
+        ``labels`` optionally renames all classes in their existing output order,
+        without changing weights. Indicator-matrix OneVsRest training usually stores
+        numeric column indices, not application names. Multilabel import requires
+        affine sigmoid binary estimators (or constant outputs). ``thresholds`` accepts
+        the same forms as from_arrays, referring to the final class names."""
         found = _sklearn.read(model, "classification")
         return cls._build(
             encoder,
@@ -51,8 +70,9 @@ class Classifier(LinearModel):
             found.bias,
             normalized=normalized,
             link=found.link,
-            labels=found.labels,
+            labels=found.labels if labels is None else labels,
             source=found.source,
+            thresholds=thresholds,
         )
 
     @classmethod
@@ -64,16 +84,70 @@ class Classifier(LinearModel):
         bias: Any = None,
         *,
         labels: Any = None,  # required; a default keeps pydantic 2.5 from refusing the order
-        link: Literal["auto", "sigmoid", "softmax", "ovr", "none"] = "auto",
+        link: Literal["auto", "sigmoid", "softmax", "ovr", "none", "multilabel"] = "auto",
         normalized: bool | None = None,
+        thresholds: ThresholdInput = None,
     ):
         """The head ``weight`` (k, d) or (d,) and ``bias`` (k, a scalar or None) on the rows
-        of ``encoder``, d its ``output_dim``: ``labels`` are k labels, or two for k = 1
+        of ``encoder``, d its ``output_dim``: ``labels`` are k labels for multilabel;
+        other heads need two for k = 1 and k otherwise
         (negative first, as ``classes_``), all int or all str. ``link``: ``"sigmoid"`` (k =
         1), ``"softmax"`` or ``"ovr"`` (k >= 2), ``"none"`` (no probabilities); ``"auto"``
         is sigmoid for one output and softmax else. ``normalized``: whether the head was
-        trained on normalized rows, by default the encoder's setting."""
-        return cls._build(encoder, weight, bias, normalized=normalized, link=link, labels=labels)
+        trained on normalized rows, by default the encoder's setting.
+
+        ``multilabel`` gives one independent sigmoid per label, including k = 1.
+        ``thresholds``: None (0.5 each), a scalar, a vector, or a partial mapping from
+        labels to cutoffs in [0, 1]; unnamed labels keep 0.5. Predictions are boolean
+        (n, k), true strictly above the cutoff. Other links refuse thresholds."""
+        return cls._build(
+            encoder,
+            weight,
+            bias,
+            normalized=normalized,
+            link=link,
+            labels=labels,
+            thresholds=thresholds,
+        )
+
+    @property
+    def thresholds(self) -> Mapping[int | str, float]:
+        """A read-only snapshot of effective F32 cutoffs in classes_ order.
+
+        Only multilabel heads have cutoffs. Values expose their actual stored precision.
+        """
+        if self._head.link is not Link.MULTILABEL:
+            raise ValueError("thresholds are available only for multilabel heads")
+        assert self._head.thresholds is not None
+        assert self._content.labels is not None
+        return MappingProxyType(
+            dict(zip(self._content.labels, map(float, self._head.thresholds), strict=True))
+        )
+
+    @validate_arguments
+    def with_thresholds(self, thresholds: ThresholdInput):  # -> Classifier
+        """A new multilabel model with changed cutoffs, also after load or standalone.
+
+        A partial mapping keeps unnamed current values. A scalar or full vector replaces
+        all values; explicit None resets all to 0.5. The original model is unchanged.
+        No training, tokenization or folding runs here.
+        """
+        current = dict(self.thresholds)
+        # Compare loaded tensors before deriving a new model, as quantize does.
+        old = self._content
+        assert old.labels is not None
+        self._verified("head.thresholds", old.thresholds)
+        bias = self._verified("head.bias", old.bias)
+        weight = None if old.weight is None else self._verified("head.weight", old.weight)
+        if isinstance(thresholds, Mapping):
+            current.update(thresholds)
+            thresholds = current
+        limits = read_thresholds(thresholds, old.labels)
+        for array in (bias, weight):
+            if array is not None:
+                array.setflags(write=False)
+        content = replace(old, weight=weight, bias=bias, thresholds=limits)
+        return type(self)._new(self._encoder, content, source=self._source)
 
     @classmethod
     @validate_arguments
@@ -110,8 +184,9 @@ class Classifier(LinearModel):
     def predict(
         self, texts: Any, *, workers: PositiveInt | None = None, backend: str = "cpu"
     ) -> ndarray:
-        """The label of every text (as ``Encoder.encode`` takes them) or of every row of a
-        ``fse.VectorStore`` of the encoder's rows, as an array of ``classes_``."""
+        """The label of each text or VectorStore row. For multilabel heads, a boolean
+        (n, k) indicator in classes_ order, true strictly above each stored cutoff.
+        Other classifiers return one class per row as before."""
         return _run.infer(self, texts, "labels", workers, backend, None)
 
     @validate_arguments
@@ -137,7 +212,8 @@ class Classifier(LinearModel):
         backend: str = "cpu",
         sink: Any = None,
     ) -> ndarray | None:
-        """The logits of every text, float32 (n,) for one output, else (n, k)."""
+        """The logits of every text as float32. Multilabel always returns (n, k),
+        including k = 1. Single-label heads return (n,) for one output, else (n, k)."""
         return _run.infer(self, texts, "decision", workers, backend, sink)
 
     @validate_arguments

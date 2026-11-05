@@ -5,7 +5,7 @@ import numpy as np
 
 from fse import _reference, _reference_text
 from fse import _reference_head as ref
-from fse._contract import Normalize
+from fse._contract import Link, Normalize
 
 F32 = np.float32
 
@@ -73,5 +73,7 @@ def outputs(z, output, link=None):
     if output == "logits":
         return z
     if output == "labels":
+        if link is Link.MULTILABEL:
+            return ref.multilabel(z, np.full(z.shape[1], 0.5, np.float32))
         return ref.labels(z)
     return ref.proba(z, link)

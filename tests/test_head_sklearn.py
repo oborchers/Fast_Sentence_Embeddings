@@ -282,7 +282,7 @@ def test_pipelines_with_a_scaler():
         ),
         (
             lambda: OneVsRestClassifier(linear_model.LogisticRegression()),
-            "not a scikit-learn classification head",
+            "requires fitted multilabel targets",
         ),
         (lambda: linear_model.LinearRegression(), "not a scikit-learn classification head"),
         (

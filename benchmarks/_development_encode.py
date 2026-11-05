@@ -71,7 +71,11 @@ def output_identity(value):
         return checked_query(value)
     if isinstance(value, dict):
         return _stores_identity(value)
-    if hasattr(value, "tokens"):
+    if hasattr(value, "probabilities"):
+        arrays = {"probabilities": value.probabilities}
+        if value.vectors is not None:
+            arrays["vectors"] = value.vectors
+    elif hasattr(value, "tokens"):
         arrays = {"offsets": value.offsets, "tokens": value.tokens}
     elif hasattr(value, "codes"):
         arrays = {"vectors": value.codes, "scales": value.scales}

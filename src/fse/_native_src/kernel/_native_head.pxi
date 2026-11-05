@@ -80,6 +80,31 @@ def _head_logits(rows, weights, bias, out, first_row, isa):
         raise ValueError(f"the logits of row {first_row + bad} are not finite")
 
 
+def head_decisions(probabilities, thresholds, out):
+    """Strict F32 cutoffs under the same environment as the probability calculation.
+
+    NumPy's comparison also needs gradual underflow: DAZ must not turn a positive
+    subnormal probability into zero before comparison with a zero cutoff.
+    """
+    with _KernelEnv():
+        if not isinstance(probabilities, np.ndarray) or probabilities.ndim != 2:
+            raise ValueError("probabilities must be a float32 matrix")
+        n, k = probabilities.shape
+        _matrix32(probabilities, "probabilities", n, k)
+        if (not isinstance(thresholds, np.ndarray) or thresholds.dtype != np.float32
+                or thresholds.shape != (k,) or not thresholds.flags.c_contiguous):
+            raise ValueError("thresholds must be a C-contiguous float32 vector matching probabilities")
+        if (k < 1 or not isinstance(out, np.ndarray) or out.dtype != np.bool_
+                or out.shape != (n, k) or not out.flags.c_contiguous or not out.flags.writeable):
+            raise ValueError("out must be a writable C-contiguous bool matrix matching probabilities")
+        if any(np.may_share_memory(out, kept) for kept in (probabilities, thresholds)):
+            raise ValueError("out must not share memory with probabilities or thresholds")
+        for name, values in (("probabilities", probabilities), ("thresholds", thresholds)):
+            if not np.isfinite(values).all() or np.any((values < 0) | (values > 1)):
+                raise ValueError(f"{name} must be finite and in [0, 1]")
+        np.greater(probabilities, thresholds, out=out)
+
+
 def head_outputs(logits, kind, link, out, first_row=0, *, isa=None):
     """``fse._reference_head.proba`` (``kind`` "proba", with a link) or ``labels`` ("labels")
     of finished ``logits`` (n, k) into ``out``: float32 (n, 2) for sigmoid, (n, k) for the
@@ -115,14 +140,14 @@ def _head_outputs(logits, kind, link, out, first_row, int isa):
             with nogil:
                 bad = fse_head_labels(&z[0, 0], n, k, &labels[0])
     elif kind == "proba":
-        codes = {Link.SIGMOID: 0, Link.SOFTMAX: 1, Link.OVR: 2}
+        codes = {Link.SIGMOID: 0, Link.SOFTMAX: 1, Link.OVR: 2, Link.MULTILABEL: 3}
         if link not in codes:
             raise ValueError(f"link must be one of {[str(member) for member in Link]}")
         if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
             want = "one logit" if link is Link.SIGMOID else "at least two logits"
             raise ValueError(f"{link} takes {want} per row")
         code = codes[link]
-        _matrix32(out, "out", n, 2 if k == 1 else k, writable=True)
+        _matrix32(out, "out", n, 2 if k == 1 and link is not Link.MULTILABEL else k, writable=True)
         if n:
             o = out
             with nogil:

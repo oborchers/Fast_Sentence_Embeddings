@@ -41,7 +41,7 @@ def check_store(store, mode, chunks=4):
 
 
 def validate(cell):
-    if cell["profile"] not in ("standard@1", *DOCUMENT_PROFILES):
+    if cell["profile"] not in ("standard@1", "encoder@1", "linear-heads@1", *DOCUMENT_PROFILES):
         raise ValueError("unknown development adapter profile")
     modes = (cell["base_doc_ids"], cell["candidate_doc_ids"])
     if any(mode not in ("none", "ordered", "shuffled") for mode in modes):

@@ -109,6 +109,7 @@ class Head(_Versioned):
     where the bias is added, the folded and unfolded paths and the decision rules."""
 
     LINEAR = ("linear", 1)
+    LINEAR2 = ("linear", 2)
 
 
 class Link(_Versioned):
@@ -118,6 +119,7 @@ class Link(_Versioned):
     SIGMOID = ("sigmoid", 1)
     SOFTMAX = ("softmax", 1)
     OVR = ("ovr", 1)
+    MULTILABEL = ("multilabel", 1)
 
 
 # The exp of the links: range reduction, a fixed polynomial by fused multiply-adds and an

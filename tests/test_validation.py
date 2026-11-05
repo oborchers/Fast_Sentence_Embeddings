@@ -53,3 +53,55 @@ def test_valid_arguments_pass_unchanged_or_as_python_numbers():
 def test_invalid_arguments_raise(kwargs):
     with pytest.raises(pydantic.ValidationError):
         _entry(**kwargs)
+
+
+def test_threshold_input_shapes_and_array_identity():
+    from pydantic import ConfigDict, TypeAdapter
+
+    import fse
+
+    adapter = TypeAdapter(
+        fse.ThresholdInput, config=ConfigDict(strict=True, arbitrary_types_allowed=True)
+    )
+    for value in (
+        None,
+        0,
+        1,
+        0.4,
+        np.float32(0.4),
+        [0.4, 0.5],
+        (0.4, 0.5),
+        {"sport": 0.4},
+        {np.int64(2): 0.4},
+    ):
+        adapter.validate_python(value)
+    array = np.array([0.4, 0.5])
+    assert adapter.validate_python(array) is array
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        "0.4",
+        [True, 0.5],
+        {True: 0.4},
+        {"sport": "0.4"},
+        np.array([[0.4]]),
+        np.array([np.nan]),
+        np.array(["0.4"]),
+        float("inf"),
+        -1e-100,
+        1 + 2**-30,
+    ],
+)
+def test_threshold_input_rejects_coercion(value):
+    from pydantic import ConfigDict, TypeAdapter, ValidationError
+
+    from fse import ThresholdInput
+
+    adapter = TypeAdapter(
+        ThresholdInput, config=ConfigDict(strict=True, arbitrary_types_allowed=True)
+    )
+    with pytest.raises(ValidationError):
+        adapter.validate_python(value)

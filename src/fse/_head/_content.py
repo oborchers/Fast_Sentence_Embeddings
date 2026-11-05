@@ -26,7 +26,13 @@ from fse._contract import LINK_NONE, Link
 
 TASKS = ("classification", "regression")
 # The links a caller names, and what "auto" takes for k outputs.
-LINK_NAMES = {"sigmoid": Link.SIGMOID, "softmax": Link.SOFTMAX, "ovr": Link.OVR, "none": None}
+LINK_NAMES = {
+    "sigmoid": Link.SIGMOID,
+    "softmax": Link.SOFTMAX,
+    "ovr": Link.OVR,
+    "none": None,
+    "multilabel": Link.MULTILABEL,
+}
 _INT64 = (-(2**63), 2**63 - 1)
 
 
@@ -47,6 +53,7 @@ class HeadContent:
     # One output gives (n,) rather than (n, 1): always for classification (as scikit-learn's
     # decision_function), for regression when the head was one vector (coef_ of shape (d,)).
     flat: bool = True
+    thresholds: ndarray | None = None
 
     @property
     def k(self) -> int:
@@ -103,17 +110,17 @@ def _finite(array: ndarray, name: str) -> None:
         raise ValueError(f"{name}[{where}] is not finite in float32")
 
 
-def labels(values: Any, k: int) -> tuple:
+def labels(values: Any, k: int, *, multilabel: bool = False) -> tuple:
     """The labels of a classifier with k outputs: two for k = 1 (negative first), else k;
     all int or all str, unique."""
     if isinstance(values, str | bytes) or not hasattr(values, "__len__"):
         raise TypeError(f"labels must be a sequence of int or str, not {type(values).__name__}")
     items = [_label(v) for v in (values.tolist() if isinstance(values, ndarray) else values)]
-    want = 2 if k == 1 else k
+    want = 2 if k == 1 and not multilabel else k
     if len(items) != want:
         raise ValueError(
             f"a head of {k} output{'s' * (k != 1)} needs {want} labels"
-            f"{' (negative first)' if k == 1 else ''}, not {len(items)}"
+            f"{' (negative first)' if k == 1 and not multilabel else ''}, not {len(items)}"
         )
     if len({type(v) for v in items}) > 1:
         raise TypeError("labels must be all int or all str, not a mix")

@@ -142,6 +142,7 @@ def test_public_api_is_pinned():
         "ShardSink",
         "Sink",
         "StaticModel",
+        "ThresholdInput",
         "UnsupportedArtifactError",
         "VectorStore",
         "WordVectors",

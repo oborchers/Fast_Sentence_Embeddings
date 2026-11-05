@@ -25,6 +25,7 @@ from ._base import (
     Capabilities,
     PoolInput,
     Prepared,
+    check_decisions_input,
     check_logits_input,
     check_out,
     check_outputs_input,
@@ -125,6 +126,10 @@ class NumpyBackend:
         else:
             assert link is not None
             out[...] = _reference_head.proba(logits, link)
+
+    def decisions(self, probabilities: ndarray, thresholds: ndarray, out: ndarray) -> None:
+        check_decisions_input(probabilities, thresholds, out)
+        np.greater(probabilities, thresholds, out=out)
 
 
 def _check_storable(rows: ndarray, dtype: np.dtype, first_row: int):
