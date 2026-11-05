@@ -87,3 +87,51 @@ def test_version_one_cannot_smuggle_a_threshold_tensor():
     )
     with pytest.raises(ValueError, match="only for multilabel"):
         from_artifact(tensors, metadata)
+
+
+def _single(rule="linear@2", version="2", link="softmax@1"):
+    encoder = finished(normalize=False)
+    model = fse.Classifier.from_arrays(
+        encoder, np.ones((3, encoder.output_dim)), labels=[0, 1, 2], temperature=2.0
+    )
+    tensors, metadata, _ = model._artifact()
+    metadata.update({CHECKSUM_PREFIX + name: checksum(value) for name, value in tensors.items()})
+    metadata.update({"fse.head": rule, "fse.format_version": version, "fse.head.link": link})
+    return tensors, metadata
+
+
+def test_a_single_label_head_of_version_two_reads_with_its_rule():
+    tensors, metadata = _single()
+    content = from_artifact(tensors, metadata)[0]
+    assert content.rule.id == "linear@2"
+    assert content.thresholds is None
+
+
+@pytest.mark.parametrize(
+    ("rule", "version", "match"),
+    [
+        ("linear@1", "2", "linear@1 requires linear_head 1"),
+        ("linear@2", "1", "linear@2 requires linear_head 2"),
+    ],
+)
+def test_the_version_and_the_rule_go_together(rule, version, match):
+    tensors, metadata = _single(rule, version)
+    with pytest.raises(ValueError, match=match):
+        from_artifact(tensors, metadata)
+
+
+def test_multilabel_needs_linear_two_and_linear_two_needs_a_link():
+    tensors, metadata = _artifact()
+    metadata.update({"fse.head": "linear@1", "fse.format_version": "1"})
+    with pytest.raises(ValueError, match="multilabel@1 requires linear_head 2, linear@2"):
+        from_artifact(tensors, metadata)
+    tensors, metadata = _single(link="none")
+    with pytest.raises(ValueError, match="linear@2 requires a link"):
+        from_artifact(tensors, metadata)
+
+
+def test_thresholds_with_a_single_label_head_are_refused():
+    tensors, metadata = _single()
+    tensors["head.thresholds"] = np.full(3, 0.5, np.float32)
+    with pytest.raises(ValueError, match="only for multilabel@1"):
+        from_artifact(tensors, metadata)

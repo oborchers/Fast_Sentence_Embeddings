@@ -62,6 +62,11 @@ TENSORS = ("head.weight", "head.bias", "head.thresholds")
 _BOOLS = {"true": True, "false": False}
 
 
+def version_of(rule: Head | None) -> str:
+    """The format version of a head: 2 exactly with the label rule linear@2."""
+    return MULTILABEL_VERSION if rule is Head.LINEAR2 else FORMAT_VERSION
+
+
 def encoder_fingerprint(tensors: dict[str, ndarray], metadata: dict[str, str], checksums) -> str:
     """The fingerprint of an encoder artifact from the checksums of its tensors."""
     entries = {k: (tensor_code(v), v.shape, checksums[k]) for k, v in tensors.items()}
@@ -73,6 +78,7 @@ def to_artifact(
 ) -> tuple[dict[str, ndarray], dict[str, str]]:
     """The tensors and metadata of a head on the encoder artifact ``tensors`` and
     ``metadata``, whose fingerprint is ``of_encoder``."""
+    assert content.rule is not None  # derived by HeadContent
     out = dict(tensors)
     if content.weight is not None:
         out["head.weight"] = content.weight
@@ -89,8 +95,8 @@ def to_artifact(
     keys.update(
         {
             "fse.kind": KIND,
-            "fse.format_version": MULTILABEL_VERSION if multi else FORMAT_VERSION,
-            _HEAD: Head.LINEAR2.id if multi else Head.LINEAR.id,
+            "fse.format_version": version_of(content.rule),
+            _HEAD: content.rule.id,
             "fse.head.task": content.task,
             "fse.head.normalized": str(content.normalized).lower(),
             "fse.head.link": content.link_id,
@@ -119,6 +125,7 @@ def from_artifact(
         raise ValueError("a standalone head reads raw means; fse.head.normalized must be false")
     weight, bias = _head_tensors(tensors, standalone)
     chosen = _link(metadata, task, len(bias))
+    rule = _rule(metadata, chosen)
     limits = _thresholds(tensors, metadata, chosen, len(bias))
     content = HeadContent(
         task,
@@ -130,6 +137,7 @@ def from_artifact(
         standalone,
         False if chosen is Link.MULTILABEL else _flat(metadata, task, len(bias)),
         limits,
+        rule,
     )
     return (content, *_encoder_part(tensors, metadata, content))
 
@@ -268,13 +276,25 @@ def _labels(metadata: dict[str, str], task: str, k: int) -> tuple | None:
     return _content.labels(values, k, multilabel=metadata["fse.head.link"] == Link.MULTILABEL.id)
 
 
+def _rule(metadata: dict[str, str], link: Link | None) -> Head:
+    """The label rule, coupled to the version (2 exactly with linear@2) and to the link:
+    multilabel@1 needs linear@2, linear@2 needs a link."""
+    rule = Head.parse(metadata[_HEAD])
+    version = version_of(rule)
+    if metadata["fse.format_version"] != version:
+        raise ValueError(f"{rule.id} requires linear_head {version}")
+    if link is Link.MULTILABEL and rule is not Head.LINEAR2:
+        raise ValueError(
+            f"{Link.MULTILABEL.id} requires linear_head {MULTILABEL_VERSION}, {Head.LINEAR2.id}"
+        )
+    if link is None and rule is Head.LINEAR2:
+        raise ValueError(f"{rule.id} requires a link, not {LINK_NONE}")
+    return rule
+
+
 def _thresholds(tensors, metadata, link, k) -> ndarray | None:
-    """Version 2 couples linear@2, multilabel@1 and one strict F32 cutoff per label."""
+    """The cutoffs: one strict F32 value per label, given exactly for multilabel@1."""
     multi = link is Link.MULTILABEL
-    version = MULTILABEL_VERSION if multi else FORMAT_VERSION
-    rule = Head.LINEAR2 if multi else Head.LINEAR
-    if metadata["fse.format_version"] != version or metadata[_HEAD] != rule.id:
-        raise ValueError(f"{metadata['fse.head.link']} requires linear_head {version}, {rule.id}")
     if not multi:
         if "head.thresholds" in tensors or CHECKSUM_PREFIX + "head.thresholds" in metadata:
             raise ValueError("head.thresholds is given only for multilabel@1")

@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "linear-heads@1 PR 1: one fixed four-output softmax head, base versus candidate on the same path. M1 local indication only, no README speed claims.",
+  "description": "linear-heads@1: one fixed four-output softmax head, base versus candidate on the same path. M1 local indication only, no README speed claims.",
   "defaults": {
     "profile": "linear-heads@1",
     "decision_gate": false,
@@ -18,6 +18,13 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "head-with-vectors"
+    },
+    {
+      "id": "heads-single-labels",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-labels",
+      "rule": "linear@1"
     }
   ]
 }

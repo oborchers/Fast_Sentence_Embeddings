@@ -76,6 +76,12 @@ Similarity = Annotated[
 ]
 
 
+#: A softmax temperature: finite and greater than zero.
+Temperature = Annotated[
+    float, BeforeValidator(_numpy_floating_to_float), Field(gt=0, allow_inf_nan=False)
+]
+
+
 def _probability(value: object) -> float:
     if isinstance(value, bool | np.bool_) or not isinstance(
         value, int | float | np.integer | np.floating

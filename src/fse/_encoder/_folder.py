@@ -154,6 +154,7 @@ def save(
     model_name: str | None = None,
     extra: Mapping[str, Any] | None = None,
     location: str | None = None,
+    notes: tuple[str, ...] = (),
 ) -> tuple[Path, Any]:
     """Write the folder of a model at the new ``path``: ``write_model(file)`` writes its
     ``.safetensors`` file, config and card are made from that file's header. Returns the
@@ -176,6 +177,7 @@ def save(
             language=language,
             model_name=path.name if model_name is None else model_name,
             location=location or str(path),
+            notes=notes,
         )
         for name, data in {CONFIG: config_bytes(metadata), CARD: card, **extras}.items():
             _write_new(tmp / name, data)

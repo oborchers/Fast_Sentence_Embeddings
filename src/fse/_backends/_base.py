@@ -127,6 +127,20 @@ class Backend(Protocol):
         converts inputs (``fse._reference`` runs in the default environment)."""
         ...
 
+    def affine64(
+        self, weight: ndarray, bias: ndarray, factor: ndarray, shift: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        """``factor[:, None] * weight`` and ``factor * bias + shift`` in float64 (two
+        roundings for the bias), the arithmetic with which a calibration is folded into a
+        head on import; the cpu backend runs it in the floating-point environment of the
+        kernels."""
+        ...
+
+    def quotient64(self, weight: ndarray, bias: ndarray, divisor: float) -> tuple[ndarray, ndarray]:
+        """``weight / divisor`` and ``bias / divisor`` in float64 (the temperature of a
+        softmax folded into a head on import), in the environment of ``affine64``."""
+        ...
+
     def inverse_norms(self, stored: ndarray, first_row: int = 0) -> ndarray:
         """The inverse norm of every stored row, as ``fse._reference.inverse_norms``;
         errors name the rows from ``first_row``."""

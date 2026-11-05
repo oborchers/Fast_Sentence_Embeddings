@@ -124,6 +124,7 @@ def measure(job):
         "encode-sink": lambda: encode_operation(model, texts, job),
         "head-folded": lambda: head_operation(model, texts, job),
         "head-with-vectors": lambda: head_operation(model, texts, job),
+        "head-labels": lambda: head_operation(model, texts, job),
     }
     if job["stage"] in ("store-open", "store-search"):
         from _development_store import StoreOperation

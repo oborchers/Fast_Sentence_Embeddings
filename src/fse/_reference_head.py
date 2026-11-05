@@ -144,6 +144,13 @@ def labels(logits) -> ndarray:
     return np.argmax(z, axis=1).astype(np.int64)
 
 
+def predicted(logits, link: Link) -> ndarray:
+    """linear@2 for a single-label head: the index of the first largest finished
+    probability of ``proba(logits, link)`` (int64), so ``predict`` is the argmax of
+    ``predict_proba`` bit for bit."""
+    return np.argmax(proba(logits, link), axis=1).astype(np.int64)
+
+
 def multilabel(logits, thresholds) -> ndarray:
     """linear@2: independent sigmoid@1 probabilities strictly above each F32 cutoff."""
     return sigmoid(np.asarray(logits, dtype=_F32)) > np.asarray(thresholds, dtype=_F32)
