@@ -1,0 +1,73 @@
+"""The machinery shared by the sinks of shard stores: what a family has to supply, and what
+a sink does the same way for every family."""
+
+import numpy as np
+import pytest
+
+from fse import ShardSink
+from fse._store._base_sink import ShardSinkBase, _same
+from fse._store._shard import ShardBase
+from support.encoder import finished
+
+
+def _base(tmp_path):
+    return ShardSinkBase(tmp_path / "s", synced=True, shard_rows=4, first_row=0)
+
+
+@pytest.mark.parametrize(
+    ("hook", "args"),
+    [
+        ("_new_writer", (0,)),
+        ("_own", (1,)),
+        ("_flat", ((),)),
+        ("_closed_event", ("ok", 0)),
+        ("_published_event", (None, 0)),
+    ],
+)
+def test_a_family_supplies_the_hooks(tmp_path, hook, args):
+    with pytest.raises(NotImplementedError):
+        getattr(_base(tmp_path), hook)(*args)
+
+
+def test_a_shard_supplies_its_buffers_and_metadata(tmp_path):
+    (tmp_path / "s").mkdir()
+    shard = ShardBase(tmp_path / "s", 0, 4, "test")
+    with pytest.raises(NotImplementedError):
+        shard.reserve(1)
+    with pytest.raises(NotImplementedError):
+        shard._metadata(1)
+    shard.abort()
+
+
+def test_the_durability_follows_the_sync_flag(tmp_path):
+    assert _base(tmp_path).durability == "full"
+    assert ShardSinkBase(tmp_path, synced=False, shard_rows=1, first_row=0).durability == "none"
+
+
+def test_a_target_is_the_one_reserved_by_address_and_shape():
+    rows = np.zeros((2, 3), np.float32)
+    assert _same(rows, rows)
+    assert not _same(rows.copy(), rows)
+    assert not _same(rows[:1], rows)
+    assert not _same(rows.tolist(), rows)
+
+
+def test_a_closed_sink_names_its_class_and_closing_again_is_harmless(tmp_path):
+    sink = ShardSink(tmp_path / "s", finished(), shard_rows=4)
+    sink.close()
+    sink.close()
+    with pytest.raises(RuntimeError, match="the ShardSink is closed; make a new one"):
+        sink.target(0, 1)
+
+
+def test_the_rows_are_taken_in_order(tmp_path):
+    with ShardSink(tmp_path / "s", finished(), shard_rows=4) as sink:
+        with pytest.raises(ValueError, match="rows from 3 reserved, expected rows from 0"):
+            sink.target(3, 1)
+        target = sink.target(0, 6)  # over two shards: a buffer of its own
+        with pytest.raises(ValueError, match="rows from 2 committed, expected rows from 0"):
+            sink.commit(2, target)
+        for array in target:
+            array[...] = 0
+        sink.commit(0, target)
+        assert sink.flush() == 6

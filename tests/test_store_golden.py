@@ -178,13 +178,16 @@ def test_a_full_disk_while_writing_publishes_the_committed_rows(tmp_path, monkey
 def test_a_second_writer_that_was_first_to_a_row_gives_file_exists(tmp_path):
     path = tmp_path / "s"
     first = ShardSink(path, ENCODER, shard_rows=4)
-    second = ShardSink(path, ENCODER, shard_rows=4)
-    for sink in (first, second):
-        target = sink.target(0, 4)
-        for array in target:
-            array[...] = 1
-        sink.commit(0, target)
-    first.flush()
+    second = ShardSink(path, ENCODER, shard_rows=4)  # both start at row 0
+    target = first.target(0, 4)
+    for array in target:
+        array[...] = 1
+    first.commit(0, target)
+    first.flush()  # the first writer publishes row 0 before the second has a row
+    target = second.target(0, 4)
+    for array in target:
+        array[...] = 1
+    second.commit(0, target)
     with pytest.raises(FileExistsError, match="another writer appended to"):
         second.flush()
     second.close()

@@ -90,6 +90,10 @@ class ShardBase:
         if buffer is not self._open[begin]:
             raise ValueError(f"the rows from {begin} are not the target reserved for them")
 
+    def reserve(self, n_rows: int) -> tuple:
+        """The buffers of the next ``n_rows``, which the workers fill."""
+        raise NotImplementedError
+
     def _committed_rows(self, begin: int, n_rows: int) -> None:
         del self._open[begin]  # only once the commit is checked
         self.committed += n_rows

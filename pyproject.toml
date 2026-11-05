@@ -404,7 +404,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_shard | _writer | _search | _recovery", "_selection | _result", "_layout | _id_writer", "_columns | _id_stats"]
+layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_shard | _writer", "_selection | _result", "_layout | _id_writer", "_columns | _id_stats"]
 
 [[tool.importlinter.contracts]]
 name = "Backends: each shares only _base with the others"
