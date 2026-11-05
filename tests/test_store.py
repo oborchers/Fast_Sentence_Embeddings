@@ -5,6 +5,12 @@ from fse import _store
 
 
 def test_the_package_exports_the_shard_sink():
-    assert _store.__all__ == ["SearchResult", "ShardSink", "VectorStore", "repair_store"]
+    assert _store.__all__ == [
+        "DocumentSearchResult",
+        "SearchResult",
+        "ShardSink",
+        "VectorStore",
+        "repair_store",
+    ]
     assert fse.ShardSink is _store.ShardSink
     assert fse.VectorStore is _store.VectorStore

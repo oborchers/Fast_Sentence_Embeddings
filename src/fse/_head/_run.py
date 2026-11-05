@@ -49,15 +49,15 @@ def check_output_sink(model: Any, sink: Any, output: str, *, batches: bool = Fal
     one that names an ``encoder_fingerprint`` must name their output identity."""
     if output == "labels":
         raise ValueError("labels go to no sink in 2.0; take them from predict_batches")
+    _refuse_doc_ids(model, sink, vectors=False)
     if isinstance(sink, ShardSink):
         raise ValueError(
             "a ShardSink stores the vectors of an encoder, not the outputs of a head; take the "
             "outputs from predict_batches, or store the vectors with return_vectors=True"
         )
-    _refuse_doc_ids(model, sink, vectors=False)
     width = model._head.width(RUNTIME[output])
     hint = ""
-    if batches:
+    if batches and not model.standalone:  # a standalone head has no vectors to name
         hint = (
             f"; without return_vectors the sink takes the {output} outputs ({width} values), "
             f"with return_vectors=True the vectors of the encoder ({model.encoder.output_dim} "
