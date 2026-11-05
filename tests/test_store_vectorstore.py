@@ -149,9 +149,10 @@ def test_arguments_are_checked(tmp_path):
     path, _, _ = _store(tmp_path, "float32", texts(20))
     with fse.VectorStore.open(path) as store:
         dim = ENCODER.output_dim
-        with pytest.raises(ValueError, match="k is 21, but the store holds 20 rows"):
-            store.search(np.ones(dim, F32), k=21)
-        assert len(store.search(np.ones(dim, F32), k=20).ids) == 20
+        for k in (20, 21, 1000):  # at most k hits, fewer if the store holds fewer rows
+            found = store.search(np.ones(dim, F32), k=k, mode="exact")
+            assert found.ids.shape == found.scores.shape == (20,)
+        assert store.search(np.ones((3, dim), F32), k=21).ids.shape == (3, 20)
         with pytest.raises(ValueError, match="query 1 is the zero vector"):
             store.search(np.stack([np.ones(dim, F32), np.zeros(dim, F32)]))
         with pytest.raises(ValueError, match="queries must be a vector of 6 values"):
@@ -256,10 +257,10 @@ def test_a_store_shows_no_internals(tmp_path):
         )
 
 
-def test_search_signature_takes_unique_doc_ids_only_by_keyword():
+def test_search_signature_takes_max_per_doc_only_by_keyword():
     import inspect
 
-    parameter = inspect.signature(fse.VectorStore.search).parameters["unique_doc_ids"]
+    parameter = inspect.signature(fse.VectorStore.search).parameters["max_per_doc"]
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
-    assert parameter.default is False
-    assert "unique_doc_ids" in fse.VectorStore.search.__doc__
+    assert parameter.default is None
+    assert "max_per_doc" in fse.VectorStore.search.__doc__

@@ -41,14 +41,15 @@ def check_store(store, mode, chunks=4):
 
 
 def _check_unique(cell, modes):
-    if cell["unique_doc_ids"] and (
-        cell["stage"] != "store-search"
+    if cell["max_per_doc"] is not None and (
+        cell["max_per_doc"] != 1
+        or cell["stage"] != "store-search"
         or "none" in modes
         or cell["filter_kind"] != "none"
         or cell["profile"] == "document-search-cost@1"
     ):
         raise ValueError(
-            "unique_doc_ids needs unfiltered store-search on stores with IDs, "
+            "max_per_doc needs 1 and unfiltered store-search on stores with IDs, "
             "outside document-search-cost@1"
         )
 

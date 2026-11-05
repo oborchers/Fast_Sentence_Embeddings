@@ -53,18 +53,18 @@ def _scored(store, vector, allowed):
                 )
 
 
-def complete(store, query, k, allowed, labels, unique_doc_ids=False):
+def complete(store, query, k, allowed, labels, one_per_doc=False):
     import numpy as np
 
     width = min(k, len(allowed))
-    if unique_doc_ids:
+    if one_per_doc:
         width = min(k, len(np.unique(labels[allowed])))
     ids = np.empty((len(query), width), dtype="int64")
     scores = np.empty((len(query), width), dtype="float32")
     for q, vector in enumerate(query):
         best_ids, best_scores = np.empty(0, dtype="int64"), np.empty(0, dtype="float32")
         for positions, values in _scored(store, vector, allowed):
-            if unique_doc_ids:
+            if one_per_doc:
                 best_ids, best_scores = _merge_unique(
                     best_ids, best_scores, positions, values, labels, width
                 )

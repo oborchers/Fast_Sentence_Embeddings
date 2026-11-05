@@ -32,7 +32,7 @@ def checked_query(value):
     if value.unique and any(
         len(np.unique(row)) != row.size for row in np.atleast_2d(found.doc_ids)
     ):
-        raise ValueError("unique_doc_ids search returned a document twice")
+        raise ValueError("max_per_doc search returned a document twice")
     if not np.isin(found.ids, value.allowed).all():
         raise ValueError("filtered search returned an excluded row")
     if value.labels is not None and not np.array_equal(found.doc_ids, value.labels[found.ids]):
@@ -114,14 +114,14 @@ class StoreOperation:
                 job["k"],
                 self.allowed,
                 self.labels,
-                unique_doc_ids=job["unique_doc_ids"],
+                one_per_doc=job["max_per_doc"] is not None,
             )
 
     def __call__(self):
         from fse import VectorStore
 
         if self.store is not None:
-            unique = {"unique_doc_ids": True} if self.job["unique_doc_ids"] else {}
+            unique = {"max_per_doc": 1} if self.job["max_per_doc"] is not None else {}
             found = self.store.search(
                 self.query,
                 self.job["k"],

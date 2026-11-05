@@ -92,7 +92,7 @@ class VectorStore:
         mode: Literal["auto", "exact", "blas"] = "auto",
         doc_ids: Any = None,
         rows: Any = None,
-        unique_doc_ids: bool = False,
+        max_per_doc: PositiveInt | None = None,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
@@ -104,19 +104,23 @@ class VectorStore:
         batch; ``"auto"`` (the default) takes exact for up to 8 queries and BLAS above.
         Use ``"exact"`` for results that must be reproducible.
 
-        ``unique_doc_ids=True`` (a store with doc_ids) returns the ``k`` best documents
+        At most ``k`` hits are returned: fewer if the selection holds fewer rows (or, with
+        ``max_per_doc``, fewer documents), without an error. The result then has that
+        many entries, none if nothing is selected.
+
+        ``max_per_doc=1`` (a store with doc_ids) returns the ``k`` best documents
         instead: of every document ID only its best row (the largest score, ties to the
-        smaller id), so the result holds ``min(k, documents)`` hits per query, each of a
-        different document. It combines with ``doc_ids`` and ``rows``: the rows are
-        selected first, then grouped.
+        smaller id), each hit of a different document. Only 1 is allowed in this version;
+        larger values may be added later. It combines with ``doc_ids`` and ``rows``: the
+        rows are selected first, then grouped.
         """
         self._check_open()
         matrix, single = self._queries(queries, "queries")
-        values, kind = self._plan_filter(doc_ids, rows, k, unique_doc_ids)
+        values, kind = self._plan_filter(doc_ids, rows, max_per_doc)
         with self._using():
             workers = workers or usable_cpus()
             exact = _search.is_exact(mode, len(matrix))
-            if unique_doc_ids:
+            if max_per_doc is not None:
                 found = _unique_search.search(
                     self._backend,
                     self._shards,
@@ -151,23 +155,26 @@ class VectorStore:
             return SearchResult(ids, scores)
 
     def _plan_filter(
-        self, doc_ids: Any, rows: Any, k: int, unique_doc_ids: bool
+        self, doc_ids: Any, rows: Any, max_per_doc: int | None
     ) -> tuple[ndarray | None, str]:
-        """Check the filters of a search before any row is read; returns the prepared
-        filter (None for all rows) and its kind."""
+        """Check the filters and ``max_per_doc`` of a search before any row is read; returns
+        the prepared filter (None for all rows) and its kind."""
+        if max_per_doc not in (None, 1):
+            raise ValueError(
+                f"max_per_doc must be 1 in this version, not {max_per_doc}; "
+                "larger values may be supported in a later release"
+            )
         if doc_ids is not None and rows is not None:
             raise ValueError("pass either doc_ids or rows, not both")
         if doc_ids is not None and not self._info.has_doc_ids:
             raise ValueError("this store has no doc_ids")
-        if unique_doc_ids and not self._info.has_doc_ids:
-            raise ValueError("unique_doc_ids needs a store with doc_ids")
+        if max_per_doc is not None and not self._info.has_doc_ids:
+            raise ValueError("max_per_doc needs a store with doc_ids")
         kind = "doc_ids" if doc_ids is not None else "rows"
         if doc_ids is not None or rows is not None:
             return _selection.prepare(
                 doc_ids if doc_ids is not None else rows, kind, len(self)
             ), kind
-        if k > len(self):
-            raise ValueError(f"k is {k}, but the store holds {len(self)} rows")
         return None, kind
 
     @validate_arguments

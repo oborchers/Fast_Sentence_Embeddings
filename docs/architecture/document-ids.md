@@ -78,8 +78,10 @@ file. Unknown future formats or resume modes abort repair without mutation.
 ## Best hit per document (DR-218)
 
 Implementation contract for DR-218 (Suche mit höchstens einem Treffer je Dokument anbieten).
-`VectorStore.search(..., unique_doc_ids=True)` is a keyword-only strict `bool`. It
-requires a store with document IDs and raises before reading data otherwise. The result
+`VectorStore.search(..., max_per_doc=1)` takes a keyword-only `PositiveInt | None`
+(default `None`). Only 1 is allowed in 2.1; any other value raises a `ValueError` that says
+larger values may come later. It requires a store with document IDs and raises before
+reading data otherwise. The result
 type stays `DocumentSearchResult`.
 
 Semantics. For a query, take the total order of `fse._reference.top_k` over the selected
@@ -118,4 +120,11 @@ with k=10 and two workers peaked at 41.7 MiB against 34.1 MiB for the ordinary s
 the gathered vectors of filtered blocks (16 MiB) are as before. The merger scales with
 queries times `k`, adding one int64 column to the ordinary search.
 
-Logging: `store.search` carries `unique_doc_ids=True` only on this path.
+Logging: `store.search` carries `max_per_doc=1` only on this path.
+
+Result width rule for every search: at most `k` hits, `min(k, candidates)`, never an error
+for a `k` above the number of rows (the unfiltered check `k > len(store)` was removed;
+filtered searches already worked this way). An empty selection gives empty `ids` (int64),
+`scores` (float32) and `doc_ids` (int64). The change needs no timing measurement (class K,
+tests): it only removes a comparison before the search starts; the scan, its blocks and
+its arithmetic are untouched.

@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "unique_doc_ids descriptive costs (D): public store.search with unique_doc_ids=True on ordered and shuffled document IDs, and the ordinary search as context, on identical float32 POTION stores with 1,002,340 WikiText rows (230 resident cycles of 4358 rows, four ID chunks), one query, k 10. The -small cells are the 4358-row rehearsal. Local development evidence, not publishable; single D medians support no comparison.",
+  "description": "max_per_doc descriptive costs (D): public store.search with max_per_doc=1 on ordered and shuffled document IDs, and the ordinary search as context, on identical float32 POTION stores with 1,002,340 WikiText rows (230 resident cycles of 4358 rows, four ID chunks), one query, k 10. The -small cells are the 4358-row rehearsal. Local development evidence, not publishable; single D medians support no comparison.",
   "defaults": {
     "profile": "document-ids-1m@1",
     "base_doc_ids": "ordered",
@@ -23,7 +23,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "store-search",
-      "unique_doc_ids": true
+      "max_per_doc": 1
     },
     {
       "id": "unique-shuffled-1002340",
@@ -32,7 +32,7 @@
       "stage": "store-search",
       "base_doc_ids": "shuffled",
       "candidate_doc_ids": "shuffled",
-      "unique_doc_ids": true
+      "max_per_doc": 1
     },
     {
       "id": "plain-ordered-1002340",
@@ -49,7 +49,7 @@
       "candidate_doc_ids": "shuffled",
       "resident_cycles": 1,
       "iterations": 1,
-      "unique_doc_ids": true
+      "max_per_doc": 1
     },
     {
       "id": "plain-ordered-small",

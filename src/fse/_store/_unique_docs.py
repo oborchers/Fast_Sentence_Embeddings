@@ -1,6 +1,6 @@
 """The best row of every document in a block of scores, and the merge of those across blocks.
 
-A search with ``unique_doc_ids`` keeps, of every document ID, the first row in the order of
+A search with ``max_per_doc=1`` keeps, of every document ID, the first row in the order of
 ``fse._reference.top_k``: the larger score first, equal scores (-0.0 equals 0.0) by the
 smaller physical row. That order is total, so the best row of a document is the maximum
 of a total order, which is associative: merging blocks in any order, with any number of

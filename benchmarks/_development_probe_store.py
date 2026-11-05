@@ -33,7 +33,7 @@ def probe_store(model, texts, job, verify_payload):
                 job["k"],
                 allowed,
                 operation.labels,
-                unique_doc_ids=job["unique_doc_ids"],
+                one_per_doc=job["max_per_doc"] is not None,
             )
             check_search(result.found, reference)
         elif not np.array_equal(result, np.array([len(texts), model.output_dim], dtype="int64")):

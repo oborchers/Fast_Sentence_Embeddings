@@ -94,6 +94,6 @@ def search(
         mode="exact" if exact else "blas",
         rows=count[0],
         workers=workers,
-        unique_doc_ids=True,
+        max_per_doc=1,
     )
     return candidates.result()
