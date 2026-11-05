@@ -65,11 +65,17 @@ src/fse/
     _tokenizer.py        #   the read-only tokenizer facade,
     _profile.py          #   the fse encoders that fit model2vec's rules,
     _arguments.py        #   the arguments that change no row, and the refusals
-  _store/                # stores of sentence vectors (sentence_vectors 1):
-    _layout.py           #   store.json, shard names and metadata, the shards in order,
-    _recovery.py         #   checked snapshots, mapped checksums and gap detection,
+  _store/                # stores of sentence vectors (sentence_vectors 1) on a shared shard base:
+    _kind.py             #   the protocol of a kind of rows, the shard record and shard names,
+    _kinds.py            #   the closed table of kinds,
+    _vectors_format.py   #   the kind sentence_vectors: root, shard, values, identifiers,
+    _layout.py           #   the frame of store.json, the shards in order, through the kind,
+    _columns.py          #   the tensors of a shard: streamed, in memory or constant,
+    _id_writer.py        #   the document-ID column,
+    _recovery.py         #   checked snapshots, mapped checksums, gap detection, the chain,
     _repair.py           #   offline repair, one durable quarantine move at a time,
-    _shard.py            #   one shard being written and published,
+    _shard.py            #   one shard being written and published (the base and vectors),
+    _base_sink.py        #   what every sink shares: rows over shards, threads, close,
     _sink.py             #   ShardSink,
     _search.py           #   search and score by blocks, the top-k merge,
     _vectorstore.py      #   VectorStore

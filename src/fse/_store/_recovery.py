@@ -6,16 +6,17 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-import numpy as np
 from numpy import ndarray
 
 from fse._container import CorruptArtifactError, checksum
 
-from ._id_stats import verify_stats
-from ._layout import SHARD_PREFIX, Shard, StoreInfo, open_shard, shard_name
+from ._kind import SHARD_PREFIX, Kind, Shard, shard_name
+from ._kinds import kind_of
+from ._layout import open_shard
 
-_VALUE_BYTES = 1 << 20
+NO_SHARD: object = object()  # the summary "before" the first shard
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class Snapshot:
     verify_seconds: float
 
 
-def snapshot(path: Path, info: StoreInfo, *, verify: bool) -> Snapshot:
+def snapshot(path: Path, info: Any, *, verify: bool) -> Snapshot:
     """Follow the published chain, check gaps, and optionally verify tagged shards."""
     try:
         return _snapshot(path, info, verify=verify)
@@ -37,8 +38,10 @@ def snapshot(path: Path, info: StoreInfo, *, verify: bool) -> Snapshot:
         raise
 
 
-def _snapshot(path: Path, info: StoreInfo, *, verify: bool) -> Snapshot:
+def _snapshot(path: Path, info: Any, *, verify: bool) -> Snapshot:
+    kind = kind_of(info)
     found = []
+    previous: object = NO_SHARD
     row = unsynced = verified_bytes = 0
     seconds = 0.0
     while _present(path / shard_name(row)):
@@ -48,11 +51,16 @@ def _snapshot(path: Path, info: StoreInfo, *, verify: bool) -> Snapshot:
                 unsynced += 1
                 if verify:
                     start = time.perf_counter()
-                    verify_shard(shard, tensors)
+                    verify_shard(kind, shard, tensors)
                     verified_bytes += sum(tensor.nbytes for tensor in tensors.values())
                     seconds += time.perf_counter() - start
+            current = kind.summary(shard, tensors)
+            reason = chain_breach(kind, previous, current)
         except CorruptArtifactError as error:
             raise damaged(path, shard_name(row), row, str(error)) from error
+        if reason is not None:
+            raise damaged(path, shard_name(row), row, reason)
+        previous = current
         found.append((shard, tensors))
         row += shard.rows
     check_gaps(path, found, row)
@@ -107,47 +115,31 @@ def refuse_unsynced(path: Path, found: list) -> None:
         )
 
 
-def verify_shard(shard: Shard, tensors: dict[str, ndarray]) -> None:
-    """Hash the mapped tensors against the checksums from that same manifest open."""
+def verify_shard(kind: Kind, shard: Shard, tensors: dict[str, ndarray]) -> None:
+    """Hash the mapped tensors against the checksums from that same manifest open, then
+    check the values of the shard."""
     for name, tensor in tensors.items():
         if checksum(tensor) != shard.checksums[name]:
             raise CorruptArtifactError(f"{shard.name}: the checksum of {name} does not match")
-    check_values(shard, tensors)
+    kind.check_values(shard, tensors)
 
 
-def check_values(shard: Shard, tensors: dict[str, ndarray]) -> None:
-    """Check values in bounded blocks, without shard-sized temporary arrays."""
-    for name in ("inv_norms", "scales"):
-        values = tensors.get(name)
-        if values is not None:
-            _nonnegative(shard, name, values)
-    _vectors(shard, tensors["vectors"])
-    if shard.id_stats is not None:
-        verify_stats(tensors["doc_ids"], shard.id_stats, shard.name)
+def chain_breach(kind: Kind, previous: object, current: object) -> str | None:
+    """Why a shard with the summary ``current`` cannot follow the one before it, which has
+    the summary ``previous`` (None for the first shard of the store), or None."""
+    return None if previous is NO_SHARD else kind.follows(previous, current)
 
 
-def _blocks(array: ndarray):
-    flat = array.reshape(-1)
-    step = max(1, _VALUE_BYTES // array.dtype.itemsize)
-    for begin in range(0, len(flat), step):
-        yield flat[begin : begin + step]
-
-
-def _nonnegative(shard: Shard, name: str, values: ndarray) -> None:
-    for part in _blocks(values):
-        if not (np.isfinite(part) & (part >= 0)).all():
-            raise CorruptArtifactError(
-                f"{shard.name}: {name} holds values that are not finite and at least 0"
-            )
-
-
-def _vectors(shard: Shard, vectors: ndarray) -> None:
-    for part in _blocks(vectors):
-        if vectors.dtype == np.int8:
-            if (part == -128).any():
-                raise CorruptArtifactError(f"{shard.name}: an int8 code is -128, beyond +-127")
-        elif not np.isfinite(part).all():
-            raise CorruptArtifactError(f"{shard.name}: the vectors hold values that are not finite")
+def check_chain(path: Path, kind: Kind, found: list) -> None:
+    """Check every shard against the one before it, with the same ``follows`` for snapshot,
+    ``verify`` and repair; a breach is the damage of the later shard."""
+    previous: object = NO_SHARD
+    for shard, tensors in found:
+        current = kind.summary(shard, tensors)
+        reason = chain_breach(kind, previous, current)
+        if reason is not None:
+            raise damaged(path, shard.name, shard.first_row, reason)
+        previous = current
 
 
 def clear_exception_frames(error: BaseException) -> None:

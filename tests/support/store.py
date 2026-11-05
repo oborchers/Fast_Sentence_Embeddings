@@ -25,9 +25,11 @@ def make_store(path, *, dtype="float32", sizes=(4, 4, 2), tagged=()):
     return info
 
 
-def add_shard(path, info, first, rows):
-    """One structurally valid shard with its checksums and fingerprint."""
-    codes = np.arange(first * info.dim + 1, (first + rows) * info.dim + 1).reshape(rows, info.dim)
+def add_shard(path, info, first, rows, *, start=None):
+    """One structurally valid shard with its checksums and fingerprint; its codes count on
+    from row ``start`` (default ``first``)."""
+    begin = first if start is None else start
+    codes = np.arange(begin * info.dim + 1, (begin + rows) * info.dim + 1).reshape(rows, info.dim)
     tensors = {
         "vectors": codes.astype(info.dtype),
         "inv_norms": np.full(rows, 0.25, np.float32),

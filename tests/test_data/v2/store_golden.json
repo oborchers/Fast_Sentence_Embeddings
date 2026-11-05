@@ -1,0 +1,3212 @@
+{
+ "float16-duplicate-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:ddf32b0a11474c98c40533affe5a01ca",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:540c75c09122dbb9f45c417b67abb4c0",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:06cb68087d8633148fdf2119e6c299ae",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:c51f300758de6db46d5676f2603f004e",
+   "shard-0000000000000008": "xxh3-128:20ff14769f6a7e6317302b3116e746a5",
+   "shard-0000000000000016": "xxh3-128:182ff4a7ec127b87899dfd017740f255"
+  }
+ },
+ "float16-duplicate-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:1e7c2cf792ec812ec4102bf7da8ead25",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:5417c0df144bc2fda96505ddd07b25cc",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:bea3a823d9e468bb4032251384c520f9",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:070e33877349f4eafb4130df073dc823",
+   "shard-0000000000000008": "xxh3-128:334f8ccaa6ba8bb9a4a5a2485c8f48de",
+   "shard-0000000000000016": "xxh3-128:c5f135f7592f1c5ba715eaac7a0e47ca"
+  }
+ },
+ "float16-none-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:e3db8c4bf77612d50e19657421191794",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:9873a26505160ef9d798eaf814fa1b7b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:d05c615af21d297d1ae0f3964c8d85cc",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:d3763bb37a573d5a141ff1507fff208f",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:2f6af8250b169e8d3a5e50c89f0bb2fd",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:aaf24201b3c2896d8284538fb7eb0820",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:3c1191a37de595659f932495cad201e7",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:8ca5d35836d3f1c4d120bef8f6a2530b",
+   "store.json": "xxh3-128:53fab3d762091a875008de4d816c9be7"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:0d50a3624cc9f6ad6a4f7fa5083616ce",
+   "shard-0000000000000008": "xxh3-128:698d8e40b8dc176ee49ceab33d0e4eef",
+   "shard-0000000000000011": "xxh3-128:40f20525107928436c9590bbe7870fdb",
+   "shard-0000000000000019": "xxh3-128:6af77cc9fcdd232750c3de9c8ac5ebea"
+  }
+ },
+ "float16-none-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:c93615fcb7b751e7c927f7d758f2d4e5",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:ee9322b8ee916725877bedc6d9c9e8b5",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:fb8c8b289689a1109d715172cb694281",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:53fab3d762091a875008de4d816c9be7"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:28735f9ee42773a56a83c970940bce92",
+   "shard-0000000000000008": "xxh3-128:c5f53eeec1cb7922b8a8b625602a5db5",
+   "shard-0000000000000016": "xxh3-128:5b2db53f04eb87589d9152fcb66a4683"
+  }
+ },
+ "float16-none-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:c3599d3ad0760c416cd6c52ef1ff7ae4",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:1826e2f3f496707cdacc113c468a0f2e",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:b10e5bc47caf97d9bf97e5c9651406c0",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:53fab3d762091a875008de4d816c9be7"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:f9f2b42bde75967a49e5343eb7a32900",
+   "shard-0000000000000008": "xxh3-128:4c3515fe5a7d9b62c1e8c218e9f72496",
+   "shard-0000000000000016": "xxh3-128:491bfd083c50d9ed30003bb8c26b0193"
+  }
+ },
+ "float16-none-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:3985441c8b7093e419d71c17977729fb",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:7d0bb09449320eb7bea3df8d68336ab5",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:eca9f28c8dc38c47d5f5ae31c4813007",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:f7ad0775ac372b443634930815cabb49",
+   "store.json": "xxh3-128:53fab3d762091a875008de4d816c9be7"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:1bb7d6fc4b572e6203e5f555d6c7f465",
+   "shard-0000000000000010": "xxh3-128:f0924bb1594b1f3bfcea7ecb8efb0273"
+  }
+ },
+ "float16-sorted-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:39ef9eb438edc61ee3932dd98c059fa0",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:9873a26505160ef9d798eaf814fa1b7b",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:a6bd5eff9aceac14c3d9927218d44728",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:2a80fc2531ed8c235a461ceefb66e939",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:d3763bb37a573d5a141ff1507fff208f",
+   "shard-0000000000000011/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:92bc16c1d3fa722b01339ca80769f1be",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:aaf24201b3c2896d8284538fb7eb0820",
+   "shard-0000000000000019/doc_ids.npy": "xxh3-128:d7cca596ba89c373778bb88743295b6a",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:ca360dc721a9e2504f59610c9fcf1b98",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:8ca5d35836d3f1c4d120bef8f6a2530b",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:ecdb3bf5d31054c428a8a1959f3e0386",
+   "shard-0000000000000008": "xxh3-128:b1907cd2db5dadfa5377796927a97020",
+   "shard-0000000000000011": "xxh3-128:380a11992390ab2ea0fa16c34a98deb7",
+   "shard-0000000000000019": "xxh3-128:b519f47c9ac358864f76ab976cefc6db"
+  }
+ },
+ "float16-sorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:5ff059e5d9e5bd47da7d5958322b733b",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:030cfddffb37e73654f37d118f7aee3f",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:145a9fafcce6e244594165958de08267",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:de40f870e3725dbde0aae7bcc6ceaf07",
+   "shard-0000000000000008": "xxh3-128:a9b57716be6d5c310d19b3221222a8a7",
+   "shard-0000000000000016": "xxh3-128:5e39bb206bf88661827e6aa87c70920e"
+  }
+ },
+ "float16-sorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:73b2e5b95e50ee4240dc4c9e9b7fd63d",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:4e0754d1e18b1bed7827223ffd99faa7",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:9d1806e1c0e9b6cdc87a742937a82bd4",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:41d5999282fd44e168508520917f82a4",
+   "shard-0000000000000008": "xxh3-128:796a7c74de7ff08201fcb4dba1b2ec35",
+   "shard-0000000000000016": "xxh3-128:e90615cf7028aba1b394df96f8063337"
+  }
+ },
+ "float16-sorted-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:7d7e79c7c9ee4ce9c86189246504a166",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:807f1ba920acac933a7a60f6ed5f5f85",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:7d0bb09449320eb7bea3df8d68336ab5",
+   "shard-0000000000000010/doc_ids.npy": "xxh3-128:abe802da535ea731b62a7a14fc803078",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:10e1d8e0c1ce117530e258519c453fb7",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:f7ad0775ac372b443634930815cabb49",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:b637101816f8ac4a2b97a53c6c1b90ed",
+   "shard-0000000000000010": "xxh3-128:60ea26b43873046912a6134ed59b23b6"
+  }
+ },
+ "float16-unsorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:f44cb4981b35a6c07c7af9168a17aac0",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:422be628a1ba99147cd940590ad54ec6",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:db60ca98fa011f3f244a50be06743ac3",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:a506f93b4c4c310410245a42b35ea536",
+   "shard-0000000000000008": "xxh3-128:4ea8a0be7ee26544482c91c886a542f1",
+   "shard-0000000000000016": "xxh3-128:aab53ef583f1e42219e5ed7207c05c62"
+  }
+ },
+ "float16-unsorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float16 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float16",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:90dfe0fd58e4ea76b1653cd2b014878c",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:92acf763659d9576b5bc6b28283ce361",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:2663dc83d907da62132e4d7a4cd5e4c7",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:8666606ebb3115c8e077ee7e813f1e90",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:3d06e3ec7c80553774a446ed31742b44",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:8ca15fad385f33c834b08c75b32b8bb9",
+   "store.json": "xxh3-128:794d2c1ea05aa056c7f3900dc6d1afc2"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:014cd26a0defe7a24725dff0b1a8aecc",
+   "shard-0000000000000008": "xxh3-128:9684c6ff191fd722ed272f7bb3b701b3",
+   "shard-0000000000000016": "xxh3-128:6cb867e5e41ca95238552f52da4ae73b"
+  }
+ },
+ "float32-duplicate-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:52da387f6d6d0d8521cd71f2b23c3135",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:087dd89b87b6a216e00fc17f26a8c7b3",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:c4c233be02fa4f4290f97021c8a2111d",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:23d5a1df4dbd49709aba6029238c71fc",
+   "shard-0000000000000008": "xxh3-128:db0a048129e9cae0e78a42abad67e6e3",
+   "shard-0000000000000016": "xxh3-128:dbfc8bcf1d550c68ea9bbc32e17c8336"
+  }
+ },
+ "float32-duplicate-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:33ebdb00f820c0ed31ef76229e4c0b63",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:85fef21a86c1d92c34fcb0b012230df5",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:43099fab67a828f16bc49c079cd03a6a",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:04580de0ee67e4c0792033bc4e64e941",
+   "shard-0000000000000008": "xxh3-128:0ead6d503775360168530d355636cfdb",
+   "shard-0000000000000016": "xxh3-128:297f7933d6550edc29c71e950c0112e7"
+  }
+ },
+ "float32-none-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:659e9f3a85f6382aa20203a7ae63da4c",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:535b1954fa24a0c34293796f2d995a39",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:f5ea610e3754c01467ae6fd703eee674",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:7e0acc42382724dbb97ead75fb0da7e9",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:bd5602028d6643724ae55348e74bed6e",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:acc3bc536f9cb9dff96f95fdf5f15af3",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:1b145e57d7e7c04bc3a5354347bc23bb",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:a01cab639d32fbbe66952e4a46b94373",
+   "store.json": "xxh3-128:8614fbc1a7561a07bb803ed120c093f9"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:5d661ce5f0b20d17dcf591df84f18d0b",
+   "shard-0000000000000008": "xxh3-128:cc970e2d0acdc073cea043fa2d51ca92",
+   "shard-0000000000000011": "xxh3-128:5ceb37cc04d01cb4237fde1b4f140153",
+   "shard-0000000000000019": "xxh3-128:3449a3c5ebfbb95aef14f359f98ac25d"
+  }
+ },
+ "float32-none-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:20dc17b4d6b64185f6222edb6621eabb",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:8c9cb22889094e34bbcd60fb728b5f55",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:d4824d4dfe24dfa440d2f64b50879f19",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:8614fbc1a7561a07bb803ed120c093f9"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:0e720666b1c19a7cca4dffe83735f75c",
+   "shard-0000000000000008": "xxh3-128:df90d96f827298016089da9ba3923f44",
+   "shard-0000000000000016": "xxh3-128:5b594c822d7fb1c551e1ad610e024dd2"
+  }
+ },
+ "float32-none-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:29a4837e27006d2372d6abed266d7fa5",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:2618183d6db4a0c9b298a9da7feffad8",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:bcdda3b5ce5bc0f2d9601d4f96b87d0c",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:8614fbc1a7561a07bb803ed120c093f9"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:ae835236f943fd20f15ec9e9121320c0",
+   "shard-0000000000000008": "xxh3-128:9f6ae5eef9cdb866ce7d26530f21a966",
+   "shard-0000000000000016": "xxh3-128:1f8124e60f22280ae22e78190b71df9a"
+  }
+ },
+ "float32-none-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:11d48c1ea080cd6936884477a75bf0c3",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:b8f2103080dfc9efdb226cc43c003be2",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:bce6d4553e2fae09d760b3558533240d",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:5b280cfc5220fed04e01584499cc6b4e",
+   "store.json": "xxh3-128:8614fbc1a7561a07bb803ed120c093f9"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:6c0288ab500a1920cb464fa3fd778305",
+   "shard-0000000000000010": "xxh3-128:e171a463d30bc46155111cdbc0b53b90"
+  }
+ },
+ "float32-sorted-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:82a6c1ef8fcf7c7fc58f5261025707a5",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:535b1954fa24a0c34293796f2d995a39",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:a6bd5eff9aceac14c3d9927218d44728",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:31e47d661aa6bed7affc75bef6eb3ee3",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:7e0acc42382724dbb97ead75fb0da7e9",
+   "shard-0000000000000011/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:3f7fb20a9e87b7e01933c2648850e7f9",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:acc3bc536f9cb9dff96f95fdf5f15af3",
+   "shard-0000000000000019/doc_ids.npy": "xxh3-128:d7cca596ba89c373778bb88743295b6a",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:7b2e00557ee9ced4753f2ba48ea43650",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:a01cab639d32fbbe66952e4a46b94373",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:b479d94b558d0369bacdf5b99ed14764",
+   "shard-0000000000000008": "xxh3-128:a34875ad7327961db6539d385df0123b",
+   "shard-0000000000000011": "xxh3-128:9f79b3a3d28d5103bd3e9b6aacc0efe6",
+   "shard-0000000000000019": "xxh3-128:bf0dba7cac86ab40f3d395130fbaefc4"
+  }
+ },
+ "float32-sorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:6c85b629e54f739e0860befbe6d45b7b",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:7e95fe711cb92867b0ae85e22af3fbdf",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:636872efabe8aaecc3aa7c323137383e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:8eec8ee6f19a306a8d6b163b545e4b3c",
+   "shard-0000000000000008": "xxh3-128:6cba698bac2ed4de6c765d7c10a24e80",
+   "shard-0000000000000016": "xxh3-128:bcfdc69cbcc38a77addcf66fc5c11f1c"
+  }
+ },
+ "float32-sorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:ed0acb496de9669ba10fe0fad9fb7468",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:f0796f401992fbfb5e42555d49dbca1e",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:9294e3c1f6d29a27148fc3ad5c94fad6",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:35b0041534823c96feb83f45c7c0b7d2",
+   "shard-0000000000000008": "xxh3-128:5bc96c267a8f6844e3904a2554473f16",
+   "shard-0000000000000016": "xxh3-128:caa373b343654505aaf31c66d65de37b"
+  }
+ },
+ "float32-sorted-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:7d7e79c7c9ee4ce9c86189246504a166",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:976f10f2be0b509cb0a5bf88fbd9b4d2",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:b8f2103080dfc9efdb226cc43c003be2",
+   "shard-0000000000000010/doc_ids.npy": "xxh3-128:abe802da535ea731b62a7a14fc803078",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:aae59b4a005c6d105fec435834db501a",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:5b280cfc5220fed04e01584499cc6b4e",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:8c2596bfa3377b044d352157970cdd27",
+   "shard-0000000000000010": "xxh3-128:5793b374a0fd499f88e206711ebc84ff"
+  }
+ },
+ "float32-unsorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:0682a7cc1967891ead0ee9d509f3ca75",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:6096dd91fb232641abfc602894b8ce0e",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:635ba2648e435ce6ae910c0724a90517",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:cfd0534d64ba25f860834d435c26f727",
+   "shard-0000000000000008": "xxh3-128:37c42f14f788ae02fd7371301eb9904b",
+   "shard-0000000000000016": "xxh3-128:1e9f38f55a131d629d89bec37a4e7e0b"
+  }
+ },
+ "float32-unsorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, float32 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "float32",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:b8a71b9ea0cf4763ef32b504c84b6484",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:f86a3b8d2af03320b590e82bd349acd8",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:105484278b4ecfac0fde31a7e8a75e52",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:89e1d2bd7b6a75a13f85e59a09695864",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:e442774994af262ab351d1a819f13362",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:3c0f6af22e77f2a4f580db8afbb8fbeb",
+   "store.json": "xxh3-128:32e1f412b5bf543c521d0aa18f3c6e4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:cf12f7ec474add88736eb978b03d024c",
+   "shard-0000000000000008": "xxh3-128:14e2f52323f946565e72a903afef8801",
+   "shard-0000000000000016": "xxh3-128:65f90febf4a9a7c119b4d804fd6cffae"
+  }
+ },
+ "int8-duplicate-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:3ddb1c489a68ee1a6773162aa378c2a5",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:44fa7c3a95d1f10ebf4a0c54267199fe",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:4b0809f40fe14efeed7e8c02d7da0378",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:c674a9e0935c2eb4634e2a66b2e7a808",
+   "shard-0000000000000008": "xxh3-128:8f97aa6e9e8ecd1e464b2c38dd767ba0",
+   "shard-0000000000000016": "xxh3-128:b5b3c3bb0400fa66c7a8e4b78cf30948"
+  }
+ },
+ "int8-duplicate-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:74572259d0407081d259c173a6334651",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:e6b0f0be73c86221936ebbc445ef0a12",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:7976c7b00287f9ebe8307c640e473e8b",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:4a98b0f94226386cf80a043c61f1c057",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:6d9616056d9ba3da5e589c402a1a6072",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:1b0132e396109dfbd239a2b97d11ee4b",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:2963be260ba7ebaddc66f045f3bae8f7",
+   "shard-0000000000000008": "xxh3-128:67027313e0a2661a0bfa166ef3b3a581",
+   "shard-0000000000000016": "xxh3-128:a09ff1c0b8b540ee7731377e23bdd991"
+  }
+ },
+ "int8-none-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:542141edbf2c05f243183d399230d302",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:f59c59ba566007896be5fbd8dc162dfa",
+   "shard-0000000000000008/scales.npy": "xxh3-128:23876b676d2a735c9c5fa47b2b1c71e2",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:0a5c18a383bf504dfdd34d24a5674566",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:bac89a0c6b673a4cd5894b17d593acd5",
+   "shard-0000000000000011/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:4046fd303a35ef275efc25e3be1470d2",
+   "shard-0000000000000019/scales.npy": "xxh3-128:563e786301ed5cdf692c60a14e949caa",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:04c2729888f7695dd42d51219bdbd9a3",
+   "store.json": "xxh3-128:101521e6d7de96fbf9ed2eddbe6f1d4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:8ce36a1d37ad7b27ff002633d7d65945",
+   "shard-0000000000000008": "xxh3-128:e3164cd6084a232028a77834edf0d423",
+   "shard-0000000000000011": "xxh3-128:b55e6d0dfb1771e8228f2c9aa1de58c9",
+   "shard-0000000000000019": "xxh3-128:399595f1d0a5b13a22d5f842fe2b7a14"
+  }
+ },
+ "int8-none-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:542141edbf2c05f243183d399230d302",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:a59bc80c8a403ad3f6e332ac988f6389",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:9b265b3d365c106dd723f11646cc9570",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:101521e6d7de96fbf9ed2eddbe6f1d4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:8ce36a1d37ad7b27ff002633d7d65945",
+   "shard-0000000000000008": "xxh3-128:68f7f7a510fa2f8cbbbd674fbade0d33",
+   "shard-0000000000000016": "xxh3-128:f04e0dd6da23a5e1d571a3185ec23688"
+  }
+ },
+ "int8-none-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:ff1887f3797dabd33d4f0af810cf91a2",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:80b2bbee9b4e76d740a41b705239e192",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:e70e87016ba0c70c972373b6de2eb5f4",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:101521e6d7de96fbf9ed2eddbe6f1d4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:b520f58c1e3ea10cf11526c46b09b529",
+   "shard-0000000000000008": "xxh3-128:d77048a1b22e6e2efbb4f607fa47547f",
+   "shard-0000000000000016": "xxh3-128:b93f2f1fbd6a8130b2d7b51f736889cf"
+  }
+ },
+ "int8-none-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:ffa2aa9e2f47720b490512c182172f8e",
+   "shard-0000000000000000/scales.npy": "xxh3-128:1941f46a6429ef7d3285003afbde72b2",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:2b0e62224f03df810798070b007469a1",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:5c5dcfbc05e133600260f6d13b4ecdbc",
+   "shard-0000000000000010/scales.npy": "xxh3-128:5bbd6367c2e7626a21e41f7ae17da908",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:980e9b62a866f679c2001a120b0a055e",
+   "store.json": "xxh3-128:101521e6d7de96fbf9ed2eddbe6f1d4b"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:f5f60ab89743b60461d8e97e663dc954",
+   "shard-0000000000000010": "xxh3-128:222ea0718b2498c7e683c8a42518ff0c"
+  }
+ },
+ "int8-sorted-appended": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000011",
+   "shard-0000000000000019",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 3 rows at row 8; 11 rows published, 11 durable",
+    {
+     "durable_rows": 11,
+     "first_row": 8,
+     "published_rows": 11,
+     "rows": 3
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 11 rows published, 11 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 11,
+     "outcome": "ok",
+     "published_rows": 11,
+     "rows": 11,
+     "shards": 2
+    }
+   ],
+   [
+    "store.sink_opened",
+    "fse store: a sink appends to a store at row 11: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "append",
+     "rows": 11,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 11; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 11,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 1 rows at row 19; 9 rows published, 9 durable",
+    {
+     "durable_rows": 9,
+     "first_row": 19,
+     "published_rows": 9,
+     "rows": 1
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 9 rows published, 9 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 9,
+     "outcome": "ok",
+     "published_rows": 9,
+     "rows": 9,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:3b44c6b6c414b23cddfac2f689fe2ce6",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:a6bd5eff9aceac14c3d9927218d44728",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:b5ddbb09f266dddbd6e647e5b68820a8",
+   "shard-0000000000000008/manifest.json": "xxh3-128:cbccb0aab502a12a58f280d449530a05",
+   "shard-0000000000000008/scales.npy": "xxh3-128:23876b676d2a735c9c5fa47b2b1c71e2",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:0a5c18a383bf504dfdd34d24a5674566",
+   "shard-0000000000000011/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000011/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000011/manifest.json": "xxh3-128:f938bbddf4fb3bdf0323d0662113ca54",
+   "shard-0000000000000011/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000011/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000019/doc_ids.npy": "xxh3-128:d7cca596ba89c373778bb88743295b6a",
+   "shard-0000000000000019/inv_norms.npy": "xxh3-128:ab0e387e54c28b9b59312283eb09bd2c",
+   "shard-0000000000000019/manifest.json": "xxh3-128:735fe97e1900c78f41605387ce621f41",
+   "shard-0000000000000019/scales.npy": "xxh3-128:563e786301ed5cdf692c60a14e949caa",
+   "shard-0000000000000019/vectors.npy": "xxh3-128:04c2729888f7695dd42d51219bdbd9a3",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:e112c101e78e5c705f8239b52ff17f14",
+   "shard-0000000000000008": "xxh3-128:53b5ddcd6ab14f986f060419816f18ce",
+   "shard-0000000000000011": "xxh3-128:1c959a01757afdbfd8ffac33695c68b6",
+   "shard-0000000000000019": "xxh3-128:96c5c3a2bb23cc6ab295516ed168aff3"
+  }
+ },
+ "int8-sorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:3b44c6b6c414b23cddfac2f689fe2ce6",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:eeb077d12fe00e2faf8dbb686d4d0879",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:5cba6329e1ed9f708c6da90014c1e63a",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:e112c101e78e5c705f8239b52ff17f14",
+   "shard-0000000000000008": "xxh3-128:bc500dfe6cf081aaf452483f0ec83f0c",
+   "shard-0000000000000016": "xxh3-128:9a9102157eff7f5655fae61ca19bcb00"
+  }
+ },
+ "int8-sorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:2695c3cd91d40b59b2b849d06370d90d",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:82d8fe93e6ddbd7d3924cdbc996404d1",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:aa307c914af81e58659e99f3c2d36fad",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:555455d193635f570a10a750c7efc193",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:3ddb8d24ecddc43543b883e3b6bf67ab",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:d9882b47a342bd66ed8ba277ba52cfff",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:ffc06051d27462c45c6c3d8bc67af0fe",
+   "shard-0000000000000008": "xxh3-128:ef601ca8c32007ec456e82853d932baa",
+   "shard-0000000000000016": "xxh3-128:f23a741876519734e16938e1426e4e2b"
+  }
+ },
+ "int8-sorted-sealed": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000010",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 16 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 16
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 10 rows at row 0; 10 rows published, 10 durable",
+    {
+     "durable_rows": 10,
+     "first_row": 0,
+     "published_rows": 10,
+     "rows": 10
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 5 rows at row 10; 15 rows published, 15 durable",
+    {
+     "durable_rows": 15,
+     "first_row": 10,
+     "published_rows": 15,
+     "rows": 5
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 15 rows published, 15 durable in 2 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 15,
+     "outcome": "ok",
+     "published_rows": 15,
+     "rows": 15,
+     "shards": 2
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:7d7e79c7c9ee4ce9c86189246504a166",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:ac296e9bb4b6237f2eaa678f1f0b0661",
+   "shard-0000000000000000/manifest.json": "xxh3-128:38410eb8042030c0ead239de9e20314a",
+   "shard-0000000000000000/scales.npy": "xxh3-128:1941f46a6429ef7d3285003afbde72b2",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:2b0e62224f03df810798070b007469a1",
+   "shard-0000000000000010/doc_ids.npy": "xxh3-128:abe802da535ea731b62a7a14fc803078",
+   "shard-0000000000000010/inv_norms.npy": "xxh3-128:eba67e01d32a7dfe71084954f585960d",
+   "shard-0000000000000010/manifest.json": "xxh3-128:62fea6eaf3e5943a30a84bc2f968764b",
+   "shard-0000000000000010/scales.npy": "xxh3-128:5bbd6367c2e7626a21e41f7ae17da908",
+   "shard-0000000000000010/vectors.npy": "xxh3-128:980e9b62a866f679c2001a120b0a055e",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:2c9fbb968ed3b7ddaa5c9b52aab63525",
+   "shard-0000000000000010": "xxh3-128:217c8a4990a3c9472c29f7e4dfb22661"
+  }
+ },
+ "int8-unsorted-full": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=full",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "full",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 8 durable",
+    {
+     "durable_rows": 8,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 16 durable",
+    {
+     "durable_rows": 16,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 20 durable",
+    {
+     "durable_rows": 20,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 20 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "full",
+     "durable_rows": 20,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:7c9b6da04851f62013b07c7aef1b88f8",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:3150b4454e213017bb0810abaeea9b49",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:15da5a6df426c501698f92997bfb5ae4",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:7e1130688bb4a68889eeb05f2af99835",
+   "shard-0000000000000008": "xxh3-128:28d4a354277fcf753e264213de9078f5",
+   "shard-0000000000000016": "xxh3-128:4545994fd636240e628bec1b6dcf4804"
+  }
+ },
+ "int8-unsorted-none": {
+  "entries": [
+   "shard-0000000000000000",
+   "shard-0000000000000008",
+   "shard-0000000000000016",
+   "store.json"
+  ],
+  "events": [
+   [
+    "store.sink_opened",
+    "fse store: a sink creates a store at row 0: 4 dimensions, int8 of 8 rows, durability=none",
+    {
+     "dim": 4,
+     "dtype": "int8",
+     "durability": "none",
+     "mode": "new",
+     "rows": 0,
+     "shard_rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 0; 8 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 0,
+     "published_rows": 8,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 8 rows at row 8; 16 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 8,
+     "published_rows": 16,
+     "rows": 8
+    }
+   ],
+   [
+    "store.shard_published",
+    "fse store: published a shard of 4 rows at row 16; 20 rows published, 0 durable",
+    {
+     "durable_rows": 0,
+     "first_row": 16,
+     "published_rows": 20,
+     "rows": 4
+    }
+   ],
+   [
+    "store.sink_closed",
+    "fse store: a sink closed (ok): 20 rows published, 0 durable in 3 shards, 0 dropped",
+    {
+     "dropped_rows": 0,
+     "durability": "none",
+     "durable_rows": 0,
+     "outcome": "ok",
+     "published_rows": 20,
+     "rows": 20,
+     "shards": 3
+    }
+   ]
+  ],
+  "files": {
+   "shard-0000000000000000/doc_ids.npy": "xxh3-128:8ab4ff96c6343723dc47cc0c00c73eb0",
+   "shard-0000000000000000/inv_norms.npy": "xxh3-128:25a502a2b1e13ca5c099f599bf567d69",
+   "shard-0000000000000000/manifest.json": "xxh3-128:ffdf2b778249378671c6146c060e7da6",
+   "shard-0000000000000000/scales.npy": "xxh3-128:6587e1ec5204ea6e7f24b23113ac7bff",
+   "shard-0000000000000000/vectors.npy": "xxh3-128:e6c67d71fbc6f25f6d48f5f6e78baca5",
+   "shard-0000000000000008/doc_ids.npy": "xxh3-128:cc6cd40844f33e02e403eca4eb8499a9",
+   "shard-0000000000000008/inv_norms.npy": "xxh3-128:168c160a3780c1a3ca4711e975ab913c",
+   "shard-0000000000000008/manifest.json": "xxh3-128:07635c950175844e881c893aa1917f0f",
+   "shard-0000000000000008/scales.npy": "xxh3-128:2f05590e8c22e84faa8576485a6a6254",
+   "shard-0000000000000008/vectors.npy": "xxh3-128:77e8bd23b9ab64cad5784969081a5854",
+   "shard-0000000000000016/doc_ids.npy": "xxh3-128:65f805329e3e10a272ed3a73cabf854f",
+   "shard-0000000000000016/inv_norms.npy": "xxh3-128:8b6bd522633ab3d5b7be69c3ed1dd168",
+   "shard-0000000000000016/manifest.json": "xxh3-128:c503eafa559661fa8e363e6ac301fdbc",
+   "shard-0000000000000016/scales.npy": "xxh3-128:24660f7ee497816f004fbca9300cd94e",
+   "shard-0000000000000016/vectors.npy": "xxh3-128:83a04b4a8622444a8498aa2a661cc475",
+   "store.json": "xxh3-128:61c58c04cf8872bb90e5b72c96b0f9b1"
+  },
+  "fingerprints": {
+   "shard-0000000000000000": "xxh3-128:8f55737a91f08937cd46b7ce2d127537",
+   "shard-0000000000000008": "xxh3-128:cd751b232ffa6bdcea7422f67249e2c4",
+   "shard-0000000000000016": "xxh3-128:4429c5691832875f264c790eac957591"
+  }
+ }
+}

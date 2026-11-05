@@ -11,7 +11,7 @@ import pytest
 
 from fse import ShardSink, UnsupportedArtifactError, VectorStore
 from fse._container import CorruptArtifactError, NpyContainer, _npy
-from fse._store import _recovery, _vectorstore
+from fse._store import _recovery, _vectors_format, _vectorstore
 from fse._store._layout import Shard, shard_name
 from support.store import ENCODER, add_shard, make_store, tag_shard
 
@@ -124,15 +124,15 @@ def test_verification_uses_the_original_maps_without_reopening_paths(tmp_path, m
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 def test_value_errors_beyond_the_first_block_are_detected(monkeypatch, dtype):
-    monkeypatch.setattr(_recovery, "_VALUE_BYTES", 8)
+    monkeypatch.setattr(_vectors_format, "_VALUE_BYTES", 8)
     codes = np.ones((5, 4), dtype=dtype)
     codes[-1, -1] = -128 if dtype == "int8" else np.nan
     with pytest.raises(CorruptArtifactError):
-        _recovery.check_values(Shard("test", 0, 5), {"vectors": codes})
+        _vectors_format.VECTORS.check_values(Shard("test", 0, 5), {"vectors": codes})
 
 
 def test_float_value_checks_bound_temporary_arrays(monkeypatch):
-    monkeypatch.setattr(_recovery, "_VALUE_BYTES", 64)
+    monkeypatch.setattr(_vectors_format, "_VALUE_BYTES", 64)
     real = np.isfinite
     sizes = []
 
@@ -140,8 +140,8 @@ def test_float_value_checks_bound_temporary_arrays(monkeypatch):
         sizes.append(array.nbytes)
         return real(array)
 
-    monkeypatch.setattr(_recovery.np, "isfinite", finite)
-    _recovery.check_values(
+    monkeypatch.setattr(_vectors_format.np, "isfinite", finite)
+    _vectors_format.VECTORS.check_values(
         Shard("test", 0, 100),
         {"vectors": np.ones((100, 4), np.float32), "inv_norms": np.ones(100, np.float32)},
     )

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fse._container import _common, _npy_inplace
-from fse._store import _shard
+from fse._store import _columns
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class PowerLoss:
         monkeypatch.setattr(_npy_inplace, "_rename_exclusive", mutation(real_rename))
         write = mutation(real_write)
         monkeypatch.setattr(_npy_inplace, "write_at", write)
-        monkeypatch.setattr(_shard, "write_at", write)
+        monkeypatch.setattr(_columns, "write_at", write)
         fake = types.SimpleNamespace(fcntl=fcntl)
         if self.platform == "darwin":
             fake.F_FULLFSYNC = "F_FULLFSYNC"

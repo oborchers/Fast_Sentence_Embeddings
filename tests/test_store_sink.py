@@ -154,12 +154,12 @@ def test_a_wrong_commit_changes_nothing(tmp_path):
 
 
 def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch):
-    from fse._store import _shard
+    from fse._store import _columns
 
     def full(*_args):
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(_shard, "write_at", full)
+    monkeypatch.setattr(_columns, "write_at", full)
     sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=64)
     with pytest.raises(OSError, match="No space left"):
         ENCODER.encode(texts(300), workers=2, sink=sink)
@@ -173,7 +173,7 @@ def test_after_a_failed_write_the_sink_takes_no_more_rows(tmp_path, monkeypatch)
 def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch):
     import threading
 
-    from fse._store import _shard
+    from fse._store import _columns
 
     release = threading.Event()
 
@@ -181,7 +181,7 @@ def test_close_raises_a_write_error_nothing_raised_before(tmp_path, monkeypatch)
         assert release.wait(10)
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(_shard, "write_at", full)
+    monkeypatch.setattr(_columns, "write_at", full)
     sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=8)
     target = sink.target(0, 3)
     target[0][...] = 0
@@ -240,20 +240,21 @@ def test_close_raises_a_publish_error_another_thread_met_first(tmp_path, monkeyp
 @pytest.mark.skipif(not os.path.isdir("/dev/fd"), reason="no /dev/fd to count open files")
 def test_writing_many_small_shards_keeps_few_files_open(tmp_path, monkeypatch):
     from fse._container import _npy, _npy_inplace
-    from fse._store import _shard
+    from fse._store import _columns, _shard
 
     # The files matter here, not their syncs.
     monkeypatch.setattr(_shard, "sync_data", lambda _fd: None)
+    monkeypatch.setattr(_columns, "sync_data", lambda _fd: None)
     monkeypatch.setattr(_npy_inplace, "sync_file", lambda _fd: None)
     monkeypatch.setattr(_npy_inplace, "_sync_directory", lambda _path, **_kw: None)
     monkeypatch.setattr(_npy, "_sync_directory", lambda _path, **_kw: None)
-    real, most = _shard.create, [0]
+    real, most = _columns.create, [0]
 
     def create(*args):
         most[0] = max(most[0], len(os.listdir("/dev/fd")))
         return real(*args)
 
-    monkeypatch.setattr(_shard, "create", create)
+    monkeypatch.setattr(_columns, "create", create)
     sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=1)
     before = len(os.listdir("/dev/fd"))
     target = sink.target(0, 500)  # one task over 500 shards

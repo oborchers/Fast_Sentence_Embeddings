@@ -8,8 +8,7 @@ import numpy as np
 import pytest
 
 import fse
-from fse._container import NpyContainer, _npy_inplace
-from fse._store import _id_writer
+from fse._container import NpyContainer
 from fse._store._layout import StoreInfo, create_store
 from support.document_ids import column, write_store
 from support.durability import PowerLoss, materialize
@@ -101,7 +100,6 @@ def test_power_loss_keeps_ids_and_vectors_together(tmp_path, monkeypatch, platfo
     expected = np.array([5, 5, -1, 2, 2, 0, 5], dtype="int64")
     with monkeypatch.context() as patch:
         trace = PowerLoss(root, patch, platform)
-        patch.setattr(_id_writer, "write_at", _npy_inplace.write_at)
         with fse.ShardSink(root, encoder, doc_ids=True, shard_rows=4) as sink:
             for first, count in ((0, 4), (4, 3)):
                 target = sink.target(first, count)
