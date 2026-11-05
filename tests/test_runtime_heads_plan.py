@@ -7,7 +7,8 @@ import pytest
 from fse._backends import get_backend
 from fse._contract import Link
 from fse._runtime import HeadSpec, Member, plan_heads
-from fse._runtime._heads_plan import FOLDED, NORMALIZED, RAW, STANDALONE, kind_of
+from fse._runtime._heads_plan import FOLDED, NORMALIZED, RAW, STANDALONE, _head_bytes, kind_of
+from fse._runtime._pipeline import STEP_ROW_BYTES
 from fse._text import StringSource
 from support.head_cases import case_spec, head_of
 from support.head_legacy import legacy_make_head
@@ -156,3 +157,75 @@ def test_more_heads_hold_more_per_row():
     one = group(spec, members_of(spec, "F2")[:1]).plan.row_bytes(("proba",), "float32", False)
     two = group(spec, members_of(spec, "F2")).plan.row_bytes(("proba", "proba"), "float32", False)
     assert two > one
+
+
+def _composition(spec, shape):
+    """Members of the given (k, normalized) pairs."""
+    return tuple(Member(f"h{i}", head_of(spec, k, norm)) for i, (k, norm) in enumerate(shape))
+
+
+@pytest.mark.parametrize("vectors", [False, True])
+@pytest.mark.parametrize(
+    "shape",
+    [
+        [(4, False)],
+        [(4, True)],
+        [(3, False), (2, False)],
+        [(3, False), (2, True)],
+        [(3, False), (2, True), (1, False), (2, False)],
+    ],
+)
+def test_what_the_plan_precomputes_is_what_a_task_would_compute(shape, vectors):
+    spec = case_spec("float32", False)
+    plan = group(spec, _composition(spec, shape), vectors=vectors).plan
+    folded = [i for i, kind in enumerate(plan.kinds) if kind == FOLDED]
+    assert plan.folded == plan.indices(FOLDED) == tuple(folded)
+    assert plan.has_normalized == (NORMALIZED in plan.kinds)
+    for i, kind in enumerate(plan.kinds):
+        # A folded head reads the table as it is when it is the only one in the table.
+        assert plan.direct[i] == (kind == STANDALONE or (kind == FOLDED and len(folded) == 1))
+        assert plan.logit_buffers[i] == f"head_logits{i}"
+        assert plan.column_buffers[i] == f"head_columns{i}"
+        assert plan.tags[i] == str(i)
+
+
+def test_a_lone_folded_head_in_a_mixed_group_reads_the_table_as_it_is():
+    spec = case_spec("float32", False)
+    plan = group(spec, _composition(spec, [(3, False), (2, True)])).plan
+    assert plan.kinds == (FOLDED, NORMALIZED)
+    assert plan.direct == (True, False)  # the other head is not folded: no columns to cut
+    alone = HeadSpec(None, head_of(spec, 2, False).bias, False, Link.SOFTMAX)
+    plan = group(spec, (Member(None, alone),)).plan
+    assert plan.direct == (True,)
+
+
+def _bytes_by_the_rule(plan, outputs):
+    """The bytes of a row as the plan counted them before it kept the fixed part."""
+    total = 4 * (plan.table.output_dim if plan.table else 0)
+    if len(plan.indices(FOLDED)) > 1:
+        total += 4 * sum(plan.members[i].head.k for i in plan.indices(FOLDED))
+    full = 4 * plan.spec.output_dim
+    if plan.indices(NORMALIZED, RAW):
+        total += full + (STEP_ROW_BYTES * plan.spec.output_dim if plan.indices(NORMALIZED) else 0)
+        total += full if plan.indices(NORMALIZED) and plan.indices(RAW) else 0
+    for member, output in zip(plan.members, outputs, strict=True):
+        total += _head_bytes(member.head, output)
+    return total
+
+
+@pytest.mark.parametrize("vectors", [False, True])
+@pytest.mark.parametrize(
+    "shape",
+    [[(4, False)], [(3, False), (2, False)], [(3, False), (2, True)], [(2, True), (3, True)]],
+)
+def test_the_bytes_of_a_row_are_counted_by_the_rule_of_the_kinds(shape, vectors):
+    spec = case_spec("float32", False)
+    plan = group(spec, _composition(spec, shape), vectors=vectors).plan
+    for outputs in [("logits",) * len(shape), ("proba",) * len(shape), ("labels",) * len(shape)]:
+        expected = _bytes_by_the_rule(plan, outputs)
+        if vectors:
+            expected += plan.own._row_bytes("float32", False)
+        assert plan.row_bytes(outputs, "float32", False) == expected
+    for count in (len(shape) - 1, len(shape) + 1):  # fewer or more outputs than heads
+        with pytest.raises(ValueError, match="zip"):
+            plan.row_bytes(("logits",) * count, "float32", False)
