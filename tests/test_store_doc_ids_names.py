@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import sys
 
 import pytest
 
@@ -112,7 +113,7 @@ def test_verify_refuses_a_replaced_manifest(tmp_path):
     write_store(root, IDS, shard_rows=4)
     with fse.VectorStore.open(root) as store:
         store.verify()
-        prerelease_shard(root / "shard-0000000000000004")
+        old_manifest(root / "shard-0000000000000004")
         refused(store.verify, root)
 
 
@@ -143,12 +144,32 @@ def test_old_tensor_name_with_new_keys_is_corrupt(tmp_path):
         fse.VectorStore.open(root)
 
 
+def old_manifest(directory):
+    """Name the metadata of a shard manifest as a pre-release did, leaving the tensors in
+    place (a mapped file cannot be replaced on Windows)."""
+    file = directory / "manifest.json"
+    file.write_text(file.read_text().replace('"fse.doc_ids', '"fse.row_ids'))
+
+
 def test_a_damaged_old_shard_is_still_reported_as_old(tmp_path):
     root = tmp_path / "s"
     write_store(root, IDS, shard_rows=4)
-    with fse.VectorStore.open(root) as store:
-        prerelease_shard(root / "shard-0000000000000004")
-        (root / "shard-0000000000000004" / "vectors.npy").write_bytes(b"damaged")
-        refused(store.verify, root)
+    old_manifest(root / "shard-0000000000000004")
+    (root / "shard-0000000000000004" / "vectors.npy").write_bytes(b"damaged")
     refused(lambda: fse.VectorStore.open(root), root)
     refused(append(root), root)
+    refused(lambda: fse.repair_store(root), root)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a mapped file cannot be rewritten on Windows")
+def test_verify_reports_a_damaged_old_shard_as_old(tmp_path):
+    root = tmp_path / "s"
+    write_store(root, IDS, shard_rows=4)
+    with fse.VectorStore.open(root) as store:
+        old_manifest(root / "shard-0000000000000004")
+        with (root / "shard-0000000000000004" / "vectors.npy").open("r+b") as stream:
+            stream.seek(-1, 2)
+            byte = stream.read(1)
+            stream.seek(-1, 2)
+            stream.write(bytes([byte[0] ^ 1]))
+        refused(store.verify, root)
