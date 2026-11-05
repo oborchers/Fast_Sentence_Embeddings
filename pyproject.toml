@@ -452,7 +452,7 @@ layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec | _head_spe
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
 type = "forbidden"
 source_modules = ["fse"]
-forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "sklearn", "pyarrow", "pandas", "polars", "datasets", "nanoarrow"]
+forbidden_modules = ["gensim", "scipy", "smart_open", "psutil", "threadpoolctl", "wordfreq", "torch", "model2vec", "sklearn", "pyarrow", "pandas", "polars", "datasets", "nanoarrow"]
 ignore_imports = ["fse.gensim -> gensim"]
 
 # --- Unused code and dependencies (make lint) ---

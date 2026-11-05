@@ -287,3 +287,61 @@ def test_saturated_logits_compare_to_model2vec():
         clf = fse.Classifier.from_model2vec(pipe)
         z, _ = mh.assert_matches(clf, pipe, TEXTS["wordpiece"])
         assert np.abs(z).max() > 90  # beyond the exponent range of float32 for exp(-z)
+
+
+def test_the_applied_settings_must_equal_the_config():
+    for name, value in (("normalize", False), ("max_length", 7)):
+        pipe = mh.pipeline("softmax", 3, normalize=True)
+        pipe.model.config[name] = value  # model2vec still applies model.<name>
+        with pytest.raises(ValueError, match=rf"model\.{name} differs"):
+            fse.Classifier.from_model2vec(pipe)
+
+
+@pytest.mark.parametrize("stated", [None, [1], {"n_layers": True, "activation": "softmax"}])
+def test_a_stated_head_config_is_checked_as_strictly_as_in_a_file(stated):
+    pipe = mh.pipeline("softmax", 3)
+    pipe.model.config["head_config"] = stated
+    with pytest.raises(ValueError, match="does not describe the head"):
+        fse.Classifier.from_model2vec(pipe)
+
+
+def test_the_stated_head_config_with_floats_for_ints_is_refused():
+    pipe = mh.pipeline("softmax", 3)
+    pipe.model.config["head_config"] = {
+        "n_layers": 1.0,
+        "activation": "softmax",
+        "classes": ["a", "b", "c"],
+    }
+    with pytest.raises(ValueError, match="does not describe the head"):
+        fse.Classifier.from_model2vec(pipe)
+
+
+@pytest.mark.parametrize("classes", [["a", 1, "c"], np.array(["a", "b", "c"], dtype=object)])
+def test_classes_are_checked_before_they_are_converted(classes):
+    pipe = mh.pipeline("softmax", 3)
+    pipe.classes_ = pipe.head.classes_ = classes
+    with pytest.raises(ValueError, match="one-dimensional numpy array of int or str"):
+        fse.Classifier.from_model2vec(pipe)
+
+
+def test_a_class_that_only_carries_the_names_is_refused():
+    fake = type("StaticModelPipeline", (), {"__module__": "model2vec.inference.model"})
+    with pytest.raises(TypeError, match="StaticModelPipeline or a trained"):
+        fse.Classifier.from_model2vec(fake())
+
+
+def test_fse_imports_neither_model2vec_nor_torch_to_read_an_export(tmp_path):
+    import subprocess
+    import sys
+
+    folder, _ = mh.saved(tmp_path / "export", activation="softmax", k=3)
+    code = (
+        "import sys\n"
+        "sys.modules['model2vec'] = None\nsys.modules['torch'] = None\n"
+        "import fse\n"
+        f"clf = fse.Classifier.from_pretrained({str(folder)!r})\n"
+        "print(clf.n_outputs)\n"
+    )
+    done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "3"

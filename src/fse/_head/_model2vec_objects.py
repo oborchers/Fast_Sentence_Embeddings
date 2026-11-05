@@ -18,6 +18,7 @@ model runs model2vec code; it trains nothing.
 from __future__ import annotations
 
 import re
+import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,7 @@ _WHERE = Path("Model2Vec pipeline")
 def read(model: Any) -> tuple[spec_.Imported, Encoder]:
     """The head and the encoder of a Model2Vec pipeline or trained classifier."""
     kind = (type(model).__module__, type(model).__name__)
-    if kind not in (PIPELINE, TRAINED):
+    if kind not in (PIPELINE, TRAINED) or not _is_class_of_module(model, kind):
         raise TypeError(
             f"model must be a model2vec StaticModelPipeline or a trained "
             f"StaticModelForClassification, not {kind[0]}.{kind[1]}; open files with "
@@ -60,6 +61,13 @@ def read(model: Any) -> tuple[spec_.Imported, Encoder]:
     return _pipeline(model, what)
 
 
+def _is_class_of_module(model: Any, kind: tuple[str, str]) -> bool:
+    """The class of ``model`` is the class of that name in the loaded module, not a class
+    that merely carries the names (the module of an object is always loaded)."""
+    module = sys.modules.get(kind[0])
+    return getattr(module, kind[1], None) is type(model)
+
+
 def _check_version() -> None:
     try:
         installed = version("model2vec")
@@ -73,6 +81,16 @@ def _check_version() -> None:
         )
 
 
+def _classes(value: Any) -> list | None:
+    """The classes as a list, from an integer or string array only: other containers and
+    dtypes would be converted (a mix of str and int to str) before they could be checked."""
+    if value is None:
+        return None
+    if not isinstance(value, np.ndarray) or value.ndim != 1 or value.dtype.kind not in "iuU":
+        raise ValueError("the classes must be a one-dimensional numpy array of int or str")
+    return value.tolist()
+
+
 def _array(value: Any, name: str) -> np.ndarray:
     if not isinstance(value, np.ndarray):
         raise ValueError(f"the head {name} must be a numpy array, not {type(value).__name__}")
@@ -82,7 +100,7 @@ def _array(value: Any, name: str) -> np.ndarray:
 def _pipeline(pipeline: Any, what: str) -> tuple[spec_.Imported, Encoder]:
     head = pipeline.head
     layers = list(head.layers)
-    classes = None if pipeline.classes_ is None else np.asarray(pipeline.classes_).tolist()
+    classes = _classes(pipeline.classes_)
     same = (pipeline.classes_ is None) == (head.classes_ is None) and (
         classes is None or np.array_equal(pipeline.classes_, head.classes_)
     )
@@ -113,10 +131,17 @@ def _encoder(model: Any, head: spec_.Spec, n_layers: int, dim: int) -> Encoder:
             "to_pipeline of a trained model multiplies them into the table"
         )
     config = dict(model.config)
-    stated = config.pop("head_config", None)
     expected = {"n_layers": n_layers, "activation": head.activation, "classes": head.labels}
-    if stated is not None and stated != expected:
-        raise ValueError(f"{_WHERE}: the model.config head_config does not describe the head")
+    if "head_config" in config:
+        stated = config.pop("head_config")
+        exact = isinstance(stated, dict) and type(stated.get("n_layers")) is int
+        if not exact or stated != expected:
+            raise ValueError(f"{_WHERE}: the model.config head_config does not describe the head")
+    for name in ("normalize", "max_length"):  # what model2vec applies, and what it states
+        if getattr(model, name) != config.get(name) or (
+            type(getattr(model, name)) is not type(config.get(name))
+        ):
+            raise ValueError(f"{_WHERE}: model.{name} differs from model.config[{name!r}]")
     tokenizer = model.tokenizer.to_str().encode("utf-8")
     converted = read_object_table(config, tokenizer, model.embedding, _WHERE)
     if converted.word_vectors.dim != dim:

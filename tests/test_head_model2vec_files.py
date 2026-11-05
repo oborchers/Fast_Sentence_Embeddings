@@ -420,3 +420,10 @@ def test_an_unknown_key_in_the_config_still_raises(tmp_path):
     _config(folder, something_new=1)
     with pytest.raises(UnsupportedArtifactError, match="something_new"):
         fse.Classifier.from_pretrained(folder)
+
+
+def test_a_legacy_file_next_to_a_modern_head_is_ignored_unopened(tmp_path):
+    folder, _ = _export(tmp_path)
+    (folder / "pipeline.skops").write_bytes(b"pickle, never opened")
+    clf = fse.Classifier.from_pretrained(folder)
+    assert clf.predict_proba(TEXTS["wordpiece"]).shape == (len(TEXTS["wordpiece"]), 3)
