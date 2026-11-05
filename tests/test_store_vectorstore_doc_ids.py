@@ -28,12 +28,13 @@ def test_ranges_across_shards_and_empty(tmp_path):
         assert store.get_doc_ids(start=3).tolist() == IDS[3:]
         for point in (0, 5, len(IDS)):
             empty = store.get_doc_ids(start=point, stop=point)
-            assert empty.dtype == np.int64 and len(empty) == 0
+            assert empty.dtype == np.int64
+            assert len(empty) == 0
         with pytest.raises(ValueError, match="not within"):
             store.get_doc_ids(start=5, stop=3)
         with pytest.raises(ValueError, match="not within"):
             store.get_doc_ids(stop=len(IDS) + 1)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="greater than or equal to 0"):
             store.get_doc_ids(start=-1)
 
 

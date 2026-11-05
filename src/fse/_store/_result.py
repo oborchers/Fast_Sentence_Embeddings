@@ -54,7 +54,7 @@ class DocumentSearchResult(SearchResult):
     __replace__ = _replace
 
     @classmethod
-    def _make(cls, iterable: Any) -> DocumentSearchResult:
+    def _make(cls, _iterable: Any) -> DocumentSearchResult:
         raise TypeError(
             "DocumentSearchResult needs doc_ids; use DocumentSearchResult(ids, scores, doc_ids)"
         )

@@ -90,7 +90,8 @@ def test_old_shard_under_a_new_store_is_refused(tmp_path):
     refused(lambda: fse.VectorStore.open(root), root)
     refused(append(root), root)
     refused(lambda: fse.repair_store(root), root)
-    assert not list(root.glob(".broken-*")) and not list(root.glob(".shard-*"))
+    assert not list(root.glob(".broken-*"))
+    assert not list(root.glob(".shard-*"))
 
 
 def test_repair_refuses_before_quarantining_a_broken_early_shard(tmp_path):
