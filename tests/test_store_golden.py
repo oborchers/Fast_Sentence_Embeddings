@@ -46,7 +46,7 @@ def _differences(store, got, want):
         if got[key] != want.get(key):
             data = (store / key).read_bytes()
             lines.append(f"{key}: {len(data)} bytes {data[:128].hex()} ... {data[-64:].hex()}")
-    return "\n".join(lines[:4])
+    return "\n".join(lines)
 
 
 # --- errors: the same class and message, in the same order of checks --------------------
