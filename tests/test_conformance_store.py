@@ -5,7 +5,7 @@ import pytest
 
 from fse import _codes, _native, _reference
 from fse._backends import get_backend
-from fse._backends._base import check_store_input
+from fse._backends._base_checks import check_store_input
 from support.conformance import BIG, TINY, assert_bits_equal
 
 F32 = np.float32

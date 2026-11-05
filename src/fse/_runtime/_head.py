@@ -21,82 +21,26 @@ task never leaves its worker unless the vectors are asked for.
 from __future__ import annotations
 
 import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-import numpy as np
 from numpy import ndarray
 
-from fse import _codes, _log
-from fse._backends import PoolInput, get_backend
+from fse import _codes
+from fse._backends import get_backend
 from fse._contract import Head, Link
 from fse._cpus import usable_cpus
 
 from ._errors import earliest, first_rows
 from ._executor import run
+from ._head_common import buffer, fold, own, own_vectors, result, write_outputs
 from ._head_spec import HeadSpec
 from ._pipeline import STEP_ROW_BYTES, Pipeline, check_sink_rows, check_workers
-from ._sinks import ArrayRows, GrowingRows, Sink, sink_dtype, split_target, wants_inverse_norms
+from ._sinks import Sink, sink_dtype, split_target, wants_inverse_norms
 from ._spec import EncodeSpec
 from ._tasks import Task
 
-F32 = np.float32
 # What a head gives per row: its logits, the probabilities of its link, or label indices.
 OUTPUTS = ("logits", "proba", "labels")
-# The rows of a table folded at once by one task of the fold.
-_FOLD_ROWS = 1 << 14
-
-
-def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolInput:
-    """The pool of the folded table: every word and ngram row of ``pool`` scored with every
-    row of ``weight`` (``score(row, scale, a_j, 0)``, k float32 columns, no scales), in
-    blocks of rows over ``workers`` threads; weights and ``oov_weight`` are kept."""
-    start = time.perf_counter()
-    vectors = _fold_rows(backend, pool.vectors, pool.scales, weight, workers, "word")
-    ngrams = None
-    if pool.ngram_vectors is not None:
-        ngrams = _fold_rows(
-            backend, pool.ngram_vectors, pool.ngram_scales, weight, workers, "ngram"
-        )
-    rows = len(vectors) + (0 if ngrams is None else len(ngrams))
-    _log.emit(
-        "head.folded",
-        "fse runtime: folded a head of %d outputs into %d rows of the table",
-        len(weight),
-        rows,
-        rows=rows,
-        outputs=len(weight),
-        workers=workers,
-        backend=backend.name,
-        seconds=time.perf_counter() - start,
-    )
-    return PoolInput(vectors, pool.weights, None, ngrams, None, pool.oov_weight, pool.aggregation)
-
-
-def _fold_rows(backend, stored, scales, weight, workers, kind) -> ndarray:
-    out = np.empty((len(stored), len(weight)), dtype=F32)
-
-    def block(begin: int) -> None:
-        end = min(len(stored), begin + _FOLD_ROWS)
-        part = None if scales is None else scales[begin:end]
-        try:
-            out[begin:end] = backend.scores(stored[begin:end], part, weight, 0.0)
-        except ValueError as error:
-            raise ValueError(
-                f"the head does not fold into the table: {kind} rows {begin} to {end - 1}: {error}"
-            ) from None
-
-    starts = range(0, len(stored), _FOLD_ROWS)
-    if workers == 1 or len(starts) < 2:
-        for begin in starts:
-            block(begin)
-    else:
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-fold") as pool:
-            for result in [pool.submit(block, begin) for begin in starts]:
-                result.result()  # the first failing block, in order
-    out.setflags(write=False)
-    return out
 
 
 def make_head(
@@ -209,11 +153,11 @@ class HeadPipeline:
         outputs = (
             sink
             if sink is not None
-            else _own(tasks.rows, width, output, self.head.link is Link.MULTILABEL)
+            else own(tasks.rows, width, output, self.head.link is Link.MULTILABEL)
         )
         vectors: Any = vector_sink
         if self.with_vectors and vectors is None:
-            vectors = _own_vectors(tasks.rows, self.vector_dim, vector_dtype)
+            vectors = own_vectors(tasks.rows, self.vector_dim, vector_dtype)
         local = threading.local()
 
         def reserve(task: Task) -> tuple:
@@ -255,9 +199,9 @@ class HeadPipeline:
             reserve=reserve,
             stop=stop,
         )
-        result = None if sink is not None else _result(outputs, output)
+        scores = None if sink is not None else result(outputs, output)
         rows = None if vectors is None or vector_sink is not None else vectors.result()
-        return result, rows
+        return scores, rows
 
     def _check_outputs(self, output: str, sink: Sink | None) -> int:
         """The values per row of ``output``, checked with ``sink`` (float32, no labels)."""
@@ -298,94 +242,19 @@ class HeadPipeline:
             rows = (
                 vrows
                 if self.vectors is None
-                else _buffer(local, "head_rows", n, self.reader.output_dim)
+                else buffer(local, "head_rows", n, self.reader.output_dim)
             )
         else:
-            rows = _buffer(local, "head_rows", n, self.reader.output_dim)
+            rows = buffer(local, "head_rows", n, self.reader.output_dim)
         backend = self.reader.backend
         if not (self.with_vectors and self.vectors is None):
             backend.rows(batch, self.reader.prepared, rows)
-        logits = target if output == "logits" else _buffer(local, "head_logits", n, self.head.k)
+        logits = target if output == "logits" else buffer(local, "head_logits", n, self.head.k)
         weight = None if self.folded else self.head.weight
         backend.logits(rows, weight, self.head.bias, logits, first)
         if output in ("proba", "labels"):
-            self._write_outputs(backend, local, logits, target, output, first)
+            write_outputs(backend, local, self.head, logits, target, output, first)
         if vectors is not None:
             assert vrows is not None
             assert vsplit is not None
             vectors.stored(vrows, vsplit, first)
-
-    def _write_outputs(self, backend, local, logits, target, output, first) -> None:
-        if output == "proba":
-            backend.outputs(logits, "proba", self.head.link, target, first)
-        elif self.head.rule is Head.LINEAR2:
-            width = self.head.width("proba")
-            probabilities = _buffer(local, "head_proba", len(logits), width)
-            backend.outputs(logits, "proba", self.head.link, probabilities, first)
-            if self.head.link is Link.MULTILABEL:
-                assert self.head.thresholds is not None
-                backend.decisions(probabilities, self.head.thresholds, target)
-            else:
-                if target.dtype != np.intp:
-                    raise ValueError("the label rule linear@2 needs a platform whose int64 is intp")
-                np.argmax(probabilities, axis=1, out=target)
-        else:
-            backend.outputs(logits, "labels", None, target, first)
-
-
-def _buffer(local: threading.local, name: str, n_rows: int, dim: int) -> ndarray:
-    """A float32 (n_rows, dim) buffer of the worker thread, reused across its tasks."""
-    buffer = getattr(local, name, None)
-    if buffer is None or len(buffer) < n_rows or buffer.shape[1] != dim:
-        buffer = np.empty((n_rows, dim), dtype=F32)
-        setattr(local, name, buffer)
-    return buffer[:n_rows]
-
-
-class _Labels:
-    """The label indices (int64) of a run: one array of a known number of rows, or parts."""
-
-    dim = 1
-
-    def __init__(self, rows: int | None, width: int | None = None):
-        self.next_row = 0
-        self._shape = () if width is None else (width,)
-        self._dtype = np.int64 if width is None else np.bool_
-        self._out = None if rows is None else np.empty((rows, *self._shape), dtype=self._dtype)
-        self._parts: list[ndarray] = []
-
-    def target(self, first_row: int, n_rows: int) -> ndarray:
-        if self._out is None:
-            return np.empty((n_rows, *self._shape), dtype=self._dtype)
-        return self._out[first_row : first_row + n_rows]
-
-    def commit(self, first_row: int, rows: ndarray) -> None:
-        if first_row != self.next_row:
-            raise ValueError(f"rows from {first_row} committed, expected rows from {self.next_row}")
-        self.next_row += len(rows)
-        if self._out is None:
-            self._parts.append(rows)
-
-    def result(self) -> ndarray:
-        if self._out is not None:
-            return self._out
-        return (
-            np.concatenate(self._parts)
-            if self._parts
-            else np.empty((0, *self._shape), dtype=self._dtype)
-        )
-
-
-def _own(rows: int | None, width: int, output: str, multilabel: bool = False) -> Any:
-    if output == "labels":
-        return _Labels(rows, width if multilabel else None)
-    return GrowingRows(width) if rows is None else ArrayRows(rows, width)
-
-
-def _own_vectors(rows: int | None, dim: int, dtype: str) -> Any:
-    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)
-
-
-def _result(outputs: Any, output: str) -> ndarray:
-    result = outputs.result()
-    return result if output == "labels" else np.asarray(result)

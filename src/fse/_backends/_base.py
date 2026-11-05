@@ -24,11 +24,15 @@ from numpy import ndarray
 
 from fse._contract import Aggregation, Batch, Link, Op, Step, check_steps
 
-_DTYPES = {
-    np.dtype(np.float32): "float32",
-    np.dtype(np.float16): "float16",
-    np.dtype(np.int8): "int8",
-}
+from ._base_checks import (
+    DTYPES,
+    check_link,
+    float32_matrix,
+    float32_vector,
+    int64_vector,
+    real,
+    rows_of,
+)
 
 
 class UnsupportedByBackendError(ValueError):
@@ -55,7 +59,7 @@ class PoolInput:
 
     @property
     def dtype(self) -> str:
-        return _DTYPES[self.vectors.dtype]
+        return DTYPES[self.vectors.dtype]
 
     @property
     def fasttext(self) -> bool:
@@ -199,17 +203,17 @@ def check_pool_input(pool: PoolInput) -> PoolInput:
     """Check the arrays of ``pool`` against each other, as the native kernel does."""
     if not isinstance(pool, PoolInput):
         raise TypeError(f"pool must be a PoolInput, not {type(pool).__name__}")
-    vectors = _rows(pool.vectors, "vectors")
+    vectors = rows_of(pool.vectors, "vectors")
     if vectors.shape[1] < 1:
         raise ValueError("vectors need at least one dimension")
     int8 = vectors.dtype == np.int8
-    _float32_vector(pool.weights, "weights", len(vectors))
+    float32_vector(pool.weights, "weights", len(vectors))
     if pool.oov_weight is not None:
-        _real(pool.oov_weight, "oov_weight")
+        real(pool.oov_weight, "oov_weight")
     if int8 != (pool.scales is not None):
         raise ValueError("scales are given exactly for int8 vectors")
     if int8:
-        _float32_vector(pool.scales, "scales", len(vectors))
+        float32_vector(pool.scales, "scales", len(vectors))
     _check_ngram_input(pool, vectors)
     return pool
 
@@ -220,14 +224,14 @@ def _check_ngram_input(pool: PoolInput, vectors: ndarray):
         if pool.ngram_scales is not None:
             raise ValueError("ngram_scales without ngram_vectors")
         return
-    ngrams = _rows(pool.ngram_vectors, "ngram_vectors")
+    ngrams = rows_of(pool.ngram_vectors, "ngram_vectors")
     if ngrams.dtype != vectors.dtype or ngrams.shape[1] != vectors.shape[1]:
         raise ValueError("ngram_vectors must have the dtype and dimension of vectors")
     int8 = vectors.dtype == np.int8
     if int8 != (pool.ngram_scales is not None):
         raise ValueError("ngram_scales are given exactly for int8 ngram vectors")
     if int8:
-        _float32_vector(pool.ngram_scales, "ngram_scales", len(ngrams))
+        float32_vector(pool.ngram_scales, "ngram_scales", len(ngrams))
 
 
 def dims(pool: PoolInput, steps: Sequence[Step]) -> tuple[tuple[Step, ...], int]:
@@ -260,102 +264,6 @@ def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
     return out
 
 
-def check_score_input(stored: object, scales: object, weights: object, bias: object) -> None:
-    """The arguments of ``score``, checked the same way by every backend: stored rows of a
-    storage dtype, scales exactly for int8, one weight per dimension (any float dtype;
-    each backend converts it to float32 as the reference does)."""
-    stored = _rows(stored, "stored")
-    if np.asarray(weights).dtype.kind not in "fiu":
-        raise TypeError("weights must be numbers (float or int), not strings, objects or bools")
-    if np.shape(weights) != (stored.shape[1],):
-        raise ValueError(f"weights must hold {stored.shape[1]} values")
-    int8 = stored.dtype == np.int8
-    if int8 != (scales is not None):
-        raise ValueError("scales are given exactly for int8 rows")
-    if int8:
-        _float32_vector(scales, "scales", len(stored))
-    _real(bias, "bias")
-
-
-def check_stored_input(stored: object, first_row: object = 0) -> None:
-    """The arguments of ``inverse_norms``: a C-contiguous matrix of stored rows and the
-    row its first row is."""
-    _rows(stored, "stored")
-    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
-        raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")
-
-
-def check_search_input(stored: object, inverse: object, queries: object) -> None:
-    """The arguments of ``cosines``, checked the same way by every backend: stored rows,
-    one float32 inverse norm per row, a matrix of queries of the stored dimension."""
-    stored = _rows(stored, "stored")
-    _float32_vector(inverse, "inverse", len(stored))
-    _vectors(queries, "queries", stored.shape[1])
-
-
-def check_scores_input(stored: object, scales: object, weights: object, bias: object) -> None:
-    """The arguments of ``scores``: as for ``score``, with a matrix of weight vectors and
-    one bias for all or one per vector."""
-    stored = _rows(stored, "stored")
-    weights = _vectors(weights, "weights", stored.shape[1])
-    int8 = stored.dtype == np.int8
-    if int8 != (scales is not None):
-        raise ValueError("scales are given exactly for int8 rows")
-    if int8:
-        _float32_vector(scales, "scales", len(stored))
-    if np.ndim(bias) == 0:
-        _real(bias, "bias")
-    elif np.asarray(bias).dtype.kind not in "fiu" or np.shape(bias) != (len(weights),):
-        raise ValueError(f"bias must be one number or {len(weights)} numbers, one per vector")
-
-
-def _vectors(value: object, name: str, dim: int) -> ndarray:
-    value = np.asarray(value)
-    if value.dtype.kind not in "fiu":
-        raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
-    if value.ndim != 2 or value.shape[1] != dim:
-        raise ValueError(
-            f"{name} must be a matrix of vectors of {dim} values, not shape {value.shape}"
-        )
-    return value
-
-
-def check_store_input(rows: object, codes: object, scales: object, first_row: object) -> None:
-    """The arguments of ``store``, checked the same way by every backend: C-contiguous
-    float32 rows, writable C-contiguous float16 or int8 codes of their shape, a writable
-    float32 scale per row exactly for int8, none sharing memory with another."""
-    if not isinstance(rows, ndarray) or rows.dtype != np.float32 or rows.ndim != 2:
-        raise ValueError("rows must be a float32 matrix")
-    if not rows.flags.c_contiguous:
-        raise ValueError("rows must be C-contiguous")
-    if (
-        not isinstance(codes, ndarray)
-        or codes.dtype not in (np.float16, np.int8)
-        or codes.shape != rows.shape
-        or not codes.flags.c_contiguous
-        or not codes.flags.writeable
-    ):
-        raise ValueError(
-            f"codes must be a writable C-contiguous float16 or int8 array of shape {rows.shape}"
-        )
-    _check_store_scales(scales, codes.dtype == np.int8, len(rows))
-    arrays = [a for a in (rows, codes, scales) if a is not None]
-    if any(np.may_share_memory(a, b) for i, a in enumerate(arrays) for b in arrays[i + 1 :]):
-        raise ValueError("rows, codes and scales must not share memory")
-    if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
-        raise ValueError(f"first_row must be an int of at least 0, not {first_row!r}")
-
-
-def _check_store_scales(scales: object, int8: bool, length: int):
-    if int8 != (scales is not None):
-        raise ValueError("scales are given exactly for int8 codes")
-    if int8:
-        _float32_vector(scales, "scales", length)
-        assert isinstance(scales, ndarray)
-        if not scales.flags.writeable:
-            raise ValueError("scales must be writable")
-
-
 def check_logits_input(
     rows: object, weights: object, bias: object, out: object, first_row: object
 ) -> None:
@@ -366,11 +274,11 @@ def check_logits_input(
     if not isinstance(bias, ndarray) or bias.dtype != np.float32 or bias.ndim != 1 or not len(bias):
         raise ValueError("bias must be a float32 vector of at least one value")
     k = len(bias)
-    _float32_matrix(rows, "rows", None, k if weights is None else None)
+    float32_matrix(rows, "rows", None, k if weights is None else None)
     assert isinstance(rows, ndarray)
     if weights is not None:
-        _float32_matrix(weights, "weights", k, rows.shape[1])
-    _float32_matrix(out, "out", len(rows), k, writable=True)
+        float32_matrix(weights, "weights", k, rows.shape[1])
+    float32_matrix(out, "out", len(rows), k, writable=True)
     for kept in (weights, bias):
         if kept is not None and np.may_share_memory(out, kept):
             raise ValueError("out must not share memory with the weights or the bias")
@@ -384,14 +292,14 @@ def check_outputs_input(logits: object, kind: object, link: object, out: object)
     """The arguments of ``outputs``: finished float32 logits (n, k), ``kind`` "proba"
     with a link that fits k (sigmoid for k = 1, softmax or ovr for k >= 2) into float32
     (n, 2 or k), or "labels" into int64 (n,), ``out`` apart from the logits."""
-    _float32_matrix(logits, "logits", None, None)
+    float32_matrix(logits, "logits", None, None)
     assert isinstance(logits, ndarray)
     n, k = logits.shape
     if kind == "labels":
-        _int64_vector(out, "out", n)
+        int64_vector(out, "out", n)
     elif kind == "proba":
-        _check_link(link, k)
-        _float32_matrix(
+        check_link(link, k)
+        float32_matrix(
             out, "out", n, 2 if k == 1 and link is not Link.MULTILABEL else k, writable=True
         )
     else:
@@ -402,9 +310,9 @@ def check_outputs_input(logits: object, kind: object, link: object, out: object)
 
 def check_decisions_input(probabilities: object, thresholds: object, out: object) -> None:
     """C-contiguous F32 probabilities and cutoffs, with a separate writable bool result."""
-    _float32_matrix(probabilities, "probabilities", None, None)
+    float32_matrix(probabilities, "probabilities", None, None)
     assert isinstance(probabilities, ndarray)
-    _float32_vector(thresholds, "thresholds", probabilities.shape[1])
+    float32_vector(thresholds, "thresholds", probabilities.shape[1])
     assert isinstance(thresholds, ndarray)
     if (
         probabilities.shape[1] < 1
@@ -422,66 +330,7 @@ def check_decisions_input(probabilities: object, thresholds: object, out: object
             raise ValueError(f"{name} must be finite and in [0, 1]")
 
 
-def _int64_vector(value: object, name: str, length: int):
-    if (
-        not isinstance(value, ndarray)
-        or value.dtype != np.int64
-        or value.shape != (length,)
-        or not value.flags.c_contiguous
-        or not value.flags.writeable
-    ):
-        raise ValueError(f"{name} must be a writable C-contiguous int64 vector of {length} values")
-
-
-def _check_link(link: object, k: int):
-    """``link`` must be a Link that takes k logits: sigmoid one, ovr two or more, softmax
-    any (of one logit z, softmax of [-z, z])."""
-    if not isinstance(link, Link):
-        raise ValueError(f"link must be one of {[str(member) for member in Link]}")
-    if (link is Link.SIGMOID and k != 1) or (link is Link.OVR and k == 1):
-        want = "one logit" if link is Link.SIGMOID else "at least two logits"
-        raise ValueError(f"{link} takes {want} per row")
-
-
-def _float32_matrix(
-    value: object, name: str, rows: int | None, cols: int | None, writable: bool = False
-):
-    if (
-        not isinstance(value, ndarray)
-        or value.dtype != np.float32
-        or value.ndim != 2
-        or not value.flags.c_contiguous
-        or (writable and not value.flags.writeable)
-        or (rows is not None and value.shape[0] != rows)
-        or (cols is not None and value.shape[1] != cols)
-    ):
-        shape = (rows if rows is not None else "n", cols if cols is not None else "k")
-        kind = "a writable" if writable else "a"
-        raise ValueError(f"{name} must be {kind} C-contiguous float32 matrix of shape {shape}")
-
-
 def check_prepared(prepared: object, backend: str) -> Prepared:
     if not isinstance(prepared, Prepared) or prepared.backend != backend:
         raise TypeError(f"prepared must be prepared by the {backend} backend")
     return prepared
-
-
-def _rows(value: object, name: str) -> ndarray:
-    if not isinstance(value, ndarray) or value.ndim != 2 or value.dtype not in _DTYPES:
-        raise ValueError(f"{name} must be a matrix of float32, float16 or int8 rows")
-    if not value.flags.c_contiguous:
-        raise ValueError(f"{name} must be C-contiguous")
-    return value
-
-
-def _float32_vector(value: object, name: str, length: int):
-    if not isinstance(value, ndarray) or value.dtype != np.float32 or value.shape != (length,):
-        raise ValueError(f"{name} must be a float32 vector of {length} values")
-    if not value.flags.c_contiguous:
-        raise ValueError(f"{name} must be C-contiguous")
-
-
-def _real(value: object, name: str):
-    """A real number, Python or numpy; arrays, strings and bools are refused."""
-    if isinstance(value, bool) or not isinstance(value, int | float | np.integer | np.floating):
-        raise TypeError(f"{name} must be a real number, not {type(value).__name__}")

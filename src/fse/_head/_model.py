@@ -41,7 +41,7 @@ from fse._cpus import usable_cpus
 from fse._encoder import Encoder, _pretrained
 from fse._encoder._format import to_artifact as encoder_artifact
 from fse._runtime import HeadPipeline, HeadSpec, make_head
-from fse._runtime._head import fold
+from fse._runtime._head_common import fold
 from fse._validation import PathLike, validate_arguments
 from fse._wordvectors import _created_by
 

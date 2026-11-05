@@ -411,7 +411,7 @@ name = "Backends: each shares only _base with the others"
 type = "layers"
 containers = ["fse._backends"]
 exhaustive = true
-layers = ["_cpu | _numpy", "_base_head", "_base"]
+layers = ["_cpu | _numpy", "_base_head", "_base", "_base_checks"]
 
 [[tool.importlinter.contracts]]
 name = "Heads: the classes on the model, that on its runs, the readers and formats on the content"
@@ -446,7 +446,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_pipeline", "_tasks | _sinks | _executor | _spec | _head_spec | _errors"]
+layers = ["_head", "_pipeline | _head_common", "_tasks | _sinks | _executor | _spec | _head_spec | _errors"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"

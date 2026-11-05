@@ -31,12 +31,14 @@ from ._base import (
     check_outputs_input,
     check_pool_input,
     check_prepared,
+    dims,
+)
+from ._base_checks import (
     check_score_input,
     check_scores_input,
     check_search_input,
     check_store_input,
     check_stored_input,
-    dims,
 )
 from ._base_head import check_affine64_input, check_quotient64_input
 

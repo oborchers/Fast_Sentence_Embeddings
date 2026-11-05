@@ -12,7 +12,8 @@ from fse import _reference_head as ref
 from fse._backends import get_backend
 from fse._contract import Link
 from fse._runtime import Pipeline
-from fse._runtime._head import HeadPipeline, HeadSpec, fold, make_head
+from fse._runtime._head import HeadPipeline, HeadSpec, make_head
+from fse._runtime._head_common import fold
 from fse._stream import StreamSource
 from fse._text import StringSource, TokenListSource, make_vocabulary
 from support import head as support
