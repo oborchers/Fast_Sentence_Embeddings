@@ -163,7 +163,7 @@ class ShardBase:
         """Drop the shard: removes the temporary directory; returns the error of a removal
         that failed (None once it is gone, also if it was gone already)."""
         self._open.clear()
-        for column in self.columns:
+        for column in reversed(self.columns):  # the document IDs first, as before
             if isinstance(column, StreamColumn):
                 column.close()
         return remove_temporary(self.tmp)

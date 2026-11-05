@@ -72,6 +72,7 @@ class ShardSink(ShardSinkBase):
     """
 
     inverse_norms = True
+    _NAME = "ShardSink"
 
     @validate_arguments
     def __init__(
@@ -106,6 +107,7 @@ class ShardSink(ShardSinkBase):
         finally:
             checked.shards.clear()  # a sink keeps no mappings, also on refusal
 
+        created_by = _created_by()  # before the threads start
         super().__init__(
             path,
             synced=synced,
@@ -115,7 +117,7 @@ class ShardSink(ShardSinkBase):
         self.has_doc_ids = doc_ids
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
-        self._created_by = _created_by()
+        self._created_by = created_by
         _log.emit(
             "store.sink_opened",
             "fse store: a sink %s a store at row %d: %d dimensions, %s of %d rows, durability=%s",

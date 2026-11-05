@@ -166,9 +166,15 @@ def test_a_full_disk_while_writing_publishes_the_committed_rows(tmp_path, monkey
         raise OSError(28, "No space left on device")
 
     monkeypatch.setattr(inplace, "_write_some", full)
-    sink.commit(0, target)
+
+    def commit_and_close():
+        try:
+            sink.commit(0, target)  # the failure may already be reported here
+        finally:
+            sink.close()
+
     with pytest.raises(OSError, match="No space left on device") as raised:
-        sink.close()
+        commit_and_close()
     assert raised.value.errno == 28
     monkeypatch.setattr(inplace, "_write_some", real)
     assert sink.published_rows == sink.durable_rows == 0

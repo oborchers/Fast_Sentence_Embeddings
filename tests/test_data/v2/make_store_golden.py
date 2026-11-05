@@ -19,12 +19,12 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parents[1] / "support"))
 sys.path.insert(0, str(HERE.parents[1]))
 
-from support.store_golden import observe, scenarios  # noqa: E402
-
 TARGET = HERE / "store_golden.json"
 
 
 def main() -> None:
+    from support.store_golden import observe, scenarios
+
     if TARGET.exists():
         raise SystemExit(f"{TARGET} exists; the goldens are never rewritten")
     pinned = {}

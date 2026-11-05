@@ -40,6 +40,8 @@ from ._writer import WriterFailure, WriterThread, deferred_interrupts
 class ShardSinkBase:
     """The reservation, threads, publication and closing of a sink of shards."""
 
+    _NAME = "sink"  # how a family names its sink in an error
+
     def __init__(self, path: Any, *, synced: bool, shard_rows: int, first_row: int):
         self.path = path
         self._synced = synced
@@ -278,9 +280,7 @@ class ShardSinkBase:
 
     def _check_open(self):
         if self._closed:
-            raise RuntimeError(
-                f"the {type(self).__name__} is closed; make a new one for another run"
-            )
+            raise RuntimeError(f"the {self._NAME} is closed; make a new one for another run")
 
     def _writable(self) -> ShardBase:
         if not self._writers or self._writers[-1].full:

@@ -58,8 +58,8 @@ def repair_store(path: PathLike) -> int:
     root = Path(path)
     info = read_store(root)
     checked = _preflight(root, info)
+    rows, kept = _prefix(kind_of(info), checked)  # every check before the first sync
     _complete_quarantines(root)
-    rows, kept = _prefix(kind_of(info), checked)
     moved = [entry for row, entry in sorted(checked.items(), reverse=True) if row not in kept]
     if moved:
         _quarantine(root, moved)

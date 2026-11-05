@@ -83,3 +83,21 @@ def test_a_chain_that_holds_is_left_alone(tmp_path, monkeypatch):
         store.verify()
     assert fse.repair_store(tmp_path / "s") == 10
     assert not list((tmp_path / "s").glob(".broken-*"))
+
+
+def test_repair_asks_the_chain_before_its_first_sync(tmp_path, monkeypatch):
+    from fse._store import _repair
+
+    path = tmp_path / "s"
+    make_store(path, sizes=(4, 4))
+    (path / ".broken-0123456789abcdef").mkdir()  # an earlier quarantine to complete
+    synced = []
+    monkeypatch.setattr(_repair, "_complete_quarantines", lambda _root: synced.append(1))
+
+    def broken(_self, _previous, _current):
+        raise RuntimeError("follows failed")
+
+    monkeypatch.setattr(type(VECTORS), "follows", broken)
+    with pytest.raises(RuntimeError, match="follows failed"):
+        fse.repair_store(path)
+    assert not synced

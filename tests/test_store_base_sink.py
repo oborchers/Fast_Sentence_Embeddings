@@ -1,6 +1,8 @@
 """The machinery shared by the sinks of shard stores: what a family has to supply, and what
 a sink does the same way for every family."""
 
+import contextlib
+
 import numpy as np
 import pytest
 
@@ -10,8 +12,14 @@ from fse._store._shard import ShardBase
 from support.encoder import finished
 
 
-def _base(tmp_path):
-    return ShardSinkBase(tmp_path / "s", synced=True, shard_rows=4, first_row=0)
+@contextlib.contextmanager
+def _base(tmp_path, *, synced=True):
+    base = ShardSinkBase(tmp_path / "s", synced=synced, shard_rows=4, first_row=0)
+    try:
+        yield base
+    finally:
+        for thread in (base._hash, base._io, base._publisher):
+            thread.stop()
 
 
 @pytest.mark.parametrize(
@@ -25,8 +33,8 @@ def _base(tmp_path):
     ],
 )
 def test_a_family_supplies_the_hooks(tmp_path, hook, args):
-    with pytest.raises(NotImplementedError):
-        getattr(_base(tmp_path), hook)(*args)
+    with _base(tmp_path) as base, pytest.raises(NotImplementedError):
+        getattr(base, hook)(*args)
 
 
 def test_a_shard_supplies_its_buffers_and_metadata(tmp_path):
@@ -40,8 +48,8 @@ def test_a_shard_supplies_its_buffers_and_metadata(tmp_path):
 
 
 def test_the_durability_follows_the_sync_flag(tmp_path):
-    assert _base(tmp_path).durability == "full"
-    assert ShardSinkBase(tmp_path, synced=False, shard_rows=1, first_row=0).durability == "none"
+    with _base(tmp_path) as full, _base(tmp_path, synced=False) as none:
+        assert (full.durability, none.durability) == ("full", "none")
 
 
 def test_a_target_is_the_one_reserved_by_address_and_shape():
