@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple
+from collections.abc import Iterable
+from typing import Any, NamedTuple, Self
 
 from numpy import ndarray
 
@@ -54,7 +55,9 @@ class DocumentSearchResult(SearchResult):
     __replace__ = _replace
 
     @classmethod
-    def _make(cls, _iterable: Any) -> DocumentSearchResult:
+    # mypy types the generated NamedTuple._make with a type variable that no override matches
+    def _make(cls, iterable: Iterable[Any]) -> Self:  # type: ignore[override]
+        del iterable
         raise TypeError(
             "DocumentSearchResult needs doc_ids; use DocumentSearchResult(ids, scores, doc_ids)"
         )
