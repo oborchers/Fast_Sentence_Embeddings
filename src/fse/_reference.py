@@ -279,6 +279,13 @@ def top_k(scores: ndarray, k: int) -> ndarray:
     return order[:k]
 
 
+def top_k_unique(scores: ndarray, labels: ndarray, k: int) -> ndarray:
+    """The rows of the k best labels, each by its best row; equal scores go to the smaller row id."""
+    order = np.lexsort((np.arange(len(scores)), -scores.astype(np.float64)))
+    _, first = np.unique(labels[order], return_index=True)
+    return order[np.sort(first)][:k]
+
+
 def _check_finite(rows: ndarray, first_row: int):
     bad = np.flatnonzero(~np.isfinite(rows).all(axis=1))
     if len(bad):
