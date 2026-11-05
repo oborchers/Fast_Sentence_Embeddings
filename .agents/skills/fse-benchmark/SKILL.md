@@ -41,7 +41,9 @@ whose known costs exceed their budgets. Count preparation, warmups and lock/load
 waits across all cells. Stop safely as inconclusive on exhaustion, retain raw data
 and escalate without automatic extension. Never reinterpret historical or active runs.
 A small R median does not establish equivalence. Comparing D medians does not prove
-an optimization. Full numerical, persistence and Linux hot-path guarantees remain.
+an optimization. Full numerical and persistence guarantees remain. Linux evidence is
+required only for class P or when the maintainer has explicitly approved a Linux machine
+for the ticket.
 
 ## 2. Select the existing entry
 
@@ -192,7 +194,7 @@ conformance, then the complete required `make check` on the final state. Repeat
 only for new risk or a failed gate. Profile representative changed paths and
 resource risks rather than every parameter combination.
 
-For hot-path changes, retain the paired base/candidate float32 comparison and representative profiles required by AGENTS.md.
+For hot-path changes, profile representative changed paths and state the claim classes used, as AGENTS.md requires. A paired Linux float32 comparison is required only for class P or when the maintainer has explicitly approved a Linux machine for the ticket. Report the actual Linux comparison status and say explicitly when none was run.
 Use the profiling targets in AGENTS.md, but verify which processes each profiler captures.
 Linux CPU and RSS targets can follow the controller tree. Memray cannot follow an `exec` into a new interpreter.
 For memory attribution, instrument the executing Python child directly, using its recorded `--child-job` with fresh diagnostic output paths.

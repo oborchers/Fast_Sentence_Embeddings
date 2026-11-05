@@ -67,6 +67,18 @@ does not prove equivalence. This suite supplies no new equivalence test or scree
 PASS heuristic. Short screens remain preliminary or inconclusive. O screens never
 return keep. Only the full O protocol can justify that local decision.
 
+Class P requires Linux publication evidence through the existing pinned protocol.
+The only other case that requires a paired Linux comparison is an explicit approval
+by the maintainer of a Linux machine for the ticket. Such an approved comparison can
+also serve class R or O. Voluntary Linux comparisons remain allowed. Local speed
+results for K, D, R and O are development indications with `publishable: false`.
+Local correctness and quality results keep their validity. The PR states the
+classes used and its actual Linux comparison status, and says explicitly when no
+Linux comparison was run. Approval of a Linux machine does not approve paid
+resources: rules 9 and 10 still apply before every paid run. Numerical
+conformance, bit identity with the numpy reference and persistence checks apply
+to every change.
+
 Small probes precede long timing blocks: check the selected adapter against an
 independent reference, full shape/dtype/count/bits, input checksums and actual build
 identities. Tiny store probes record adjusted nonempty partial filters separately
@@ -75,7 +87,7 @@ Then retain the complete applicable quality gate. Cache that gate only
 within the invocation for identical model, corpus, table dtype, workers and
 document-ID profile/modes. Each
 later child must still match its recorded build. These probes never replace full
-conformance, persistence checks or Linux hot-path/publication evidence.
+conformance, persistence checks or Linux publication evidence.
 
 Stabilize APIs before timing. Use affected tests and conformance for small review
 fixes, then run the complete required `make check` on the final state. Repeat it
