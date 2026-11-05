@@ -45,8 +45,18 @@ class IdStats:
         )
 
 
+def check_removed(metadata: dict[str, Any], file: Any) -> None:
+    """Refuse metadata that a pre-release of 2.1 wrote under the removed ``row_ids`` names."""
+    if any(key == "fse.row_ids" or key.startswith("fse.row_ids_") for key in metadata):
+        raise UnsupportedArtifactError(
+            f"{file}: written by a pre-release of fse 2.1 (fse.row_ids); "
+            "this fse stores document IDs as fse.doc_ids; write the store again"
+        )
+
+
 def check_mode(metadata: dict[str, Any], file: Any) -> None:
     """Recognize future capabilities before applying a closed known schema."""
+    check_removed(metadata, file)
     for key, supported in (("fse.doc_ids", ("none", "int64")), ("fse.resume", ("none",))):
         value = metadata.get(key)
         if isinstance(value, str) and value not in supported:

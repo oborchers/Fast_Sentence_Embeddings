@@ -356,3 +356,4 @@ class NpyContainer:
                     digest.update(chunk)
             if digest.checksum() != entries[name][2]:
                 raise CorruptArtifactError(f"{file} does not match its checksum")
+        return metadata

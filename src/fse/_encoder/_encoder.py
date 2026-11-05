@@ -31,7 +31,7 @@ from fse._container import (
     SafetensorsContainer,
 )
 from fse._contract import Normalize, UnsupportedArtifactError
-from fse._runtime import EncodeSpec, Pipeline, QuantizedRows, check_workers
+from fse._runtime import EncodeSpec, Pipeline, QuantizedRows
 from fse._text import Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
@@ -313,6 +313,7 @@ class Encoder:
         workers: int | None = None,
         backend: str = "cpu",
         sink: Any = None,
+        doc_ids: bool = False,
     ) -> Iterator[EncodedBatch]:
         """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
         (or token lists), as a queue consumer polls them, and every batch gives one
@@ -327,13 +328,11 @@ class Encoder:
         row of the run, while the last batch may report fewer. Stopping
         early (``break``, ``close()``) does not flush: the owner of the sink closes it
         (``ShardSink.close`` publishes the rows committed so far). Without a sink every
-        batch holds its rows in memory.
+        batch holds its rows in memory. With ``doc_ids=True`` every batch is a
+        ``(texts, doc_ids)`` tuple; the sink must have document IDs, and the sink and the
+        argument must agree.
         """
-        if sink is not None:
-            dtype = check_sink(sink, dtype, self.fingerprint, self.output_dim)
-        else:
-            dtype = _codes.check_dtype("float32" if dtype is None else dtype)
-        check_workers(workers)
+        dtype = _batches.prepare(sink, dtype, doc_ids, self.fingerprint, self.output_dim, workers)
         pipeline = self._pipeline(backend)
         return _batches.batches(
             pipeline,
@@ -342,6 +341,7 @@ class Encoder:
             dtype=dtype,
             workers=workers,
             sink=sink,
+            doc_ids=doc_ids,
         )
 
     def _pipeline(self, backend: str) -> Pipeline:

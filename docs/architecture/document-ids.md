@@ -10,7 +10,7 @@ remains a separate candidate, including rows sharing a document ID.
 `Encoder.encode(texts, doc_ids=ids, sink=sink)` takes parallel finite IDs.
 IDs are a list of integers, an int64 NumPy array, or a primitive Arrow int64
 column without nulls. No coercion, table input, column-name selection or row pairs.
-`encode_batches` takes `(texts, doc_ids)` per batch in an ID-enabled sink.
+`encode_batches(..., doc_ids=True)` takes `(texts, doc_ids)` per batch in an ID-enabled sink; the argument is checked against the sink when called.
 One sink spans all batches, allowing full shards across input batch boundaries.
 The ordinary text-only batch API remains unchanged without document IDs.
 
@@ -30,6 +30,8 @@ rejects them before applying its closed metadata schema. NpyContainer stays at 1
 Store metadata adds `fse.doc_ids=int64|none` and `fse.resume=none`.
 Every shard repeats these keys and holds `doc_ids.npy`, I64, shape `(rows,)`,
 exactly when enabled. Its checksum participates in the artifact fingerprint.
+A store written by a pre-release of 2.1 with `fse.row_ids` is refused with
+`UnsupportedArtifactError` (open, append, repair and verify) and must be written again.
 
 The unpublished format 2 is shared with DR-199 (Lineare Köpfe zum vollwertigen
 Bestandteil von fse machen). Document IDs or optional score tensors require this
