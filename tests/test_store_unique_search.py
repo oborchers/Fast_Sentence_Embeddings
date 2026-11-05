@@ -80,6 +80,58 @@ def test_distinct_ids_give_the_ordinary_search(tmp_path):
         _same(b, (a.ids, a.scores, a.doc_ids))
 
 
+def _first_occurrences(store, queries, k, positions=None):
+    """The oracle of the definition: the full ordinary search, then the first row of each
+    document ID, by a plain Python set."""
+    full = store.search(
+        queries,
+        len(store) if positions is None else len(positions),
+        mode="exact",
+        **({} if positions is None else {"rows": positions}),
+    )
+    rows, scores, labels = [], [], []
+    for r, s, d in zip(full.ids, full.scores, full.doc_ids, strict=True):
+        seen, keep = set(), []
+        for i, label in enumerate(d):
+            if label not in seen:
+                seen.add(label)
+                keep.append(i)
+        keep = keep[:k]
+        rows.append(r[keep]), scores.append(s[keep]), labels.append(d[keep])
+    return np.stack(rows), np.stack(scores), np.stack(labels)
+
+
+@pytest.mark.parametrize("ordered", [False, True])
+def test_equals_the_first_occurrences_of_the_full_ordinary_search(tmp_path, ordered):
+    labels = np.random.default_rng(8).integers(0, 12, 41)
+    if ordered:
+        labels.sort()
+    write_store(tmp_path / "s", labels, shard_rows=6)
+    queries = np.random.default_rng(9).standard_normal((3, 17)).astype("float32")
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        for k in (1, 5, 12):
+            _same(
+                store.search(queries, k, mode="exact", unique_doc_ids=True),
+                _first_occurrences(store, queries, k),
+            )
+        rows = np.arange(41)[::3]
+        got = store.search(queries, 4, mode="exact", unique_doc_ids=True, rows=rows)
+        _same(got, _first_occurrences(store, queries, 4, rows))
+
+
+def test_empty_results_have_the_dtypes_of_a_result(tmp_path):
+    write_store(tmp_path / "s", [1, 2, 3], shard_rows=2)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        for kwargs in ({"doc_ids": []}, {"rows": []}, {"doc_ids": [9]}):
+            got = store.search(np.ones(17), 3, mode="exact", unique_doc_ids=True, **kwargs)
+            assert (got.ids.dtype, got.scores.dtype, got.doc_ids.dtype) == (
+                np.int64,
+                np.float32,
+                np.int64,
+            )
+            assert got.ids.shape == (0,)
+
+
 def test_width_is_the_smaller_of_k_and_documents(tmp_path):
     write_store(tmp_path / "one", [7] * 9, shard_rows=4)
     write_store(tmp_path / "few", [1, 2, 1, 2, 3], shard_rows=2)

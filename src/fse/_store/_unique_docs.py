@@ -93,12 +93,19 @@ class DocumentCandidates:
     def __init__(self, n_queries: int, k: int):
         self.k = k
         self.floor = np.full(n_queries, _search.LOWEST, np.int32)
-        self._merged = _empty()
+        self._merged = (
+            np.empty(0, np.int64),
+            np.empty(0, F32),
+            np.empty(0, np.int64),
+            np.empty(0, np.int64),
+        )
         self._pending: list[tuple[ndarray, ...]] = []
         self._size = 0
 
     def add(self, first_query: int, found: tuple[ndarray, ndarray, ndarray, ndarray]) -> None:
         queries, values, rows, labels = found
+        if not len(queries):  # nothing at or above the floor: keep no empty arrays
+            return
         self._pending.append((queries + first_query, values, rows, labels))
         self._size += len(queries)
         if self._size >= max(1, len(self._merged[0])):

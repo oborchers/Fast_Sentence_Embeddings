@@ -170,3 +170,18 @@ def test_a_lost_block_is_an_error():
     out.add(0, (np.zeros(1, np.int64), np.ones(1, np.float32), np.array([0]), np.array([1])))
     with pytest.raises(RuntimeError, match="lost"):
         out.result()
+
+
+def test_an_empty_block_contribution_is_not_kept():
+    out = DocumentCandidates(1, 2)
+    none = (
+        np.empty(0, np.int64),
+        np.empty(0, np.float32),
+        np.empty(0, np.int32),
+        np.empty(0, np.int64),
+    )
+    for _ in range(5):
+        out.add(0, none)
+    assert out._pending == []
+    rows, values, labels = out.result()
+    assert (rows.dtype, values.dtype, labels.dtype) == (np.int64, np.float32, np.int64)

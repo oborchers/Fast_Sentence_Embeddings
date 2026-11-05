@@ -110,8 +110,11 @@ queries end with the same width; a difference is an internal error.
 
 Memory per running task, for 2^20 scores per task and one group per row: the scores
 (4 MiB), a mask, the grouped keys and indices (int32 matrices of the same size) and the
-group maxima. The plan counts at most 38 MiB if nothing is freed early. Intermediate
-arrays are freed in order, so the peak is lower. The ordinary decode buffer (16 MiB) and
+group maxima. The plan counts at most 38 MiB if nothing is freed early. With a very large
+`k` (every group stays) the selected group and query indices add about 32 MiB more, so
+about 44 MiB per task is the worst case. Intermediate arrays are freed in order, so the
+usual peak is lower: a memray run of 256 queries (2^20 scores per task) on unordered IDs
+with k=10 and two workers peaked at 41.7 MiB against 34.1 MiB for the ordinary search. The ordinary decode buffer (16 MiB) and
 the gathered vectors of filtered blocks (16 MiB) are as before. The merger scales with
 queries times `k`, adding one int64 column to the ordinary search.
 
