@@ -618,3 +618,28 @@ is marked diagnostic_profile=true and valid_for_comparison=false. Such runs do
 not enter speed summaries. No profile or timing may run during another worker's
 Mac reservation. Linux publication remains separate work in DR-225 (Lineare Köpfe
 auf Linux messen und Tempozahlen für die README belegen).
+
+## Several heads in one pass: `linear-heads-multi@1`
+
+`benchmarks/config/linear-heads-multi-local.json` defines `linear-heads-multi@1` for DR-161
+(Mehrere Köpfe in einem Durchgang rechnen (Softmax und Mehrfach-Labels)), step 3 of DR-199 (Lineare Köpfe zum vollwertigen Bestandteil von fse machen).
+It adds two stages to the same `speed.py --diagnose` controller, without another runner:
+
+- `head-group-folded`: n four-output softmax classifiers on raw means (`heads` of the cell).
+- `head-group-mixed`: n heads, the first half on raw means and the second half on normalized means.
+
+Both arms run the candidate build (pass its interpreter as `--base-python` and `--candidate-python`, as for `document-search-cost@1`). The arm `separate` (`base_heads_mode`) calls every head on its own with `predict_proba`; the arm `one-pass` (`candidate_heads_mode`) calls `fse.Heads.predict(output="proba")` once. An A/A control runs `base_heads_mode` in both arms. The heads are fixed without training (float32 PCG64, seed 17 plus the index of the head, four ordered classes each). The folded tables and the plan of the group are made before any timer. The output proof of the controller is the checksum of the probabilities of every head (and of the vectors, with `return_vectors`), in head order, so both arms must be byte-identical per head; the untimed probe also compares both modes with the numpy backend.
+
+The cell `heads-multi-folded-4` is the one decision cell (class O). Its `practical_saving` of 0.40 is fixed before the run: the product claim "significantly faster" holds only if the controller decision is `keep` and the time saving (`1 - 1 / factor`) of the comparison and of the confirmation are both at least 0.40, in addition to the existing threshold (`max(3 x A/A IQR, 0.02)`). Without both, the cell is `rejected` and the claim is not made. `stop_session_on_reject` ends the session at the first cell that is neither valid nor a passed screen, so later cells stay `not_started`. A screen only decides whether the full evidence is worth running (`--local-phase screen`); the practical saving is part of its threshold, and a screen never decides `keep`. The cells `heads-multi-folded-2-*` and `heads-multi-mixed-4-*` are descriptive (class D, one arm, `--local-phase descriptive`, once per mode): absolute medians and IQR, no comparison and no factor. `heads-multi-mixed-4-vectors` exists for the `profile-head` job with `return_vectors` (`postprocess_pooled`, the normalized copy and their memory).
+
+The claim of every result is limited to this workload (POTION-8M, WikiText, `workers: 2`, four softmax outputs per head, the output `proba`) on the M1, as a local indication; no README number follows from it. The single-head path is checked with the existing `linear-heads@1` cells against the base build, which is a different, paired base/candidate run.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/linear-heads-multi-local.json \
+  --base-python /external/candidate/bin/python \
+  --candidate-python /external/candidate/bin/python \
+  --cells heads-multi-folded-4 --local-phase screen \
+  --worker-name dr161-heads --wall-time-seconds 18000 \
+  --results /external/dr161/results-01 --work /external/dr161/work-01
+```

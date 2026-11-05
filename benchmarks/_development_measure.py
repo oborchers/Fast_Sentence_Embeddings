@@ -16,6 +16,8 @@ from _development_budget import check
 from _development_encode import operation as encode_operation
 from _development_heads import SPEC as HEAD_SPEC
 from _development_heads import operation as head_operation
+from _development_heads_multi import SPEC as GROUP_SPEC
+from _development_heads_multi import operation as group_operation
 from _development_locks import busy, lock_paths
 from _development_repeat import repeat
 from _development_resources import check_write_disk
@@ -108,6 +110,14 @@ def _call(operation, job, phase, number, waiting):
     return seconds, proof, including_open, before, after
 
 
+def _head_spec(job):
+    if job["profile"] == "linear-heads@1":
+        return HEAD_SPEC
+    if job["profile"] == "linear-heads-multi@1":
+        return {**GROUP_SPEC, "heads": job["heads"], "return_vectors": job["return_vectors"]}
+    return None
+
+
 def measure(job):
     import resource
 
@@ -125,6 +135,8 @@ def measure(job):
         "head-folded": lambda: head_operation(model, texts, job),
         "head-with-vectors": lambda: head_operation(model, texts, job),
         "head-labels": lambda: head_operation(model, texts, job),
+        "head-group-folded": lambda: group_operation(model, texts, job),
+        "head-group-mixed": lambda: group_operation(model, texts, job),
     }
     if job["stage"] in ("store-open", "store-search"):
         from _development_store import StoreOperation
@@ -169,7 +181,8 @@ def _measured(operation, job, waiting, policy, resource):
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
         "profile": job["profile"],
-        "head_spec": HEAD_SPEC if job["profile"] == "linear-heads@1" else None,
+        "head_spec": _head_spec(job),
+        "heads_mode": job.get("heads_mode"),
         "requested_workers": job["workers"],
         "input": {
             **job["corpus"],

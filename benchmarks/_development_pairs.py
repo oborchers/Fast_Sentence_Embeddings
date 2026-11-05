@@ -6,6 +6,7 @@ import json
 import time
 
 from _development_budget import check_args
+from _development_heads_multi import configure as configure_heads
 from _development_locks import busy, lock_paths
 from _development_process import launch
 from _development_search import configure
@@ -57,6 +58,7 @@ def arm(
 
     job["doc_ids"] = mode_for(cell, candidate=not control and name == "candidate")
     configure(job, cell, name, control)
+    configure_heads(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.diagnostic_rehearsal
     job["descriptive_only"] = phase == "descriptive"

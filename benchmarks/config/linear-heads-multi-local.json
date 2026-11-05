@@ -1,0 +1,61 @@
+{
+  "format": "local-development-v2",
+  "description": "linear-heads-multi@1: n fixed four-output softmax heads, scored in n separate calls against one fse.Heads call, both arms on the candidate build (candidate_python for --base-python and --candidate-python). One O cell (heads-multi-folded-4, with its practical saving of 0.40 fixed before the run) and D cells (absolute costs of each mode, no comparison). M1 local indication only, no README speed claims.",
+  "defaults": {
+    "profile": "linear-heads-multi@1",
+    "decision_gate": false,
+    "workers": 2,
+    "base_heads_mode": "separate",
+    "candidate_heads_mode": "one-pass"
+  },
+  "cells": [
+    {
+      "id": "heads-multi-folded-4",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-folded",
+      "heads": 4,
+      "decision_gate": true,
+      "practical_saving": 0.4,
+      "stop_session_on_reject": true
+    },
+    {
+      "id": "heads-multi-folded-2-separate",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-folded",
+      "heads": 2,
+      "candidate_heads_mode": "separate"
+    },
+    {
+      "id": "heads-multi-folded-2-one-pass",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-folded",
+      "heads": 2
+    },
+    {
+      "id": "heads-multi-mixed-4-separate",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-mixed",
+      "heads": 4,
+      "candidate_heads_mode": "separate"
+    },
+    {
+      "id": "heads-multi-mixed-4-one-pass",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-mixed",
+      "heads": 4
+    },
+    {
+      "id": "heads-multi-mixed-4-vectors",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-mixed",
+      "heads": 4,
+      "return_vectors": true
+    }
+  ]
+}

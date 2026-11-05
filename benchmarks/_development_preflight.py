@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from _development_budget import check, check_args
+from _development_heads_multi import configure as configure_heads
 from _development_ids import mode_for
 from _development_pairs import job_for
 from _development_process import checked, launch
@@ -26,6 +27,7 @@ def preflight(args, cell, prepared, ledger, owner):
         tag = cell["id"] + "-probe-" + name
         job = job_for(cell, prepared, 1, tag, owner)
         configure(job, cell, name, False)
+        configure_heads(job, cell, name, False)
         job.update(
             action="probe", iterations=1, doc_ids=mode_for(cell, candidate=name == "candidate")
         )
@@ -83,6 +85,10 @@ def probe(job):
         from _development_heads import probe as head_probe
 
         proof = head_probe(job, texts)
+    elif job["stage"] in ("head-group-folded", "head-group-mixed"):
+        from _development_heads_multi import probe as group_probe
+
+        proof = group_probe(job, texts)
     else:
         expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
         check(job.get("wall_deadline"))
