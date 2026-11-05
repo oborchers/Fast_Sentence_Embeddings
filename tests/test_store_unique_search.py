@@ -202,7 +202,7 @@ def test_errors(tmp_path):
         store.search(np.ones(17), max_per_doc=1)
     with fse.VectorStore.open(tmp_path / "with") as store:
         for larger in (2, 10):
-            with pytest.raises(ValueError, match="must be 1 in this version.*later release"):
+            with pytest.raises(ValueError, match=r"must be 1 in this version.*later release"):
                 store.search(np.ones(17), max_per_doc=larger)
         for bad in (0, -1, True, "yes", 1.0, np.True_):
             with pytest.raises(Exception, match=r"valid|input"):
