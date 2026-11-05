@@ -152,9 +152,10 @@ class ScoreInfo:
             "fse.score_heads": canonical_json([head.entry() for head in self.heads]),
         }
 
-    def check(self, other: ScoreInfo, path: Path) -> None:
-        """Raise unless ``other`` describes the same rows as this store, the paths of the
-        heads aside (they are known only when a run attaches)."""
+    def check(self, other: ScoreInfo, path: Path, *, paths: bool = True) -> None:
+        """Raise unless ``other`` describes the same rows as this store; with ``paths``
+        False, without comparing the paths of the heads (a sink knows them only when a run
+        attaches)."""
         for name in ("encoder", "has_doc_ids"):
             if getattr(self, name) != getattr(other, name):
                 raise ValueError(
@@ -166,17 +167,17 @@ class ScoreInfo:
         if mine != theirs:
             raise ValueError(f"the store {path} holds the heads {mine}, not {theirs}")
         for have, want in zip(self.heads, other.heads, strict=True):
-            _same_head(have, want, path)
+            _same_head(have, want, path, paths)
 
 
-def _same_head(have: ScoreHead, want: ScoreHead, path: Path) -> None:
+def _same_head(have: ScoreHead, want: ScoreHead, path: Path, paths: bool) -> None:
     for name in ("model", "task", "rule", "link", "stored", "labels", "columns", "flat"):
         if getattr(have, name) != getattr(want, name):
             raise ValueError(
                 f"the store {path} holds head {have.name!r} with {name} "
                 f"{getattr(have, name)!r}, not {getattr(want, name)!r}"
             )
-    if have.path != want.path:
+    if paths and have.path != want.path:
         raise ValueError(
             f"the store {path} holds head {have.name!r} on the path {have.path!r}, but this run "
             f"takes the path {want.path!r}; a head has the same bits only on the same path"

@@ -104,3 +104,38 @@ def make_scores(path, score_info=None, *, sizes=(4, 4, 2), doc_ids=False):
         add_shard(path, score_info, first, rows)
         first += rows
     return score_info
+
+
+def read_back(path, *, verify=True):
+    """(info, scores, doc_ids or None) of a score store: every shard checked and joined."""
+    from fse._store._kinds import kind_of
+    from fse._store._layout import read_store
+    from fse._store._recovery import snapshot, verify_shard
+
+    info = read_store(path)
+    checked = snapshot(path, info, verify=False)
+    parts, ids = [], []
+    for shard, tensors in checked.shards:
+        if verify:
+            verify_shard(kind_of(info), shard, tensors)
+        parts.append(np.array(tensors["scores"]))
+        if info.has_doc_ids:
+            ids.append(np.array(tensors["doc_ids"]))
+    scores = np.concatenate(parts) if parts else np.empty((0, info.dim), np.float32)
+    return info, scores, (np.concatenate(ids) if info.has_doc_ids and ids else None)
+
+
+def paths_of(heads_or_schema, path="folded"):
+    """The same path for every head of a schema or a group."""
+    return dict.fromkeys(heads_or_schema, path)
+
+
+def fill(sink, first_row, n, *, value=None, ids=None):
+    """Reserve ``n`` rows at ``first_row``, fill them with ``value`` (default: the row
+    number) and commit them."""
+    target = sink.target(first_row, n)
+    target[...] = (
+        np.arange(first_row, first_row + n, dtype=np.float32)[:, None] if value is None else value
+    )
+    sink.commit(first_row, target, **({} if ids is None else {"doc_ids": ids}))
+    return target

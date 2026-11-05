@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from fse._encoder import EncodedBatch, Encoder, QuantizedRows
     from fse._head import Classifier, Heads, HeadsBatch, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
+    from fse._scores import ScoreSink
     from fse._static_model import StaticModel
     from fse._store import SearchResult, ShardSink, VectorStore, repair_store
 del TYPE_CHECKING  # not a name of fse
@@ -39,6 +40,7 @@ _LAZY = {
         "fse._encoder",
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
+    "ScoreSink": "fse._scores",
     "StaticModel": "fse._static_model",
     **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore", "repair_store"), "fse._store"),
     **dict.fromkeys(
@@ -102,6 +104,7 @@ __all__ = [
     "PublishedNotDurableError",
     "QuantizedRows",
     "Regressor",
+    "ScoreSink",
     "SearchResult",
     "ShardSink",
     "Sink",
