@@ -32,9 +32,10 @@ from fse._ids import checked_ids, id_block
 from fse._validation import PositiveInt, validate_arguments
 
 from ._base_sink import ShardSinkBase
-from ._layout import StoreInfo, create_store, read_store
+from ._layout import create_store, read_store
 from ._recovery import refuse_unsynced, snapshot
 from ._shard import ShardWriter
+from ._vectors_format import StoreInfo
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
 # of vectors or rows.

@@ -9,6 +9,7 @@ import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from fse import _log
 from fse._container import CorruptArtifactError, NpyContainer
@@ -18,9 +19,16 @@ from fse._container._npy_inplace import _rename_exclusive
 from fse._contract import UnsupportedArtifactError
 from fse._validation import PathLike, validate_arguments
 
-from ._id_stats import check_mode
-from ._layout import StoreInfo, _check_quantization, open_shard, read_store, shard_name
-from ._recovery import canonical_shards, clear_exception_frames, verify_shard
+from ._kind import Kind, shard_name
+from ._kinds import kind_of
+from ._layout import open_shard, read_store
+from ._recovery import (
+    NO_SHARD,
+    canonical_shards,
+    chain_breach,
+    clear_exception_frames,
+    verify_shard,
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +36,7 @@ class _Checked:
     first_row: int
     rows: int | None
     good: bool
+    summary: object = None
 
     @property
     def name(self) -> str:
@@ -50,7 +59,7 @@ def repair_store(path: PathLike) -> int:
     info = read_store(root)
     checked = _preflight(root, info)
     _complete_quarantines(root)
-    rows, kept = _prefix(checked)
+    rows, kept = _prefix(kind_of(info), checked)
     moved = [entry for row, entry in sorted(checked.items(), reverse=True) if row not in kept]
     if moved:
         _quarantine(root, moved)
@@ -72,13 +81,13 @@ def repair_store(path: PathLike) -> int:
     return rows
 
 
-def _preflight(path: Path, info: StoreInfo) -> dict[int, _Checked]:
+def _preflight(path: Path, info: Any) -> dict[int, _Checked]:
     # Inspect every canonical entry before mkdir/rename, even after corruption. An
     # unsupported later shard must leave the entire store untouched.
     return {row: _checked(path, info, row) for row, _ in canonical_shards(path)}
 
 
-def _checked(path: Path, info: StoreInfo, row: int) -> _Checked:
+def _checked(path: Path, info: Any, row: int) -> _Checked:
     try:
         entry, error = _inspect(path, info, row)
     except BaseException as error:
@@ -89,7 +98,7 @@ def _checked(path: Path, info: StoreInfo, row: int) -> _Checked:
     return entry
 
 
-def _inspect(path: Path, info: StoreInfo, row: int) -> tuple[_Checked, BaseException | None]:
+def _inspect(path: Path, info: Any, row: int) -> tuple[_Checked, BaseException | None]:
     try:
         _check_identifiers(path / shard_name(row), info)
         shard, tensors = open_shard(path, info, row)
@@ -102,14 +111,16 @@ def _inspect(path: Path, info: StoreInfo, row: int) -> tuple[_Checked, BaseExcep
         ):
             raise cause from None
         return _Checked(row, None, False), error
+    kind = kind_of(info)
     try:
-        verify_shard(shard, tensors)
+        verify_shard(kind, shard, tensors)
+        summary = kind.summary(shard, tensors)
     except CorruptArtifactError as error:
         return _Checked(row, shard.rows, False), error
-    return _Checked(row, shard.rows, True), None
+    return _Checked(row, shard.rows, True, summary), None
 
 
-def _check_identifiers(directory: Path, info: StoreInfo) -> None:
+def _check_identifiers(directory: Path, info: Any) -> None:
     """Recognize readable future identifiers before applying today's structure rules."""
     if not directory.is_dir() or directory.is_symlink():
         return
@@ -125,22 +136,19 @@ def _check_identifiers(directory: Path, info: StoreInfo) -> None:
     metadata = manifest.get("metadata")
     if not isinstance(metadata, dict):
         return
-    check_mode(metadata, file)
-    version = metadata.get("fse.format_version")
-    if isinstance(version, str) and version not in ("1", "2"):
-        raise UnsupportedArtifactError(f"{file}: unsupported format {version!r}")
-    durability = metadata.get("fse.durability")
-    if isinstance(durability, str) and durability != "none":
-        raise UnsupportedArtifactError(f"{file}: unsupported fse.durability {durability!r}")
-    if isinstance(metadata.get("fse.quantization"), str):
-        _check_quantization(metadata, info, file)
+    kind_of(info).check_identifiers(metadata, file, info)
 
 
-def _prefix(checked: dict[int, _Checked]) -> tuple[int, set[int]]:
-    row, kept = 0, set()
+def _prefix(kind: Kind, checked: dict[int, _Checked]) -> tuple[int, set[int]]:
+    """The verified prefix: shards in a chain from row 0 that are good, and each follows the
+    one before it. The first shard that breaks the chain is damaged, with its tail."""
+    row, kept, previous = 0, set(), NO_SHARD
     while (entry := checked.get(row)) is not None and entry.good:
         assert entry.rows is not None
+        if chain_breach(kind, previous, entry.summary) is not None:
+            break
         kept.add(row)
+        previous = entry.summary
         row += entry.rows
     return row, kept
 

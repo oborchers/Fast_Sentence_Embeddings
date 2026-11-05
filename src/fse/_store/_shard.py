@@ -44,7 +44,8 @@ from fse._container._npy_inplace import publish_directory, sync_data
 
 from ._columns import Entry, MemoryColumn, StreamColumn
 from ._id_writer import IdColumn
-from ._layout import StoreInfo, shard_metadata, shard_name
+from ._kind import shard_name
+from ._vectors_format import StoreInfo, shard_metadata
 
 
 class ShardBase:

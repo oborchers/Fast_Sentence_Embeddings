@@ -35,9 +35,12 @@ from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _filtered, _search, _selection, _unique_search
 from ._id_stats import check_removed
-from ._layout import Shard, StoreInfo, read_store
-from ._recovery import check_values, clear_exception_frames, snapshot
+from ._kind import Shard
+from ._kinds import kind_of
+from ._layout import read_store
+from ._recovery import check_chain, clear_exception_frames, snapshot
 from ._result import DocumentSearchResult, SearchResult
+from ._vectors_format import StoreInfo
 
 F32 = np.float32
 
@@ -260,12 +263,14 @@ class VectorStore:
         +-127."""
         start = time.perf_counter()
         read_store(self.path)
+        kind = kind_of(self._info)
         with self._using():
             for shard, tensors in self._shards:
                 file = self.path / shard.name / "manifest.json"
                 check_removed(NpyContainer().metadata(self.path / shard.name), file)
                 NpyContainer().verify(self.path / shard.name)
-                check_values(shard, tensors)
+                kind.check_values(shard, tensors)
+            check_chain(self.path, kind, self._shards)
         _log.emit(
             "store.verified",
             "fse store: verified %d rows in %d shards",
