@@ -136,7 +136,7 @@ def _action(job):
 
         result = measure(job)
     elif job["action"] == "profile-head":
-        if job["profile"] == "linear-heads-multi@1":
+        if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
             from _development_heads_multi import profile
         else:
             from _development_heads import profile

@@ -28,12 +28,24 @@ def check_write_disk(job):
 def _group_components(cell, prepared, count, output, components):
     """n heads: their folded tables (one shared table or n separate ones) beside the table,
     the probabilities of every head in both live results, and with vectors the full means."""
-    if cell["stage"] not in ("head-group-folded", "head-group-mixed"):
+    if cell["stage"] not in ("head-group-folded", "head-group-mixed", "head-group-score-sink"):
         return
     table = prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]]
     components["head_table_reserve"] = Path(table["path"]).stat().st_size * cell["heads"]
     components["head_probabilities_and_copies"] = count * 4 * 4 * 2 * cell["heads"]
     components["output_and_copies"] = output * 2 if cell["return_vectors"] else 0
+    if cell["stage"] == "head-group-score-sink":
+        # The reference run (the logits of every head and their side-by-side copy), the IDs
+        # and the sink matrix of the window.
+        components["score_reference_and_ids"] = count * (cell["heads"] * 16 * 3 + 16)
+
+
+def _score_sink_disk(cell, count):
+    """The store of the stage head-group-score-sink: the scores of every head (four logits of
+    four bytes) and the eight-byte IDs of each row, before and after the sync."""
+    if cell["stage"] != "head-group-score-sink":
+        return 0
+    return count * (cell["heads"] * 16 + 8) * cell["iterations"] * 2
 
 
 def admission(cell, prepared, count, work, requested_limit=None):
@@ -83,9 +95,11 @@ def admission(cell, prepared, count, work, requested_limit=None):
     disk = int(count * (mean_bytes + 1) + disk_reserve(cell))
     if cell["stage"] == "encode-sink":
         disk += (output + count * 8) * cell["iterations"] * 2
+
     elif cell["stage"] in ("store-open", "store-search"):
         components["mapped_store_and_filter"] = output + count * 48
         disk += (output + count * 8) * 2
+    disk += _score_sink_disk(cell, count)
     free_disk = shutil.disk_usage(work).free
     return {
         **LABEL,

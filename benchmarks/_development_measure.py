@@ -113,7 +113,7 @@ def _call(operation, job, phase, number, waiting):
 def _head_spec(job):
     if job["profile"] == "linear-heads@1":
         return HEAD_SPEC
-    if job["profile"] == "linear-heads-multi@1":
+    if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
         return {**GROUP_SPEC, "heads": job["heads"], "return_vectors": job["return_vectors"]}
     return None
 
@@ -137,6 +137,7 @@ def measure(job):
         "head-labels": lambda: head_operation(model, texts, job),
         "head-group-folded": lambda: group_operation(model, texts, job),
         "head-group-mixed": lambda: group_operation(model, texts, job),
+        "head-group-score-sink": lambda: group_operation(model, texts, job),
     }
     if job["stage"] in ("store-open", "store-search"):
         from _development_store import StoreOperation

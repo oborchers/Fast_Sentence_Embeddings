@@ -14,7 +14,11 @@ from __future__ import annotations
 from typing import NamedTuple
 
 PROFILE = "linear-heads-multi@1"
-STAGES = ("head-group-folded", "head-group-mixed")
+SCORES = (
+    "linear-heads-scores@1"  # the same heads, stored in a score store (_development_heads_scores)
+)
+PROFILES = (PROFILE, SCORES)
+STAGES = ("head-group-folded", "head-group-mixed", "head-group-score-sink")
 MODES = ("separate", "one-pass")
 SPEC = {"outputs": 4, "seed": 17, "link": "softmax", "output": "proba", "dtype": "float32"}
 
@@ -25,12 +29,18 @@ class HeadsOutput(NamedTuple):
 
 
 def enabled(cell):
-    return cell.get("profile") == PROFILE
+    return cell.get("profile") in PROFILES
 
 
 def validate(cell):
     if enabled(cell) != (cell["stage"] in STAGES):
-        raise ValueError("head group stages require linear-heads-multi@1, and that profile them")
+        raise ValueError(
+            "head group stages require linear-heads-multi@1 or linear-heads-scores@1, "
+            "and those profiles them"
+        )
+    from _development_heads_scores import validate as validate_scores
+
+    validate_scores(cell)
     if not enabled(cell):
         if cell["heads"] != 1 or cell["return_vectors"] or cell["practical_saving"] is not None:
             raise ValueError("heads, return_vectors and practical_saving are for the head groups")
@@ -38,7 +48,7 @@ def validate(cell):
     if cell["base_heads_mode"] not in MODES or cell["candidate_heads_mode"] not in MODES:
         raise ValueError("heads modes are separate or one-pass")
     if cell["table_dtype"] != "float32" or cell["output_dtype"] != "float32":
-        raise ValueError("linear-heads-multi@1 requires float32")
+        raise ValueError("the head group profiles require float32")
     _count(cell)
     saving = cell["practical_saving"]
     if saving is not None and not (type(saving) in (int, float) and 0 < saving < 1):
@@ -87,13 +97,23 @@ def models(encoder, job):
     return out
 
 
+def _output(job):
+    """The output of the group: the probabilities, or for the score profile the decision
+    (the logits), which is what its score sink stores."""
+    return "decision" if job["profile"] == SCORES else SPEC["output"]
+
+
 def operation(encoder, texts, job, *, backend="cpu"):
     if not enabled(job) or job["stage"] not in STAGES or job.get("heads_mode") not in MODES:
-        raise ValueError("a linear-heads-multi@1 stage and a head mode are required")
+        raise ValueError("a head group stage and a head mode are required")
+    if job["stage"] == "head-group-score-sink":
+        from _development_heads_scores import operation as sink_operation
+
+        return sink_operation(encoder, texts, job, backend=backend)
     group = models(encoder, job)
     options = {"workers": job["workers"], "backend": backend}
     build = _one_pass if job["heads_mode"] == "one-pass" else _separate
-    predict = build(group, texts, job["return_vectors"], options)
+    predict = build(group, texts, job["return_vectors"], {**options, "output": _output(job)})
     # Make every lazy table and plan outside every timer, and check the shape once.
     prepared = predict()
     if list(prepared.outputs) != list(group):
@@ -111,10 +131,10 @@ def _one_pass(group, texts, vectors, options):
 
     heads = Heads(**group)
     if not vectors:
-        return lambda: HeadsOutput(dict(heads.predict(texts, output="proba", **options)), None)
+        return lambda: HeadsOutput(dict(heads.predict(texts, **options)), None)
 
     def predict():
-        (batch,) = heads.predict_batches((texts,), output="proba", return_vectors=True, **options)
+        (batch,) = heads.predict_batches((texts,), return_vectors=True, **options)
         return HeadsOutput(dict(batch.outputs), batch.vectors)
 
     return predict
@@ -123,12 +143,12 @@ def _one_pass(group, texts, vectors, options):
 def _separate(group, texts, vectors, options):
     if not vectors:
         return lambda: HeadsOutput(
-            {name: m.predict_proba(texts, **options) for name, m in group.items()}, None
+            {name: _alone(m, texts, options) for name, m in group.items()}, None
         )
 
     def predict():
         batches = {
-            name: next(m.predict_batches((texts,), output="proba", return_vectors=True, **options))
+            name: next(m.predict_batches((texts,), return_vectors=True, **options))
             for name, m in group.items()
         }
         first = next(iter(batches.values()))
@@ -137,11 +157,23 @@ def _separate(group, texts, vectors, options):
     return predict
 
 
+def _alone(model, texts, options):
+    """One head on its own with the output of the group."""
+    if options["output"] == "proba":
+        return model.predict_proba(texts, workers=options["workers"], backend=options["backend"])
+    return model.decision_function(texts, workers=options["workers"], backend=options["backend"])
+
+
 def probe(job, texts):
     """The untimed adapter probe: the arm's mode on the cpu backend equals both modes on the
     numpy reference, per head, by bytes."""
     from _development_encode import output_identity
     from _development_process import checked
+
+    if job["stage"] == "head-group-score-sink":
+        from _development_heads_scores import probe as sink_probe
+
+        return sink_probe(job, texts)
 
     from fse import Encoder
 
@@ -200,7 +232,7 @@ def profile(job):
     return {
         "diagnostic_profile": True,
         "valid_for_comparison": False,
-        "profile": PROFILE,
+        "profile": job["profile"],
         "head_spec": {**SPEC, "heads": job["heads"], "return_vectors": job["return_vectors"]},
         "worker_path": job["stage"],
         "heads_mode": job["candidate_heads_mode"],

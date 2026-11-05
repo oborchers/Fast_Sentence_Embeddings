@@ -85,7 +85,7 @@ def probe(job):
         from _development_heads import probe as head_probe
 
         proof = head_probe(job, texts)
-    elif job["stage"] in ("head-group-folded", "head-group-mixed"):
+    elif job["stage"] in ("head-group-folded", "head-group-mixed", "head-group-score-sink"):
         from _development_heads_multi import probe as group_probe
 
         proof = group_probe(job, texts)
