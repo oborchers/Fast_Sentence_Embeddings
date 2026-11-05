@@ -74,3 +74,45 @@ Tagged shards verify IDs and their statistics on every reader open. Untagged
 shards retain the existing lazy open contract. Explicit verify and offline repair
 check IDs too. Repair quarantines whole shards and their tail, never just an ID
 file. Unknown future formats or resume modes abort repair without mutation.
+
+## Best hit per document (DR-218)
+
+Implementation contract for DR-218 (Suche mit höchstens einem Treffer je Dokument anbieten).
+`VectorStore.search(..., unique_doc_ids=True)` is a keyword-only strict `bool`. It
+requires a store with document IDs and raises before reading data otherwise. The result
+type stays `DocumentSearchResult`.
+
+Semantics. For a query, take the total order of `fse._reference.top_k` over the selected
+rows (the larger score first, equal scores, -0.0 equal to 0.0, by the smaller physical
+position). The result is the first row of each document ID in that order, limited to the
+first `k`. Documents tie by position, never by label. `fse._reference.top_k_unique` is
+this definition; tests also compare against the first occurrences of a full ordinary
+search. The result has `min(k, D)` entries for D distinct IDs in the selection.
+
+Algorithm: an exact running maximum per document inside the existing block scan, as
+Lucene's first-pass grouping collector keeps the best document of each group, rather
+than oversampling and refetching (which has no fixed bound when one document holds
+most rows). A task scores its block with the backend or BLAS, keeps the rows that reach
+the floor of any query in its block, groups them (neighbouring IDs when the shard is
+sorted, otherwise one stable argsort of the block's IDs), reduces to the best order key
+per (group, query) with `maximum.reduceat`, and takes the smallest local row with that
+key with `minimum.reduceat`. All of it is integer work on `order_key`. Groups under a
+query's floor drop out, and each query keeps its first `k` groups by (key descending,
+row ascending), so a block hands the merger at most `k` documents per query. The
+returned score is read from the score matrix, which keeps -0.0 bits. `best_per_doc`
+returns local rows; the caller translates them with `physical[local]`.
+
+`DocumentCandidates` merges blocks and shards: per (query, document) the best row, then
+the best `k` per query. The floor of a query is the key of its k-th best document, and
+`LOWEST` before it has `k`. The maximum under a total order is associative, so the result
+does not depend on block order or workers. Every query sees the same documents, so all
+queries end with the same width; a difference is an internal error.
+
+Memory per running task, for 2^20 scores per task and one group per row: the scores
+(4 MiB), a mask, the grouped keys and indices (int32 matrices of the same size) and the
+group maxima. The plan counts at most 38 MiB if nothing is freed early. Intermediate
+arrays are freed in order, so the peak is lower. The ordinary decode buffer (16 MiB) and
+the gathered vectors of filtered blocks (16 MiB) are as before. The merger scales with
+queries times `k`, adding one int64 column to the ordinary search.
+
+Logging: `store.search` carries `unique_doc_ids=True` only on this path.
