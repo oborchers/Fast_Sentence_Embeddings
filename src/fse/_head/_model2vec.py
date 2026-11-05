@@ -24,7 +24,6 @@ from typing import Any
 
 from numpy import ndarray
 
-from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError
 
 # The keys model2vec 0.10.0 writes into head_config; a new one could change the head.
