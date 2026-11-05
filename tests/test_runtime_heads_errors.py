@@ -102,3 +102,20 @@ def test_a_lone_head_keeps_its_errors_without_a_name():
     spec = overflow_spec()
     with pytest.raises(ValueError, match=r"^row 1 contains NaN or infinite values"):
         _run(spec, (Member(None, column_head(spec, 0, BIG)),), ["w1", "w5 w6"])
+
+
+def test_a_normalization_error_names_only_what_depends_on_it():
+    from fse._encoder import Encoder
+    from fse._wordvectors import WordVectors
+
+    rows = np.full((4, 4), 0.1, dtype=F32)
+    rows[2] = F32(3e19)  # the squares overflow in the norm, the rows are finite
+    wv = WordVectors.from_arrays(rows, words=[f"w{i}" for i in range(4)])
+    spec = Encoder.from_word_vectors(wv, normalize=False)._spec
+    members = (
+        Member("raw", column_head(spec, 0, 1.0)),
+        Member("norm", column_head(spec, 0, 1.0, normalized=True)),
+    )
+    with pytest.raises(ValueError, match=r"^head 'norm': ") as caught:
+        _run(spec, members, ["w1", "w2"], vectors=True)
+    assert "raw" not in str(caught.value).split(":")[0]

@@ -30,7 +30,7 @@ from ._pipeline import Pipeline
 from ._tasks import Task
 
 # The tables a group pools.
-TABLE, FULL, NORMED = "table", "full", "normed"
+TABLE, FULL, NORMED, COPY, POST = "table", "full", "normed", "copy", "post"
 
 
 class PoolingError(ValueError):
@@ -51,8 +51,10 @@ def attribute(
         who = plan.who(STANDALONE)
     elif error.table == TABLE:
         who = _folded_heads(plan, error, task, local, base)
-    elif error.table == NORMED:
+    elif error.table in (NORMED, COPY):
         who = plan.who(NORMALIZED)
+    elif error.table == POST:
+        who = plan.who(NORMALIZED, vectors=True)
     else:
         who = plan.who(NORMALIZED, RAW, vectors=True)
     return ValueError(f"{who}: {error}")

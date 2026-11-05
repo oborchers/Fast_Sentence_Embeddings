@@ -88,7 +88,7 @@ class HeadsPlan:
         self.table, self.full, self.normed = table, full, normed
         self.vector_mode, self.workers = vector_mode, workers
         self.with_vectors = vector_mode != NO_VECTORS
-        self.named = len(members) > 1
+        self.named = any(m.name is not None for m in members)
         self.encoder_normalizes = tuple(spec.steps) == (Normalize(),)
         self.starts = _starts(members, kinds)
         pipes = [p for p in (table, full, normed, own if self.with_vectors else None) if p]
@@ -118,7 +118,7 @@ class HeadsPlan:
         total = 4 * (self.table.output_dim if self.table else 0)
         folded = self.indices(FOLDED)
         if len(folded) > 1:
-            total += 4 * max(self.members[i].head.k for i in folded)  # the copy of a head
+            total += 4 * sum(self.members[i].head.k for i in folded)  # the columns of each head
         full = 4 * self.spec.output_dim
         if self.indices(NORMALIZED, RAW):
             total += full + (
@@ -197,7 +197,7 @@ class _Maker:
     def __init__(self, spec, members, kinds, backend, own, isa, workers):
         self.spec, self.members, self.kinds, self.backend = spec, members, kinds, backend
         self.own, self.isa, self.workers = own, isa, workers
-        self.named = len(members) > 1
+        self.named = any(m.name is not None for m in members)
         self.normalizes = tuple(spec.steps) == (Normalize(),)
 
     def pipeline(self, **kwargs) -> Pipeline:

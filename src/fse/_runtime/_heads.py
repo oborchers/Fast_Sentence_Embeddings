@@ -30,7 +30,7 @@ from fse._cpus import usable_cpus
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._head_common import buffer, write_outputs
-from ._heads_errors import FULL, NORMED, TABLE, PoolingError, attribute
+from ._heads_errors import COPY, FULL, NORMED, TABLE, PoolingError, attribute
 from ._heads_plan import (
     FOLDED,
     NO_VECTORS,
@@ -206,7 +206,7 @@ class HeadsPipeline:
         """``rows`` normalized in a copy."""
         copy = buffer(local, "head_normed", n, rows.shape[1])
         copy[...] = rows
-        self._guard(FULL, self.plan.own.backend.postprocess_pooled, copy, NORMALIZE, first)
+        self._guard(COPY, self.plan.own.backend.postprocess_pooled, copy, NORMALIZE, first)
         return copy
 
     def _pool(self, table: str, pipeline, batch, out: ndarray) -> None:

@@ -111,6 +111,9 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
     )
     if args.diagnostic_rehearsal:
         result["decision"] = "functional_only"
+    gate = result.get("practical")
+    if gate and not gate["passed"] and result["decision"] == "keep":
+        result["decision"] = "keep_below_practical_saving"  # decision.json must not say keep
     valid = _valid(result, args.diagnostic_rehearsal)
     return dict(status="valid" if valid else "rejected", **result)
 

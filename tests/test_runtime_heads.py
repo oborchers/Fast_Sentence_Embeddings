@@ -109,15 +109,28 @@ def test_many_wide_heads_shrink_the_tasks_to_keep_the_window():
     spec = case_spec("float32", fasttext=False)
     few = group(spec, members_of(spec, "F2")[:1])
     many = group(spec, tuple(Member(f"h{i}", head_of(spec, 17, False, seed=i)) for i in range(30)))
-    source = StringSource(["w1 w2"] * 2000)
+    source = StringSource(["w1"] * 60000)
+    sizes = []
     for pipe, outs in ((few, ("proba",)), (many, ("proba",) * 30)):
-        pipe.infer(source, outputs=outs, workers=2)  # runs
-    rows_few = few.plan.row_bytes(("proba",), "float32", False)
-    rows_many = many.plan.row_bytes(("proba",) * 30, "float32", False)
-    assert rows_many > 10 * rows_few
-    _, window_few, _ = few.plan.primary.plan_tasks(source, 4, None, rows_few)
-    _, window_many, _ = many.plan.primary.plan_tasks(source, 4, None, rows_many)
-    assert window_many * 1 <= window_few
+        row_bytes = pipe.plan.row_bytes(outs, "float32", False)
+        plan, window, _ = pipe.plan.primary.plan_tasks(source, 4, None, row_bytes)
+        sizes.append((max(t.n_rows for t in plan.tasks), window, row_bytes))
+    assert sizes[1][2] > 10 * sizes[0][2]
+    assert sizes[1][0] < sizes[0][0]  # smaller tasks
+    # The window holds every row at the bytes the heads keep: columns of each folded head,
+    # the logits and the outputs.
+    heads = [m.head for m in many.plan.members]
+    held = 4 * sum(h.k for h in heads) * 2 + sum(4 * h.width("proba") for h in heads)
+    assert sizes[1][2] >= held
+
+
+def test_a_group_of_one_keeps_the_name_of_its_head():
+    from support.heads_cases import column_head, overflow_spec
+
+    spec = overflow_spec()
+    pipe = group(spec, (Member("only", column_head(spec, 0, F32(3e38))),))
+    with pytest.raises(ValueError, match=r"^head 'only': row 1 "):
+        pipe.infer(StringSource(["w1", "w5 w6"]), outputs=("logits",))
 
 
 def test_an_empty_source_gives_empty_arrays():
