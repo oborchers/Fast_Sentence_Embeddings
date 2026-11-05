@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Export `fse.DocumentSearchResult`, the type `VectorStore.search` returns with document IDs; `ThresholdInput` is no longer exported (it was never released). (DR-240: Kleine API-Korrekturen aus dem zweiten API-Review vor 2.1 umsetzen)
+
 - Write `manifest.json` of npy artifacts and store shards with LF line endings on every platform; Windows wrote CRLF before. Files, checksums and fingerprints are unchanged on Linux and macOS, and CRLF manifests written by 2.0.0 on Windows stay readable. (DR-238: Manifeste auf allen Plattformen mit LF-Zeilenenden schreiben)
 
 - Add `fse.Heads` and `fse.HeadsBatch`: an immutable, read-only group of named heads of one encoder (`Heads(quality=q, toxic=t)`, names `[a-z][a-z0-9_]*`, equal encoder fingerprints, all complete or all standalone) whose `predict` and `predict_batches` tokenize each text once and score all heads in one pass, with the bits of each head alone (softmax, multilabel, regression, folded, normalized and mixed heads, with or without the vectors). `Heads.paths` shows the path each head takes. A lone `Classifier` or `Regressor` now runs through the same internal runtime with unchanged public API, outputs and sinks. The group has no sink, no keep and no file format. (DR-161: Mehrere Köpfe in einem Durchgang rechnen (Softmax und Mehrfach-Labels))
@@ -22,7 +24,7 @@ All notable changes to this project are documented in this file. The format is b
 
 - Preserve subnormal multilabel decisions under foreign floating-point settings and reject Hub folders whose declared format version disagrees with the model. Correct the one-label multilabel output description. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
-- Expose pydantic-validated `ThresholdInput`, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
+- Add pydantic-validated thresholds, read-only classifier thresholds and immutable `with_thresholds` updates. Allow explicit class names for all sklearn classifier imports, preserving output order, and document external training through deployment. (DR-226: Mehrfach-Labels mit benannten Schwellen unterstützen)
 
 - Add independent multilabel classifiers (`multilabel@1`, `linear@2`) with strict per-label thresholds, including partial named overrides such as `thresholds={"sport": 0.4}`. Import fitted multilabel OneVsRestClassifier models with supported affine sigmoid heads. New models use linear_head format 2 and `head.thresholds`; existing format 1 models keep their identifiers, fingerprints and predictions. (DR-199: Lineare Köpfe zum vollwertigen Bestandteil von fse machen)
 - Make all macOS PR jobs optional, including wheels. Add a targeted manual macOS scope bound to an open PR and its immutable current head SHA, with explicit source/artifact identities and stale-head rejection. Preserve automatic master/tag coverage, full manual verification and release gates. CI summaries fail closed on failed, cancelled, abandoned or unknown started jobs.

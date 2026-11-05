@@ -12,7 +12,8 @@ in ``_search``.
 """
 
 from ._repair import repair_store
+from ._result import DocumentSearchResult
 from ._sink import ShardSink
 from ._vectorstore import SearchResult, VectorStore
 
-__all__ = ["SearchResult", "ShardSink", "VectorStore", "repair_store"]
+__all__ = ["DocumentSearchResult", "SearchResult", "ShardSink", "VectorStore", "repair_store"]

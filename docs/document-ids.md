@@ -93,7 +93,7 @@ Without IDs, existing text-only `encode_batches` input remains unchanged.
 
 `store.has_doc_ids` tells whether every row has an ID. `store.get_doc_ids(start=0, stop=100)`
 returns the IDs of those rows as an int64 copy, like `get_vectors`. A store without IDs
-raises `ValueError`. `DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
+raises `ValueError`. `fse.DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
 `repr`; `_make` raises `TypeError`, because two values hold no IDs.
 
 ## Filters and limits

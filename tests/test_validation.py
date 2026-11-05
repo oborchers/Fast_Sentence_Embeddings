@@ -58,10 +58,10 @@ def test_invalid_arguments_raise(kwargs):
 def test_threshold_input_shapes_and_array_identity():
     from pydantic import ConfigDict, TypeAdapter
 
-    import fse
+    from fse._validation import ThresholdInput
 
     adapter = TypeAdapter(
-        fse.ThresholdInput, config=ConfigDict(strict=True, arbitrary_types_allowed=True)
+        ThresholdInput, config=ConfigDict(strict=True, arbitrary_types_allowed=True)
     )
     for value in (
         None,
@@ -98,7 +98,7 @@ def test_threshold_input_shapes_and_array_identity():
 def test_threshold_input_rejects_coercion(value):
     from pydantic import ConfigDict, TypeAdapter, ValidationError
 
-    from fse import ThresholdInput
+    from fse._validation import ThresholdInput
 
     adapter = TypeAdapter(
         ThresholdInput, config=ConfigDict(strict=True, arbitrary_types_allowed=True)

@@ -53,3 +53,10 @@ def test_asdict_make_and_repr():
         DocumentSearchResult._make([result.ids, result.scores])
     assert "doc_ids=array([7, 8])" in repr(result)
     assert len(result) == 2
+
+
+def test_document_search_result_is_public():
+    import fse
+
+    assert fse.DocumentSearchResult is DocumentSearchResult
+    assert issubclass(fse.DocumentSearchResult, fse.SearchResult)
