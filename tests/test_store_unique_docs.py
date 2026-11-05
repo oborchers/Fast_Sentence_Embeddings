@@ -70,7 +70,7 @@ def test_any_block_order_gives_the_reference(seed):
     for scores_p, docs_p, physical in blocks:
         queries, values, local, labels = _best(scores_p, docs_p, k, floor=out.floor)
         out.add(0, (queries, values, physical[local], labels))
-    rows, values, labels = out.result(min(k, len(set(docs))))
+    rows, values, labels = out.result()
     for column, want in enumerate(_want(scores, docs, k)):
         assert list(rows[column]) == list(want)
         assert values[column].tobytes() == scores[want, column].tobytes()
@@ -143,7 +143,7 @@ def test_a_later_better_row_replaces_the_representative():
         (np.array([[0.5], [0.4]], np.float32), np.array([8, 9]), np.array([0, 1])),
         (np.array([[0.7]], np.float32), np.array([8]), np.array([5])),
     ]
-    rows, values, labels = _merged(blocks, 2).result(2)
+    rows, values, labels = _merged(blocks, 2).result()
     assert list(rows[0]) == [5, 1]
     assert list(labels[0]) == [8, 9]
     assert values[0, 0] == np.float32(0.7)
@@ -154,7 +154,7 @@ def test_an_equal_later_row_keeps_the_earlier_smaller_position():
         (np.array([[0.5]], np.float32), np.array([8]), np.array([3])),
         (np.array([[0.5]], np.float32), np.array([8]), np.array([7])),
     ]
-    assert list(_merged(blocks, 1).result(1)[0][0]) == [3]
+    assert list(_merged(blocks, 1).result()[0][0]) == [3]
 
 
 def test_one_document_is_one_group_and_few_groups_are_all_kept():
@@ -169,4 +169,4 @@ def test_a_lost_block_is_an_error():
     out = DocumentCandidates(2, 1)
     out.add(0, (np.zeros(1, np.int64), np.ones(1, np.float32), np.array([0]), np.array([1])))
     with pytest.raises(RuntimeError, match="lost"):
-        out.result(1)
+        out.result()

@@ -133,12 +133,13 @@ class DocumentCandidates:
         self.floor = floor  # a new array: tasks that read the old one keep it
         self._pending, self._size = [], 0
 
-    def result(self, width: int) -> tuple[ndarray, ndarray, ndarray]:
+    def result(self) -> tuple[ndarray, ndarray, ndarray]:
         """The rows, scores and labels of every query, (queries, width), the best first;
-        ``width`` is ``min(k, documents in the selection)``, which every query has."""
+        the width is ``min(k, documents in the selection)``, which every query has."""
         self._merge()
         queries, values, rows, labels = self._merged
-        if len(queries) != len(self.floor) * width:
+        counts = np.bincount(queries, minlength=len(self.floor))
+        if (counts != counts[0]).any():
             raise RuntimeError("a block of the search was lost")
-        shape = (len(self.floor), width)
+        shape = (len(self.floor), int(counts[0]))
         return rows.reshape(shape), values.reshape(shape), labels.reshape(shape)

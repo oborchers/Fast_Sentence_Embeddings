@@ -7,9 +7,11 @@ from support.encoder import finished
 from support.runtime import texts
 
 
-def write_store(path, ids, *, dtype="float32", shard_rows=7, batches=False, durability="full"):
+def write_store(
+    path, ids, *, dtype="float32", shard_rows=7, batches=False, durability="full", sentences=None
+):
     encoder = finished(dim=17)
-    sentences = texts(len(ids))
+    sentences = texts(len(ids)) if sentences is None else sentences
     with fse.ShardSink(
         path, encoder, dtype=dtype, shard_rows=shard_rows, doc_ids=True, durability=durability
     ) as sink:

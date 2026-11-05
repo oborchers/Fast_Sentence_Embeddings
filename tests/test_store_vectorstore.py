@@ -254,3 +254,12 @@ def test_a_store_shows_no_internals(tmp_path):
             0,
             0,
         )
+
+
+def test_search_signature_takes_unique_doc_ids_only_by_keyword():
+    import inspect
+
+    parameter = inspect.signature(fse.VectorStore.search).parameters["unique_doc_ids"]
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is False
+    assert "unique_doc_ids" in fse.VectorStore.search.__doc__
