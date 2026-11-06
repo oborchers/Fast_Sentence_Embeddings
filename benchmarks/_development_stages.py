@@ -35,15 +35,25 @@ def inputs(job):
     return model, texts
 
 
-def tokenizer(model, texts):
-    from fse._text import Chunk, StringSource, make_lookup, new_workspace
+def tokenizer(model, texts, job=None):
+    from _development_lengths import workspace
+
+    from fse._text import Chunk, StringSource, make_lookup
 
     source = StringSource(texts)
     source.scan(workers=1)
     lookup = make_lookup(model.word_vectors, model._spec.tokenizer)
-    workspace = new_workspace()
+    ws = workspace("none" if job is None else job.get("lengths", "none"))
     chunk = Chunk(0, len(texts), 0, len(texts))
-    return lambda: source.encode(chunk, lookup, workspace)
+    if ws.watch == 0:
+        return lambda: source.encode(chunk, lookup, ws)
+
+    def recorded():  # the record of the rule is part of the timed call
+        batch = source.encode(chunk, lookup, ws)
+        ws.take_lengths()
+        return batch
+
+    return recorded
 
 
 def pooling(model, job):

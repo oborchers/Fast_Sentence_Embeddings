@@ -1,0 +1,57 @@
+{
+  "format": "local-development-v2",
+  "description": "length-report@1 (DR-163: Sichtbar machen, was beim Tokenisieren gekürzt wurde). Class D: absolute cost of lengths='summary', 'per_row', 'per_row' with count_truncated and on_truncation='raise' on documents that the length rule cuts, against the call without a report (absolute context, no comparison claim). Local development only, candidate build only.",
+  "defaults": {
+    "profile": "length-report@1",
+    "workers": 2,
+    "resident_cycles": 20,
+    "warmup_calls": 1,
+    "iterations": 1,
+    "target_seconds": 2,
+    "minimum_seconds": 2,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "m2v-docs-none",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-docs-m2v",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "m2v-docs-summary",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-docs-m2v",
+      "stage": "encode-memory",
+      "candidate_lengths": "summary"
+    },
+    {
+      "id": "m2v-docs-per_row",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-docs-m2v",
+      "stage": "encode-memory",
+      "candidate_lengths": "per_row"
+    },
+    {
+      "id": "m2v-docs-per_row-count",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-docs-m2v",
+      "stage": "encode-memory",
+      "candidate_lengths": "per_row-count"
+    },
+    {
+      "id": "uncut-raise",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-lines-uncut",
+      "stage": "encode-memory",
+      "candidate_lengths": "raise"
+    },
+    {
+      "id": "st-docs-per_row-count",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext-docs-st",
+      "stage": "encode-memory",
+      "candidate_lengths": "per_row-count"
+    }
+  ]
+}

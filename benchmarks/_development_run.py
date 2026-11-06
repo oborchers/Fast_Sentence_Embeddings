@@ -186,6 +186,7 @@ def _cell(args, cell, prepared, ledger):
                 "profile",
                 "base_doc_ids",
                 "candidate_doc_ids",
+                "candidate_lengths",
                 "id_chunks",
                 "heads",
                 "return_vectors",

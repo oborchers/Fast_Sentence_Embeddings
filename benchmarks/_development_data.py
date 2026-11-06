@@ -142,7 +142,7 @@ def _wikitext(work, cache, deadline=None):
 def _models(cells, work, cache, deadline=None):
     from fse import Encoder, StaticModel
 
-    result = {}
+    result, loaded = {}, {}
     for repo in sorted({cell["model"] for cell in cells}):
         check(deadline)
         revision = MODEL_PINS[repo]
@@ -168,8 +168,72 @@ def _models(cells, work, cache, deadline=None):
             artifacts[dtype] = dict(
                 path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
             )
+        loaded[repo] = _with_rule(cells, repo, snapshot, work, artifacts, model, deadline)
+        for kind, record in artifacts.items():
+            record["rule"] = _rule(loaded[repo] if kind == "float32-rule" else model)
         result[repo] = dict(revision=revision, artifacts=artifacts, dimensions=model.output_dim)
-    return result
+    return result, loaded
+
+
+def _with_rule(cells, repo, snapshot, work, artifacts, model, deadline):
+    """For a sentence-transformers model that a length-report cell reads: the model with its
+    own length rule (the standard artifacts read it whole), saved as ``float32-rule``. The
+    model the data cases of the repo are built from."""
+    from fse import Encoder
+
+    if repo.startswith("minishlab/") or not any(
+        c["profile"] == "length-report@1" and c["model"] == repo for c in cells
+    ):
+        return model
+    check(deadline)
+    ruled = Encoder.from_pretrained(str(snapshot), normalize=True)
+    path = work / (repo.replace("/", "--") + "-float32-rule.safetensors")
+    ruled.save(path)
+    artifacts["float32-rule"] = dict(
+        path=str(path), sha256=sha256(path), fingerprint=ruled.fingerprint
+    )
+    return ruled
+
+
+def _rule(model):
+    """The length rule ``[max_tokens, max_chars]`` of a model (null: none)."""
+    spec = model._spec.tokenizer
+    return [spec.max_tokens, spec.max_chars]
+
+
+def _length_corpus(name, work, cache, models, deadline):
+    """The data cases of the length report (DR-163), built from the rows of the pinned
+    WikiText test split by the rule of one model. The statistics of the case, from a report
+    outside every timer, are declared with it."""
+    from _development_lengths import (
+        REPO_OF,
+        ST_DOCUMENT_CODEPOINTS,
+        declared,
+        documents,
+        uncut_mask,
+    )
+
+    data = _wikitext(work, cache, deadline)
+    model = models[REPO_OF[name]]
+    rule = model._spec.tokenizer
+    normalized = [" ".join(row.split()) for row in data["texts"]]
+    if name == "wikitext-lines-uncut":
+        keep = uncut_mask(model, normalized)
+        data["texts"] = [row for row, ok in zip(data["texts"], keep, strict=True) if ok]
+        derived = "the rows of the split that the length rule does not cut, in order"
+        stats = declared(model, [t for t, ok in zip(normalized, keep, strict=True) if ok], True)
+    else:
+        limit = rule.max_chars if name == "wikitext-docs-m2v" else ST_DOCUMENT_CODEPOINTS
+        if limit is None:
+            raise ValueError("the pinned model has no max_chars for its documents")
+        data["texts"] = documents(data["texts"], limit)
+        derived = (
+            f"non-empty rows joined with one space until more than {limit} code points; "
+            "the incomplete rest is dropped"
+        )
+        stats = declared(model, data["texts"])
+    data["source"] = {**data["source"], "derived": derived, "declared": stats, "rule": _rule(model)}
+    return data
 
 
 def prepare_child(job):
@@ -177,9 +241,15 @@ def prepare_child(job):
     work = Path(job["work"])
     cache = job.get("hf_cache")
     corpora = {}
+    models, loaded = _models(job["cells"], work, cache, deadline)
     for name in sorted({cell["corpus"] for cell in job["cells"]}):
         check(deadline)
-        data = _stsb(deadline) if name == "stsb" else _wikitext(work, cache, deadline)
+        if name == "stsb":
+            data = _stsb(deadline)
+        elif name == "wikitext":
+            data = _wikitext(work, cache, deadline)
+        else:
+            data = _length_corpus(name, work, cache, loaded, deadline)
         data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
         data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
         path = work / (name + ".json")
@@ -192,4 +262,4 @@ def prepare_child(job):
             timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in data["timing_texts"]),
             timing_policy=data["timing_policy"],
         )
-    return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache, deadline)}
+    return {**LABEL, "corpora": corpora, "models": models}

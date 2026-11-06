@@ -8,6 +8,7 @@ from pathlib import Path
 from _development_budget import check, check_args
 from _development_heads_multi import configure as configure_heads
 from _development_ids import mode_for
+from _development_lengths import mode_for as lengths_for
 from _development_pairs import job_for
 from _development_process import checked, launch
 from _development_search import configure
@@ -26,15 +27,20 @@ def preflight(args, cell, prepared, ledger, owner):
     for name, python in builds:
         tag = cell["id"] + "-probe-" + name
         job = job_for(cell, prepared, 1, tag, owner)
+        if cell["profile"] == "length-report@1" and job["artifact"]["rule"][0] is None:
+            raise ValueError("the encoder has no length rule: the cell is void for this revision")
         configure(job, cell, name, False)
         configure_heads(job, cell, name, False)
         job.update(
-            action="probe", iterations=1, doc_ids=mode_for(cell, candidate=name == "candidate")
+            action="probe",
+            iterations=1,
+            doc_ids=mode_for(cell, candidate=name == "candidate"),
+            lengths=lengths_for(cell, candidate=name == "candidate"),
         )
         row = launch(args, job, python, tag)
         model = prepared["models"][cell["model"]]
         if (
-            row["encoder_fingerprint"] != model["artifacts"][cell["table_dtype"]]["fingerprint"]
+            row["encoder_fingerprint"] != job["artifact"]["fingerprint"]
             or row["dimensions"] != model["dimensions"]
         ):
             raise ValueError("preflight model metadata differs from prepared provenance")
@@ -67,7 +73,7 @@ def probe(job):
     job["texts"] = len(texts)
     requested_fraction = job.get("filter_fraction")
     check(job.get("wall_deadline"))
-    batch = tokenizer(model, texts)()
+    batch = tokenizer(model, texts, job)()
     check(job.get("wall_deadline"))
     expected_batch = reference_batch(model, texts)
     if output_identity(batch) != output_identity(expected_batch):
@@ -99,8 +105,11 @@ def probe(job):
             (Path(job["work"]) / (job["tag"] + "-timing.txt")).unlink()
         else:
             proof = _equal(got, expected)
+    from _development_lengths import check_reference
+
     return {
         "output": proof,
+        "lengths": check_reference(model, texts, job.get("lengths", "none")),
         "source_rows": len(texts),
         "probe_filter_count": job.get("filter_count"),
         "requested_filter_fraction": requested_fraction,

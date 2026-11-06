@@ -7,6 +7,8 @@ import time
 
 from _development_budget import check_args
 from _development_heads_multi import configure as configure_heads
+from _development_lengths import artifact_of
+from _development_lengths import mode_for as lengths_for
 from _development_locks import busy, lock_paths
 from _development_process import launch
 from _development_search import configure
@@ -20,7 +22,7 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
     return {
         **cell,
         "action": "measure",
-        "artifact": model["artifacts"][cell["table_dtype"]],
+        "artifact": artifact_of(cell, model),
         "corpus": prepared["corpora"][cell["corpus"]],
         "texts": count,
         "tag": tag,
@@ -57,6 +59,7 @@ def arm(
     from _development_ids import mode_for
 
     job["doc_ids"] = mode_for(cell, candidate=not control and name == "candidate")
+    job["lengths"] = lengths_for(cell, candidate=not control and name == "candidate")
     configure(job, cell, name, control)
     configure_heads(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
