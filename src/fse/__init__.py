@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from typing import Any as _Any
 
 from fse._container import CorruptArtifactError, PublishedNotDurableError
-from fse._contract import UnsupportedArtifactError
+from fse._contract import TruncationError, UnsupportedArtifactError
 from fse._log_config import disable_logging, enable_logging
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
@@ -128,6 +128,7 @@ __all__ = [
     "ShardSink",
     "Sink",
     "StaticModel",
+    "TruncationError",
     "UnsupportedArtifactError",
     "VectorBatch",
     "VectorStore",
