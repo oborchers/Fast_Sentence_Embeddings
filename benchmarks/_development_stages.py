@@ -23,6 +23,7 @@ def inputs(job):
             "head-labels",
             "head-group-folded",
             "head-group-mixed",
+            "head-group-score-sink",
         )
         else Encoder.load(path, mmap=True)
     )

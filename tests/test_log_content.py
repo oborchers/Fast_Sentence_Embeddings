@@ -42,6 +42,11 @@ REQUIRED = {
     "store.verified",
     "store.repaired",
     "store.search",
+    "scores.sink_opened",
+    "scores.shard_published",
+    "scores.sink_closed",
+    "scores.opened",
+    "scores.verified",
 }
 
 
@@ -95,6 +100,11 @@ def _everything(root: Path, monkeypatch):
         loaded, np.ones((2, loaded.output_dim), np.float32), np.zeros(2), normalized=False
     )
     head.predict(TEXTS[:3])
+    heads = fse.Heads(secret_head=head)
+    with fse.ScoreSink(root / "scores", heads, shard_rows=16) as scores:
+        list(heads.predict_batches([TEXTS[:20], TEXTS[20:]], score_sink=scores, workers=1))
+    with fse.ScoreStore.open(root / "scores") as scored:
+        scored.verify()
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.delenv("HF_TOKEN", raising=False)
     fake = FakeHub(REPO, root / "cache")

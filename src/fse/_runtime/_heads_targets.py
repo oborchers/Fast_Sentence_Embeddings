@@ -10,19 +10,74 @@
 The runtime reserves and commits in the calling thread, in task order, as for one sink. A
 head with a ``sink`` (only a lone head, through the model's own methods) writes there and
 numbers its rows from the first row of the run; every other target is an array of the run
-that counts from 0.
+that counts from 0. A target may also have a ``tee``: once the rows of a task are finished,
+the commit hands them on to it, numbered from the first row of the run (a score sink copies
+them into its columns). A tee takes no part in the arrays the run returns.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 from numpy import ndarray
 
 from fse._contract import Link
 
 from ._head_common import own, own_vectors, result
 from ._tasks import Task
+
+
+class Scratch:
+    """The rows of an extra output: a buffer for each task, dropped at its commit (a tee has
+    copied it on by then)."""
+
+    def __init__(self, width: int):
+        self.width = width
+
+    def target(self, first_row: int, n_rows: int) -> ndarray:
+        del first_row
+        return np.empty((n_rows, self.width), np.float32)
+
+    def commit(self, first_row: int, rows: ndarray) -> None:
+        pass
+
+
+class Slots:
+    """The output slots of a run: one for the main output of each head, then one more for
+    every head with an extra output (``extras``, per head: its output and the tee that gets
+    its rows). ``of_member[i]`` lists the slots of head ``i``, the main one first."""
+
+    def __init__(
+        self,
+        heads: list,
+        outputs: tuple[str, ...],
+        sinks: list,
+        tees: list | None,
+        extras: list | None,
+    ):
+        count = len(outputs)
+        given_tees = list(tees or [None] * count)
+        given_extras = list(extras or [None] * count)
+        if not len(sinks) == len(given_tees) == len(given_extras) == len(heads) == count:
+            raise ValueError("a run has one sink, tee and extra output for each head")
+        self.heads_of = list(range(count))
+        self.of_member: list[list[int]] = [[i] for i in range(count)]
+        outs, self.sinks, self.tees = list(outputs), list(sinks), given_tees
+        self.extra_kinds = tuple(None if e is None else e[0] for e in given_extras)
+        for i, extra in enumerate(given_extras):
+            if extra is None:
+                continue
+            self.of_member[i].append(len(outs))
+            self.heads_of.append(i)
+            outs.append(extra[0])
+            self.sinks.append(Scratch(heads[i].width(extra[0])))
+            self.tees.append(extra[1])
+        self.outputs = tuple(outs)
+
+    def heads(self, heads: list) -> list:
+        """The head of every slot."""
+        return [heads[i] for i in self.heads_of]
 
 
 class Targets:
@@ -39,8 +94,11 @@ class Targets:
         *,
         base: int,
         vectors: tuple[int, str, Any] | None,
+        tees: list | None = None,
     ):
         self.outputs = outputs
+        self.base = base
+        self.tees = tees or [None] * len(heads)
         self.bases = [base if sink is not None else 0 for sink in sinks]
         self.sinks = sinks
         self.targets: list[Any] = [
@@ -64,6 +122,9 @@ class Targets:
             t.target(b + task.first_row, task.n_rows)
             for t, b in zip(self.targets, self.bases, strict=True)
         ]
+        for tee in self.tees:  # a tee opens its rows of the task now; it gets them at the commit
+            if tee is not None:
+                tee.target(self.base + task.first_row, task.n_rows)
         vectors = (
             None
             if self.vectors is None
@@ -72,8 +133,12 @@ class Targets:
         return rows, vectors
 
     def commit(self, task: Task, done: tuple[list, Any]) -> None:
-        for target, base, rows in zip(self.targets, self.bases, done[0], strict=True):
+        for target, base, rows, tee in zip(
+            self.targets, self.bases, done[0], self.tees, strict=True
+        ):
             target.commit(base + task.first_row, rows)
+            if tee is not None:
+                tee.commit(self.base + task.first_row, rows)
         if self.vectors is not None:
             self.vectors.commit(self.vector_base + task.first_row, done[1])
 

@@ -8,6 +8,15 @@ from fse._stream import StreamSource
 from fse._text._ids import IdSource
 
 
+def refuse_score_sink(sink: Any) -> None:
+    """A ScoreSink takes the scores of ``fse.Heads`` only, whatever its document-ID mode."""
+    if hasattr(sink, "score_schema"):
+        raise ValueError(
+            "a ScoreSink stores the scores of fse.Heads, not rows of an encoder or the "
+            "outputs of one head; use fse.Heads(name=model).predict_batches(..., score_sink=sink)"
+        )
+
+
 def id_mode(sink: Any) -> bool:
     """Whether the sink stores document IDs: only ``has_doc_ids`` exactly True says so.
 
@@ -27,6 +36,7 @@ def _refuse_other_value(sink: Any) -> None:
 
 
 def check_id_mode(sink: Any, ids: Any) -> None:
+    refuse_score_sink(sink)
     if isinstance(ids, bool):
         raise TypeError(
             "encode takes the document IDs themselves, one per text (a list of int, a "

@@ -150,13 +150,27 @@ class Heads(Mapping):
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
         backend: str = "cpu",
+        score_sink: Any = None,
+        doc_ids: bool = False,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
         head and, with ``return_vectors=True``, the ``vectors`` (the rows of the encoder; the
         heads on raw means then take the unfolded path, see ``paths``). Checked before any
-        batch is read."""
-        return _heads_run.batches(self, batches, output, return_vectors, workers, backend)
+        batch is read.
+
+        With a ``score_sink`` (``fse.ScoreSink``) the scores of every head are also written
+        to a score store, whatever ``output`` returns; the call attaches the run to the sink
+        before the first batch is read, so a head whose path differs from that of the store
+        is refused. Each batch then reports ``durable_rows``, the rows of the run that are
+        durable; a consumer of a queue confirms its input up to there, and up to
+        ``sink.durable_rows`` once the iteration ended (the sink is flushed then). With
+        ``doc_ids=True`` the batches are ``(texts, doc_ids)`` pairs as for
+        ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
+        been made with ``doc_ids=True``. Stopping early does not flush: close the sink."""
+        return _heads_run.batches(
+            self, batches, output, return_vectors, workers, backend, score_sink, doc_ids
+        )
 
     # --- a value ----------------------------------------------------------------------
 

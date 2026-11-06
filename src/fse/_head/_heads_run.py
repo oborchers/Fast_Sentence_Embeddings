@@ -8,36 +8,54 @@
 batches (docs/architecture/runtime.md, "Runtime", Groups of heads).
 
 Texts run through the one runtime of heads, in the workers: one tokenization per task for
-all heads. A group has no sink and no store mode: its results are in memory. The ``output``
-rule resolves what each head gives before any text is read.
+all heads. A group has no store mode: its results are in memory, unless a ``score_sink`` takes the
+scores of every head for good (``_score_target``). The ``output`` rule resolves what each
+head gives before any text is read.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
 from numpy import ndarray
 
-from fse._encoder._batches import _named, batch_size, batch_source
+from fse._encoder._batches import _named, batch_size, batch_source, durable, flush
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
 from ._run import RUNTIME, check_backend, finish
+from ._score_target import ScoreRun, attach
 
 # What a head can give: labels, probabilities or decisions of a classifier, values of a regressor.
 OUTPUT_NAMES = ("labels", "proba", "decision", "values")
 
 
-def resolve_outputs(models: Mapping[str, Any], output: Any) -> tuple[str, ...]:
+@dataclass(frozen=True, slots=True)
+class OutputRule:
+    """What the output rule needs of a head: its ``task`` ("classification" or "regression")
+    and its ``link`` (None: no probabilities). A group of heads and a score store both give
+    one per head, so neither builds a model for it."""
+
+    task: str
+    link: Any
+
+
+def rules_of(models: Mapping[str, Any]) -> dict[str, OutputRule]:
+    """The ``OutputRule`` of every model of a group."""
+    return {name: OutputRule(model.TASK, model._content.link) for name, model in models.items()}
+
+
+def resolve_outputs(rules: Mapping[str, OutputRule], output: Any) -> tuple[str, ...]:
     """The output of every head, in order, from ``output``: None (each head gives its
     ``predict``), one name for all heads, or a mapping of names to outputs (unnamed heads
     keep their default). Raises before anything is read."""
-    given = _given(models, output)
-    return tuple(_checked(name, model, given.get(name)) for name, model in models.items())
+    given = _given(rules, output)
+    return tuple(_checked(name, rule, given.get(name)) for name, rule in rules.items())
 
 
 def _given(models: Mapping[str, Any], output: Any) -> dict[str, str]:
@@ -66,9 +84,9 @@ def _name(value: Any) -> str:
     return value
 
 
-def _checked(name: str, model: Any, output: str | None) -> str:
+def _checked(name: str, rule: OutputRule, output: str | None) -> str:
     """``output`` for the head ``name`` (its default for None), if the head can give it."""
-    regressor = model.TASK == "regression"
+    regressor = rule.task == "regression"
     if output is None:
         return "values" if regressor else "labels"
     if (output == "values") != regressor:
@@ -80,7 +98,7 @@ def _checked(name: str, model: Any, output: str | None) -> str:
         raise ValueError(
             f"head {name!r} cannot give {output!r}: {what}; name the output of each head in a mapping"
         )
-    if output == "proba" and model._content.link is None:
+    if output == "proba" and rule.link is None:
         raise ValueError(f"head {name!r} has no probabilities (link none); use decision")
     return output
 
@@ -97,7 +115,7 @@ def check_group_call(workers: Any, backend: Any, items: Any) -> None:
 def infer(heads: Any, texts: Any, output: Any, workers: Any, backend: Any) -> Mapping[str, ndarray]:
     """The outputs of every head for every text of ``texts``, in head order."""
     check_group_call(workers, backend, texts)
-    outputs = resolve_outputs(heads, output)
+    outputs = resolve_outputs(rules_of(heads), output)
     pipeline = heads._pipeline(backend, with_vectors=False)
     with opened(texts, heads._tokenizer) as source:
         rows, _ = pipeline.infer(
@@ -107,29 +125,63 @@ def infer(heads: Any, texts: Any, output: Any, workers: Any, backend: Any) -> Ma
 
 
 def batches(
-    heads: Any, items: Any, output: Any, return_vectors: bool, workers: Any, backend: Any
+    heads: Any,
+    items: Any,
+    output: Any,
+    return_vectors: bool,
+    workers: Any,
+    backend: Any,
+    score_sink: Any = None,
+    doc_ids: bool = False,
 ) -> Iterator[HeadsBatch]:
-    """The checks of ``predict_batches`` now, then its batches as a generator."""
+    """The checks of ``predict_batches`` now, then its batches as a generator. With a
+    ``score_sink`` the run attaches to it here, after every argument is checked and before
+    the first batch is read: the sink learns the path of each head."""
     check_group_call(workers, backend, items)
-    outputs = resolve_outputs(heads, output)
+    outputs = resolve_outputs(rules_of(heads), output)
     if return_vectors and heads._standalone:
         raise ValueError("a standalone group has no vectors: its table is folded")
+    kinds = tuple(RUNTIME[o] for o in outputs)
+    run = None
+    if score_sink is None:
+        if doc_ids:
+            raise ValueError("doc_ids=True needs a score_sink with doc_ids")
+    else:
+        attach(score_sink, heads, heads.paths(return_vectors=return_vectors), doc_ids)
+        run = ScoreRun(score_sink, kinds)
     pipeline = heads._pipeline(backend, with_vectors=return_vectors)
-    return _batches(heads, pipeline, iter(items), outputs, workers)
+    return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids)
 
 
-def _batches(heads, pipeline, items: Iterable[Any], outputs, workers) -> Iterator[HeadsBatch]:
-    row = 0
+def _batches(
+    heads, pipeline, items: Iterable[Any], outputs, workers, run=None, doc_ids=False
+) -> Iterator[HeadsBatch]:
+    row, last = 0, None
     kinds = tuple(RUNTIME[o] for o in outputs)
     for k, item in enumerate(items):
+        ids = None
+        if doc_ids:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
+            item, ids = item
+            if ids is None:
+                raise TypeError(f"batch {k} must give its doc_ids, not None")
         with (
             _named(k, row, batch_size(k, item)),
             batch_source(item, heads._tokenizer) as (source, n),
         ):
-            rows, vectors = pipeline.infer(source, outputs=kinds, workers=workers, first_row=row)
+            if run is None:
+                rows, vectors = pipeline.infer(
+                    source, outputs=kinds, workers=workers, first_row=row
+                )
+            else:
+                rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
+                last = durable(run.sink, row + n, last)
             given = _outputs(heads, rows, outputs)
-        yield HeadsBatch(first_row=row, n_rows=n, outputs=given, vectors=vectors)
+        yield HeadsBatch(first_row=row, n_rows=n, outputs=given, vectors=vectors, durable_rows=last)
         row += n
+    if run is not None:
+        flush(run.sink)
 
 
 def _outputs(heads: Any, rows: list, outputs: tuple[str, ...]) -> Mapping[str, ndarray]:

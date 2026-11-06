@@ -1,0 +1,30 @@
+{
+  "format": "local-development-v2",
+  "description": "linear-heads-scores@1: the cost of a run from text to a durably closed ScoreSink (DR-162, Scores und Vorhersagen dauerhaft speichern), class D: one arm, absolute median and IQR, no comparison. Two fixed softmax heads of four outputs each on raw means (the folded path), the logits stored (8 columns) with ordered document IDs and durability full. The cell heads-score-sink-full times fresh ScoreSink, the complete run and close as one continuous group; every store is verified, synchronized and removed outside the timer, and its scores are hashed against the same run without a sink. The cell heads-score-memory is the context only: the same heads without a sink, never a comparison. Run both with --local-phase descriptive --descriptive-repetitions 5. M1 local indication only, no README speed claims.",
+  "defaults": {
+    "profile": "linear-heads-scores@1",
+    "decision_gate": false,
+    "workers": 2,
+    "heads": 2,
+    "base_heads_mode": "one-pass",
+    "candidate_heads_mode": "one-pass",
+    "resident_cycles": 230,
+    "iterations": 1,
+    "warmup_calls": 1,
+    "warmup_seconds": 1.0
+  },
+  "cells": [
+    {
+      "id": "heads-score-sink-full",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-score-sink"
+    },
+    {
+      "id": "heads-score-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-group-folded"
+    }
+  ]
+}

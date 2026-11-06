@@ -73,6 +73,7 @@ def repair_store(path: PathLike) -> int:
         "fse store: kept %d rows and moved %d shards aside",
         rows,
         len(moved),
+        kind=info.kind,
         rows=rows,
         moved_shards=len(moved),
         moved_rows=moved_rows,

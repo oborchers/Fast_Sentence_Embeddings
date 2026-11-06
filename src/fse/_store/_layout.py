@@ -44,6 +44,7 @@ from ._kinds import kind_of, kind_of_root
 from ._vectors_format import StoreInfo, shard_metadata
 
 __all__ = [
+    "SCORE_STORE_BYTES",
     "SHARD_PREFIX",
     "STORE_FILE",
     "STORE_NAME",
@@ -53,6 +54,7 @@ __all__ = [
     "failed_cleanup",
     "open_shard",
     "read_store",
+    "root_text",
     "shard_metadata",
     "shard_name",
     "shards",
@@ -61,10 +63,20 @@ __all__ = [
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
-_STORE_BYTES = 1 << 16  # store.json is a few hundred bytes
+_STORE_BYTES = 1 << 16  # store.json of sentence vectors is a few hundred bytes
+SCORE_STORE_BYTES = 1 << 20  # that of a score store lists its heads and their labels
 
 
-def create_store(path: Path, info: StoreInfo) -> bool:
+def root_text(info: Any) -> str:
+    """The text of ``store.json`` for ``info``, without the final newline."""
+    return json.dumps(
+        {"store": STORE_NAME, "store_version": info.version, "metadata": info.metadata()},
+        sort_keys=True,
+        indent=1,
+    )
+
+
+def create_store(path: Path, info: Any) -> bool:
     """Create the store ``path`` with ``info`` unless it exists; True if this call made it.
 
     The store appears whole: ``store.json`` is written and synced in a temporary
@@ -79,11 +91,7 @@ def create_store(path: Path, info: StoreInfo) -> bool:
     tmp = path.parent / f".{path.name}.creating-{secrets.token_hex(4)}"
     tmp.mkdir()
     try:
-        text = json.dumps(
-            {"store": STORE_NAME, "store_version": info.version, "metadata": info.metadata()},
-            sort_keys=True,
-            indent=1,
-        )
+        text = root_text(info)
         fd = os.open(
             tmp / STORE_FILE,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
@@ -130,16 +138,16 @@ def failed_cleanup(
     )
 
 
-def read_store(path: Path) -> Any:
-    """The info of the store ``path`` (what every row shares), checked strictly."""
+def read_store(path: Path, kind: str | None = None) -> Any:
+    """The info of the store ``path`` (what every row shares), checked strictly. With a
+    ``kind``, a store of another kind is an UnsupportedArtifactError."""
     path = Path(path)
     if not path.is_dir() or path.is_symlink():
         raise CorruptArtifactError(f"{path} is no store of sentence vectors (no directory)")
     file = path / STORE_FILE
     with _open_regular(file) as handle:
-        raw = handle.read(_STORE_BYTES + 1)
-    if len(raw) > _STORE_BYTES:
-        raise CorruptArtifactError(f"{file} is larger than {_STORE_BYTES} bytes")
+        raw = handle.read(SCORE_STORE_BYTES + 1)
+    _check_size(raw, file)
     store = _strict_json(raw, file)
     if not isinstance(store, dict) or set(store) != {"store", "store_version", "metadata"}:
         raise CorruptArtifactError(f"{file} must hold exactly store, store_version and metadata")
@@ -149,7 +157,34 @@ def read_store(path: Path) -> Any:
             f"{path} is a store {store['store']!r} version {version!r}; this fse "
             f"reads {STORE_NAME!r} version {STORE_VERSION}"
         )
-    return kind_of_root(store["metadata"]).parse_root(version, store["metadata"], file)
+    info = kind_of_root(store["metadata"]).parse_root(version, store["metadata"], file)
+    if kind is not None and info.kind != kind:
+        raise UnsupportedArtifactError(
+            f"{path} holds {info.kind}, not {kind}; open it with "
+            f"{'fse.ScoreStore' if info.kind == 'prediction_scores' else 'fse.VectorStore'}"
+        )
+    return info
+
+
+def _check_size(raw: bytes, file: Path) -> None:
+    """Only a score store may be larger than ``_STORE_BYTES``, up to ``SCORE_STORE_BYTES``."""
+    if len(raw) <= _STORE_BYTES:
+        return
+    if not _names_scores(raw):
+        raise CorruptArtifactError(f"{file} is larger than {_STORE_BYTES} bytes")
+    if len(raw) > SCORE_STORE_BYTES:
+        raise CorruptArtifactError(f"{file} is larger than {SCORE_STORE_BYTES} bytes")
+
+
+def _names_scores(raw: bytes) -> bool:
+    """Whether the root names the kind ``prediction_scores``: read from the JSON, or from the
+    start of a file that is cut at the limit."""
+    if len(raw) > SCORE_STORE_BYTES:
+        return b'"fse.kind": "prediction_scores"' in raw[:4096]
+    try:
+        return json.loads(raw.decode("utf-8"))["metadata"]["fse.kind"] == "prediction_scores"
+    except (ValueError, KeyError, TypeError):
+        return False
 
 
 def open_shard(path: Path, info: Any, first_row: int) -> tuple[Shard, dict[str, ndarray]]:

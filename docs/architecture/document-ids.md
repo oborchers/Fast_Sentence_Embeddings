@@ -34,13 +34,12 @@ exactly when enabled. Its checksum participates in the artifact fingerprint.
 A store written by a pre-release of 2.1 with `fse.row_ids` is refused with
 `UnsupportedArtifactError` (open, append, repair and verify) and must be written again.
 
-The unpublished format 2 is shared with DR-199 (Lineare Köpfe zum vollwertigen
-Bestandteil von fse machen). Document IDs or optional score tensors require this
-same version, rather than separate format increments. Vectors, IDs and scores
-share one physical shard writer and store path. Optional scores do not imply
-document IDs: `doc_ids.npy` remains present exactly when the ID mode is enabled.
-The score tensors and their metadata schema belong to that separate work. This
-document-ID implementation neither writes score columns nor reserves their names.
+Scores are not stored in the shards of vectors. They are a kind of their own,
+`prediction_scores` ([scores.md](scores.md)), in a store of their own that shares the
+physical shard writer, the document-ID column (`doc_ids.npy` exactly when `fse.doc_ids`
+is `int64`) and the statistics below. Vectors and scores of one run are written to two
+stores and joined by their document IDs and their rows (DR-229, Vektoren und Scores in
+einem Lauf in zwei Stores schreiben).
 
 ID shards also record `fse.doc_ids_min`, `fse.doc_ids_max` and
 `fse.doc_ids_sorted=true|false`. Bounds are canonical signed int64 decimals.

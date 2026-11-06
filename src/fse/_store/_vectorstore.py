@@ -40,7 +40,7 @@ from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, clear_exception_frames, snapshot
 from ._result import DocumentSearchResult, SearchResult
-from ._vectors_format import StoreInfo
+from ._vectors_format import VECTORS, StoreInfo
 
 F32 = np.float32
 
@@ -262,7 +262,7 @@ class VectorStore:
         scales and inverse norms of at least 0, finite float rows, int8 codes within
         +-127."""
         start = time.perf_counter()
-        read_store(self.path)
+        read_store(self.path, VECTORS.name)
         kind = kind_of(self._info)
         with self._using():
             for shard, tensors in self._shards:
@@ -352,7 +352,7 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
     path = Path(path)
-    info = read_store(path)
+    info = read_store(path, VECTORS.name)
     if encoder is not None:
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")

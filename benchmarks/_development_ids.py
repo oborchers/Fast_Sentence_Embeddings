@@ -60,6 +60,7 @@ def validate(cell):
         "encoder@1",
         "linear-heads@1",
         "linear-heads-multi@1",
+        "linear-heads-scores@1",
         *DOCUMENT_PROFILES,
     ):
         raise ValueError("unknown development adapter profile")

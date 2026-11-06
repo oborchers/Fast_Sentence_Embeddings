@@ -645,3 +645,28 @@ python benchmarks/speed.py --diagnose \
 ```
 
 Lesson of the first run (DR-161): the A/A control of `heads-multi-folded-4` runs the slow arm (four separate calls) in both arms. At the 6 s tier one group already took about 27 s, so the A/A tune, the validation block and the sizing used the whole active calibration limit of 3600 s; the cell ended `inconclusive_noise` before its screen, and a single-head cell on a loaded machine ended the same way. A noisy machine (load near 5, a foreign process with high CPU) needs a quiet window or a larger limit that is agreed before the run; a result is never repeated until it is favourable. The D cells fix `iterations` and use `target_seconds` and `minimum_seconds` of 2 so that every group lasts at least two seconds. The cell `heads-multi-folded-1` (DR-239, Mehraufwand des einzelnen gefalteten Kopfs nach DR-161 finden und beheben) is a regression screen of a group of one head: both arms run `fse.Heads` once, so pass a base interpreter of the build before the change as `--base-python` and a candidate interpreter as `--candidate-python`, with `--cells heads-multi-folded-1 --local-phase regression-screen --regression-limit 0.02`.
+
+
+The regression screen of DR-162 (Scores und Vorhersagen dauerhaft speichern) uses the cell `heads-multi-folded-2-r`: two heads, both arms in one-pass mode (`base_heads_mode` and `candidate_heads_mode` are `one-pass`; the cell `heads-multi-folded-2-one-pass` inherits `separate` for its base and would compare different call paths), the base interpreter built from the commit before the change, `--local-phase regression-screen`, `--regression-limit 0.03`. A screen without sufficient evidence of uncertainty stays preliminary.
+
+## Text to a durably closed ScoreSink: `linear-heads-scores@1`
+
+`benchmarks/config/linear-heads-scores-local.json` defines `linear-heads-scores@1` for DR-162 (Scores und Vorhersagen dauerhaft speichern), class D: one arm, fixed repetitions, absolute median and IQR, no comparison and no decision. It reuses the adapter of `linear-heads-multi@1` (`benchmarks/_development_heads_multi.py`, with the stage in `benchmarks/_development_heads_scores.py`) and adds the stage `head-group-score-sink`:
+
+- Two fixed softmax heads of four outputs each on raw means (the folded path), stored as logits, so eight columns and no second output; ordered document IDs, `durability="full"`.
+- The continuous timer covers a fresh `ScoreSink`, the complete `Heads.predict_batches(score_sink=...)` run over all rows and `close`. The sum from the first read to the close is a component, never a substitute.
+- Outside the timer, every store is opened with `ScoreStore.open` and verified (`ScoreStore.verify`, which hashes every shard), its rows, shapes and dtypes are checked, all document IDs are compared with the input, and the hash of all `scores` in row order (all shards, streamed through the `Hasher`) must equal the hash of the same run without a sink. Then the files are synchronized, the mappings released (the store closed) and the store removed; only one store exists at a time.
+- The cell `heads-score-memory` (stage `head-group-folded` of the same profile) is the context: the same heads and the same output without a sink. It is not a comparison and gives no factor.
+- Peak memory is the `peak_rss_bytes` of the child (the whole child, including preparation); a memray run of the sink cell outside the timer attributes the window, the copies of the adapter and the queues.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/linear-heads-scores-local.json \
+  --base-python /external/candidate/bin/python \
+  --candidate-python /external/candidate/bin/python \
+  --cells heads-score-sink-full,heads-score-memory --local-phase descriptive \
+  --descriptive-repetitions 5 --worker-name dr162-score-store \
+  --wall-time-seconds 2700 --results /external/dr162/results-01 --work /external/dr162/work-01
+```
+
+The claim of the result is limited to this workload (POTION-8M, WikiText with 1,002,340 rows, `workers: 2`, four logits per head) on the M1 as a local indication; no README number follows from it. Linux publication evidence is not part of this work.

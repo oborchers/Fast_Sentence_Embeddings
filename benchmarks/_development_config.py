@@ -24,6 +24,7 @@ STAGES = (
     "head-labels",
     "head-group-folded",
     "head-group-mixed",
+    "head-group-score-sink",
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {

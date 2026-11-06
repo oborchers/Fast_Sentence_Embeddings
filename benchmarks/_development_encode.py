@@ -69,6 +69,10 @@ def output_identity(value):
         from _development_store import checked_query
 
         return checked_query(value)
+    if isinstance(value, dict) and value.get("kind") == "score-store":
+        from _development_heads_scores import identity
+
+        return identity(value)
     if isinstance(value, dict):
         return _stores_identity(value)
     arrays = _arrays(value)

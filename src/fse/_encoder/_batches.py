@@ -26,7 +26,7 @@ from fse._runtime import Pipeline, check_workers, wants_inverse_norms
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
-from ._doc_ids import check_batch_mode, check_id_mode, infer_ids
+from ._doc_ids import check_batch_mode, check_id_mode, infer_ids, refuse_score_sink
 from ._sources import opened
 
 
@@ -53,6 +53,7 @@ class EncodedBatch(NamedTuple):
 def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int, hint: str = "") -> str:
     """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder; ``hint``
     ends the message about a wrong width."""
+    refuse_score_sink(sink)
     if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
         raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))

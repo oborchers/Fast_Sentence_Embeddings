@@ -30,7 +30,7 @@ from . import _calibration, _model2vec_files, _model2vec_objects, _run, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._outputs import PredictedBatch
-from ._thresholds import thresholds as read_thresholds
+from ._thresholds import updated
 
 
 class Classifier(LinearModel):
@@ -180,10 +180,7 @@ class Classifier(LinearModel):
         self._verified("head.thresholds", old.thresholds)
         bias = self._verified("head.bias", old.bias)
         weight = None if old.weight is None else self._verified("head.weight", old.weight)
-        if isinstance(thresholds, Mapping):
-            current.update(thresholds)
-            thresholds = current
-        limits = read_thresholds(thresholds, old.labels)
+        limits = updated(current, thresholds, old.labels)
         for array in (bias, weight):
             if array is not None:
                 array.setflags(write=False)
