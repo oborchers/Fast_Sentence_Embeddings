@@ -138,16 +138,15 @@ def test_two_killed_stores_continue_with_the_bytes_of_one_run(tmp_path, whole, h
 def test_a_run_killed_early_continues_with_the_bytes_of_one_run(
     tmp_path, whole, vector_shards, score_shards
 ):
-    """The first shard the child publishes is one of the shorter store: the longer store may
-    not have grown yet, though the second phase can start while the hook holds the publisher."""
+    """The kill falls at the first publication of the child. Which store has grown by then
+    depends on the threads (the second phase can start while the hook holds the publisher),
+    so only the prefixes and the end are checked; the first phase alone is the next test."""
     directory = tmp_path / "s"
     run(directory, SENTENCES)
     cut(directory, vector_shards, score_shards)
     before = _prefixes_are_valid(directory)
     _run_until_killed(directory, "after_publish", 1)
     after = _prefixes_are_valid(directory)
-    shorter = 0 if vector_shards < score_shards else 1
-    assert after[shorter] > before[shorter]
     assert all(a >= b for a, b in zip(after, before, strict=True))
     run(directory, SENTENCES)
     assert stores(directory) == whole
