@@ -20,6 +20,11 @@ def refuse_score_sink(sink: Any) -> None:
         )
 
 
+class ShardSinkMarker:
+    """Base of the shard sinks of fse (``ShardSinkBase``). 2.0 had none that stores document
+    IDs, so only these are refused when a call brings no IDs; a foreign sink never is."""
+
+
 def id_mode(sink: Any) -> bool:
     """Whether the sink stores document IDs: only ``has_doc_ids`` exactly True says so.
 
@@ -33,15 +38,15 @@ def own_id_sink(sink: Any) -> bool:
     """Whether the sink is one of fse's shard sinks in document-ID mode. 2.0 had no such
     sink, so it never meets a call without IDs. A foreign sink with ``has_doc_ids`` True
     ran in 2.0 as a plain sink and still does."""
-    return id_mode(sink) and callable(getattr(sink, "_check_fresh", None))
+    return id_mode(sink) and isinstance(sink, ShardSinkMarker)
 
 
-def _refuse_other_value(sink: Any, role: str = "sink") -> None:
+def _refuse_other_value(sink: Any, role: str = "sink", method: str = "encode") -> None:
     """A call with IDs needs ``has_doc_ids`` True; a value that is no bool is a type error."""
     value = getattr(sink, "has_doc_ids", False)
     if not isinstance(value, bool):
         raise TypeError(
-            f"has_doc_ids of the {role} must be True for doc_ids, not {type(value).__name__}"
+            f"{method}: has_doc_ids of the {role} must be True for doc_ids, not {type(value).__name__}"
         )
 
 
@@ -66,7 +71,7 @@ def check_modes(
     for role, sink in sinks:
         stores = id_mode(sink)
         if doc_ids and not stores:
-            _refuse_other_value(sink, role)
+            _refuse_other_value(sink, role, method)
             raise ValueError(
                 f"doc_ids=True needs the {role} to have doc_ids; the {role} has none, "
                 f"and {method} gives document IDs only to a sink made with doc_ids=True"

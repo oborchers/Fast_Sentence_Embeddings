@@ -29,7 +29,7 @@ Each entry of `fse.score_heads` has exactly `name`, `model` (fingerprint of the 
 
 **Size.** A score store lists its heads and their labels, so its `store.json` may be up to 1 MiB; a store of sentence vectors keeps 64 KiB. `ScoreSink` serializes the document it will write and checks the limit before anything is created.
 
-**Path.** A head on raw means runs `folded` without the vectors and `unfolded` with them, and the two differ in the last bits. The path of each head is therefore part of what is stored (`folded`, `normalized`, `unfolded`, `standalone`). It is known only when `Heads.predict_batches(return_vectors=...)` is called, so `ScoreSink(path, heads)` checks everything but the path and creates nothing; `predict_batches` attaches the run to the sink, before it reads a text, and passes the paths; a new store gets its `store.json` then, whole. Appending needs the same paths (`ValueError` naming the head and both paths, before the first text). Closing a sink that never attached leaves nothing behind.
+**Path.** A head on raw means runs `folded` without the vectors and `unfolded` with them, and the two differ in the last bits. The path of each head is therefore part of what is stored (`folded`, `normalized`, `unfolded`, `standalone`). It is known only when `predict_batches(return_vectors=...)` of `Heads`, `Classifier` or `Regressor` is called, so `ScoreSink(path, heads)` checks everything but the path and creates nothing; `predict_batches` attaches the run to the sink, before it reads a text, and passes the paths; a new store gets its `store.json` then, whole. Appending needs the same paths (`ValueError` naming the head and both paths, before the first text). Closing a sink that never attached leaves nothing behind.
 
 ### Compatibility table
 

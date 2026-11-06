@@ -259,3 +259,26 @@ def test_the_new_keywords_are_keyword_only_with_defaults_after_those_of_2_0(whic
     for name in names[1:]:
         assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
     assert [parameters[n].default for n in names[6:]] == [None, None, False]
+
+
+def test_a_foreign_sink_with_a_method_named_like_a_private_one_is_not_a_shard_sink(clf):
+    class Foreign(fse.MemorySink):
+        has_doc_ids = True
+
+        def _check_fresh(self):
+            raise AssertionError("a private method of a foreign sink was called")
+
+    sink = Foreign(3)
+    got = list(clf.predict_batches(lone.batches(13)[:1], output="decision", sink=sink))
+    assert got[0].n_rows == 13
+    encoder = clf.encoder
+    plain = Foreign(encoder.output_dim)
+    assert len(list(encoder.encode_batches(lone.batches(13)[:1], sink=plain))) == 1
+
+
+def test_the_vector_sink_is_checked_before_the_head_count_of_the_score_sink(tmp_path, clf):
+    group_sink = fse.ScoreSink(tmp_path / "s", fse.Heads(a=clf, b=sh.classifier(clf.encoder, 3)))
+    with group_sink, pytest.raises(TypeError, match="target and commit"):
+        clf.predict_batches(
+            _poisoned(), return_vectors=True, vector_sink=object(), score_sink=group_sink
+        )

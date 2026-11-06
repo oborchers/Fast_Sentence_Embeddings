@@ -157,7 +157,10 @@ def test_three_batches_publish_and_flush_in_the_2_0_order(model, output, vectors
     assert error is None
     assert [b[:2] for b in batches] == [(0, 4), (4, 2), (6, 3)]
     kinds = [entry[0] for entry in log]
-    assert kinds[-1] == "exhausted" or kinds[-2:] == ["flush", "exhausted"] or "flush" in kinds
+    assert kinds[-2:] == ["flush", "exhausted"] or kinds[-1] == "flush"
+    # per batch: target, commit, publish, durable_rows, in that order
+    begin = kinds.index("target")
+    assert kinds[begin : begin + 4] == ["target", "commit", "publish", "durable_rows"]
     assert kinds.count("flush") == 1
     assert kinds.index("flush") > max(i for i, k in enumerate(kinds) if k == "commit")
     assert kinds.count("publish") == 3

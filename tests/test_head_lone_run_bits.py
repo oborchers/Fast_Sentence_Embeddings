@@ -121,9 +121,7 @@ def test_a_single_head_and_a_group_of_one_append_to_each_other(tmp_path, name):
     kwargs = {"stored": stored, "shard_rows": 7}
     for first in ("lone", "group"):
         path = tmp_path / first
-        for turn in ("lone", "group"):
-            order = [first, "group" if first == "lone" else "lone"]
-            kind = order[0] if turn == first else order[1]
+        for kind in (first, "group" if first == "lone" else "lone"):
             if kind == "lone":
                 with fse.ScoreSink(path, model, name=lone.NAME, **kwargs) as sink:
                     list(model.predict_batches(batch_list, score_sink=sink))
@@ -132,6 +130,8 @@ def test_a_single_head_and_a_group_of_one_append_to_each_other(tmp_path, name):
                     list(heads.predict_batches(batch_list, score_sink=sink))
         with fse.ScoreStore.open(path, heads=model, name=lone.NAME) as store:
             assert len(store) == 40
+            twice = np.asarray(store.get_scores(lone.NAME, stored.replace("decision", "decision")))
+            assert np.array_equal(twice[:20].view("u4"), twice[20:].view("u4"))
 
 
 @pytest.mark.parametrize("name", ["softmax", "flat"])

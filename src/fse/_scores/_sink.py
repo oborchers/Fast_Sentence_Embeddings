@@ -117,7 +117,7 @@ class ScoreSink(ShardSinkBase):
     # --- the run attaches ---------------------------------------------------------------
 
     def _attach(self, paths: Mapping[str, str]) -> None:
-        """Attach the run that ``Heads.predict_batches`` starts, with the path of each head:
+        """Attach the run that ``predict_batches`` starts, with the path of each head:
         a new store gets its ``store.json`` now, whole; an existing one must hold the same
         paths. Called before the first text is read."""
         self._check_open()
