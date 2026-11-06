@@ -9,7 +9,8 @@ batches (docs/architecture/runtime.md, "Runtime", Groups of heads).
 
 Texts run through the one runtime of heads, in the workers: one tokenization per task for
 all heads. A group has no store mode: its results are in memory, unless a ``score_sink`` takes the
-scores of every head for good (``_score_target``). The ``output`` rule resolves what each
+scores of every head for good (``_score_target``). A single head runs the same way
+(``_lone_run``). The ``output`` rule resolves what each
 head gives before any text is read.
 """
 
@@ -110,7 +111,8 @@ def check_group_call(workers: Any, backend: Any, items: Any) -> None:
     check_backend(backend)
     if isinstance(items, VectorStore):
         raise ValueError(
-            "a group of heads reads texts; take the outputs of a store from each head's predict"
+            "a group of heads reads texts; take the outputs of a store from the predict_batches of "
+            "each head, or read a score store with fse.ScoreStore"
         )
 
 

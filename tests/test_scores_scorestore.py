@@ -192,3 +192,37 @@ def test_one_label_multilabel_probabilities_keep_their_column(tmp_path):
     with fse.ScoreStore.open(tmp_path / "s") as store:
         assert store.get_scores("one", "proba").shape == (6, 1)
         assert next(iter(store.iter_batches())).outputs["one"].shape == (6, 1)
+
+
+def test_open_with_one_head_needs_its_name_and_compares_name_model_and_encoder(tmp_path):
+    enc = sh.encoder()
+    model = sh.classifier(enc, 3, seed=4)
+    with fse.ScoreSink(tmp_path / "one", model, name="topic", stored="proba") as sink:
+        list(model.predict_batches([sh.texts(8)], score_sink=sink))
+    fse.ScoreStore.open(tmp_path / "one", heads=model, name="topic").close()
+    cases = [
+        ({"heads": model}, TypeError, "a single head needs name="),
+        ({"heads": model, "name": 3}, TypeError, "name must be a str"),
+        ({"heads": model, "name": "Topic"}, ValueError, r"must match \[a-z\]"),
+        ({"heads": model, "name": "other"}, ValueError, "holds the heads"),
+        ({"heads": sh.classifier(enc, 3, seed=9), "name": "topic"}, ValueError, "another model"),
+        ({"heads": fse.Heads(topic=model), "name": "topic"}, ValueError, "name is for a single"),
+    ]
+    for options, error, message in cases:
+        with pytest.raises(error, match=message):
+            fse.ScoreStore.open(tmp_path / "one", **options)
+    with pytest.raises(ValueError, match="goes with a single head"):
+        fse.ScoreStore.open(tmp_path / "one", name="topic")
+
+
+def test_a_store_of_two_heads_is_not_opened_with_one(store_path):
+    heads = sh.group()
+    with pytest.raises(ValueError, match="holds the heads"):
+        fse.ScoreStore.open(store_path, heads=heads["topic"], name="topic")
+
+
+def test_a_group_of_one_opens_the_store_of_a_single_head(tmp_path):
+    model = sh.classifier(sh.encoder(), 3, seed=4)
+    with fse.ScoreSink(tmp_path / "one", model, name="topic") as sink:
+        list(model.predict_batches([sh.texts(8)], score_sink=sink))
+    fse.ScoreStore.open(tmp_path / "one", heads=fse.Heads(topic=model)).close()

@@ -4,14 +4,13 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The schema of the scores a group of heads stores (docs/architecture/scores.md, "Schema").
+"""The schema of the scores heads store (docs/architecture/scores.md, "Schema").
 
-``ScoreSchema.from_heads(heads, stored, name)`` reads what each head is (its model fingerprint, task,
-rule, link, labels) and what it stores (``stored=``: the decision (logits) or the
+``ScoreSchema.from_heads(heads, stored, name)`` reads what each head is (its model fingerprint,
+task, rule, link, labels) and what it stores (``stored=``: the decision (logits) or the
 probabilities of a classifier, the values of a regressor), and lays the heads side by side in
 the columns of ``scores``. The path of each head is not known yet: a head on raw means runs
-folded without the vectors and unfolded with them, which only ``Heads.predict_batches``
-learns; ``with_paths`` completes the schema when a run attaches.
+folded without the vectors and unfolded with them, which only ``predict_batches`` learns; ``with_paths`` completes the schema when a run attaches.
 """
 
 from __future__ import annotations

@@ -115,7 +115,8 @@ class Regressor(LinearModel):
         score_sink: Any = None,
         doc_ids: Any = False,
     ) -> Iterator[PredictedBatch]:
-        """Predict a stream batch by batch, as ``Classifier.predict_batches``."""
+        """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
+        ``sink``, ``vector_sink``, ``score_sink`` and ``doc_ids``."""
         return _lone_run.batches(
             self,
             batches,

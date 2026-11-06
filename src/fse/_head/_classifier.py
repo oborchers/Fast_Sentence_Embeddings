@@ -330,7 +330,20 @@ class Classifier(LinearModel):
             VectorStore  False           the outputs (not labels)       None (sink)   None
             VectorStore  True            raises ValueError
 
-        A sink with ``has_doc_ids`` True takes neither. Checked before any batch is read."""
+        ``sink`` keeps this role and stores no document IDs; a shard sink of fse with
+        ``doc_ids=True`` is refused, a sink of your own with ``has_doc_ids`` True takes the
+        rows without IDs, as in 2.0. For vectors, scores and document IDs use the keywords
+        of ``fse.Heads.predict_batches``, which work the same here and exclude ``sink``:
+
+        - ``vector_sink`` takes the vectors of the encoder (needs ``return_vectors=True``;
+          the head on raw means then takes the unfolded path, see ``path``);
+        - ``score_sink`` is a ``fse.ScoreSink(path, model, name=...)`` of this head; the
+          outputs of the batch stay in it, ``durable_rows`` is the minimum of both sinks;
+        - ``doc_ids=True`` gives the batches as ``(texts, doc_ids)`` pairs, stored with the
+          rows of every sink that has ``doc_ids=True``.
+
+        These three take texts; a ``VectorStore`` input with one of them raises. Checked
+        before any batch is read."""
         if output == "proba":
             self._check_proba()
         return _lone_run.batches(

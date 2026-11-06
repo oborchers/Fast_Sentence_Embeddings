@@ -9,7 +9,7 @@
 
 The shards published when the store is opened are mapped read-only (a snapshot: later
 appends need a new open). ``iter_batches`` gives the stored values as they are, read-only
-views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` does, derived
+views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
 from what is stored, with the thresholds of the multilabel heads replaced if asked. No
 encoder, tokenizer or weight table is loaded.
 """

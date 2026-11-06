@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The run of a group of heads into a score sink (docs/architecture/scores.md, "Writing").
+"""The run of heads, a group or a single one, into a score sink (docs/architecture/scores.md, "Writing").
 
 The sink is a float32 sink of the columns of all heads side by side. The workers fill the
 targets of the heads as ever, each in its own contiguous array; this module joins them to

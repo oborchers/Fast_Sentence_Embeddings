@@ -180,7 +180,10 @@ class Heads(Mapping):
         stores that hold unequal numbers of rows take a run only with ``doc_ids``. With
         ``doc_ids=True`` the batches are ``(texts, doc_ids)`` pairs as for
         ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
-        been made with ``doc_ids=True``. Stopping early does not flush: close the sink."""
+        been made with ``doc_ids=True``. Stopping early does not flush: close the sink.
+
+        A single head takes the same keywords in its own ``predict_batches``, without a
+        group."""
         return _heads_run.batches(
             self,
             batches,

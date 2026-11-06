@@ -246,3 +246,16 @@ def test_a_refusal_by_the_id_mode_creates_no_score_store(tmp_path, clf):
             _poisoned(), return_vectors=True, vector_sink=vectors, score_sink=scores
         )
     assert not (tmp_path / "s" / "store.json").exists()
+
+
+@pytest.mark.parametrize("which", ["clf", "reg"])
+def test_the_new_keywords_are_keyword_only_with_defaults_after_those_of_2_0(which, request):
+    import inspect
+
+    parameters = inspect.signature(request.getfixturevalue(which).predict_batches).parameters
+    names = list(parameters)
+    assert names[:6] == ["batches", "output", "return_vectors", "workers", "backend", "sink"]
+    assert names[6:] == ["vector_sink", "score_sink", "doc_ids"]
+    for name in names[1:]:
+        assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+    assert [parameters[n].default for n in names[6:]] == [None, None, False]
