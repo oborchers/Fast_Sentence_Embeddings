@@ -63,6 +63,7 @@ DEFAULTS = {
     "rule": "linear@1",
     "heads": 1,
     "return_vectors": False,
+    "sinks": "scores",
     "base_heads_mode": "separate",
     "candidate_heads_mode": "separate",
     "practical_saving": None,

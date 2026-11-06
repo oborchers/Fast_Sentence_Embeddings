@@ -10,12 +10,20 @@ The stage ``head-group-folded`` of the same profile is the context: the same hea
 sink. Every store is verified outside the timer: ``ScoreStore.verify``, rows, shapes, dtypes,
 all document IDs, and the hash of all scores in row order against the hash of the same run
 without a sink. M1 local indication only, no README speed claims.
+
+The cell field ``sinks`` (DR-229, Vektoren und Scores in einem Lauf in zwei Stores schreiben)
+selects what the same stage writes: ``scores`` (the default, the folded path, as above),
+``vectors`` (a ``ShardSink`` of the vectors) or ``both`` (a ``ShardSink`` and a ``ScoreSink`` in
+one pass, ``return_vectors=true``, so the heads on raw means take the unfolded path). The
+timer is one continuous group over opening the sinks, the complete run and every ``close``;
+the three values are absolute costs and are never compared with each other.
 """
 
 from __future__ import annotations
 
 import itertools
 import shutil
+from contextlib import ExitStack
 import time
 from pathlib import Path
 
@@ -23,6 +31,7 @@ PROFILE = "linear-heads-scores@1"
 STAGE = "head-group-score-sink"
 OUTPUT = "decision"
 DOC_IDS = "ordered"
+SINKS = ("scores", "vectors", "both")
 
 
 def enabled(cell):
@@ -31,7 +40,13 @@ def enabled(cell):
 
 def validate(cell):
     if not enabled(cell):
+        if cell["sinks"] != "scores":
+            raise ValueError("sinks is a field of linear-heads-scores@1 cells")
         return
+    if cell["sinks"] not in SINKS:
+        raise ValueError("sinks is scores, vectors or both")
+    if cell["sinks"] != "scores" and cell["stage"] != STAGE:
+        raise ValueError("sinks other than scores belong to the stage head-group-score-sink")
     if cell["stage"] not in (STAGE, "head-group-folded"):
         raise ValueError(
             "linear-heads-scores@1 has the stages head-group-score-sink and head-group-folded"
@@ -40,46 +55,81 @@ def validate(cell):
         raise ValueError(
             "linear-heads-scores@1 cells are descriptive (class D), not decision cells"
         )
-    if cell["return_vectors"]:
-        raise ValueError("linear-heads-scores@1 stores the folded path, without vectors")
+    if (cell["sinks"] == "scores") == bool(cell["return_vectors"]):
+        raise ValueError(
+            "linear-heads-scores@1 with sinks=scores stores the folded path, without vectors; "
+            "sinks=vectors and sinks=both need return_vectors=true"
+        )
 
 
-def reference(heads, texts, job, backend):
-    """The hash of the logits of every head side by side, in row order, of the run without a
-    sink: what a store of the same run must hold."""
+def reference(heads, texts, job, backend, encoder):
+    """The hashes of what the stores of the same run must hold, from the run without a sink:
+    the logits of every head side by side in row order (or None without a score store) and
+    the vectors of the encoder (or None without a vector store)."""
     import numpy as np
 
     from fse._container._hash import Hasher
 
-    outputs = heads.predict(texts, output=OUTPUT, workers=job["workers"], backend=backend)
-    columns = [np.asarray(outputs[name]).reshape(len(texts), -1) for name in heads]
-    digest = Hasher()
-    digest.update(np.ascontiguousarray(np.hstack(columns)))
-    return digest.checksum()
+    found = {"scores": None, "vectors": None}
+    if job["sinks"] in ("scores", "both"):
+        if job["return_vectors"]:  # the unfolded path, which a vector sink makes the heads take
+            (batch,) = heads.predict_batches(
+                [texts],
+                return_vectors=True,
+                output=OUTPUT,
+                workers=job["workers"],
+                backend=backend,
+            )
+            outputs = batch.outputs
+        else:
+            outputs = heads.predict(texts, output=OUTPUT, workers=job["workers"], backend=backend)
+        columns = [np.asarray(outputs[name]).reshape(len(texts), -1) for name in heads]
+        digest = Hasher()
+        digest.update(np.ascontiguousarray(np.hstack(columns)))
+        found["scores"] = digest.checksum()
+    if job["sinks"] in ("vectors", "both"):
+        digest = Hasher()
+        digest.update(encoder.encode(texts, workers=job["workers"], backend=backend))
+        found["vectors"] = digest.checksum()
+    return found
+
+
+def folder_of(root, tag, kind, index):
+    return Path(root) / (tag + f"-{kind}-{index}")
 
 
 def operation(encoder, texts, job, *, backend="cpu"):
-    """One timed call: a fresh ScoreSink, the complete run, ``close``."""
+    """One timed call: fresh sinks, the complete run, every ``close``."""
     import numpy as np
     from _development_heads_multi import models
 
-    from fse import Heads, ScoreSink
+    from fse import Heads, ScoreSink, ShardSink
 
     heads = Heads(**models(encoder, job))
     ids = np.arange(len(texts), dtype=np.int64)
-    expected = reference(heads, texts, job, backend)  # also makes every plan and table
+    expected = reference(heads, texts, job, backend, encoder)  # also makes every plan and table
     counter = itertools.count()
+    kinds = {"scores": ("scores",), "vectors": ("vectors",), "both": ("vectors", "scores")}
+    kinds = kinds[job["sinks"]]
 
     def run():
         index = next(counter)
-        target = Path(job["work"]) / (job["tag"] + f"-scores-{index}")
+        folders = {k: folder_of(job["work"], job["tag"], k, index) for k in kinds}
         opened = time.perf_counter()
-        sink = ScoreSink(target, heads, doc_ids=True, durability="full")
+        sinks = {}
+        if "vectors" in kinds:
+            sinks["vectors"] = ShardSink(folders["vectors"], encoder, doc_ids=True)
+        if "scores" in kinds:
+            sinks["scores"] = ScoreSink(folders["scores"], heads, doc_ids=True)
         first_read = time.perf_counter()
-        with sink:
+        with ExitStack() as stack:
+            for sink in sinks.values():
+                stack.enter_context(sink)
             for _ in heads.predict_batches(
                 [(texts, ids)],
-                score_sink=sink,
+                return_vectors=job["return_vectors"],
+                vector_sink=sinks.get("vectors"),
+                score_sink=sinks.get("scores"),
                 doc_ids=True,
                 output=OUTPUT,
                 workers=job["workers"],
@@ -87,11 +137,14 @@ def operation(encoder, texts, job, *, backend="cpu"):
             ):
                 pass
         seconds = time.perf_counter() - first_read
-        if sink.durable_rows != len(texts):
-            raise ValueError("score sink durable row count differs")
+        if any(sink.durable_rows != len(texts) for sink in sinks.values()):
+            raise ValueError("sink durable row count differs")
         return {
             "kind": "score-store",
-            "folder": target,
+            "folder": next(iter(folders.values())),
+            "root": job["work"],
+            "tag": job["tag"],
+            "kinds": kinds,
             "index": index,
             "seconds": seconds,
             "including_open_seconds": time.perf_counter() - opened,
@@ -106,20 +159,37 @@ def operation(encoder, texts, job, *, backend="cpu"):
 
 def identity(value):
     """The proof of the stores of a group of repeated runs, which are all removed."""
-    folder = value["folder"]
-    prefix = folder.name.rsplit("-", 1)[0]
     expected = None
     for index in range(value["first_index"], value["index"] + 1):
-        current = _store_identity(folder.parent / (prefix + "-" + str(index)), value)
+        current = _store_identity(value, index)
         if expected is not None and current != expected:
-            raise ValueError("repeated ScoreSink outputs differ")
+            raise ValueError("repeated sink outputs differ")
         expected = current
     return expected
 
 
-def _store_identity(folder, value):
-    import numpy as np
+def _store_identity(value, index):
     from _development_encode import _sync, _sync_directory
+
+    found = {}
+    for kind in value["kinds"]:
+        folder = folder_of(value["root"], value["tag"], kind, index)
+        if kind == "scores":
+            found.update(_scores_identity(folder, value))
+        else:
+            found["vectors"] = _vectors_identity(folder, value)
+        found["rows"] = value["rows"]
+        _sync(folder)
+        _store_bytes(folder, value["rows"], value["metrics_path"])
+        if folder.is_symlink() or any(p.is_symlink() for p in folder.rglob("*")):
+            raise ValueError("owned sink output contains a symlink")
+        shutil.rmtree(folder)
+        _sync_directory(folder.parent)
+    return found
+
+
+def _scores_identity(folder, value):
+    import numpy as np
 
     from fse import ScoreStore
     from fse._container._hash import Hasher
@@ -140,18 +210,40 @@ def _store_identity(folder, value):
         stored = store.get_doc_ids()
         if not np.array_equal(stored, np.arange(rows, dtype=np.int64)):
             raise ValueError("score store document IDs differ from the input")
-    if scores.checksum() != value["reference"]:
+    if scores.checksum() != value["reference"]["scores"]:
         raise ValueError("score store scores differ from the run without a sink")
-    _sync(folder)
-    _store_bytes(folder, rows, value["metrics_path"])
-    if folder.is_symlink() or any(p.is_symlink() for p in folder.rglob("*")):
-        raise ValueError("owned sink output contains a symlink")
-    shutil.rmtree(folder)
-    _sync_directory(folder.parent)
     return {
-        "rows": rows,
         "columns": shape,
         "scores": {"checksum": scores.checksum(), "dtype": "<f4"},
+        "doc_ids": {"checksum": ids.checksum(), "dtype": "<i8"},
+    }
+
+
+def _vectors_identity(folder, value):
+    import numpy as np
+
+    from fse import VectorStore
+    from fse._container._hash import Hasher
+
+    vectors, norms, ids = Hasher(), Hasher(), Hasher()
+    with VectorStore.open(folder) as store:
+        store.verify()
+        rows = len(store)
+        if rows != value["rows"] or not store.has_doc_ids:
+            raise ValueError("vector store rows or document IDs differ from the run")
+        for _, tensors in store._shards:
+            if tensors["vectors"].dtype != np.float32:
+                raise ValueError("vector store dtype differs")
+            vectors.update(tensors["vectors"])
+            norms.update(tensors["inv_norms"])
+            ids.update(tensors["doc_ids"])
+        if not np.array_equal(store.get_doc_ids(), np.arange(rows, dtype=np.int64)):
+            raise ValueError("vector store document IDs differ from the input")
+    if vectors.checksum() != value["reference"]["vectors"]:
+        raise ValueError("vector store vectors differ from the encoder without a sink")
+    return {
+        "vectors": {"checksum": vectors.checksum(), "dtype": "<f4"},
+        "inv_norms": {"checksum": norms.checksum(), "dtype": "<f4"},
         "doc_ids": {"checksum": ids.checksum(), "dtype": "<i8"},
     }
 
@@ -172,11 +264,12 @@ def _store_bytes(folder, rows, metrics_path):
 
 
 def probe(job, texts):
-    """The untimed adapter probe of the stage: one store of the arm on the cpu backend equals
+    """The untimed adapter probe of the stage: the stores of the arm on the cpu backend equal
     the numpy reference of the same run, by bytes."""
+    from _development_heads_multi import models
     from _development_process import checked
 
-    from fse import Encoder
+    from fse import Encoder, Heads
 
     artifact = job["artifact"]
     encoder = Encoder.from_pretrained(
@@ -186,10 +279,10 @@ def probe(job, texts):
     value = run()
     value["first_index"] = value["index"]
     got = identity(value)
-    from _development_heads_multi import models
-
-    from fse import Heads
-
-    if got["scores"]["checksum"] != reference(Heads(**models(encoder, job)), texts, job, "numpy"):
+    heads = Heads(**models(encoder, job))
+    numpy = reference(heads, texts, job, "numpy", encoder)
+    if numpy["scores"] is not None and got["scores"]["checksum"] != numpy["scores"]:
         raise ValueError("preflight score store differs from the numpy reference")
+    if numpy["vectors"] is not None and got["vectors"]["vectors"]["checksum"] != numpy["vectors"]:
+        raise ValueError("preflight vector store differs from the numpy reference")
     return got
