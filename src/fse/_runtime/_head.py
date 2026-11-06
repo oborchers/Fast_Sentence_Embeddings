@@ -96,6 +96,12 @@ class HeadPipeline:
         self._runtime = HeadsPipeline(plan)
 
     @property
+    def runtime(self) -> HeadsPipeline:
+        """The runtime of heads this head is a group of one of: the sinks and tees of a run
+        are given to it as to any group."""
+        return self._runtime
+
+    @property
     def folded(self) -> bool:
         """Whether the head reads folded rows (k columns, the bias still to add)."""
         return self.plan.kinds[0] in (FOLDED, STANDALONE)

@@ -16,7 +16,7 @@ from numpy import ndarray
 from fse._encoder import _pretrained
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from . import _model2vec_files, _run, _sklearn
+from . import _lone_run, _model2vec_files, _run, _sklearn
 from ._model import LinearModel
 from ._outputs import PredictedBatch
 
@@ -111,6 +111,20 @@ class Regressor(LinearModel):
         workers: PositiveInt | None = None,
         backend: str = "cpu",
         sink: Any = None,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = False,
     ) -> Iterator[PredictedBatch]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``."""
-        return _run.batches(self, batches, output, return_vectors, workers, backend, sink)
+        return _lone_run.batches(
+            self,
+            batches,
+            output,
+            return_vectors,
+            workers,
+            backend,
+            sink,
+            vector_sink,
+            score_sink,
+            doc_ids,
+        )

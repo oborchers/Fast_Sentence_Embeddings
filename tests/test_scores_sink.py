@@ -39,7 +39,10 @@ def test_closing_without_a_run_leaves_nothing_and_logs_zero_rows(tmp_path):
 
 
 def test_rows_are_taken_only_after_the_run_attached(tmp_path):
-    with _sink(tmp_path) as sink, pytest.raises(RuntimeError, match=r"fse\.Heads\.predict_batches"):
+    with (
+        _sink(tmp_path) as sink,
+        pytest.raises(RuntimeError, match=r"only from predict_batches\(score_sink="),
+    ):
         sink.target(0, 4)
 
 

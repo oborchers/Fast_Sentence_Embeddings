@@ -427,7 +427,7 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_heads", "_classifier | _regressor | _heads_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
+layers = ["_heads", "_classifier | _regressor", "_heads_run | _lone_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"

@@ -30,6 +30,7 @@ def _lone(batches, **kwargs):
 CALLS = [
     pytest.param(_encode, "encode_batches", id="encoder"),
     pytest.param(_heads, "Heads.predict_batches", id="heads"),
+    pytest.param(_lone, "Classifier.predict_batches", id="lone"),
 ]
 
 
@@ -42,6 +43,10 @@ def _sink(call, tmp_path):
     """A shard sink in document-ID mode that fits ``call``, and the keyword that takes it."""
     if call is _encode:
         return fse.ShardSink(tmp_path / "s", finished(), doc_ids=True), "sink"
+    if call is _lone:
+        return fse.ScoreSink(
+            tmp_path / "s", sh.classifier(sh.encoder(), 3), name="m", doc_ids=True
+        ), "score_sink"
     heads = sh.group()
     return fse.ScoreSink(tmp_path / "s", heads, doc_ids=True), "score_sink"
 

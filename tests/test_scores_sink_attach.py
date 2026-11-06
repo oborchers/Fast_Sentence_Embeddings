@@ -38,7 +38,7 @@ def test_appending_with_another_path_is_refused_before_a_row_is_taken(tmp_path):
     with fse.ScoreSink(path, sh.group()) as sink:
         with pytest.raises(ValueError, match=r"'quality'.*'folded'.*'unfolded'"):
             sink._attach(OTHER)
-        with pytest.raises(RuntimeError, match=r"fse\.Heads\.predict_batches"):
+        with pytest.raises(RuntimeError, match=r"only from predict_batches\(score_sink="):
             sink.target(0, 1)
     assert sc.read_back(path)[1].shape == (4, 7)
 

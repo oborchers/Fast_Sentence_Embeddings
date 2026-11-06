@@ -6,7 +6,7 @@
 
 """The schema of the scores a group of heads stores (docs/architecture/scores.md, "Schema").
 
-``ScoreSchema.from_heads(heads, stored)`` reads what each head is (its model fingerprint, task,
+``ScoreSchema.from_heads(heads, stored, name)`` reads what each head is (its model fingerprint, task,
 rule, link, labels) and what it stores (``stored=``: the decision (logits) or the
 probabilities of a classifier, the values of a regressor), and lays the heads side by side in
 the columns of ``scores``. The path of each head is not known yet: a head on raw means runs
@@ -24,7 +24,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse._container import checksum
-from fse._head import Heads
+from fse._head import Classifier, Heads, Regressor
 from fse._head._derive import proba_width
 from fse._store._layout import SCORE_STORE_BYTES, root_text
 from fse._store._scores_info import STORED, ScoreHead, ScoreInfo
@@ -43,12 +43,12 @@ class ScoreSchema:
     thresholds: Mapping[str, ndarray]
 
     @classmethod
-    def from_heads(cls, heads: Any, stored: Any = None) -> ScoreSchema:
+    def from_heads(cls, heads: Any, stored: Any = None, name: Any = None) -> ScoreSchema:
         """The schema of ``heads`` storing ``stored`` (None: the decision of every classifier
         and the values of every regressor; one name for all heads; or a mapping of head names
-        to names). Raises before anything is created."""
-        if not isinstance(heads, Heads):
-            raise TypeError(f"heads must be a fse.Heads, not {type(heads).__name__}")
+        to names). ``heads`` is a ``fse.Heads``, or one ``Classifier`` or ``Regressor`` with
+        its ``name``. Raises before anything is created."""
+        heads = group_of(heads, name)
         choices = _stored(heads, stored)
         found, limits, column = [], {}, 0
         for (name, model), what in zip(heads.items(), choices, strict=True):
@@ -93,6 +93,26 @@ class ScoreSchema:
     def threshold_checksums(self) -> dict[str, str]:
         """The checksums the writer will give the threshold tensors of every shard."""
         return {name: checksum(array) for name, array in self.thresholds.items()}
+
+
+def group_of(heads: Any, name: Any = None) -> Heads:
+    """``heads`` as a group: itself, or the single head named ``name`` (the name is written to
+    the store, so a single head must give one and the group checks it)."""
+    if isinstance(heads, Heads):
+        if name is not None:
+            raise ValueError(
+                "name is for a single head; the names of a group are the keywords of fse.Heads"
+            )
+        return heads
+    if not isinstance(heads, Classifier | Regressor):
+        raise TypeError(
+            f"heads must be a fse.Heads, a Classifier or a Regressor, not {type(heads).__name__}"
+        )
+    if name is None:
+        raise TypeError("a single head needs name=; the name is written to the score store")
+    if not isinstance(name, str):
+        raise TypeError(f"name must be a str, not {type(name).__name__}")
+    return Heads(**{name: heads})
 
 
 def _frozen(array: ndarray | None) -> ndarray:

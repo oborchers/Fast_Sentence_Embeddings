@@ -73,12 +73,13 @@ class ScoreSink(ShardSinkBase):
         path: Any,
         heads: Any,
         *,
+        name: Any = None,
         stored: Any = None,
         doc_ids: bool = False,
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
     ):
-        schema = ScoreSchema.from_heads(heads, stored)
+        schema = ScoreSchema.from_heads(heads, stored, name)
         path = Path(path)
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
@@ -150,7 +151,10 @@ class ScoreSink(ShardSinkBase):
 
     def target(self, first_row: int, n_rows: int) -> Any:  # the (n_rows, dim) matrix
         if not self._attached:
-            raise RuntimeError("a ScoreSink takes rows only from fse.Heads.predict_batches")
+            raise RuntimeError(
+                "a ScoreSink takes rows only from predict_batches(score_sink=...) of a "
+                "Classifier, a Regressor or fse.Heads"
+            )
         return super().target(first_row, n_rows)[0]
 
     def commit(self, first_row: int, rows: Any, *, doc_ids: Any = None) -> None:

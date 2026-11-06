@@ -4,9 +4,10 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The sinks of a run of a group of heads: a ``vector_sink`` for the vectors of the encoder
-and a ``score_sink`` for the scores of every head, each alone or both in one pass
-(docs/architecture/scores.md, "Vectors and scores in one run").
+"""The sinks of a run of heads, a group or a single head: a ``vector_sink`` for the vectors of
+the encoder and a ``score_sink`` for the scores of every head, each alone or both in one
+pass (docs/architecture/scores.md, "Vectors and scores in one run"). A single head is a group
+of one: ``start_lone`` names it as the sink does.
 
 This module checks the sinks before a text is read, shares the document IDs of each task
 between them, and reports the rows that are durable in all of them: the minimum of the
@@ -17,11 +18,12 @@ only. The runtime (``fse._runtime``) is not changed: it takes a vector sink and 
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
-from fse._encoder._batches import check_sink, durable, flush
-from fse._encoder._doc_ids import check_modes
+from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
+from fse._encoder._doc_ids import check_modes, split_pair
 from fse._runtime._sinks import sink_dtype, wants_inverse_norms
 from fse._store._base_sink import ShardSinkBase
 
@@ -29,7 +31,7 @@ from ._score_target import ScoreRun, TaskIds, check_score_sink
 
 
 def start(
-    heads: Any,
+    heads: Mapping[str, Any],
     kinds: tuple[str, ...],
     return_vectors: bool,
     vector_sink: Any,
@@ -37,13 +39,14 @@ def start(
     doc_ids: bool,
     method: str,
 ) -> SinkRun | None:
-    """Check the sinks against ``heads`` and the document-ID mode, attach the run to the
-    score sink and return the run (None without a sink). Raises before a text is read."""
+    """Check the sinks against ``heads`` (the models by name) and the document-ID mode, attach
+    the run to the score sink and return the run (None without a sink). Raises before a text
+    is read."""
     if vector_sink is None and score_sink is None:
         check_modes([], doc_ids, method, "a vector_sink or a score_sink")
         return None
     if vector_sink is not None:
-        _check_vector_sink(heads, return_vectors, vector_sink)
+        _check_vector_sink(next(iter(heads.values())), return_vectors, vector_sink)
     if score_sink is not None:
         check_score_sink(score_sink, heads)
     given = (("vector_sink", vector_sink), ("score_sink", score_sink))
@@ -52,21 +55,43 @@ def start(
     if score_sink is not None:
         if vector_sink is not None and getattr(score_sink, "_exists", False):
             _check_rows(vector_sink, score_sink, doc_ids)
-        score_sink._attach(heads.paths(return_vectors=return_vectors))
+        score_sink._attach({n: m.path(return_vectors=return_vectors) for n, m in heads.items()})
         if vector_sink is not None:  # _attach may have set first_row anew
             _check_rows(vector_sink, score_sink, doc_ids)
     return SinkRun(kinds, vector_sink, score_sink, doc_ids)
 
 
-def _check_vector_sink(heads: Any, return_vectors: bool, sink: Any) -> None:
+def start_lone(
+    model: Any,
+    kinds: tuple[str, ...],
+    return_vectors: bool,
+    vector_sink: Any,
+    score_sink: Any,
+    doc_ids: bool,
+    method: str,
+) -> SinkRun | None:
+    """``start`` for a single head. The score sink names it: a sink of one head."""
+    schema = getattr(score_sink, "score_schema", None)
+    name = "head"
+    if schema is not None:
+        names = [head.name for head in schema.heads]
+        if len(names) != 1:
+            raise ValueError(
+                f"the sink was made for the heads {names}; a single head writes a sink of one head"
+            )
+        name = names[0]
+    return start({name: model}, kinds, return_vectors, vector_sink, score_sink, doc_ids, method)
+
+
+def _check_vector_sink(first: Any, return_vectors: bool, sink: Any) -> None:
     if not return_vectors:
         raise ValueError(
             "vector_sink takes the vectors of return_vectors=True; pass return_vectors=True "
-            "(the heads on raw means then take the unfolded path, see Heads.paths)"
+            "(a head on raw means then takes the unfolded path, see path() and Heads.paths)"
         )
-    dim = heads._first.encoder.output_dim
+    dim = first.encoder.output_dim
     hint = f"; the vector_sink takes the vectors of the encoder ({dim} values)"
-    check_sink(sink, None, heads.encoder_fingerprint, dim, hint)
+    check_sink(sink, None, first.encoder_fingerprint, dim, hint)
     if isinstance(sink, ShardSinkBase):
         sink._check_fresh()
 
@@ -93,6 +118,43 @@ def _check_rows(vector_sink: Any, score_sink: Any, doc_ids: bool) -> None:
         "append would shift it. Pass doc_ids=True with IDs of your own that name each row "
         "uniquely, or write into two new folders"
     )
+
+
+def run_batches(
+    tokenizer: str,
+    pipeline: Any,
+    items: Iterable[Any],
+    kinds: tuple[str, ...],
+    workers: Any,
+    run: SinkRun | None,
+    doc_ids: bool,
+    method: str,
+    make: Callable[[int, int, list, Any, int | None], Any],
+) -> Iterator[Any]:
+    """The batches of ``items`` through ``pipeline`` (a ``HeadsPipeline``), into the sinks of
+    ``run`` if there is one. ``make(first_row, n_rows, rows, vectors, durable_rows)`` builds
+    each batch from the arrays of the heads. Shared by a group and a single head."""
+    row, last = 0, None
+    for k, item in enumerate(items):
+        ids = None
+        if doc_ids:
+            item, ids = split_pair(k, item, method)
+        with (
+            _named(k, row, batch_size(k, item)),
+            batch_source(item, tokenizer) as (source, n),
+        ):
+            if run is None:
+                rows, vectors = pipeline.infer(
+                    source, outputs=kinds, workers=workers, first_row=row
+                )
+            else:
+                rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
+                last = run.durable(row + n)
+            batch = make(row, n, rows, vectors, last)
+        yield batch
+        row += n
+    if run is not None:
+        run.flush()
 
 
 class SinkRun:

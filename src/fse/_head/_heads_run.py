@@ -22,15 +22,14 @@ from typing import Any
 
 from numpy import ndarray
 
-from fse._encoder._batches import _named, batch_size, batch_source
-from fse._encoder._doc_ids import check_switch, split_pair
+from fse._encoder._doc_ids import check_switch
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
 from ._run import RUNTIME, check_backend, finish
-from ._sink_run import SinkRun, start
+from ._sink_run import SinkRun, run_batches, start
 
 METHOD = "Heads.predict_batches"
 
@@ -161,28 +160,20 @@ def _batches(
     run: SinkRun | None = None,
     doc_ids=False,
 ) -> Iterator[HeadsBatch]:
-    row, last = 0, None
     kinds = tuple(RUNTIME[o] for o in outputs)
-    for k, item in enumerate(items):
-        ids = None
-        if doc_ids:
-            item, ids = split_pair(k, item, METHOD)
-        with (
-            _named(k, row, batch_size(k, item)),
-            batch_source(item, heads._tokenizer) as (source, n),
-        ):
-            if run is None:
-                rows, vectors = pipeline.infer(
-                    source, outputs=kinds, workers=workers, first_row=row
-                )
-            else:
-                rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
-                last = run.durable(row + n)
-            given = _outputs(heads, rows, outputs)
-        yield HeadsBatch(first_row=row, n_rows=n, outputs=given, vectors=vectors, durable_rows=last)
-        row += n
-    if run is not None:
-        run.flush()
+
+    def make(row, n, rows, vectors, last):
+        return HeadsBatch(
+            first_row=row,
+            n_rows=n,
+            outputs=_outputs(heads, rows, outputs),
+            vectors=vectors,
+            durable_rows=last,
+        )
+
+    yield from run_batches(
+        heads._tokenizer, pipeline, items, kinds, workers, run, doc_ids, METHOD, make
+    )
 
 
 def _outputs(heads: Any, rows: list, outputs: tuple[str, ...]) -> Mapping[str, ndarray]:
