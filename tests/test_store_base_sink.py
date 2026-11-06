@@ -90,3 +90,14 @@ def test_a_second_run_into_a_sink_says_a_sink_takes_one_run(tmp_path):
         assert sink.flush() == 3
     with VectorStore.open(tmp_path / "s") as store:
         assert len(store) == 3
+
+
+def test_a_fresh_sink_passes_and_a_used_or_closed_one_is_refused(tmp_path):
+    sink = ShardSink(tmp_path / "s", finished(), shard_rows=4)
+    sink._check_fresh()
+    sink.target(0, 2)
+    with pytest.raises(ValueError, match="took 2 rows of a run already"):
+        sink._check_fresh()
+    sink.close()
+    with pytest.raises(RuntimeError, match="the ShardSink is closed"):
+        sink._check_fresh()
