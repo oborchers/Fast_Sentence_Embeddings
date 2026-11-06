@@ -670,3 +670,25 @@ python benchmarks/speed.py --diagnose \
 ```
 
 The claim of the result is limited to this workload (POTION-8M, WikiText with 1,002,340 rows, `workers: 2`, four logits per head) on the M1 as a local indication; no README number follows from it. Linux publication evidence is not part of this work.
+
+### Vectors and scores in one run (DR-229)
+
+`benchmarks/config/linear-heads-vector-scores-local.json` adds the cell field `sinks` (`scores`, `vectors`, `both`; default `scores`) to the stage `head-group-score-sink` for DR-229 (Vektoren und Scores in einem Lauf in zwei Stores schreiben), class D, three absolute costs from text to durably closed stores, each with its median, IQR and peak RSS and **no comparison, factor or sum**:
+
+- `heads-sinks-both`: a `ShardSink` (float32, ordered document IDs, `durability="full"`) and a `ScoreSink` in one `Heads.predict_batches(return_vectors=True, vector_sink=..., score_sink=...)` run. With vectors, the heads on raw means take the unfolded path.
+- `heads-sinks-vectors`: only the `ShardSink`, the same call without `score_sink`.
+- `heads-score-sink-full`: only the `ScoreSink` on the folded path, the cell of the section above, run in the same session.
+- One continuous timer covers opening the sinks, the complete run and every `close`. Outside it, `verify` of each store, rows, shapes, dtypes, the document IDs against the input, and the vectors and the scores as a hash over all shards against the same run without a sink (the inverse norms are compared between the repetitions only) (`predict_batches(return_vectors=True)` for the scores, `Encoder.encode` for the vectors). Then sync, close and delete; never more than one set of stores exists at a time (about 1.04 GB of vectors and 40 MB of scores per repetition).
+- The memory and disk estimates of `_development_resources.py` count the vectors of the reference run and, with both stores, a second set of writer queues outside the window.
+- Profile: a memray run of `heads-sinks-both` outside the timer in the child process that executes the call. Report which process and threads it covers (memray records the writer threads of the process) and attribute the window, the adapter copies, the two sets of queues and the shared buffer at shard boundaries.
+
+```sh
+python benchmarks/speed.py --diagnose \
+  --development-input benchmarks/config/linear-heads-vector-scores-local.json \
+  --candidate-python /external/candidate/bin/python \
+  --cells heads-sinks-both heads-sinks-vectors heads-score-sink-full --local-phase descriptive \
+  --descriptive-repetitions 5 --worker-name dr229-vector-sink \
+  --wall-time-seconds 6300 --results /external/dr229/results-01 --work /external/dr229/work-01
+```
+
+The claim is limited to this workload on the M1 as a local indication; no README number follows from it. The regression screen of the ScoreSink path (the ID block now comes from `TaskIds`) uses `heads-score-sink-full` with `--base-python` built from `a9328011` and `--candidate-python`, `--local-phase regression-screen` and `--regression-limit 0.03`. A descriptive run takes only `--candidate-python`, and `--cells` takes space-separated ids. Linux publication evidence is not part of this work (DR-233).

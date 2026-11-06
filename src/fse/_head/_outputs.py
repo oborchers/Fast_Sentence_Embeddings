@@ -54,9 +54,10 @@ class HeadsBatch:
     """One batch of ``Heads.predict_batches``: its rows ``first_row`` to ``first_row +
     n_rows - 1`` of the run, the ``outputs`` of every head by name (as ``predict`` of that
     head gives them, or the output asked for), with ``return_vectors=True`` the ``vectors``,
-    the rows of the encoder (else None), and with a ``score_sink`` the ``durable_rows``: the
-    rows of the run that were durable when the batch was given (the sink's ``durable_rows``
-    after its ``publish``; None without a sink). It is a snapshot: the last batch can report
+    the rows of the encoder (None if a ``vector_sink`` took them), and with a ``vector_sink``
+    or a ``score_sink`` the ``durable_rows``: the rows of the run that were durable when the
+    batch was given (the ``durable_rows`` of the sink after its ``publish``, the minimum over
+    both sinks, each checked on its own; None without a sink, or if a sink promises nothing). It is a snapshot: the last batch can report
     fewer rows than the run has, as the sink's ``flush`` runs after it; the sink's own
     ``durable_rows`` has the final count.
 

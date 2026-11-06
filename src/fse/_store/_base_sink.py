@@ -99,6 +99,12 @@ class ShardSinkBase:
             )
         raise ValueError(f"rows from {first_row} reserved, expected rows from {self._reserved}")
 
+    def _check_fresh(self) -> None:
+        """Raise unless this sink is open and has reserved no row, so that it can take a
+        whole run (a group run checks it before it reads anything)."""
+        self._check_open()
+        self._check_next(0)
+
     def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
         self._check_threads()  # a failed write first: no row after it is taken

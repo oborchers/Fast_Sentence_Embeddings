@@ -22,14 +22,14 @@ from typing import Any
 
 from numpy import ndarray
 
-from fse._encoder._batches import _named, batch_size, batch_source, durable, flush
+from fse._encoder._batches import _named, batch_size, batch_source
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
 from ._run import RUNTIME, check_backend, finish
-from ._score_target import ScoreRun, attach
+from ._sink_run import SinkRun, start
 
 # What a head can give: labels, probabilities or decisions of a classifier, values of a regressor.
 OUTPUT_NAMES = ("labels", "proba", "decision", "values")
@@ -131,6 +131,7 @@ def batches(
     return_vectors: bool,
     workers: Any,
     backend: Any,
+    vector_sink: Any = None,
     score_sink: Any = None,
     doc_ids: bool = False,
 ) -> Iterator[HeadsBatch]:
@@ -142,19 +143,19 @@ def batches(
     if return_vectors and heads._standalone:
         raise ValueError("a standalone group has no vectors: its table is folded")
     kinds = tuple(RUNTIME[o] for o in outputs)
-    run = None
-    if score_sink is None:
-        if doc_ids:
-            raise ValueError("doc_ids=True needs a score_sink with doc_ids")
-    else:
-        attach(score_sink, heads, heads.paths(return_vectors=return_vectors), doc_ids)
-        run = ScoreRun(score_sink, kinds)
+    run = start(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids)
     pipeline = heads._pipeline(backend, with_vectors=return_vectors)
     return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids)
 
 
 def _batches(
-    heads, pipeline, items: Iterable[Any], outputs, workers, run=None, doc_ids=False
+    heads,
+    pipeline,
+    items: Iterable[Any],
+    outputs,
+    workers,
+    run: SinkRun | None = None,
+    doc_ids=False,
 ) -> Iterator[HeadsBatch]:
     row, last = 0, None
     kinds = tuple(RUNTIME[o] for o in outputs)
@@ -176,12 +177,12 @@ def _batches(
                 )
             else:
                 rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
-                last = durable(run.sink, row + n, last)
+                last = run.durable(row + n)
             given = _outputs(heads, rows, outputs)
         yield HeadsBatch(first_row=row, n_rows=n, outputs=given, vectors=vectors, durable_rows=last)
         row += n
     if run is not None:
-        flush(run.sink)
+        run.flush()
 
 
 def _outputs(heads: Any, rows: list, outputs: tuple[str, ...]) -> Mapping[str, ndarray]:
