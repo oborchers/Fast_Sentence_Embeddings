@@ -177,7 +177,8 @@ class _Run:
     ):
         self.pipeline, self.tokenizer, self.sink, self.workers = pipeline, tokenizer, sink, workers
         self.doc_ids, self.lengths, self.rule = doc_ids, lengths, rule
-        self.replay: Replay | None = None
+        stream = sink._stream  # None for a new store, which holds no record
+        self.replay = Replay([0 if stream is None else stream.skip])
         self.last = 0
 
     def batch(self, k: int, item: Any) -> Any:
@@ -185,8 +186,6 @@ class _Run:
         into the sink."""
         texts, ids, position = split(k, item, self.doc_ids, "Encoder.encode_batches")
         sink = self.sink
-        if self.replay is None:
-            self.replay = Replay([0 if sink._stream is None else sink._stream.skip])
         before = self.replay.done
         with _named(k, before, None):
             rows = rows_of(k, texts, self.tokenizer)
@@ -228,8 +227,7 @@ class _Run:
 
     def finish(self) -> None:
         """The stream ended: it must have delivered what the store holds; then flush."""
-        if self.replay is not None:
-            self.replay.check_end()
+        self.replay.check_end()
         flush(self.sink)
 
 

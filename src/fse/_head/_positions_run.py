@@ -78,15 +78,28 @@ def check_history(first: Any, second: Any) -> None:
     """Two stores resumed together must share their history: the same shard size, the same
     anchor at the start and the same anchor at every shard boundary both hold."""
     one, other = first._stream, second._stream
-    same = first.shard_rows == second.shard_rows and one.root == other.root
+    same = one.root == other.root
     held = dict(other.chain)
     same = same and all(held.get(end, anchor) == anchor for end, anchor in one.chain)
     if not same:
-        raise ValueError(
-            "the two stores do not share their history (the size of their shards, the position "
-            "of their start or the positions at their shard boundaries differ), so one stream "
-            "cannot resume both; write two new folders"
-        )
+        raise ValueError(_HISTORY)
+
+
+_HISTORY = (
+    "the two stores do not share their history (the size of their shards, the position "
+    "of their start or the positions at their shard boundaries differ), so one stream "
+    "cannot resume both; write two new folders"
+)
+
+
+def share_anchors(members: list[_Member]) -> None:
+    """Let each store take the anchors the other holds at the ends of its shards: the shards
+    a store makes to catch up with its partner then get the partner's anchors, and the two
+    keep one history whatever the batches of the replay are."""
+    streams = [m.sink._stream for m in members]
+    if len(streams) == 2 and None not in streams:
+        one, other = streams
+        one.shared, other.shared = dict(other.chain), dict(one.chain)
 
 
 class Stream:
@@ -116,6 +129,8 @@ class Stream:
                     "store of this sink is new and takes the start of the other"
                 )
             member.attach(root)
+            if others:  # it catches up with the other store, with the other's anchors
+                member.sink._stream.shared = dict(others[0].sink._stream.chain)
         member.sink._stream.anchors.begin(position, self.start + before)
 
     def run(self, who: tuple[int, ...]) -> SinkRun:
@@ -194,6 +209,8 @@ def start(
     _check_sinks(heads, return_vectors, present, doc_ids, method)
     paths = {n: m.path(return_vectors=return_vectors) for n, m in heads.items()}
     members = [_Member(role, sink, paths) for role, sink in present]
+    if len(members) == 2 and vector_sink.shard_rows != score_sink.shard_rows:
+        raise ValueError(_HISTORY)  # also for stores that are new
     for member in members:
         member.sink._check_stream()
     for member in sorted(members, key=lambda m: m.new):  # stores that exist go first
@@ -202,6 +219,7 @@ def start(
     existing = [m for m in members if not m.new]
     if len(existing) == 2:
         check_history(existing[0].sink, existing[1].sink)
+    share_anchors(members)
     return Stream(members, kinds, doc_ids, next(iter(heads.values()))._tokenizer)
 
 

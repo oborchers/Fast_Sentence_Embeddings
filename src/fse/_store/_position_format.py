@@ -80,7 +80,7 @@ def parse(
     execution, position, row = (metadata[k] for k in POSITION_KEYS)
     if not (isinstance(execution, str) and is_fingerprint(execution)):
         raise CorruptArtifactError(f"{file}: the execution fingerprint is invalid")
-    if not (isinstance(row, str) and INTEGER.fullmatch(row)):
+    if not (isinstance(row, str) and len(row) <= 19 and INTEGER.fullmatch(row)):
         raise CorruptArtifactError(f"{file}: {ROW_KEY} must be a canonical decimal number")
     try:
         check_position(position)

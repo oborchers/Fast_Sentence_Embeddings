@@ -270,3 +270,16 @@ def test_a_score_store_keeps_the_thresholds_and_the_anchors(tmp_path):
     change_metadata(tmp_path / "s" / shard_name(0), SourcePosition("o3", 3).anchor_metadata())
     with pytest.raises(CorruptArtifactError, match="anchor row 2 lies before the anchor row 3"):
         fse.ScoreStore.open(tmp_path / "s")
+
+
+def test_a_row_of_thousands_of_digits_is_corruption_not_a_crash():
+    with pytest.raises(CorruptArtifactError, match="canonical decimal"):
+        parse(_metadata(row="9" * 5000), SHARED, FILE, root=False)
+
+
+def test_a_large_root_of_a_future_mode_is_unsupported_not_too_large(tmp_path):
+    big = replace(INFO, resume=SourcePosition("a" * 65536, 0))
+    create_store(tmp_path / "s", big)
+    _edit_root(tmp_path / "s", "source_position@2")
+    with pytest.raises(UnsupportedArtifactError, match=r"unsupported fse\.resume"):
+        read_store(tmp_path / "s")

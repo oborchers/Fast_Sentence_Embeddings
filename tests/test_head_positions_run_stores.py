@@ -160,3 +160,46 @@ def test_a_store_without_shards_starts_again_at_its_root(tmp_path, whole):
     assert found == ("o0", 0)
     got = ph.stores(tmp_path)
     assert all(np.array_equal(a, b) for a, b in zip(got[:2], whole[:2], strict=True))
+
+
+def test_the_longer_store_never_gets_an_anchor_before_its_last(tmp_path, whole):
+    ph.run(tmp_path, stream(TEXTS, 20), rows=20, stop=16)
+    _cut(tmp_path, 3, 4)
+    _resume(tmp_path, 60, by="v")  # one batch from o40 holds the rows of both stores
+    for name in ("v", "s"):
+        with (
+            fse.VectorStore.open(tmp_path / name)
+            if name == "v"
+            else fse.ScoreStore.open(tmp_path / name) as store
+        ):
+            store.verify()
+    got = ph.stores(tmp_path)
+    assert all(np.array_equal(a, b) for a, b in zip(got[:2], whole[:2], strict=True))
+
+
+def test_stores_that_caught_up_resume_together_again(tmp_path, whole):
+    ph.run(tmp_path, stream(TEXTS, 20), rows=20, stop=16)
+    _cut(tmp_path, 2, 4)
+    _resume(tmp_path, 25, by="v", stop=5)  # catches up with other batch boundaries, then stops
+    _resume(tmp_path, 33, by="v")
+    got = ph.stores(tmp_path)
+    assert all(np.array_equal(a, b) for a, b in zip(got[:2], whole[:2], strict=True))
+
+
+def test_a_new_partner_keeps_the_history_of_the_other(tmp_path, whole):
+    ph.run(tmp_path, stream(TEXTS, 20), rows=20, stop=10, scores=False)
+    ph.run(tmp_path, stream(TEXTS, 30), rows=20, stop=3)  # the scores start; then a crash
+    _resume(tmp_path, 45, by="s")
+    got = ph.stores(tmp_path)
+    assert all(np.array_equal(a, b) for a, b in zip(got[:2], whole[:2], strict=True))
+
+
+def test_stores_of_other_shard_sizes_are_refused_also_when_new(tmp_path):
+    with (
+        vector_sink(tmp_path / "v", rows=40) as vectors,
+        score_sink(tmp_path / "s", rows=20) as scores,
+        pytest.raises(ValueError, match="do not share their history"),
+    ):
+        HEADS.predict_batches(
+            [], vector_sink=vectors, score_sink=scores, return_vectors=True, positions=True
+        )

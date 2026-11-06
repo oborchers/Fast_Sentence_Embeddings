@@ -333,7 +333,9 @@ class ShardSinkBase(ResumableSinkMarker):
             # After its last hash, in order, the shard goes to the publisher.
             writer = self._writers.popleft()
             if self._stream is not None:  # the anchor of the batches it holds rows of
-                writer.anchor = self._stream.anchors.take(writer.first_row + writer.end)
+                writer.anchor = self._stream.anchors.take(
+                    writer.first_row + writer.end, self._stream.shared
+                )
             self._hash.submit(self._hand_on, writer)
 
     def _hand_on(self, writer: ShardBase) -> None:

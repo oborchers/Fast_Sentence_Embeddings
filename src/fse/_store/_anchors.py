@@ -19,26 +19,45 @@ committed nothing into the shard, is not the shard's anchor.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ._position_format import SourcePosition, check_position
 
 
 class Anchors:
-    """The anchor of the current batch and of the batch before it."""
+    """The anchor of the current batch and of the batch before it, and the last anchor given.
 
-    def __init__(self) -> None:
+    No anchor lies before the last one given (the rows of the chain do not decrease): when two
+    stores resume together, the longer one meets batches that start before its own last
+    anchor, and it keeps that anchor, which stays true (the record of its row is still at its
+    position, and the row is before the end of the new shard)."""
+
+    def __init__(self, last: SourcePosition | None = None) -> None:
         self.previous: SourcePosition | None = None
         self.current: SourcePosition | None = None
+        self.last = last  # the anchor of the last shard of the store, then of the last given
 
     def begin(self, position: str, row: int) -> None:
         """A non-empty batch whose first record is the store row ``row`` and whose position
         is ``position`` starts."""
         self.previous, self.current = self.current, SourcePosition(check_position(position), row)
 
-    def take(self, end: int) -> SourcePosition:
-        """The anchor of a shard that ends at the store row ``end`` (exclusive)."""
+    def take(self, end: int, shared: Mapping[int, SourcePosition] | None = None) -> SourcePosition:
+        """The anchor of a shard that ends at the store row ``end`` (exclusive). ``shared`` are
+        the anchors of the shards another store holds at the ends of its shards: a shard that
+        ends at one of them takes it, so two stores that resume together keep one history."""
+        found = shared[end] if shared is not None and end in shared else self._by_batch(end)
+        if self.last is not None and found.row < self.last.row:
+            found = self.last
+        self.last = found
+        return found
+
+    def _by_batch(self, end: int) -> SourcePosition:
         current = self.current
         if current is not None and end - 1 >= current.row:
             return current
-        if self.previous is None:
+        if self.previous is not None:
+            return self.previous
+        if self.last is None:
             raise RuntimeError("a shard of a position store ends before the first batch")
-        return self.previous
+        return self.last

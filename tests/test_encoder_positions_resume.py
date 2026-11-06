@@ -256,3 +256,11 @@ def test_a_stream_store_with_a_mode_of_the_future_is_unsupported(tmp_path):
     change_metadata(tmp_path / "s" / shard_name(0), {"fse.resume": "source_position@2"})
     with pytest.raises(fse.UnsupportedArtifactError, match=r"unsupported fse\.resume"):
         fse.VectorStore.open(tmp_path / "s")
+
+
+def test_a_replay_that_delivers_nothing_is_refused(tmp_path):
+    _crash(tmp_path / "s")
+    with ps.sink(tmp_path / "s") as target:
+        batches = ENCODER.encode_batches(iter([]), sink=target, positions=True)
+        with pytest.raises(ValueError, match="delivered 0 records"):
+            list(batches)

@@ -197,8 +197,12 @@ def test_a_resuming_sink_leaves_room_for_the_largest_position(tmp_path):
     model = _big(9500)  # the heads fit alone, but not with a position of 64 KiB
     with ScoreSink(tmp_path / "plain", model, name="big") as sink:
         assert sink.durability == "full"
-    with pytest.raises(ValueError, match=r"position of 65536 bytes need a store\.json of"):
-        ScoreSink(tmp_path / "s", model, name="big", resume=True)
+    # the constructor leaves a finite resume alone; only a stream needs the room
+    with (
+        ScoreSink(tmp_path / "s", model, name="big", resume=True) as sink,
+        pytest.raises(ValueError, match=r"position of 65536 bytes need a store\.json of"),
+    ):
+        model.predict_batches([(TEXTS[:5], "o0")], score_sink=sink, positions=True)
     assert not (tmp_path / "s").exists()
 
 

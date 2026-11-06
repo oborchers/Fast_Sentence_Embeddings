@@ -94,8 +94,6 @@ class ScoreSink(ShardSinkBase):
         resume: bool = False,
     ):
         schema = ScoreSchema.from_heads(heads, stored, name)
-        if resume:
-            schema.check_resume_size()
         path = Path(path)
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
@@ -244,6 +242,7 @@ class ScoreSink(ShardSinkBase):
         self._check_open()
         if self._ready:
             raise RuntimeError("the sink took a source already; make a new sink for another run")
+        self._schema.check_resume_size()  # the heads and the largest position must fit the root
         if self._exists:
             check_mode(read_store(self.path, SCORES.name), True, self.path, SOURCE_POSITION)
 

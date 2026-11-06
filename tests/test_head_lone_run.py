@@ -255,11 +255,27 @@ def test_the_new_keywords_are_keyword_only_with_defaults_after_those_of_2_0(whic
     parameters = inspect.signature(request.getfixturevalue(which).predict_batches).parameters
     names = list(parameters)
     assert names[:6] == ["batches", "output", "return_vectors", "workers", "backend", "sink"]
-    new = ["vector_sink", "score_sink", "doc_ids", "lengths", "count_truncated", "on_truncation"]
+    new = [
+        "vector_sink",
+        "score_sink",
+        "doc_ids",
+        "lengths",
+        "count_truncated",
+        "on_truncation",
+        "positions",
+    ]
     assert names[6:] == new
     for name in names[1:]:
         assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
-    assert [parameters[n].default for n in names[6:]] == [None, None, False, None, False, "keep"]
+    assert [parameters[n].default for n in names[6:]] == [
+        None,
+        None,
+        False,
+        None,
+        False,
+        "keep",
+        False,
+    ]
 
 
 def test_a_foreign_sink_with_a_method_named_like_a_private_one_is_not_a_shard_sink(clf):

@@ -29,7 +29,8 @@ class StreamState:
         rows: int,
         chain: tuple[tuple[int, SourcePosition], ...],
     ):
-        self.anchors = Anchors()
+        self.anchors = Anchors(anchor)
+        self.shared: dict[int, SourcePosition] = {}  # the anchors of a partner store, by end row
         self.root = root  # the anchor of the start of the store
         self.tail: tuple[SourcePosition, int] = (anchor, rows)  # last published, rows then
         self.chain = chain  # (end row, anchor) of every shard the store held

@@ -41,7 +41,7 @@ from fse._contract import UnsupportedArtifactError
 
 from ._kind import SHARD_PREFIX, Shard, shard_name
 from ._kinds import kind_of, kind_of_root
-from ._position_format import MODE, SourcePosition
+from ._position_format import SourcePosition
 from ._vectors_format import StoreInfo, shard_metadata
 
 __all__ = [
@@ -62,7 +62,7 @@ __all__ = [
     "shards",
 ]
 
-POSITION_MODE = f'"fse.resume": "{MODE}"'.encode()
+POSITION_MODE = b'"fse.resume": "source_position@'  # also a mode of the future: reported as such
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
@@ -204,7 +204,10 @@ def _names_large(raw: bytes) -> bool:
         return b'"fse.kind": "prediction_scores"' in head or POSITION_MODE in head
     try:
         metadata = json.loads(raw.decode("utf-8"))["metadata"]
-        return metadata["fse.kind"] == "prediction_scores" or metadata.get("fse.resume") == MODE
+        mode = metadata.get("fse.resume")
+        return metadata["fse.kind"] == "prediction_scores" or (
+            isinstance(mode, str) and mode.startswith("source_position@")
+        )
     except (ValueError, KeyError, TypeError, AttributeError):
         return False
 
