@@ -186,6 +186,24 @@ class Candidates:
         return ids.reshape(shape), values.reshape(shape)
 
 
+def queries(backend: Any, dim: int, value: Any, name: str) -> tuple[ndarray, bool]:
+    """The float32 matrix of the queries (or weight vectors) ``value`` of a store of ``dim``
+    values, and whether ``value`` was one vector."""
+    array = np.asarray(value)
+    if array.dtype.kind not in "fiu":
+        raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
+    single = array.ndim == 1
+    # Converted as the contract does, whatever rounding the calling thread set.
+    matrix = backend.float32(array[None, :] if single else array)
+    if matrix.ndim != 2 or matrix.shape[1] != dim or not len(matrix):
+        raise ValueError(
+            f"{name} must be a vector of {dim} values or a matrix of them, not shape {array.shape}"
+        )
+    if not np.isfinite(matrix).all():
+        raise ValueError(f"{name} must be finite in float32")
+    return matrix, single
+
+
 def check_queries(backend: Any, queries: ndarray) -> None:
     """Check every query before any block is searched: a zero query, or one normalize@1
     cannot normalize, raises naming it, as the backend's cosines does."""

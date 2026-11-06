@@ -56,6 +56,7 @@ EVENTS: dict[str, tuple[str, int]] = {
     "store.opened": ("fse.store", INFO),
     "store.verified": ("fse.store", INFO),
     "store.refreshed": ("fse.store", DEBUG),
+    "store.view_opened": ("fse.store", INFO),
     "store.repaired": ("fse.store", INFO),
     "store.search": ("fse.store", DEBUG),
     "scores.sink_opened": ("fse.store", INFO),
@@ -64,6 +65,7 @@ EVENTS: dict[str, tuple[str, int]] = {
     "scores.opened": ("fse.store", INFO),
     "scores.verified": ("fse.store", INFO),
     "scores.refreshed": ("fse.store", DEBUG),
+    "scores.view_opened": ("fse.store", INFO),
 }
 
 _LOGGERS = {name: logging.getLogger(name) for name in LOGGER_NAMES}

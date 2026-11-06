@@ -14,6 +14,28 @@ FILTER_BYTES = 64 << 20
 FILTER_ROW_BYTES = 24
 
 
+def plan(
+    has_doc_ids: bool, doc_ids: Any, rows: Any, max_per_doc: int | None, n_rows: int
+) -> tuple[np.ndarray | None, str]:
+    """Check the filters and ``max_per_doc`` of a search before any row is read; returns the
+    prepared filter (None for all rows) and its kind."""
+    if max_per_doc not in (None, 1):
+        raise ValueError(
+            f"max_per_doc must be 1 in this version, not {max_per_doc}; "
+            "larger values may be supported in a later release"
+        )
+    if doc_ids is not None and rows is not None:
+        raise ValueError("pass either doc_ids or rows, not both")
+    if doc_ids is not None and not has_doc_ids:
+        raise ValueError("this store has no doc_ids")
+    if max_per_doc is not None and not has_doc_ids:
+        raise ValueError("max_per_doc needs a store with doc_ids")
+    kind = "doc_ids" if doc_ids is not None else "rows"
+    if doc_ids is not None or rows is not None:
+        return prepare(doc_ids if doc_ids is not None else rows, kind, n_rows), kind
+    return None, kind
+
+
 def prepare(value: Any, name: str, total: int) -> np.ndarray:
     if not isinstance(value, (list, np.ndarray)):
         raise TypeError(f"{name} must be a list or an int64 array")

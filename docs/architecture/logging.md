@@ -37,11 +37,13 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `scores.opened` | INFO | `fse.store` | rows, shards, heads, columns, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.open` |
 | `scores.verified` | INFO | `fse.store` | rows, shards, seconds | `ScoreStore.verify` |
 | `scores.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.refresh`, once per call, also when it adds nothing |
+| `scores.view_opened` | INFO | `fse.store` | stores, rows, shards, mode (`source_rows@1`, `list`) | `ScoreStore.open_view`, after its stores are checked; each store logs `scores.opened` before |
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
 | `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
 | `store.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.refresh`, once per call, also when it adds nothing |
+| `store.view_opened` | INFO | `fse.store` | stores, rows, shards, mode (`source_rows@1`, `list`), dtype | `VectorStore.open_view`, after its stores are checked; each store logs `store.opened` before |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
 | `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids; `resume`, `kept_rows`, `source_rows`, `source_bytes`, `source_seconds`, `source_fingerprint` (resume sinks only) | `ScoreSink`, when `predict_batches` of `Heads`, `Classifier` or `Regressor` attaches the run, or `predict` attaches the source of a sink made with `resume=True` (a new store is created then; `heads` is 1 for a single head) |
 | `scores.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ScoreSink` (thread `fse-shard-publish`) |
