@@ -28,13 +28,13 @@ from ._layout import read_store
 from ._recovery import Snapshot, clear_exception_frames, extend
 
 
-def refreshed(path: Path, kind: str, info: Any, shards: list) -> Snapshot:
-    """The shards published after ``shards`` (a snapshot of the store ``path`` of the kind
-    ``kind``), mapped and checked; the snapshot itself is not changed. A store that is no
-    longer the one of the snapshot is a ``RuntimeError``; a gap, an orphan or a break of
+def refreshed(path: Path, info: Any, shards: list) -> Snapshot:
+    """The shards published after ``shards`` (a snapshot of the store ``path``), mapped and
+    checked; the snapshot itself is not changed. A store that is no longer the one of the
+    snapshot, also one of another kind, is a ``RuntimeError``; a gap, an orphan or a break of
     the chain is a ``CorruptArtifactError``."""
     try:
-        if read_store(path, kind) != info:
+        if read_store(path) != info:  # any kind of store: another kind is a changed store
             raise _changed()
         if shards:
             _check_last(path, shards[-1][0])

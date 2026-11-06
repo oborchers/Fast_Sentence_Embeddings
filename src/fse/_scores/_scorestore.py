@@ -237,7 +237,7 @@ class ScoreStore:
         ``repair_store`` running meanwhile."""
         with self._refreshing:
             shards = self._snapshot()
-            checked = refreshed(self.path, KIND, self._info, shards)
+            checked = refreshed(self.path, self._info, shards)
             added = rows_in(checked.shards)
             total = rows_in(shards) + added
             with self._lock:

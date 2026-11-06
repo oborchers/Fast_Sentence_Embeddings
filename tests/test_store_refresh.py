@@ -13,7 +13,7 @@ import fse
 from fse import ScoreStore, VectorStore
 from fse._container import FINGERPRINT_KEY, CorruptArtifactError, NpyContainer
 from fse._scores import _scorestore
-from fse._store import _search, _vectorstore
+from fse._store import _recovery, _search, _vectorstore
 from fse._store._kind import Shard
 from fse._store._layout import create_store, shard_name
 from support import scores as sc
@@ -107,19 +107,26 @@ def test_an_empty_score_store_takes_its_first_shard_and_its_thresholds(tmp_path)
         assert list(old) == []  # rows and thresholds of the call come from the same state
         (batch,) = store.predict_batches()
         assert batch.n_rows == 3
+        stored = store._shards[0][1]["thresholds.toxic"]
+        assert stored.tolist() == [pytest.approx(0.2)] * 3
 
 
-def test_only_the_new_tagged_shards_are_hashed(tmp_path):
+def test_only_the_new_tagged_shards_are_hashed(tmp_path, monkeypatch):
     path = tmp_path / "store"
     info = make_store(path, sizes=(4, 4), tagged=(0, 4))
     with VectorStore.open(path) as store:
         add_shard(path, info, 8, 4)
         tag_shard(path / shard_name(8))
+        hashed = []
+        real = _recovery.checksum
+        monkeypatch.setattr(_recovery, "checksum", lambda data: hashed.append(data) or real(data))
         with expect_log("store.refreshed", unsynced_shards=1) as records:
             store.refresh()
         tensors = store._shards[-1][1]
     (record,) = records
     assert record.fse_verified_bytes == sum(t.nbytes for t in tensors.values()) > 0
+    assert len(hashed) == len(tensors)
+    assert all(any(h is t for t in tensors.values()) for h in hashed)  # none of the old shards
 
 
 def test_the_last_shard_has_its_manifest_fingerprint(vectors):
@@ -366,6 +373,24 @@ def test_a_score_store_closed_during_a_refresh_stays_closed(scores, monkeypatch)
 def test_two_refreshes_at_once_add_the_shards_once(vectors, monkeypatch):
     append_rows(vectors.path)
     reached, release, _ = _stalled(monkeypatch, _vectorstore, "refreshed")
+    waiting = threading.Event()
+
+    class Watched:
+        """The lock of refreshes, saying when a second caller asks for it."""
+
+        def __init__(self, lock):
+            self.lock, self.entered = lock, 0
+
+        def __enter__(self):
+            self.entered += 1
+            if self.entered == 2:
+                waiting.set()
+            return self.lock.__enter__()
+
+        def __exit__(self, *exc):
+            return self.lock.__exit__(*exc)
+
+    vectors._refreshing = Watched(vectors._refreshing)
     results = []
     first = threading.Thread(target=lambda: results.append(vectors.refresh()))
     second = threading.Thread(target=lambda: results.append(vectors.refresh()))
@@ -373,6 +398,7 @@ def test_two_refreshes_at_once_add_the_shards_once(vectors, monkeypatch):
     try:
         assert reached.wait(10)
         second.start()
+        assert waiting.wait(10)  # the second one asks for the lock the first one holds
     finally:
         release.set()
         first.join(10)
@@ -387,3 +413,52 @@ def test_create_store_then_open_and_refresh_roundtrip(tmp_path):
     create_store(path, info)
     with ScoreStore.open(path) as store:
         assert store.refresh() == 0
+
+
+def test_a_head_generator_made_before_a_refresh_reads_the_rows_of_its_call(tmp_path):
+    from support.encoder import finished
+    from support.runtime import texts
+
+    encoder = finished(normalize=True)
+    path = tmp_path / "heads"
+    rows = texts(40, seed=3)
+    with fse.ShardSink(path, encoder, shard_rows=16) as sink:
+        encoder.encode(rows[:32], sink=sink)
+    rng = np.random.default_rng(1)
+    model = fse.Classifier.from_arrays(
+        encoder,
+        rng.standard_normal((2, encoder.output_dim)).astype(np.float32),
+        rng.standard_normal(2),
+        labels=["a", "b"],
+    )
+    with VectorStore.open(path, encoder=encoder) as store:
+        batches = model.predict_batches(store, output="decision")
+        with fse.ShardSink(path, encoder, shard_rows=16) as sink:
+            encoder.encode(rows[32:], sink=sink)
+        assert store.refresh() == 8
+        assert sum(batch.n_rows for batch in batches) == 32
+        assert sum(batch.n_rows for batch in model.predict_batches(store)) == 40
+
+
+def test_a_store_of_another_kind_in_the_place_is_a_changed_store(tmp_path):
+    path = tmp_path / "store"
+    make_store(path)
+    with VectorStore.open(path) as store:
+        shutil.rmtree(path)
+        sc.make_scores(path)
+        with pytest.raises(RuntimeError, match="changed below its snapshot"):
+            store.refresh()
+    scores_path = tmp_path / "scores"
+    sc.make_scores(scores_path)
+    with ScoreStore.open(scores_path) as store:
+        shutil.rmtree(scores_path)
+        make_store(scores_path)
+        with pytest.raises(RuntimeError, match="changed below its snapshot"):
+            store.refresh()
+
+
+def test_an_empty_range_of_a_closed_store_raises_at_the_first_block(vectors):
+    batches = vectors.iter_batches(start=0, stop=0)
+    vectors.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        next(batches)

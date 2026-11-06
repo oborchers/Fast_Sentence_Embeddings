@@ -313,6 +313,7 @@ class VectorStore:
     def _batches(
         self, shards: list, block_rows: int, start: int, stop: int
     ) -> Iterator[VectorBatch]:
+        self._check_open()  # also for no rows, and before the first block
         for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more
             yield _vector_batches.make(tensors, shard.first_row, first, end)
@@ -364,7 +365,7 @@ class VectorStore:
         ``close`` raises while a refresh runs."""
         self._check_open()
         with self._refreshing, self._using() as shards:
-            checked = refreshed(self.path, VECTORS.name, self._info, shards)
+            checked = refreshed(self.path, self._info, shards)
             added = rows_in(checked.shards)
             total = rows_in(shards) + added
             with self._lock:
