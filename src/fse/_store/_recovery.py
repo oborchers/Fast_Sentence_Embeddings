@@ -53,26 +53,38 @@ def _extend(path: Path, info: Any, old: list, *, verify: bool) -> Snapshot:
     unsynced = verified_bytes = 0
     seconds = 0.0
     while _present(path / shard_name(row)):
-        try:
-            shard, tensors = open_shard(path, info, row)
-            if shard.unsynced:
-                unsynced += 1
-                if verify:
-                    start = time.perf_counter()
-                    verify_shard(kind, shard, tensors)
-                    verified_bytes += sum(tensor.nbytes for tensor in tensors.values())
-                    seconds += time.perf_counter() - start
-            current = kind.summary(shard, tensors)
-            reason = chain_breach(kind, previous, current)
-        except CorruptArtifactError as error:
-            raise damaged(path, shard_name(row), row, str(error)) from error
-        if reason is not None:
-            raise damaged(path, shard_name(row), row, reason)
-        previous = current
+        shard, tensors, previous, cost = _next_shard(path, info, kind, row, previous, verify)
+        if shard.unsynced:
+            unsynced += 1
+        verified_bytes += cost[0]
+        seconds += cost[1]
         found.append((shard, tensors))
         row += shard.rows
     check_gaps(path, [*old, *found], row)
     return Snapshot(found, unsynced, verified_bytes, seconds)
+
+
+def _next_shard(
+    path: Path, info: Any, kind: Kind, row: int, previous: object, verify: bool
+) -> tuple[Shard, dict[str, ndarray], object, tuple[int, float]]:
+    """The shard at ``row``, mapped, verified if it is tagged (``verify``) and checked
+    against the summary ``previous`` of the shard before it; with its own summary and the
+    bytes and seconds of its verification."""
+    verified_bytes, seconds = 0, 0.0
+    try:
+        shard, tensors = open_shard(path, info, row)
+        if shard.unsynced and verify:
+            start = time.perf_counter()
+            verify_shard(kind, shard, tensors)
+            verified_bytes = sum(tensor.nbytes for tensor in tensors.values())
+            seconds = time.perf_counter() - start
+        current = kind.summary(shard, tensors)
+        reason = chain_breach(kind, previous, current)
+    except CorruptArtifactError as error:
+        raise damaged(path, shard_name(row), row, str(error)) from error
+    if reason is not None:
+        raise damaged(path, shard_name(row), row, reason)
+    return shard, tensors, current, (verified_bytes, seconds)
 
 
 def rows_in(shards: list) -> int:
