@@ -7,7 +7,6 @@
     "resident_cycles": 20,
     "iterations": 20,
     "warmup_calls": 1,
-    "iterations": 1,
     "target_seconds": 2,
     "minimum_seconds": 2,
     "decision_gate": false
