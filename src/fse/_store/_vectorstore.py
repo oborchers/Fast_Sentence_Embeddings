@@ -309,8 +309,8 @@ class VectorStore:
         return self._batches(block_rows, start, stop)
 
     def _batches(self, block_rows: int, start: int, stop: int) -> Iterator[VectorBatch]:
-        self._check_open()
-        shards = list(self._shards)
+        with self._using():  # the snapshot cannot meet a close; it is left before the first yield
+            shards = list(self._shards)
         for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more
             yield _vector_batches.make(tensors, shard.first_row, first, end)

@@ -43,7 +43,7 @@ def positions(value: Any) -> ndarray:
                 f"{_HINT}, not {kind} of dtype {value.dtype} and shape {value.shape}; "
                 "use np.asarray(rows, dtype=np.int64) and reshape it to one or two dimensions"
             )
-        return value
+        return np.asarray(value)  # a subclass such as np.matrix would break ravel
     if not isinstance(value, list):
         raise TypeError(f"{_HINT}, not {type(value).__name__}")
     checked_ids(value, "rows")

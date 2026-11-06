@@ -214,3 +214,14 @@ def test_the_rows_per_byte_follow_the_dtype():
     assert _take.vector_row_bytes(10, "float32") == 8 + 40 + 40
     assert _take.vector_row_bytes(10, "float16") == 8 + 20 + 40
     assert _take.vector_row_bytes(10, "int8") == 8 + 10 + 4 + 40
+
+
+def test_a_subclass_of_ndarray_is_used_as_a_plain_array():
+    class Sub(np.ndarray):
+        def ravel(self, *_args, **_kwargs):  # a subclass may change what ravel gives
+            return np.zeros(0, np.int64)
+
+    given = np.array([[1, 0]], np.int64).view(Sub)
+    got = _take.positions(given)
+    assert type(got) is np.ndarray
+    np.testing.assert_array_equal(_gather(got)[..., 0], [[1, 0]])

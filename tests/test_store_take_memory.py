@@ -107,3 +107,17 @@ def test_only_the_calling_thread_reads(tmp_path, monkeypatch, method):
     with fse.VectorStore.open(tmp_path / "s") as store:
         getattr(store, method)(rows)
     assert seen == {threading.get_ident()}
+
+
+def test_blocks_bound_the_decoding_of_many_rows_of_one_shard(tmp_path, monkeypatch):
+    rows, dim = 2000, 64
+    codes, scales = critical_rows(rows, "float32", dim=dim)
+    write_rows(tmp_path / "s", "float32", codes, scales, shard_rows=rows)
+    row_bytes = _take.vector_row_bytes(dim, "float32")
+    monkeypatch.setattr(_take, "_BLOCK_BYTES", 16 * row_bytes)  # 16 rows a block
+    wanted = np.random.default_rng(5).integers(0, rows, POSITIONS).astype(np.int64)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        got, peak = _peak(lambda: store.take_vectors(wanted))
+    np.testing.assert_array_equal(bits(got), bits(decoded(codes, scales)[wanted]))
+    # Decoding all the rows at once would add POSITIONS * row_bytes, five times the bound.
+    assert peak - got.nbytes <= _allowed(POSITIONS, 16, row_bytes)
