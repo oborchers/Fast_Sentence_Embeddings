@@ -165,7 +165,17 @@ class Heads(Mapping):
         before the first batch is read, so a head whose path differs from that of the store
         is refused. Each batch then reports ``durable_rows``, the rows of the run that are
         durable; a consumer of a queue confirms its input up to there, and up to
-        ``sink.durable_rows`` once the iteration ended (the sink is flushed then). With
+        ``sink.durable_rows`` once the iteration ended (the sink is flushed then).
+
+        A ``vector_sink`` takes the vectors of the encoder, the rows of ``return_vectors=True``
+        (which it needs: the heads on raw means then take the unfolded path, see ``paths``).
+        It is a ``fse.ShardSink`` or any ``fse.Sink``, alone or with a ``score_sink`` in a
+        second folder: one pass writes both, with the same ``doc_ids``. ``durable_rows`` is
+        then the minimum of the counts of both sinks. The two folders are not one store: no
+        file ties them, each is a valid prefix on its own after a crash, and rows beyond the
+        confirmed ones may be in one folder only; a replay writes them again (at least once).
+        Give both sinks the same ``shard_rows``; document IDs are not unique keys. Two shard
+        stores that hold unequal numbers of rows take a run only with ``doc_ids``. With
         ``doc_ids=True`` the batches are ``(texts, doc_ids)`` pairs as for
         ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
         been made with ``doc_ids=True``. Stopping early does not flush: close the sink."""

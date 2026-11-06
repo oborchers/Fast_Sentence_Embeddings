@@ -116,6 +116,15 @@ The durable prefix is a count too. `durable_rows` of `EncodedBatch`, `PredictedB
 of the sink says how many rows at the start of the run are durable. `durable_rows=210`
 means that the run positions 0 to 209 are durable. It is not a position.
 
+Two stores written by one run, vectors in a `ShardSink` and scores in a `ScoreSink`
+(`Heads.predict_batches(..., return_vectors=True, vector_sink=..., score_sink=..., doc_ids=True)`),
+have one store position for each run position: `vector_sink.first_row + r` and
+`score_sink.first_row + r`. Both positions can differ when the stores held different numbers
+of rows before the run, which a run accepts only with `doc_ids`. `HeadsBatch.durable_rows` is
+the minimum of both sinks. A replay after a crash writes the rows beyond the confirmed ones
+again, so a store can hold a row twice, and `max_per_doc=1` returns the best hit per document
+without removing duplicates.
+
 A document ID (`doc_ids`) is your own label for a document. It is not unique: several rows
 may share one. It appears in the input (`doc_ids=`), in filters, in
 `DocumentSearchResult.doc_ids` and in `get_doc_ids`.

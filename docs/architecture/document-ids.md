@@ -38,8 +38,11 @@ Scores are not stored in the shards of vectors. They are a kind of their own,
 `prediction_scores` ([scores.md](scores.md)), in a store of their own that shares the
 physical shard writer, the document-ID column (`doc_ids.npy` exactly when `fse.doc_ids`
 is `int64`) and the statistics below. Vectors and scores of one run are written to two
-stores and joined by their document IDs and their rows (DR-229, Vektoren und Scores in
-einem Lauf in zwei Stores schreiben).
+stores (DR-229, Vektoren und Scores in einem Lauf in zwei Stores schreiben). The two
+stores share positions only while they were written together: a join by position needs
+the same history, and a join by document ID needs IDs of your own that name each row
+uniquely, because document IDs are not unique keys ([scores.md](scores.md), "Vectors and
+scores in one run").
 
 ID shards also record `fse.doc_ids_min`, `fse.doc_ids_max` and
 `fse.doc_ids_sorted=true|false`. Bounds are canonical signed int64 decimals.
