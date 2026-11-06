@@ -3,6 +3,7 @@ single store that holds the same rows."""
 
 import gc
 import pickle
+import sys
 import weakref
 
 import numpy as np
@@ -222,16 +223,22 @@ def test_what_a_list_of_paths_must_be(tmp_path):
         VectorStore.open_view([parts[0], 3])
     with pytest.raises(ValueError, match="listed twice"):
         VectorStore.open_view([parts[0], parts[1], str(parts[0])])
-    link = tmp_path / "link"
-    link.symlink_to(parts[0], target_is_directory=True)
-    with pytest.raises(ValueError, match="listed twice"):
-        VectorStore.open_view([parts[0], link])
+
     with pytest.raises(TypeError, match="encoder must be an Encoder"):
         VectorStore.open_view(parts, encoder=3)
     with pytest.raises(ValueError, match="backend"):
         VectorStore.open_view(parts, backend="tpu")
     with VectorStore.open_view(tuple(parts)) as view:
         assert len(view) == 9
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a symbolic link needs a privilege there")
+def test_a_link_to_a_listed_store_is_listed_twice(tmp_path):
+    _, parts = vector_parts(tmp_path, sizes=(4, 5))
+    link = tmp_path / "link"
+    link.symlink_to(parts[0], target_is_directory=True)
+    with pytest.raises(ValueError, match="listed twice"):
+        VectorStore.open_view([parts[0], link])
 
 
 def test_a_view_of_one_store_and_of_the_encoder(tmp_path):
@@ -309,15 +316,22 @@ def test_close_waits_for_a_running_read(tmp_path):
 
 def test_verify_checks_each_store_over_its_path(tmp_path):
     _, parts = vector_parts(tmp_path, sizes=(4, 5))
-    with VectorStore.open_view(parts) as view:
-        with expect_log("store.verified", rows=4), expect_log("store.verified", rows=5):
-            view.verify()
-        victim = sorted((parts[1]).glob("shard-*/vectors.npy"))[0]
-        data = bytearray(victim.read_bytes())
-        data[-1] ^= 0x55
-        victim.write_bytes(bytes(data))
-        with pytest.raises(CorruptArtifactError):
-            view.verify()
+    with (
+        VectorStore.open_view(parts) as view,
+        expect_log("store.verified", rows=4),
+        expect_log("store.verified", rows=5),
+    ):
+        view.verify()
+
+
+def test_verify_finds_damage_in_a_store(tmp_path):
+    _, parts = vector_parts(tmp_path, sizes=(4, 5))
+    victim = sorted(parts[1].glob("shard-*/vectors.npy"))[0]
+    data = bytearray(victim.read_bytes())
+    data[-1] ^= 0x55
+    victim.write_bytes(bytes(data))  # before the view maps it: Windows cannot write a mapped file
+    with VectorStore.open_view(parts) as view, pytest.raises(CorruptArtifactError):
+        view.verify()
 
 
 def test_the_view_is_logged(tmp_path):
