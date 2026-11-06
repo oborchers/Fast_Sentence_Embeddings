@@ -234,3 +234,25 @@ def test_a_standalone_export_refuses_a_head_that_changed_since_the_load(tmp_path
     with pytest.raises(CorruptArtifactError, match="changed since it was"):
         loaded.save(tmp_path / "s.safetensors", standalone=True)
     assert not (tmp_path / "s.safetensors").exists()
+
+
+def test_the_path_names_how_a_head_reads_its_rows(tmp_path):
+    raw = _classifier()
+    assert raw.path() == "folded"
+    assert raw.path(return_vectors=True) == "unfolded"
+    normalized = _classifier(normalized=True)
+    assert normalized.path() == normalized.path(return_vectors=True) == "normalized"
+    raw.save(tmp_path / "m.safetensors", standalone=True)
+    standalone = fse.Classifier.load(tmp_path / "m.safetensors")
+    assert standalone.path() == "standalone"
+    with pytest.raises(ValueError, match="standalone model has no vectors"):
+        standalone.path(return_vectors=True)
+    regressor = fse.Regressor.from_arrays(finished(normalize=False), np.ones(6))
+    assert regressor.path() == "folded"
+
+
+def test_a_head_and_a_group_of_it_agree_on_the_path():
+    model = _classifier()
+    heads = fse.Heads(one=model)
+    for vectors in (False, True):
+        assert heads.paths(return_vectors=vectors)["one"] == model.path(return_vectors=vectors)

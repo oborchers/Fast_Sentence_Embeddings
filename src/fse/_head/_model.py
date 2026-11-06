@@ -394,6 +394,24 @@ class LinearModel(HubModel):
     def standalone(self) -> bool:
         return self._content.standalone
 
+    @validate_arguments
+    def path(
+        self, *, return_vectors: bool = False
+    ) -> Literal["folded", "normalized", "unfolded", "standalone"]:
+        """The path the head takes: ``folded`` (its weights fold into the table, the bias is
+        added after pooling), ``normalized`` (the full mean, normalized), ``unfolded`` (the
+        full mean, because the vectors are asked for too) or ``standalone``. A head on raw
+        means takes ``folded`` without vectors and ``unfolded`` with them; the two agree only
+        within the rounding of the fold (docs/architecture/numerical-contract.md). A
+        standalone head has no vectors and raises with ``return_vectors=True``."""
+        if self._content.standalone:
+            if return_vectors:
+                raise ValueError("a standalone model has no vectors: its table is folded")
+            return "standalone"
+        if self._content.normalized:
+            return "normalized"
+        return "unfolded" if return_vectors else "folded"
+
     @property
     def fingerprint(self) -> str:
         """The fingerprint of the model as ``save`` writes it complete (standalone: as it

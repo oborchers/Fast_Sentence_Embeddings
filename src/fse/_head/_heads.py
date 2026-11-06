@@ -123,7 +123,9 @@ class Heads(Mapping):
         within the rounding of the fold (docs/architecture/numerical-contract.md)."""
         if return_vectors and self._standalone:
             raise ValueError("a standalone group has no vectors: its table is folded")
-        return MappingProxyType({n: _path(m, return_vectors) for n, m in self._heads.items()})
+        return MappingProxyType(
+            {n: m.path(return_vectors=return_vectors) for n, m in self._heads.items()}
+        )
 
     @validate_arguments
     def predict(
@@ -253,14 +255,6 @@ def _check_encoder(heads: dict[str, Any]) -> None:
             )
 
 
-def _path(model: LinearModel, vectors: bool) -> Path:
-    if model.standalone:
-        return "standalone"
-    if model.normalized:
-        return "normalized"
-    return "unfolded" if vectors else "folded"
-
-
 def _describe(model: LinearModel) -> str:
     kind = "Regressor" if model.TASK == "regression" else "Classifier"
-    return f"{kind}({model.n_outputs} outputs, {model.link}, {_path(model, False)})"
+    return f"{kind}({model.n_outputs} outputs, {model.link}, {model.path()})"
