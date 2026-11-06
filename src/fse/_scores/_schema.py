@@ -26,6 +26,7 @@ from fse._container import checksum
 from fse._head import Classifier, Heads, Regressor
 from fse._head._derive import proba_width
 from fse._store._layout import SCORE_STORE_BYTES, root_text
+from fse._store._position_format import MAX_POSITION_BYTES, SourcePosition
 from fse._store._scores_info import STORED, ScoreHead, ScoreInfo
 
 PENDING = "pending"  # the path of a head before a run attaches
@@ -87,6 +88,20 @@ class ScoreSchema:
             raise ValueError(
                 f"the heads need a store.json of {size} bytes; a score store holds at most "
                 f"{SCORE_STORE_BYTES} bytes of it (fewer heads or labels)"
+            )
+
+    def check_resume_size(self) -> None:
+        """The root of a resuming sink must hold the heads and the largest position (65,536
+        ASCII bytes) besides, since a store of the mode ``source_position@1`` may be made from
+        it; the position of a run is checked again when the store is made."""
+        longest = replace(self, heads=tuple(replace(h, path=_LONGEST_PATH) for h in self.heads))
+        anchor = SourcePosition("a" * MAX_POSITION_BYTES, 0)
+        size = len(root_text(replace(longest.info(True), resume=anchor))) + 1
+        if size > SCORE_STORE_BYTES:
+            raise ValueError(
+                f"the heads and a position of {MAX_POSITION_BYTES} bytes need a store.json of "
+                f"{size} bytes; a score store holds at most {SCORE_STORE_BYTES} bytes of it "
+                "(fewer heads or labels)"
             )
 
     def check_info_size(self, info: ScoreInfo) -> None:

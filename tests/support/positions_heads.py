@@ -26,6 +26,7 @@ def run(directory, batches, *, heads=HEADS, vectors=True, scores=True, stop=None
     directory.mkdir(parents=True, exist_ok=True)
     options = {k: kwargs.pop(k) for k in ("durability", "rows") if k in kwargs}
     ids = {"doc_ids": True} if kwargs.get("doc_ids") else {}
+    extra = kwargs.pop("return_vectors", False)  # the path with vectors, without a vector store
     sinks = {}
     if vectors:
         sinks["vector_sink"] = vector_sink(directory / "v", heads=heads, **options, **ids)
@@ -34,7 +35,7 @@ def run(directory, batches, *, heads=HEADS, vectors=True, scores=True, stop=None
     results = []
     try:
         for found in heads.predict_batches(
-            batches, return_vectors=vectors, positions=True, workers=2, **sinks, **kwargs
+            batches, return_vectors=vectors or extra, positions=True, workers=2, **sinks, **kwargs
         ):
             results.append(found)
             if stop is not None and len(results) == stop:
@@ -49,7 +50,8 @@ def resume(directory, size, *, by="s", heads=HEADS, texts=TEXTS, **kwargs):
     """Seek to the position the store ``by`` (``v`` or ``s``) reports and give the stream again
     from there; returns the results and ``(P, skip)``."""
     directory = Path(directory)
-    sink = (vector_sink if by == "v" else score_sink)(directory / by, heads=heads)
+    options = {k: kwargs[k] for k in ("durability", "rows") if k in kwargs}
+    sink = (vector_sink if by == "v" else score_sink)(directory / by, heads=heads, **options)
     with sink:
         found = sink.source_position
     assert found is not None

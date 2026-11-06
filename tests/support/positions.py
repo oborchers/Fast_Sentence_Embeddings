@@ -1,5 +1,7 @@
 """Streams that resume from a position: batches with positions, stores written from them."""
 
+from pathlib import Path
+
 import numpy as np
 
 from fse import ShardSink
@@ -80,3 +82,13 @@ def whole(path, texts, **kwargs):
     """The rows an uninterrupted run into a store gives."""
     write(path, stream(texts, 50), **kwargs)
     return vectors(path)
+
+
+def int_start(path):
+    """The record a stream continues from: the position the store at ``path`` reports (0 for a
+    store that does not exist or holds no position)."""
+    if not (Path(path) / "store.json").exists():
+        return 0
+    with sink(path) as target:
+        found = target.source_position
+    return 0 if found is None else int(found[0][1:])

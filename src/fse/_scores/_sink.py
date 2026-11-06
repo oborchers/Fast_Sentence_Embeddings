@@ -94,6 +94,8 @@ class ScoreSink(ShardSinkBase):
         resume: bool = False,
     ):
         schema = ScoreSchema.from_heads(heads, stored, name)
+        if resume:
+            schema.check_resume_size()
         path = Path(path)
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()

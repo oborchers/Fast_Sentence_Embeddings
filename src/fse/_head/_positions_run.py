@@ -268,6 +268,8 @@ def _batch(
         for piece in pieces
     ] or [_empty(pipeline, stream, workers, lengths, collector)]
     found, vectors = _merge(parts)
+    if any(member.role == "vector" for member in stream.members):
+        vectors = None  # a vector sink took them, or the stores held the records
     return first, rows, found, vectors, None if collector is None else collector.report()
 
 
