@@ -43,9 +43,10 @@ def tokenizer(model, texts, job=None):
     source = StringSource(texts)
     source.scan(workers=1)
     lookup = make_lookup(model.word_vectors, model._spec.tokenizer)
-    ws = workspace("none" if job is None else job.get("lengths", "none"))
+    mode = "none" if job is None else job.get("lengths", "none")
+    ws = workspace(mode)
     chunk = Chunk(0, len(texts), 0, len(texts))
-    if ws.watch == 0:
+    if mode == "none":  # touches nothing new, so a build before the report runs it too
         return lambda: source.encode(chunk, lookup, ws)
 
     def recorded():  # the record of the rule is part of the timed call

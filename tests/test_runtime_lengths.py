@@ -219,3 +219,26 @@ def test_every_source_gives_the_same_report(kind, tmp_path):
     plain = pipe.infer(source(kind, texts, tmp_path), workers=2)
     assert bits(rows) == bits(plain)
     sup.check_report(collector.report(), sup.expected(texts), count=True)
+
+
+@pytest.mark.parametrize("workers", [1, 3])
+def test_the_earlier_row_wins_between_a_cut_and_invalid_utf8(tmp_path, workers):
+    """Across rows the earliest failing row is raised, whatever the error and the task size."""
+    from fse._text_file import FileSource
+
+    cut = " ".join(["ab"] * 40)  # more than max_tokens ids
+    fine = "ab ab"
+    pipe = pipeline()
+    raising = LengthSettings.of(None, False, "raise", "m")
+    for bad_first, error in ((True, UnicodeDecodeError), (False, TruncationError)):
+        lines = [fine.encode()] * 30
+        lines[3 if bad_first else 20] = b"ab \xff ab"
+        lines[20 if bad_first else 3] = cut.encode()
+        path = tmp_path / f"{bad_first}.txt"
+        path.write_bytes(b"\n".join(lines) + b"\n")
+        with pytest.raises(error) as caught:
+            pipe.infer(FileSource(path), workers=workers, chunk_bytes=60, lengths=raising)
+        if error is TruncationError:
+            assert caught.value.row == 3
+        else:
+            assert "sentence 3" in str(caught.value)

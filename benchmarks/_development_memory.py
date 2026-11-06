@@ -60,7 +60,8 @@ def operation(model, texts, job):
     def encode():
         sink = _Target(codes, scales, dtype)
         _, report = split(model.encode(texts, workers=job["workers"], sink=sink, **options))
-        reports.append(report)
+        if not reports:  # the first call is checked; later reports are not kept
+            reports.append(report)
         return sink.result()
 
     check(job.get("wall_deadline"))

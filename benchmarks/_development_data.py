@@ -201,7 +201,7 @@ def _length_corpus(name, work, cache, models, deadline):
         derived = "the rows of the split that the length rule does not cut, in order"
         stats = declared(model, [t for t, ok in zip(normalized, keep, strict=True) if ok], True)
     elif name == "wikitext-docs-at-cut":
-        data["texts"] = documents_at_cut(model, documents(data["texts"], rule.max_chars))
+        data["texts"] = documents_at_cut(model, documents(data["texts"], rule.max_chars), deadline)
         derived = (
             "the documents of wikitext-docs-m2v, each cut after the word at which it has "
             "exactly max_tokens ids; documents that never have exactly that many are dropped"

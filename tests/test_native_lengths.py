@@ -276,3 +276,22 @@ def test_pool_text_records_the_same_and_pools_the_same_bits(max_tokens, max_char
             if watch:
                 check(ws, want, watch == 2)
         assert outs[0] == outs[1] == outs[2]
+
+
+def test_fasttext_counts_an_unknown_word_as_one_token_and_drops_nothing():
+    from fse._wordvectors import FastTextParams
+
+    words = ["alpha", "beta"]
+    wv = WordVectors.from_arrays(
+        np.zeros((2, 2), np.float32),
+        words=words,
+        fasttext=FastTextParams(3, 5, 4),
+        ngrams=np.ones((4, 2), np.float32),
+    )
+    lookup = make_lookup(wv, TokenizerSpec("fse_words@1"), max_ngrams=4)
+    _, ws = encode(lookup, ["alpha zzz", "zzz", ""], watch=2, store_rows=True)
+    sums, (cuts, dropped, tokens, _, _) = ws.take_lengths()
+    assert tokens.tolist() == [2, 1, 0]  # the unknown word is one token, bucket or not
+    assert dropped.tolist() == [0, 0, 0]
+    assert cuts.tolist() == [0, 0, 0]
+    assert sums[3] == 1  # only the empty sentence is empty

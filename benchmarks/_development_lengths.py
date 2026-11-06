@@ -8,6 +8,8 @@ comparison of a report with the independent mode."""
 
 from __future__ import annotations
 
+from _development_budget import check
+
 MODES = ("none", "summary", "per_row", "per_row-count", "raise")
 PROFILE = "length-report@1"
 # The corpora built from WikiText rows by the rule of one model (see ``documents``). No pinned
@@ -120,7 +122,26 @@ def check_against_independent(model, texts, mode, report, workers):
         for name in ("truncated_tokens_total", "truncated_chars_total"):
             if getattr(report, name) != getattr(full, name):
                 raise ValueError(f"the length report differs from the independent one in {name}")
+    _same_arrays(report, full)
     return digest(report)
+
+
+def _same_arrays(report, full):
+    """Every array the report holds equals that of the full report, element by element."""
+    import numpy as np
+
+    for name in (
+        "char_truncated",
+        "token_truncated",
+        "empty",
+        "tokens",
+        "dropped_unknown",
+        "truncated_tokens",
+        "truncated_chars",
+    ):
+        got = getattr(report, name)
+        if got is not None and not np.array_equal(got, getattr(full, name)):
+            raise ValueError(f"the length report differs from the independent one in {name}")
 
 
 def check_reference(model, texts, mode):
@@ -178,9 +199,9 @@ def declared(model, texts, expect_uncut=False):
         raise ValueError("an uncut data case holds rows that the length rule cuts")
     return {
         "rows": len(texts),
-        "codepoints_min": int(chars.min(initial=0)) if len(chars) else 0,
+        "codepoints_min": int(chars.min()) if len(chars) else 0,
         "codepoints_median": float(np.median(chars)) if len(chars) else 0.0,
-        "codepoints_max": int(chars.max(initial=0)) if len(chars) else 0,
+        "codepoints_max": int(chars.max()) if len(chars) else 0,
         "n_char_truncated": report.n_char_truncated,
         "n_token_truncated": report.n_token_truncated,
         "n_truncated": report.n_truncated,
@@ -205,7 +226,7 @@ def _share_at_cut(report):
     return float(np.count_nonzero(at)) / max(1, report.n_rows)
 
 
-def documents_at_cut(model, rows):
+def documents_at_cut(model, rows, deadline=None):
     """Documents of exactly ``max_tokens`` ids: the longest prefix of the words of each
     document of ``rows`` with that many ids (the ids before unknown ids are dropped), where
     one exists. A sentence of this kind ends exactly at the cut, so the flag of the length
@@ -213,6 +234,7 @@ def documents_at_cut(model, rows):
     limit = model._spec.tokenizer.max_tokens
 
     def ids(text):
+        check(deadline)
         _, report = model.encode([text], lengths="per_row", count_truncated=True, workers=1)
         return int(report.tokens[0] + report.dropped_unknown[0] + report.truncated_tokens[0])
 
