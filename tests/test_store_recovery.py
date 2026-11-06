@@ -8,6 +8,7 @@ import pytest
 from fse import ShardSink, UnsupportedArtifactError, VectorStore
 from fse._container import CorruptArtifactError
 from fse._store._layout import open_shard, shard_name
+from fse._store._recovery import extend, rows_in, snapshot, stop_row
 from support.logs import captured
 from support.store import ENCODER, add_shard, make_store, tag_shard
 
@@ -183,3 +184,27 @@ def test_opened_record_counts_only_the_tagged_tensor_bytes(tmp_path):
     assert record.fse_unsynced_shards == 2
     assert record.fse_verified_bytes == 6 * (info.dim + 2 * np.dtype(np.float32).itemsize)
     assert record.fse_verify_seconds >= 0
+
+
+def test_extend_follows_the_chain_from_the_end_of_a_snapshot(tmp_path):
+    path = tmp_path / "store"
+    info = make_store(path, sizes=(4, 4))
+    old = snapshot(path, info, verify=True).shards
+    add_shard(path, info, 8, 3)
+    added = extend(path, info, old, verify=True)
+    assert [shard.first_row for shard, _ in added.shards] == [8]
+    assert rows_in(old) == 8
+    assert rows_in(added.shards) == 3
+    assert extend(path, info, [*old, *added.shards], verify=True).shards == []
+
+
+def test_stop_row_keeps_the_rows_of_the_snapshot_it_is_given(tmp_path):
+    path = tmp_path / "store"
+    info = make_store(path, sizes=(4, 4))
+    shards = snapshot(path, info, verify=False).shards
+    assert stop_row(shards, 2, None) == 8
+    assert stop_row(shards, 2, 5) == 5
+    with pytest.raises(ValueError, match="rows 2 to 9 are not within the 8 rows"):
+        stop_row(shards, 2, 9)
+    with pytest.raises(ValueError, match="rows 6 to 5"):
+        stop_row(shards, 6, 5)

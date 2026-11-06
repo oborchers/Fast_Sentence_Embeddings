@@ -217,6 +217,7 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         unsynced,
         expected,
         parsed_stats(metadata, file) if info.has_doc_ids else None,
+        fingerprint=metadata[FINGERPRINT_KEY],
     ), tensors
 
 
