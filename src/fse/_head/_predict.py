@@ -130,7 +130,9 @@ class _Predicting:
         ``return_vectors``."""
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard, return_vectors):
+        if _resume_run.wanted(
+            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
+        ):
             return _resume_run.predict_lone(
                 self, texts, return_vectors, workers, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,

@@ -117,10 +117,11 @@ class _Phase:
 # --- the arguments, checked before a text is read -----------------------------------------
 
 
-def wanted(*given: Any) -> bool:
-    """Whether a call to ``predict`` runs as a resumed run: it gave a sink, ``shard=``,
-    ``doc_ids=`` or ``return_vectors=True``."""
-    return any(value is not None and value is not False for value in given)
+def wanted(*given: Any, return_vectors: bool) -> bool:
+    """Whether a call to ``predict`` runs as a resumed run: it gave a sink, ``shard=`` or
+    ``doc_ids=`` (any value but None, so that a wrong one is checked), or
+    ``return_vectors=True``."""
+    return return_vectors or any(value is not None for value in given)
 
 
 def _members(vector_sink: Any, score_sink: Any) -> list[_Member]:
@@ -189,6 +190,10 @@ def check_arguments(
     members = _members(vector_sink, score_sink)
     for member in members:
         member.sink._check_open()
+        if member.sink._ready:
+            raise RuntimeError(
+                f"the {member.role}_sink took a source already; make a new sink for another run"
+            )
     check_workers(workers)
     check_backend(backend)
     resolve_outputs(rules_of(subject.models), output)
@@ -338,7 +343,7 @@ def resumed(
     """The resumed run of ``texts`` into the sinks of ``members``: ``None``, or with
     ``settings`` of a level the pair ``(None, LengthReport)``."""
     first = subject.first
-    with opened(texts, first._tokenizer) as base, _ids(doc_ids) as ids:
+    with _ids(doc_ids) as ids, opened(texts, first._tokenizer) as base:
         began = time.perf_counter()
         identity = _resume.identify(base, ids)
         _attach(subject, members, identity, part, time.perf_counter() - began, return_vectors)

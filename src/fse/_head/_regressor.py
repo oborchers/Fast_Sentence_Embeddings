@@ -189,7 +189,9 @@ class Regressor(LinearModel):
         ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``."""
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard, return_vectors):
+        if _resume_run.wanted(
+            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
+        ):
             if sink is not None:
                 raise ValueError(
                     "sink= keeps its role: the values. Give the vectors as vector_sink= and the "

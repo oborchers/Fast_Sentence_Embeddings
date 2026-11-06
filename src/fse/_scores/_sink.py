@@ -169,6 +169,7 @@ class ScoreSink(ShardSinkBase):
         wanted = SourceRows(identity.fingerprint, identity.form, identity.rows, shard, first)
         schema = self._schema.with_paths(paths)
         info = replace(schema.info(self.has_doc_ids), resume=wanted)
+        schema.check_info_size(info)  # before a store is made
         created = False if self._exists else create_store(self.path, info)
         existing = read_store(self.path, SCORES.name)
         check_mode(existing, True, self.path)

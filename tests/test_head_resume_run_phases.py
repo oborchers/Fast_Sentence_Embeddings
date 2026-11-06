@@ -9,6 +9,7 @@ from fse._head import _resume_run
 from fse._head._resume_run import _Discard
 from fse._runtime import HeadsPipeline
 from fse._store._resume_format import MODE
+from support import score_heads as sh
 from support import sink_run as sr
 from support.logs import captured
 from support.resume import canonical, drop_tail
@@ -274,3 +275,42 @@ def test_the_main_outputs_and_the_dropped_vectors_go_to_sinks_that_keep_nothing(
     assert isinstance(vector_sink, _Discard)
     assert arrays == [None] * len(HEADS)  # nothing was made for the result
     assert vectors is None
+
+
+# --- stored probabilities, normalized heads --------------------------------------------------
+
+
+@pytest.mark.parametrize("vectors", [False, True])
+def test_stored_probabilities_of_normalized_and_binary_heads_keep_the_bits(tmp_path, vectors):
+    """The kind the runtime computes follows what a head stores: a resumed run, cut in both
+    stores, gives the scores of predict_batches into one score store."""
+    enc = sh.encoder()
+    heads = fse.Heads(
+        topic=sh.classifier(enc, 3, seed=4, normalized=True), flag=sh.classifier(enc, 1, seed=5)
+    )
+    with fse.ScoreSink(tmp_path / "ref", heads, stored="proba", shard_rows=SHARD_ROWS) as sink:
+        list(heads.predict_batches([SENTENCES], return_vectors=vectors, score_sink=sink, workers=2))
+    want = scores_of(tmp_path / "ref")[0]
+    run(
+        tmp_path / "r",
+        SENTENCES,
+        heads=heads,
+        vectors=vectors,
+        return_vectors=vectors,
+        stored="proba",
+    )
+    if vectors:
+        cut(tmp_path / "r", 6, 3)
+    else:
+        drop_tail(tmp_path / "r" / "s", 3)
+    run(
+        tmp_path / "r",
+        SENTENCES,
+        heads=heads,
+        vectors=vectors,
+        return_vectors=vectors,
+        stored="proba",
+        workers=3,
+    )
+    got = scores_of(tmp_path / "r" / "s")[0]
+    np.testing.assert_array_equal(got.view(np.uint32), want.view(np.uint32))

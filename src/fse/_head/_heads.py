@@ -242,7 +242,9 @@ class Heads(Mapping):
         source. The outputs are not returned, so the memory of the call does not grow with the
         rows of the source; ``output`` is checked and changes nothing the stores hold."""
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
-        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard, return_vectors):
+        if _resume_run.wanted(
+            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
+        ):
             return _resume_run.predict_heads(
                 self, texts, output, return_vectors, workers, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,

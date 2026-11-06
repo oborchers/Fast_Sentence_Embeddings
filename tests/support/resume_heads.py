@@ -31,7 +31,9 @@ class Poisoned(list):
 
 
 def vector_sink(path, *, heads=HEADS, rows=SHARD_ROWS, **kwargs):
-    return fse.ShardSink(path, heads["quality"].encoder, shard_rows=rows, resume=True, **kwargs)
+    return fse.ShardSink(
+        path, next(iter(heads.items()))[1].encoder, shard_rows=rows, resume=True, **kwargs
+    )
 
 
 def score_sink(path, *, heads=HEADS, rows=SHARD_ROWS, **kwargs):
@@ -45,6 +47,8 @@ def run(directory, source, *, heads=HEADS, vectors=True, scores=True, workers=2,
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     options = {k: kwargs.pop(k) for k in ("durability", "rows") if k in kwargs}
+    extra = kwargs.pop("return_vectors", False)
+    stored = {"stored": kwargs.pop("stored")} if "stored" in kwargs else {}
     sink_ids = kwargs.get("doc_ids") is not None
     sinks = {}
     if vectors:
@@ -52,10 +56,12 @@ def run(directory, source, *, heads=HEADS, vectors=True, scores=True, workers=2,
             directory / "v", heads=heads, doc_ids=sink_ids, **options
         )
     if scores:
-        sinks["score_sink"] = score_sink(directory / "s", heads=heads, doc_ids=sink_ids, **options)
+        sinks["score_sink"] = score_sink(
+            directory / "s", heads=heads, doc_ids=sink_ids, **options, **stored
+        )
     try:
         return heads.predict(
-            source, return_vectors=vectors or kwargs.pop("return_vectors", False),
+            source, return_vectors=vectors or extra,
             workers=workers, **sinks, **kwargs,
         )  # fmt: skip
     finally:

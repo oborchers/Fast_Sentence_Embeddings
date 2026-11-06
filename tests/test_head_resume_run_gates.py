@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 import fse
+from fse._head import _resume_run
 from support.resume_heads import (
     ENCODER,
     HEADS,
@@ -134,20 +135,46 @@ def test_two_killed_stores_continue_with_the_bytes_of_one_run(tmp_path, whole, h
 
 
 @pytest.mark.parametrize(("vector_shards", "score_shards"), [(6, 3), (3, 6)])
-def test_a_run_killed_in_its_first_phase_continues_with_the_bytes_of_one_run(
+def test_a_run_killed_early_continues_with_the_bytes_of_one_run(
     tmp_path, whole, vector_shards, score_shards
 ):
-    """The first shard the child publishes is a shard of the shorter store alone."""
+    """The first shard the child publishes is one of the shorter store: the longer store may
+    not have grown yet, though the second phase can start while the hook holds the publisher."""
     directory = tmp_path / "s"
     run(directory, SENTENCES)
     cut(directory, vector_shards, score_shards)
     before = _prefixes_are_valid(directory)
     _run_until_killed(directory, "after_publish", 1)
     after = _prefixes_are_valid(directory)
-    assert after != before
-    assert sum(after) > sum(before)
-    # only the shorter store grew, and no store lost a row
+    shorter = 0 if vector_shards < score_shards else 1
+    assert after[shorter] > before[shorter]
     assert all(a >= b for a, b in zip(after, before, strict=True))
+    run(directory, SENTENCES)
+    assert stores(directory) == whole
+
+
+@pytest.mark.parametrize(("vector_shards", "score_shards"), [(6, 3), (3, 6)])
+def test_a_run_that_stops_after_its_first_phase_has_written_the_shorter_store_only(
+    tmp_path, monkeypatch, whole, vector_shards, score_shards
+):
+    directory = tmp_path / "s"
+    run(directory, SENTENCES)
+    cut(directory, vector_shards, score_shards)
+    real = _resume_run._run_phase
+    phases_run = []
+
+    def stopping(run_, phase):
+        if phases_run:
+            raise StopRunError("after the first phase")
+        phases_run.append(phase)
+        real(run_, phase)
+
+    monkeypatch.setattr(_resume_run, "_run_phase", stopping)
+    with pytest.raises(StopRunError):
+        run(directory, SENTENCES)
+    monkeypatch.undo()
+    longer = max(vector_shards, score_shards) * SHARD_ROWS
+    assert _prefixes_are_valid(directory) == (longer, longer)  # the shorter one caught up
     run(directory, SENTENCES)
     assert stores(directory) == whole
 

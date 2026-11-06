@@ -324,3 +324,60 @@ def test_a_shifted_sink_moves_the_rows_and_keeps_the_rest():
     ]
     assert sink.marker == "kept"
     assert sink.dim == 3
+
+
+# --- findings of the review: wrong values and used sinks ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("keyword", "error"),
+    [
+        ("shard", TypeError),
+        ("score_sink", ValueError),
+        ("vector_sink", ValueError),
+        ("doc_ids", ValueError),
+    ],
+)
+@pytest.mark.parametrize("entry", ["heads", "classifier", "regressor"])
+def test_a_false_value_of_a_new_keyword_is_checked_not_ignored(entry, keyword, error):
+    model = {"heads": HEADS, "classifier": HEADS["topic"], "regressor": HEADS["quality"]}[entry]
+    with pytest.raises(error):
+        model.predict(Poisoned(), **{keyword: False})
+
+
+def test_invalid_document_ids_are_refused_before_a_text_is_read(tmp_path):
+    with (
+        score_sink(tmp_path / "s", doc_ids=True) as sink,
+        pytest.raises((TypeError, ValueError)),
+    ):
+        HEADS.predict(Poisoned(), score_sink=sink, doc_ids=np.array([1.5, 2.5]))
+    assert not (tmp_path / "s").exists()
+
+
+def test_a_sink_that_took_a_source_is_refused_before_a_text_is_read(tmp_path):
+    with score_sink(tmp_path / "s") as used:
+        HEADS.predict(SENTENCES, score_sink=used)
+    partner = tmp_path / "partner"
+    with vector_sink(partner) as vectors, score_sink(tmp_path / "t") as fresh:
+        fresh_used = score_sink(tmp_path / "u")
+        HEADS.predict(SENTENCES, score_sink=fresh_used)
+        with pytest.raises(RuntimeError, match="took a source already"):
+            HEADS.predict(
+                Poisoned(), return_vectors=True, vector_sink=vectors, score_sink=fresh_used
+            )
+        fresh_used.close()
+        del fresh
+    assert not partner.exists()  # the new partner store was not made
+
+
+def test_a_store_that_would_outgrow_its_root_is_refused_before_it_is_made(tmp_path, monkeypatch):
+    from fse._scores import _schema
+    from fse._store._layout import root_text
+
+    with score_sink(tmp_path / "s") as sink:
+        schema = sink.score_schema.with_paths({n: "folded" for n in HEADS})
+        plain = len(root_text(schema.info(False))) + 1
+        monkeypatch.setattr(_schema, "SCORE_STORE_BYTES", plain + 20)  # fits without the keys
+        with pytest.raises(ValueError, match=r"store\.json of"):
+            HEADS.predict(SENTENCES, score_sink=sink)
+    assert not (tmp_path / "s").exists()
