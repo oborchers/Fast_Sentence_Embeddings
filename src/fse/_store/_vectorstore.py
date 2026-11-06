@@ -492,4 +492,4 @@ def _opened_view(cls: Any, paths: Any, *, encoder: Any = None, backend: str = "c
     def member(path: Path) -> Any:
         return cls.open(path, encoder=encoder, backend=backend)
 
-    return open_view(cls, paths, member, "store.view_opened", {"_active": 0}, ("dtype",))
+    return open_view(cls, paths, member, {"_active": 0})

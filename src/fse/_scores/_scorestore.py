@@ -470,4 +470,4 @@ def _opened_view(
     def member(path: Path) -> Any:
         return cls.open(path, heads=heads, name=name, backend=backend)
 
-    return open_view(cls, paths, member, "scores.view_opened")
+    return open_view(cls, paths, member, scores=True)

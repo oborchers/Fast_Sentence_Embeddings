@@ -168,13 +168,13 @@ def open_view(
     cls: Any,
     paths: Any,
     opener: Callable[[Path], Any],
-    event: str,
     attributes: dict[str, Any] | None = None,
-    fields: tuple[str, ...] = (),
+    *,
+    scores: bool = False,
 ) -> Any:
     """The view of the stores ``paths``, each opened by ``opener``, as a new object of
-    ``cls`` with the ``attributes`` of its kind set as they are, and logged as ``event``
-    with the ``fields`` of its info. A member that fails to open or does not fit closes all
+    ``cls`` with the ``attributes`` of its kind set as they are, and logged (``scores``: as a
+    view of score stores). A member that fails to open or does not fit closes all
     that were opened and releases their mappings."""
     named = _paths(paths)
     stores: list = []
@@ -191,20 +191,23 @@ def open_view(
             store.close()
         clear_exception_frames(error)
         raise
-    _log.emit(
-        event,
-        "fse store: opened a view of %d stores: %d rows in %d shards, %s",
-        len(stores),
-        len(out),
-        len(out._shards),
-        joined.mode,
-        stores=len(stores),
-        rows=len(out),
-        shards=len(out._shards),
-        mode=joined.mode,
-        **{name: getattr(out._info, name) for name in fields},
-    )
+    _announce(out, joined, scores=scores)
     return out
+
+
+def _announce(out: Any, joined: Joined, *, scores: bool) -> None:
+    fields = {
+        "stores": len(joined.stores),
+        "rows": len(out),
+        "shards": len(out._shards),
+        "mode": joined.mode,
+    }
+    message = "fse store: opened a view of %d stores: %d rows in %d shards, %s"
+    args = (*fields.values(),)
+    if scores:
+        _log.emit("scores.view_opened", message, *args, **fields)
+    else:
+        _log.emit("store.view_opened", message, *args, **fields, dtype=out._info.dtype)
 
 
 def _paths(paths: Any) -> list[Path]:
