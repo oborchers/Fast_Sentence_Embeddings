@@ -14,7 +14,7 @@ from fse._runtime import EncodeSpec, Pipeline, _tasks
 from fse._text import StringSource
 from fse._tokenizer_spec import TokenizerSpec
 from support import gil_budget
-from support.gil_budget import Budget
+from support.gil_budget import Budget, Window
 from support.runtime import small_tasks, source, texts, word_vectors
 
 F32 = np.float32
@@ -221,3 +221,48 @@ def test_a_dropped_noexcept_is_found(part, declaration):
         t for t in gil_budget.native_sources() if t not in (gil_budget.source(n) for n in texts)
     ]
     assert gil_budget.checked_without_gil(texts[gil_budget.FUSED], others) != []
+
+
+# The report modes of the length rule add the record of a task, taken by its worker with the
+# GIL held: only numpy allocations (np.empty never releases it), no function that could.
+RECORD_EMPTY = {"summary": 0, "per_row": 3, "per_row-count": 5}
+
+
+@pytest.mark.parametrize("mode", sorted(RECORD_EMPTY))
+def test_the_record_of_a_task_makes_only_allocations(monkeypatch, tmp_path, mode):
+    from fse._runtime import LengthCollector, LengthSettings
+    from fse._runtime import _pipeline as module
+
+    real = module.taken
+
+    def windowed(local, task):
+        budget._local.window = window = Window()
+        try:
+            return real(local, task)
+        finally:
+            budget._local.window = None
+            counted.append(window)
+
+    counted: list[Window] = []
+    level, _, count = mode.partition("-")
+    settings = LengthSettings.of(level, bool(count), "keep", "m")
+    pipeline = _pipeline("strings")
+    pipeline._text_rows = True
+    monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+    with Budget(monkeypatch) as budget:
+        monkeypatch.setattr(module, "taken", windowed)
+        collector = LengthCollector(settings, 0, (None, None))
+        pipeline.infer(
+            source("strings", texts(2000), tmp_path),
+            workers=3,
+            chunk_bytes=8000,
+            lengths=settings,
+            collector=collector,
+        )
+    assert len(counted) > 5
+    for window in counted:
+        assert window.sections == 0
+        assert window.profiled == Counter()
+        assert set(window.numpy) <= {"empty in taken"}
+        assert window.numpy["empty in taken"] == RECORD_EMPTY[mode]
+    assert collector.report().n_rows == 2000

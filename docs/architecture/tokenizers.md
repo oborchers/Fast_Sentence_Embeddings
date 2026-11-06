@@ -89,6 +89,17 @@ Input as for `fse_words@1`. Per sentence:
 5. **WordPiece** per word. A word of more than `max_input_chars_per_word` code points is `unk_id`. Otherwise the word is split from the left: the longest prefix of the rest that is a token (a piece after the first with `continuing_subword_prefix` in front), shortened one code point at a time, is the next id; if no prefix is a token at some point, the whole word is one `unk_id`.
 6. **Token cut and unknown tokens.** With `fse.max_tokens`, keep the first `max_tokens` ids of the whole sequence of steps 2 to 5 (added tokens and `unk_id` count). Every word is split whole before the cut, so a word whose split fails after the cut is one `unk_id` (vocabulary `[UNK]`, `a`, text `ab`, one token: `[UNK]`, not `a`). Then `fse.unknown=drop` removes every `unk_id`.
 
+**What the tokenizer reports (on request).** The length rule of steps 1 and 6 cuts without a word; `lengths=`, `count_truncated=` and `on_truncation=` of the methods that tokenize text make it visible (`fse.LengthReport`, [runtime.md](runtime.md), "Length reports"). A native workspace made with `watch` records, per sentence and without changing a single id or offset (the encoding is bit for bit that of a workspace without it):
+
+- `char_truncated`: the sentence has more than `max_chars` code points (a fact about the rule, also if only white space follows).
+- `token_truncated`: steps 2 to 5 of the text up to `max_chars` give more than `max_tokens` ids, counted before `fse.unknown=drop`. The first pass stops at the cut. If it stops with more than `max_tokens` ids, the flag is known; if it stops with exactly `max_tokens`, the sentence is tokenized a second time, up to one more id (`wordpiece@1` only; `unigram@1` tokenizes every pre-token whole anyway). This costs a second tokenization of a sentence that ends exactly at the cut, and nothing for the others.
+- `truncated_tokens` (`count_truncated=True`): the ids beyond `max_tokens`, unknown ids included. For `wordpiece@1` this tokenizes the rest of the sentence up to `max_chars` (all of it when the model has no `max_chars`, as sentence-transformers); `unigram@1` has the number already.
+- `truncated_chars` (`count_truncated=True`): the code points beyond `max_chars`. The two numbers describe two separate cuts; how many ids the cut characters would have given stays unknown.
+- `dropped_unknown`: the `unk_id` that `fse.unknown=drop` removed from the kept ids; without FastText the unknown words of `fse_words@1` and `external` count here too, with FastText an unknown word counts as one token and drops nothing.
+- `tokens`: the number of ids of the row (the `n` of `weighted_mean@1`); `empty` is `tokens == 0`.
+
+Invalid UTF-8 anywhere in the sentence raises before any cut is decided. With `on_truncation="raise"` the first sentence a rule would cut raises `fse.TruncationError` (`cut="characters"` if both rules fire).
+
 Golden ids (`tests/test_data/v2/wordpiece.json`, written by tokenizers 0.23.3 with a small vocabulary that holds the letters, digits and their continuation pieces; shown as tokens):
 
 | Input | `wordpiece@1` |

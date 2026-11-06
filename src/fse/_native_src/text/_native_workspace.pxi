@@ -73,12 +73,23 @@ cdef class Workspace:
         without ``store_rows``, else (cuts, dropped, tokens, tokens cut, characters cut)
         as arrays of one entry per sentence (cuts holds the bits 1 for characters and 2 for
         tokens and is uint8; the last two are None at ``watch`` 1)."""
-        offsets = _to_array(&self.offsets, np.int64)
-        tokens = np.diff(offsets)
+        cdef Py_ssize_t n = self.offsets.size // <Py_ssize_t>sizeof(int64_t) - 1, i
+        cdef const int64_t *o = <const int64_t *>self.offsets.data
+        cdef int64_t empty = 0, last = 0, width
+        cdef int64_t[::1] view
+        tokens = np.empty(max(n, 0), dtype=np.int64) if self.store_rows else None
+        if self.store_rows and n > 0:  # a typed view of an empty array has no address
+            view = tokens
+        for i in range(max(n, 0)):  # no numpy call: a worker holds the GIL here
+            width = o[i + 1] - o[i]
+            empty += width == 0
+            if self.store_rows:
+                view[i] = width
+        if n > 0:
+            last = o[n]
         sums = (
-            self.n_char, self.n_token, self.n_either, int(np.count_nonzero(tokens == 0)),
-            int(offsets[len(offsets) - 1]) if len(offsets) else 0, self.dropped_sum, self.cut_token_sum,
-            self.cut_char_sum,
+            self.n_char, self.n_token, self.n_either, empty, last, self.dropped_sum,
+            self.cut_token_sum, self.cut_char_sum,
         )
         if not self.store_rows:
             return sums, None

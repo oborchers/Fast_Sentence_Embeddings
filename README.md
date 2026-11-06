@@ -262,6 +262,21 @@ Each framework has a separate package, so fse core needs no framework dependency
 
 See [recipe 06](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) for complete local search examples with POTION and real news articles.
 
+## Did the model cut my text?
+
+Static models cut long texts without a word: their tokenizer keeps at most a fixed number of tokens (512 for Model2Vec models). Ask for a report to see how many texts were cut and by how much:
+
+```python
+import fse
+
+model = fse.Encoder.from_pretrained("minishlab/potion-base-8M")
+vectors, report = model.encode(texts, lengths="per_row")
+print(report.n_truncated, "of", report.n_rows, "texts were cut")
+cut = report.truncated_rows()  # their positions
+```
+
+`lengths="summary"` keeps only the sums (use it for big streams), `count_truncated=True` adds how many tokens and characters were cut, and `on_truncation="raise"` raises `fse.TruncationError` for the first text the model would cut. The same keywords work on `encode_batches` (each batch comes with its own report), on `fse.Heads` and on a single `Classifier` or `Regressor` (`labels, report = clf.predict(texts, lengths="summary")`). `report.empty` marks texts without any token: they become the zero vector. A zero vector can have other causes, so it does not always mean bad text. Without these keywords nothing is recorded and nothing changes. A text that ends exactly at the cut costs a second tokenization to find out whether more follows; counting the cut tokens tokenizes the rest of the text.
+
 ## When to use fse
 
 **Choose fse when throughput matters more than squeezing out the highest possible model quality.**
