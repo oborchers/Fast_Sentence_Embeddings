@@ -251,7 +251,7 @@ def test_a_resume_under_full_syncs_the_store_once_before_it_reserves(tmp_path, m
     drop_tail(tmp_path / "s", 3)
     events = Events(monkeypatch)
     write(tmp_path / "s", SENTENCES)
-    assert events.log[:2] == ["sync s", "writer"]
+    assert events.log[:3] == ["sync s", f"sync {tmp_path.name}", "writer"]  # the store, its parent
     assert events.log.count("sync s") == 1
 
 
@@ -303,3 +303,65 @@ def test_a_rename_that_was_visible_but_not_synced_is_confirmed_by_the_resume(tmp
     assert sink.first_row >= SHARD_ROWS  # the shard counts as kept
     assert sink.durable_rows == sink.published_rows  # and the new rows are durable
     _same_rows(store)
+
+
+def test_a_resume_syncs_the_parent_of_a_store_an_earlier_run_made(tmp_path, monkeypatch):
+    """The first run ended after the rename of the whole store and before the sync of its
+    parent: the next run confirms the entry of the store too."""
+    write(tmp_path / "s", SENTENCES)
+    drop_tail(tmp_path / "s", 3)
+    seen = []
+    real = sink_module._sync_directory
+
+    def failing_parent(path, **kwargs):
+        seen.append(Path(path))
+        if Path(path) == tmp_path:
+            raise OSError(5, "Input/output error")
+        real(path, **kwargs)
+
+    monkeypatch.setattr(sink_module, "_sync_directory", failing_parent)
+    with pytest.raises(PublishedNotDurableError, match="not confirmed durable"):
+        write(tmp_path / "s", SENTENCES)
+    assert seen == [tmp_path / "s", tmp_path]
+
+
+def test_a_closed_sink_and_bad_workers_are_refused_before_the_store_is_made(tmp_path):
+    sink = ShardSink(tmp_path / "s", ENCODER, shard_rows=SHARD_ROWS, resume=True)
+    with pytest.raises(ValueError, match="workers"):
+        ENCODER.encode(SENTENCES, sink=sink, workers=0)
+    sink.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        ENCODER.encode(SENTENCES, sink=sink)
+    assert not (tmp_path / "s").exists()
+
+
+@pytest.mark.parametrize("workers", [0, True, -1])
+def test_workers_are_checked_where_no_row_is_left_to_run(tmp_path, workers):
+    write(tmp_path / "s", SENTENCES)
+    with (
+        ShardSink(tmp_path / "s", ENCODER, shard_rows=SHARD_ROWS, resume=True) as sink,
+        pytest.raises((ValueError, TypeError)),
+    ):
+        ENCODER.encode(SENTENCES, sink=sink, workers=workers)
+    with pytest.raises((ValueError, TypeError)):
+        write(tmp_path / "e", [], workers=workers)
+
+
+def test_ids_blank_lines_and_a_missing_final_newline_in_a_part(tmp_path):
+    rows = 40_000
+    source = [s if i % 7 else "" for i, s in enumerate(sentences(rows))]
+    path = tmp_path / "t.txt"
+    path.write_text("\n".join(source), encoding="utf-8")  # no final newline
+    ids = np.arange(5_000_000, 5_000_000 + rows, dtype=np.int64)
+    kwargs = {"doc_ids": True, "ids": ids, "shard": (2, 3), "rows": 4096}
+    write(tmp_path / "whole", path, **kwargs)
+    write(tmp_path / "part", path, **kwargs)
+    drop_tail(tmp_path / "part", 1, rows=4096)
+    write(tmp_path / "part", path, **kwargs)
+    assert canonical(tmp_path / "part") == canonical(tmp_path / "whole")
+    first = 32_768
+    codes, _ = rows_of(tmp_path / "part")
+    want = ENCODER.encode(source[first:], workers=2)
+    np.testing.assert_array_equal(codes.view(np.uint32), want.view(np.uint32))
+    with fse.VectorStore.open(tmp_path / "part") as store:
+        np.testing.assert_array_equal(store.get_doc_ids(), ids[first:])

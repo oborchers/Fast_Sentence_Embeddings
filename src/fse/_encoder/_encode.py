@@ -19,7 +19,14 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse import _codes
-from fse._runtime import LengthCollector, LengthReport, LengthSettings, QuantizedRows, rule_of
+from fse._runtime import (
+    LengthCollector,
+    LengthReport,
+    LengthSettings,
+    QuantizedRows,
+    check_workers,
+    rule_of,
+)
 
 from . import _batches, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
@@ -229,6 +236,7 @@ def _encode_resumed(
 ) -> Any:
     """``encode`` into a sink made with ``resume=True``: the rows after those it holds."""
     part = _resume.check_arguments(texts, sink, shard)
+    check_workers(workers)  # also where no row is left to run
     check_sink(sink, dtype, me.fingerprint, me.output_dim, resumed=True)
     pipeline = me._pipeline(backend)
     with _resume.prepared(texts, sink, part, doc_ids, me.tokenizer) as run:

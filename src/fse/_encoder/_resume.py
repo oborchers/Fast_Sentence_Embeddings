@@ -112,6 +112,7 @@ def check_arguments(texts: Any, sink: Any, shard: Any) -> tuple[int, int]:
             "shard= needs a sink made with resume=True, such as "
             "fse.ShardSink(path, encoder, resume=True)"
         )
+    sink._check_open()
     check_texts(texts)
     return part
 

@@ -108,6 +108,7 @@ def _sync_store(path: Path) -> None:
     may have been renamed in without its sync (docs/architecture/store.md, "Resume stores")."""
     try:
         _sync_directory(path)
+        _sync_directory(path.parent)  # the entry of a store an earlier run made
     except OSError as error:
         raise PublishedNotDurableError(
             f"the shards of {path} are published, but syncing the directory failed ({error}); "
@@ -206,6 +207,7 @@ class ShardSink(ShardSinkBase):
         raises a ValueError before any row is reserved. Verifies the published shards,
         makes the entries of the store durable under full durability and returns the rows
         the store holds (the rows of the part that are done)."""
+        self._check_open()
         if self._ready:
             raise RuntimeError("the sink took a source already; make a new sink for another run")
         first, _ = partition(identity.rows, *shard)
