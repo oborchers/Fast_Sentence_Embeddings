@@ -94,7 +94,13 @@ Without IDs, existing text-only `encode_batches` input remains unchanged.
 
 `store.has_doc_ids` tells whether every row has an ID. `store.get_doc_ids(start=0, stop=100)`
 returns the IDs of those rows as an int64 copy, like `get_vectors`. A store without IDs
-raises `ValueError`. `fse.DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
+raises `ValueError`. `store.take_doc_ids(rows)` returns the IDs at a list of store positions,
+in that order with duplicates kept: `store.take_doc_ids(result.ids)` has the shape of
+`result.ids`, and in both search modes it equals `result.doc_ids`. `store.take_vectors(rows)`
+does the same for the vectors, for example `store.take_vectors(result.ids)` of shape
+`(queries, width, dim)`. `rows` is a list or an int64 array of one or two dimensions; negative
+positions raise. Keep the input buffer unchanged until the call returns.
+`fse.DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
 `repr`; `_make` raises `TypeError`, because two values hold no IDs.
 
 ## Positions, counts and IDs
@@ -103,11 +109,15 @@ Four different things are easy to mix up. Positions are indexes that start at 0:
 
 | Kind | Names |
 | :--- | :--- |
-| Store position | `SearchResult.ids`, `search(rows=)`, `get_vectors(start=, stop=)`, `get_doc_ids(start=, stop=)`, `ShardSink.first_row` (the store position of run position 0) |
+| Store position | `SearchResult.ids`, `search(rows=)`, `VectorStore.get_vectors(start=, stop=)`, `get_doc_ids(start=, stop=)`, `take_vectors(rows)`, `take_doc_ids(rows)`, `iter_batches(start=, stop=)`, `VectorBatch.store_row`; `ScoreStore.get_scores(head, stored, start=, stop=)`, `ScoreStore.get_doc_ids(start=, stop=)`, `ScoreStore.iter_batches(start=, stop=)`, `ScoreBatch.store_row` |
+| Start of a run in the store | `ShardSink.first_row`, `ScoreSink.first_row` (the store position of run position 0) |
 | Run position | `first_row` of `EncodedBatch`, `PredictedBatch` and `HeadsBatch`; `first_row` of `Sink.target` and `Sink.commit` |
 
-A store position is `ShardSink.first_row` plus the run position. A new store has
-`ShardSink.first_row == 0`; an appended run starts after the rows already there.
+`store_row` is always a store position. `first_row` of a batch, a target or a commit is a run
+position; only the `first_row` of a sink is the store position where its run begins.
+
+A store position is the `first_row` of the sink (`ShardSink` or `ScoreSink`) plus the run
+position. A new store has `first_row == 0`; an appended run starts after the rows already there.
 
 Counts are lengths. `n_rows` of a batch is its length: the batch covers the run positions
 `first_row` to `first_row + n_rows - 1`.

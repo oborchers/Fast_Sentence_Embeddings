@@ -50,7 +50,8 @@ KIND = "prediction_scores"
 class ScoreStore:
     """The rows of a score store at the time it was opened. Close it (or use it as a context
     manager) to release the mappings; views given before stay readable, and a closed store
-    gives nothing more."""
+    gives nothing more: the next block of ``iter_batches`` or ``predict_batches`` raises
+    ``RuntimeError``, also before the first."""
 
     path: Path
     _info: ScoreInfo
@@ -103,7 +104,8 @@ class ScoreStore:
         blocks of at most ``block_rows`` rows, never over the end of a shard: for each head
         a read-only view of the mapped shard (the stored decision, probabilities or values;
         ``(n,)`` for a head that is flat). A head of several columns is not contiguous in
-        the view; copy it if you need that."""
+        the view; copy it if you need that. Raises ``RuntimeError`` for the next block after
+        ``close``, also before the first."""
         self._check_open()
         stop = self._rows(start, stop)
         return self._blocks(block_rows, start, stop, _predict_raw, None)
@@ -123,7 +125,8 @@ class ScoreStore:
         head can give follows from what it stored (see ``fse._scores._predict``); anything
         else raises before a row is read. ``thresholds`` maps multilabel head names to
         new cutoffs (a partial mapping keeps the stored cutoffs of the labels it does not
-        name; None resets to 0.5); no model, encoder or tokenizer is loaded."""
+        name; None resets to 0.5); no model, encoder or tokenizer is loaded. Raises
+        ``RuntimeError`` for the next block after ``close``, also before the first."""
         self._check_open()
         name = self._backend if backend is None else backend
         if name not in BACKEND_NAMES:
@@ -233,6 +236,7 @@ class ScoreStore:
         return stop
 
     def _blocks(self, block_rows: int, start: int, stop: int, make: Any, state: Any):
+        self._check_open()  # also when closed after the call and before the first block
         shards = list(self._shards)
         for shard, tensors, first, end in blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more

@@ -9,6 +9,7 @@ def test_the_package_exports_the_shard_sink():
         "DocumentSearchResult",
         "SearchResult",
         "ShardSink",
+        "VectorBatch",
         "VectorStore",
         "repair_store",
     ]

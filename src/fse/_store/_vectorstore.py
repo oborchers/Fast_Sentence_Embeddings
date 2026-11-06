@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -33,22 +34,25 @@ from fse._cpus import usable_cpus
 from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
-from . import _filtered, _search, _selection, _unique_search
+from . import _filtered, _search, _selection, _take, _unique_search, _vector_batches
 from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, clear_exception_frames, snapshot
 from ._result import DocumentSearchResult, SearchResult
+from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
 
 F32 = np.float32
+DEFAULT_BLOCK_ROWS = 65_536
 
 
 class VectorStore:
     """The rows of a store at the time it was opened, searched by cosine (``search``) or
     scored with linear weights (``score``). Close it (or use it as a context manager) to
-    release the mappings; a closed store raises."""
+    release the mappings; a closed store raises, and ``close`` raises while a search, score
+    or read runs."""
 
     path: Path
     _info: StoreInfo
@@ -243,12 +247,84 @@ class VectorStore:
             np.concatenate(parts).astype(np.int64, copy=False) if parts else np.empty(0, np.int64)
         )
 
-    def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
-        """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
-        ``np.concatenate`` of the parts copies them out of the mappings."""
+    @validate_arguments
+    def take_vectors(self, rows: Any, /) -> ndarray:
+        """The float32 rows at the store positions ``rows`` (a list or an int64 array of one or
+        two dimensions, so ``result.ids`` of a search works), in that order, decoded as
+        ``get_vectors``: shape ``rows.shape + (dim,)``, a new array. Order and duplicates
+        are kept, unlike ``search(rows=)``, which is a set; negative positions raise.
+        Keep ``rows`` unchanged until the call returns."""
+        self._check_open()
+        wanted = _take.positions(rows)
+        with self._using():
+            return _take.gather(
+                self._shards,
+                wanted,
+                len(self),
+                _take.read_vectors,
+                tail=(self.dim,),
+                dtype=F32,
+                row_bytes=_take.vector_row_bytes(self.dim, self.dtype),
+            )
+
+    @validate_arguments
+    def take_doc_ids(self, rows: Any, /) -> ndarray:
+        """The document IDs (int64) at the store positions ``rows``, as ``take_vectors`` takes
+        them: shape ``rows.shape``, a new array, in the order asked, duplicates kept."""
+        self._check_open()
+        if not self._info.has_doc_ids:
+            raise ValueError("this store has no doc_ids")
+        wanted = _take.positions(rows)
+        with self._using():
+            return _take.gather(
+                self._shards,
+                wanted,
+                len(self),
+                _take.read_doc_ids,
+                tail=(),
+                dtype=np.int64,
+                row_bytes=_take.ID_ROW_BYTES,
+            )
+
+    @validate_arguments
+    def iter_batches(
+        self,
+        *,
+        block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
+        start: NonNegativeInt = 0,
+        stop: NonNegativeInt | None = None,
+    ) -> Iterator[VectorBatch]:
+        """The stored rows ``start`` to ``stop - 1`` (all by default) in blocks of at most
+        ``block_rows`` rows, never over the end of a shard: ``VectorBatch`` objects whose
+        ``vectors`` (and ``doc_ids``) are read-only views of the mapped shards, in the stored
+        dtype (int8 as ``QuantizedRows``). No row is copied or decoded.
+
+        The views and a suspended generator keep the mapped files open, which on Windows
+        locks them: drop the views, and call ``close()`` on the generator (or use
+        ``contextlib.closing``) when you stop early. After ``VectorStore.close`` the next
+        block raises ``RuntimeError``, also before the first; views given before stay
+        readable."""
+        self._check_open()
+        stop = self._stop(start, stop)
+        return self._batches(block_rows, start, stop)
+
+    def _batches(self, block_rows: int, start: int, stop: int) -> Iterator[VectorBatch]:
+        with self._using():  # the snapshot cannot meet a close; it is left before the first yield
+            shards = list(self._shards)
+        for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
+            self._check_open()  # a closed store gives nothing more
+            yield _vector_batches.make(tensors, shard.first_row, first, end)
+
+    def _stop(self, start: int, stop: int | None) -> int:
         stop = len(self) if stop is None else stop
         if not start <= stop <= len(self):
             raise ValueError(f"rows {start} to {stop} are not within the {len(self)} rows")
+        return stop
+
+    def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
+        """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
+        ``np.concatenate`` of the parts copies them out of the mappings."""
+        stop = self._stop(start, stop)
         parts = []
         with self._using():
             for shard, tensors in self._shards:
@@ -286,7 +362,10 @@ class VectorStore:
     def close(self) -> None:
         with self._lock:
             if self._active:
-                raise RuntimeError("the store is being searched; close it when the search is done")
+                raise RuntimeError(
+                    "the store is in use (a search, score or read is running); "
+                    "close it when it is done"
+                )
             self._shards = []
             self._closed = True
 
