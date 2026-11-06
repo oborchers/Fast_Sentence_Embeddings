@@ -360,7 +360,7 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     return WP_GO_ON
 
 
-cdef int _wp_run(WordPieceState st, const unsigned char *p, Py_ssize_t limit, Workspace ws,
+cdef inline int _wp_run(WordPieceState st, const unsigned char *p, Py_ssize_t limit, Workspace ws,
                  uINT_t *ids, Py_ssize_t stop_at, Py_ssize_t *count, Py_ssize_t *done,
                  Py_ssize_t *bad) noexcept nogil:
     """Steps 2 to 5 for p[0:limit]: the ids into ``ids``, ``count`` of them, stopping once
