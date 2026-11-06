@@ -152,7 +152,7 @@ class Heads(Mapping):
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
-        doc_ids: bool = False,
+        doc_ids: Any = False,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every

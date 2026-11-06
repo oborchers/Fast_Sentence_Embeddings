@@ -65,10 +65,8 @@ def _poisoned():
     raise AssertionError("a batch was read")
 
 
-def test_a_document_id_sink_takes_no_outputs():
-    model = _model(3)
-    with pytest.raises(ValueError, match=r"carry none.*score_sink=fse\.ScoreSink"):
-        check_output_sink(model, _IdSink(3), "decision")
+def test_a_foreign_document_id_sink_takes_the_outputs_as_in_2_0():
+    check_output_sink(_model(3), _IdSink(3), "decision")
 
 
 @pytest.mark.parametrize("value", [1, 0, "yes"])
@@ -122,6 +120,6 @@ def test_a_document_id_shard_sink_gets_the_id_message(tmp_path):
     model = _model(3)
     with (
         fse.ShardSink(tmp_path / "s", model.encoder, doc_ids=True) as sink,
-        pytest.raises(ValueError, match="carry none"),
+        pytest.raises(ValueError, match=r"sink= gives none.*score_sink=fse\.ScoreSink"),
     ):
         check_output_sink(model, sink, "proba")

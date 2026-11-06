@@ -225,7 +225,6 @@ def test_the_checks_run_in_the_2_0_order_before_a_batch_is_read():
     assert ("next", 0) not in log
 
 
-@pytest.mark.xfail(reason="DR-240 refuses it until DR-243 restores the 2.0 behavior", strict=False)
 def test_a_foreign_sink_with_has_doc_ids_true_runs_as_a_plain_sink():
     """2.0 does not know the attribute: such a sink took the batches as any sink."""
     model = _classifier()

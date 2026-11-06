@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from fse._encoder._batches import check_sink, durable, flush
-from fse._encoder._doc_ids import id_mode
+from fse._encoder._doc_ids import check_modes
 from fse._runtime._sinks import sink_dtype, wants_inverse_norms
 from fse._store._base_sink import ShardSinkBase
 
@@ -35,18 +35,19 @@ def start(
     vector_sink: Any,
     score_sink: Any,
     doc_ids: bool,
+    method: str,
 ) -> SinkRun | None:
     """Check the sinks against ``heads`` and the document-ID mode, attach the run to the
     score sink and return the run (None without a sink). Raises before a text is read."""
     if vector_sink is None and score_sink is None:
-        if doc_ids:
-            raise ValueError("doc_ids=True needs a vector_sink or a score_sink with doc_ids")
+        check_modes([], doc_ids, method, "a vector_sink or a score_sink")
         return None
     if vector_sink is not None:
         _check_vector_sink(heads, return_vectors, vector_sink)
     if score_sink is not None:
         check_score_sink(score_sink, heads)
-    _check_modes(vector_sink, score_sink, doc_ids)
+    given = (("vector_sink", vector_sink), ("score_sink", score_sink))
+    check_modes([(role, s) for role, s in given if s is not None], doc_ids, method)
     _check_apart(vector_sink, score_sink)
     if score_sink is not None:
         if vector_sink is not None and getattr(score_sink, "_exists", False):
@@ -68,26 +69,6 @@ def _check_vector_sink(heads: Any, return_vectors: bool, sink: Any) -> None:
     check_sink(sink, None, heads.encoder_fingerprint, dim, hint)
     if isinstance(sink, ShardSinkBase):
         sink._check_fresh()
-
-
-def _check_modes(vector_sink: Any, score_sink: Any, doc_ids: bool) -> None:
-    """``doc_ids`` must be True exactly when each sink given stores document IDs."""
-    for name, sink in (("vector_sink", vector_sink), ("score_sink", score_sink)):
-        if sink is None:
-            continue
-        stores = id_mode(sink)
-        if doc_ids and not stores:
-            value = getattr(sink, "has_doc_ids", False)
-            if not isinstance(value, bool):
-                raise TypeError(
-                    f"has_doc_ids of the {name} must be True for doc_ids, not {type(value).__name__}"
-                )
-        if doc_ids != stores:
-            raise ValueError(
-                f"doc_ids=True is needed exactly when the sink has doc_ids (the {name} "
-                f"{'has' if stores else 'has no'} doc_ids, the call has doc_ids={doc_ids}); "
-                "pass (texts, doc_ids) batches to a sink with doc_ids"
-            )
 
 
 def _check_apart(vector_sink: Any, score_sink: Any) -> None:

@@ -156,12 +156,12 @@ def test_the_id_mode_must_match_the_sink_before_a_text_is_read(tmp_path):
     heads = sh.group()
     with (
         fse.ScoreSink(tmp_path / "a", heads, doc_ids=True) as sink,
-        pytest.raises(ValueError, match="doc_ids=True is needed exactly"),
+        pytest.raises(ValueError, match="stores doc_ids; pass doc_ids=True"),
     ):
         heads.predict_batches(iter(()), score_sink=sink)
     with (
         fse.ScoreSink(tmp_path / "b", heads) as sink,
-        pytest.raises(ValueError, match="doc_ids=True is needed exactly"),
+        pytest.raises(ValueError, match="needs the score_sink to have doc_ids"),
     ):
         heads.predict_batches(iter(()), score_sink=sink, doc_ids=True)
     with pytest.raises(ValueError, match="needs a vector_sink or a score_sink"):
