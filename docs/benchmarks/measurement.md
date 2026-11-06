@@ -685,11 +685,10 @@ The claim of the result is limited to this workload (POTION-8M, WikiText with 1,
 ```sh
 python benchmarks/speed.py --diagnose \
   --development-input benchmarks/config/linear-heads-vector-scores-local.json \
-  --base-python /external/candidate/bin/python \
   --candidate-python /external/candidate/bin/python \
-  --cells heads-sinks-both,heads-sinks-vectors,heads-score-sink-full --local-phase descriptive \
+  --cells heads-sinks-both heads-sinks-vectors heads-score-sink-full --local-phase descriptive \
   --descriptive-repetitions 5 --worker-name dr229-vector-sink \
   --wall-time-seconds 6300 --results /external/dr229/results-01 --work /external/dr229/work-01
 ```
 
-The claim is limited to this workload on the M1 as a local indication; no README number follows from it. The regression screen of the ScoreSink path (the ID block now comes from `TaskIds`) uses `heads-score-sink-full` with the base interpreter built from `a9328011`, `--local-phase regression-screen` and `--regression-limit 0.03`. Linux publication evidence is not part of this work (DR-233).
+The claim is limited to this workload on the M1 as a local indication; no README number follows from it. The regression screen of the ScoreSink path (the ID block now comes from `TaskIds`) uses `heads-score-sink-full` with `--base-python` built from `a9328011` and `--candidate-python`, `--local-phase regression-screen` and `--regression-limit 0.03`. A descriptive run takes only `--candidate-python`, and `--cells` takes space-separated ids. Linux publication evidence is not part of this work (DR-233).
