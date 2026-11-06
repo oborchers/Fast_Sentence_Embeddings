@@ -25,7 +25,7 @@ from numpy import ndarray
 from fse._runtime import HeadsPipeline, LengthReport, LengthSettings, Member, plan_heads
 from fse._validation import PositiveInt, validate_arguments
 
-from . import _heads_run
+from . import _heads_run, _resume_run
 from ._classifier import Classifier
 from ._model import LinearModel
 from ._outputs import HeadsBatch
@@ -138,6 +138,11 @@ class Heads(Mapping):
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> Mapping[str, ndarray]: ...
 
     @overload
@@ -151,7 +156,48 @@ class Heads(Mapping):
         lengths: Literal["summary", "per_row"],
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
     def predict(
@@ -164,6 +210,11 @@ class Heads(Mapping):
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> Any:
         """The outputs of every head for every text, by name, in head order. By default each
         head gives what its own ``predict`` gives (labels, or the values of a regressor).
@@ -173,8 +224,31 @@ class Heads(Mapping):
 
         ``lengths="summary"`` or ``"per_row"`` returns ``(outputs, fse.LengthReport)``: what
         the length rule of the encoder cut. See ``Encoder.encode`` for ``lengths``,
-        ``count_truncated`` and ``on_truncation``."""
+        ``count_truncated`` and ``on_truncation``.
+
+        With a ``score_sink`` or a ``vector_sink`` made with ``resume=True`` (``fse.ScoreSink``,
+        ``fse.ShardSink``) the call resumes and returns ``None`` (with ``lengths`` the pair
+        ``(None, fse.LengthReport)``): ``texts`` must be read again (a list, tuple or array of
+        str, token lists or a path of a text file), each sink compares the identity of the
+        source with its store and refuses another source, partition or head, and only the
+        rows the stores do not hold yet are run, bit for bit as an uninterrupted run would.
+        The stores of a call may hold different numbers of rows: the longer one skips what it
+        holds, the shorter one is caught up first. ``shard=(i, n)`` takes part ``i`` of ``n`` of
+        the rows (whole blocks of 16,384). ``doc_ids`` are the document IDs of the texts, for
+        sinks made with ``doc_ids=True``. ``return_vectors=True`` takes the path of the heads
+        that gives their vectors too (see ``paths``), as a store written with a
+        ``vector_sink`` needs; without a ``vector_sink`` the vectors are dropped. A report of
+        ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
+        source. The outputs are not returned, so the memory of the call does not grow with the
+        rows of the source; ``output`` is checked and changes nothing the stores hold."""
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
+        if _resume_run.wanted(
+            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
+        ):
+            return _resume_run.predict_heads(
+                self, texts, output, return_vectors, workers, backend,
+                vector_sink, score_sink, doc_ids, shard, settings,
+            )  # fmt: skip
         return _heads_run.infer(self, texts, output, workers, backend, settings)
 
     @validate_arguments

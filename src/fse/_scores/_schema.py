@@ -89,6 +89,17 @@ class ScoreSchema:
                 f"{SCORE_STORE_BYTES} bytes of it (fewer heads or labels)"
             )
 
+    def check_info_size(self, info: ScoreInfo) -> None:
+        """The root of ``info`` (with the keys of a resume mode, which the size check of the
+        constructor does not know) must stay within its limit; checked before the store is
+        made."""
+        size = len(root_text(info)) + 1
+        if size > SCORE_STORE_BYTES:
+            raise ValueError(
+                f"the heads and the source need a store.json of {size} bytes; a score store "
+                f"holds at most {SCORE_STORE_BYTES} bytes of it (fewer heads or labels)"
+            )
+
     def threshold_checksums(self) -> dict[str, str]:
         """The checksums the writer will give the threshold tensors of every shard."""
         return {name: checksum(array) for name, array in self.thresholds.items()}

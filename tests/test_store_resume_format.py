@@ -7,15 +7,18 @@ from dataclasses import replace
 import pytest
 
 import fse
-from fse._container import CorruptArtifactError, NpyContainer
+from fse._container import CorruptArtifactError, NpyContainer, PublishedNotDurableError
 from fse._contract import UnsupportedArtifactError
 from fse._store._layout import StoreInfo, create_store, open_shard, read_store, shard_name
 from fse._store._resume_format import (
     EXECUTION_KEY,
     SOURCE_KEYS,
     SourceRows,
+    check_mode,
+    check_source,
     execution_fingerprint,
     parse,
+    sync_store,
 )
 from support import scores as score_support
 from support.container import fake_fingerprint
@@ -205,3 +208,42 @@ def test_a_manifest_of_a_resumable_shard_names_the_mode(tmp_path):
     _, metadata = NpyContainer().open(tmp_path / "s" / shard_name(0), mmap=False)
     assert metadata["fse.resume"] == "source_rows@1"
     assert metadata["fse.source_shard"] == "[1,3]"
+
+
+# --- what a resuming sink checks of a store -------------------------------------------------
+
+
+@pytest.mark.parametrize("info", [INFO, replace(score_support.default_info(), resume=IDENTITY)])
+def test_the_mode_of_a_store_and_of_a_sink_must_agree(tmp_path, info):
+    check_mode(info, True, tmp_path)
+    with pytest.raises(ValueError, match=r"is resumable \(mode source_rows@1\); open it with"):
+        check_mode(info, False, tmp_path)
+    plain = replace(info, resume=None)
+    check_mode(plain, False, tmp_path)
+    with pytest.raises(ValueError, match="is not a resumable store"):
+        check_mode(plain, True, tmp_path)
+
+
+def test_a_source_or_part_that_differs_is_named(tmp_path):
+    check_source(INFO, IDENTITY, tmp_path)
+    for field, value, what in (
+        ("fingerprint", fake_fingerprint("c"), "the source"),
+        ("form", "tokens", "the form of the source"),
+        ("rows", 100_001, "the number of rows of the source"),
+        ("shard", (0, 3), "the partition"),
+    ):
+        with pytest.raises(ValueError, match=f"{what} differs"):
+            check_source(INFO, replace(IDENTITY, **{field: value}), tmp_path)
+
+
+def test_the_sync_of_a_store_names_the_failure(tmp_path, monkeypatch):
+    path = tmp_path / "s"
+    path.mkdir()
+    sync_store(path)
+
+    def failing(_path, **_kwargs):
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr("fse._store._resume_format._sync_directory", failing)
+    with pytest.raises(PublishedNotDurableError, match="Input/output error"):
+        sync_store(path)
