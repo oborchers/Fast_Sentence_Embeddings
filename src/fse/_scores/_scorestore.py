@@ -44,6 +44,7 @@ from fse._store._recovery import (
 )
 from fse._store._refresh import refreshed
 from fse._store._scores_info import ScoreHead, ScoreInfo
+from fse._store._view import Joined, MemberReaders, open_view, verify_members
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _predict
@@ -54,7 +55,7 @@ DEFAULT_BLOCK_ROWS = 65_536
 KIND = "prediction_scores"
 
 
-class ScoreStore:
+class ScoreStore(MemberReaders):
     """The rows of a score store at the time it was opened (or last refreshed). Every call
     reads the shards it finds when it starts, so a ``refresh`` meanwhile does not reach it,
     not even a generator already made. Close it (or use it as a context
@@ -62,8 +63,9 @@ class ScoreStore:
     gives nothing more: the next block of ``iter_batches`` or ``predict_batches`` raises
     ``RuntimeError``, also before the first."""
 
-    path: Path
+    path: Path | None  # None for a view
     _info: ScoreInfo
+    _view: Joined | None
     _shards: list[tuple[Shard, dict[str, ndarray]]]
     _backend: str
     _lock: threading.Lock
@@ -79,6 +81,20 @@ class ScoreStore:
         ``Classifier`` or ``Regressor``: then ``name`` is required and the store must hold
         exactly that head under that name, as that model, of that encoder."""
         return _open(cls, path, heads=heads, name=name, backend=backend)
+
+    @classmethod
+    def open_view(
+        cls, paths: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+    ) -> ScoreStore:
+        """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
+        other, without merging them on disk; ``heads`` and ``name`` are checked against every
+        store as ``open`` does. Every read gives what one store holding the same rows gives.
+        The stores must hold the same heads, columns and paths, the same encoder and
+        document-ID mode and, across their boundaries, the same thresholds; stores written by
+        ``Encoder.encode(shard=)`` must be all parts of one source, and are read in the order
+        of the parts. A view has no ``refresh`` and no ``path`` (``paths`` names them), and
+        ``close`` closes its stores."""
+        return _opened_view(cls, paths, heads=heads, name=name, backend=backend)
 
     def __init__(self, *_args: Any, **_kwargs: Any):
         raise TypeError("open a store with ScoreStore.open(path)")
@@ -205,17 +221,20 @@ class ScoreStore:
     def verify(self) -> None:
         """Hash every shard on disk against its checksums and check its values: finite
         scores, probabilities within [0, 1], thresholds within [0, 1], the document-ID
-        statistics, and that the thresholds of neighbours are equal."""
+        statistics, and that the thresholds of neighbours are equal. A view verifies each of its
+        stores and the boundaries between them."""
         shards = self._snapshot()
+        if self._view is not None:
+            return verify_members(self._view)
         start = time.perf_counter()
-        read_store(self.path, KIND)
+        read_store(self._root, KIND)
         kind = kind_of(self._info)
         for shard, tensors in shards:
-            file = self.path / shard.name / "manifest.json"
-            check_removed(NpyContainer().metadata(self.path / shard.name), file)
-            NpyContainer().verify(self.path / shard.name)
+            file = self._root / shard.name / "manifest.json"
+            check_removed(NpyContainer().metadata(self._root / shard.name), file)
+            NpyContainer().verify(self._root / shard.name)
             kind.check_values(shard, tensors)
-        check_chain(self.path, kind, shards)
+        check_chain(self._root, kind, shards)
         _log.emit(
             "scores.verified",
             "fse scores: verified %d rows in %d shards",
@@ -234,10 +253,13 @@ class ScoreStore:
         a break of the chain or a shard whose thresholds differ raises
         ``CorruptArtifactError``; a store that is no longer the one that was opened raises
         ``RuntimeError``; the rows stay as they were. Nothing is promised against
-        ``repair_store`` running meanwhile."""
+        ``repair_store`` running meanwhile. A view raises ``ValueError``: open it again."""
+        if self._view is not None:
+            self._check_open()
+            raise ValueError("a view does not refresh; open it again")
         with self._refreshing:
             shards = self._snapshot()
-            checked = refreshed(self.path, self._info, shards)
+            checked = refreshed(self._root, self._info, shards)
             added = rows_in(checked.shards)
             total = rows_in(shards) + added
             with self._lock:
@@ -268,6 +290,8 @@ class ScoreStore:
         with self._lock:
             self._shards = []
             self._closed = True
+        if self._view is not None:
+            self._view.close()
 
     def __enter__(self) -> ScoreStore:
         return self
@@ -413,7 +437,7 @@ def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
     elif name is not None:
         raise ValueError("name goes with a single head given as heads")
     out = cls.__new__(cls)
-    out.path, out._info = path, info
+    out.path, out._info, out._view = path, info, None
     checked = snapshot(path, info, verify=True)
     out._shards = checked.shards
     out._backend = backend
@@ -436,3 +460,13 @@ def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
         verify_seconds=checked.verify_seconds,
     )
     return out
+
+
+@validate_arguments
+def _opened_view(
+    cls: Any, paths: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+) -> Any:
+    def member(path: Path) -> Any:
+        return cls.open(path, heads=heads, name=name, backend=backend)
+
+    return open_view(cls, paths, member, "scores.view_opened")

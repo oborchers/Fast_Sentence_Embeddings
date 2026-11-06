@@ -44,20 +44,22 @@ from ._refresh import refreshed
 from ._result import DocumentSearchResult, SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
+from ._view import Joined, MemberReaders, open_view, verify_members
 
 F32 = np.float32
 DEFAULT_BLOCK_ROWS = 65_536
 
 
-class VectorStore:
+class VectorStore(MemberReaders):
     """The rows of a store at the time it was opened (or last refreshed), searched by cosine
     (``search``) or scored with linear weights (``score``). Every call reads the shards it
     finds when it starts, so a ``refresh`` meanwhile does not reach it. Close it (or use it
     as a context manager) to release the mappings; a closed store raises, and ``close``
     raises while a search, score, read or refresh runs."""
 
-    path: Path
+    path: Path | None  # None for a view
     _info: StoreInfo
+    _view: Joined | None
     _shards: list[tuple[Shard, dict[str, ndarray]]]
     _backend: Any
     _lock: threading.Lock
@@ -69,6 +71,17 @@ class VectorStore:
     def open(cls, path: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
         """Open the store ``path``; with an ``encoder``, the store must hold its rows."""
         return _open(cls, path, encoder=encoder, backend=backend)
+
+    @classmethod
+    def open_view(cls, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
+        """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
+        other, without merging them on disk; see ``MemberReaders``. Every search, score and
+        read gives what one store holding the same rows gives, ties included. The stores
+        must hold the same encoder, dtype, dimension and document-ID mode; stores written
+        by ``Encoder.encode(shard=)`` must be all parts of one source, and are read in the
+        order of the parts. A view has no ``refresh`` and no ``path`` (``paths`` names
+        them), and ``close`` closes its stores."""
+        return _opened_view(cls, paths, encoder=encoder, backend=backend)
 
     def __init__(self, *_args: Any, **_kwargs: Any):
         raise TypeError("open a store with VectorStore.open(path)")
@@ -131,9 +144,11 @@ class VectorStore:
         rows are selected first, then grouped.
         """
         self._check_open()
-        matrix, single = self._queries(queries, "queries")
+        matrix, single = _search.queries(self._backend, self.dim, queries, "queries")
         with self._using() as shards:
-            values, kind = self._plan_filter(doc_ids, rows, max_per_doc, rows_in(shards))
+            values, kind = _selection.plan(
+                self._info.has_doc_ids, doc_ids, rows, max_per_doc, rows_in(shards)
+            )
             workers = workers or usable_cpus()
             exact = _search.is_exact(mode, len(matrix))
             if max_per_doc is not None:
@@ -170,27 +185,6 @@ class VectorStore:
                 return DocumentSearchResult(ids, scores, _filtered.document_ids(shards, ids))
             return SearchResult(ids, scores)
 
-    def _plan_filter(
-        self, doc_ids: Any, rows: Any, max_per_doc: int | None, n_rows: int
-    ) -> tuple[ndarray | None, str]:
-        """Check the filters and ``max_per_doc`` of a search before any row is read; returns
-        the prepared filter (None for all rows) and its kind."""
-        if max_per_doc not in (None, 1):
-            raise ValueError(
-                f"max_per_doc must be 1 in this version, not {max_per_doc}; "
-                "larger values may be supported in a later release"
-            )
-        if doc_ids is not None and rows is not None:
-            raise ValueError("pass either doc_ids or rows, not both")
-        if doc_ids is not None and not self._info.has_doc_ids:
-            raise ValueError("this store has no doc_ids")
-        if max_per_doc is not None and not self._info.has_doc_ids:
-            raise ValueError("max_per_doc needs a store with doc_ids")
-        kind = "doc_ids" if doc_ids is not None else "rows"
-        if doc_ids is not None or rows is not None:
-            return _selection.prepare(doc_ids if doc_ids is not None else rows, kind, n_rows), kind
-        return None, kind
-
     @validate_arguments
     def score(
         self,
@@ -207,7 +201,7 @@ class VectorStore:
         ``get_doc_ids`` returns the labels of the rows.
         """
         self._check_open()
-        matrix, single = self._queries(weights, "weights")
+        matrix, single = _search.queries(self._backend, self.dim, weights, "weights")
         with self._using() as shards:
             out = _search.score(
                 self._backend,
@@ -333,17 +327,21 @@ class VectorStore:
     def verify(self) -> None:
         """Hash every shard on disk against its checksums and check its values: finite
         scales and inverse norms of at least 0, finite float rows, int8 codes within
-        +-127."""
+        +-127. A view verifies each of its stores and the boundaries between them."""
+        self._check_open()
+        if self._view is not None:
+            with self._using():
+                return verify_members(self._view)
         start = time.perf_counter()
-        read_store(self.path, VECTORS.name)
+        read_store(self._root, VECTORS.name)
         kind = kind_of(self._info)
         with self._using() as shards:
             for shard, tensors in shards:
-                file = self.path / shard.name / "manifest.json"
-                check_removed(NpyContainer().metadata(self.path / shard.name), file)
-                NpyContainer().verify(self.path / shard.name)
+                file = self._root / shard.name / "manifest.json"
+                check_removed(NpyContainer().metadata(self._root / shard.name), file)
+                NpyContainer().verify(self._root / shard.name)
                 kind.check_values(shard, tensors)
-            check_chain(self.path, kind, shards)
+            check_chain(self._root, kind, shards)
         _log.emit(
             "store.verified",
             "fse store: verified %d rows in %d shards",
@@ -362,10 +360,12 @@ class VectorStore:
         hashed. A gap, an orphan or a break of the chain raises ``CorruptArtifactError``; a
         store that is no longer the one that was opened raises ``RuntimeError``; the rows
         stay as they were. Nothing is promised against ``repair_store`` running meanwhile.
-        ``close`` raises while a refresh runs."""
+        ``close`` raises while a refresh runs. A view raises ``ValueError``: open it again."""
         self._check_open()
+        if self._view is not None:
+            raise ValueError("a view does not refresh; open it again")
         with self._refreshing, self._using() as shards:
-            checked = refreshed(self.path, self._info, shards)
+            checked = refreshed(self._root, self._info, shards)
             added = rows_in(checked.shards)
             total = rows_in(shards) + added
             with self._lock:
@@ -396,6 +396,8 @@ class VectorStore:
                 )
             self._shards = []
             self._closed = True
+        if self._view is not None:
+            self._view.close()
 
     def __enter__(self) -> VectorStore:
         return self
@@ -412,21 +414,6 @@ class VectorStore:
 
     def _using(self):
         return _Use(self)
-
-    def _queries(self, value: Any, name: str) -> tuple[ndarray, bool]:
-        array = np.asarray(value)
-        if array.dtype.kind not in "fiu":
-            raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
-        single = array.ndim == 1
-        # Converted as the contract does, whatever rounding the calling thread set.
-        matrix = self._backend.float32(array[None, :] if single else array)
-        if matrix.ndim != 2 or matrix.shape[1] != self.dim or not len(matrix):
-            raise ValueError(
-                f"{name} must be a vector of {self.dim} values or a matrix of them, not shape {array.shape}"
-            )
-        if not np.isfinite(matrix).all():
-            raise ValueError(f"{name} must be finite in float32")
-        return matrix, single
 
 
 class _Use:
@@ -471,7 +458,7 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
                 f"the store {path} holds the rows of encoder {info.encoder}, not of {encoder.fingerprint}"
             )
     out = cls.__new__(cls)
-    out.path, out._info = path, info
+    out.path, out._info, out._view = path, info, None
     checked = snapshot(path, info, verify=True)
     out._shards = checked.shards
     out._backend = get_backend(backend)
@@ -497,3 +484,11 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
         verify_seconds=checked.verify_seconds,
     )
     return out
+
+
+@validate_arguments
+def _opened_view(cls: Any, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+    def member(path: Path) -> Any:
+        return cls.open(path, encoder=encoder, backend=backend)
+
+    return open_view(cls, paths, member, "store.view_opened", {"_active": 0}, ("dtype",))
