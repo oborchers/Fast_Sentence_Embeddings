@@ -3,6 +3,7 @@ snapshot, added in place; the snapshots of running calls stay valid."""
 
 import gc
 import shutil
+import sys
 import threading
 import weakref
 
@@ -21,6 +22,9 @@ from support.logs import expect_log
 from support.store import add_shard, append_rows, make_store, tag_shard
 
 pytestmark = pytest.mark.filterwarnings("ignore::ResourceWarning")
+mapped_files = pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows cannot remove files that a store has mapped"
+)
 
 
 @pytest.fixture
@@ -175,12 +179,14 @@ def test_a_changed_last_shard_is_detected(vectors):
     assert len(vectors) == 8
 
 
+@mapped_files
 def test_a_missing_last_shard_is_detected(scores):
     shutil.rmtree(scores.path / shard_name(4))
     with pytest.raises(RuntimeError, match="changed below its snapshot"):
         scores.refresh()
 
 
+@mapped_files
 def test_another_store_in_the_place_is_detected(tmp_path):
     path = tmp_path / "store"
     make_store(path, dtype="float32")
@@ -440,6 +446,7 @@ def test_a_head_generator_made_before_a_refresh_reads_the_rows_of_its_call(tmp_p
         assert sum(batch.n_rows for batch in model.predict_batches(store)) == 40
 
 
+@mapped_files
 def test_a_store_of_another_kind_in_the_place_is_a_changed_store(tmp_path):
     path = tmp_path / "store"
     make_store(path)
