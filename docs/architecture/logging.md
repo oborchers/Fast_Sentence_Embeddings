@@ -41,7 +41,7 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
 | `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
-| `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids | `ScoreSink`, when `Heads.predict_batches` attaches the run (a new store is created then) |
+| `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids | `ScoreSink`, when `predict_batches` of `Heads`, `Classifier` or `Regressor` attaches the run (a new store is created then; `heads` is 1 for a single head) |
 | `scores.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ScoreSink` (thread `fse-shard-publish`) |
 | `scores.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds | `ScoreSink.close` (a sink that never attached reports zero rows) |
 

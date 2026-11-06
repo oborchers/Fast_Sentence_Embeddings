@@ -142,7 +142,7 @@ def fill(sink, first_row, n, *, value=None, ids=None):
 
 
 def write_store(
-    path, heads, texts, *, store=None, doc_ids=False, shard_rows=16, batch=15, **kwargs
+    path, heads, texts, *, stored=None, doc_ids=False, shard_rows=16, batch=15, **kwargs
 ):
     """Run ``texts`` through ``heads`` into a score store at ``path`` (batches of ``batch``);
     returns the batches the run gave."""
@@ -153,5 +153,5 @@ def write_store(
         batches = [
             (chunk, np.arange(i * batch, i * batch + len(chunk))) for i, chunk in enumerate(batches)
         ]
-    with fse.ScoreSink(path, heads, store=store, doc_ids=doc_ids, shard_rows=shard_rows) as sink:
+    with fse.ScoreSink(path, heads, stored=stored, doc_ids=doc_ids, shard_rows=shard_rows) as sink:
         return list(heads.predict_batches(batches, score_sink=sink, doc_ids=doc_ids, **kwargs))

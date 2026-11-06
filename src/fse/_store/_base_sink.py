@@ -31,13 +31,14 @@ from typing import Any, Literal
 from numpy import ndarray
 
 from fse._container import PublishedNotDurableError, note_cleanup
+from fse._encoder._doc_ids import ShardSinkMarker
 
 from ._layout import failed_cleanup
 from ._shard import ShardBase
 from ._writer import WriterFailure, WriterThread, deferred_interrupts
 
 
-class ShardSinkBase:
+class ShardSinkBase(ShardSinkMarker):
     """The reservation, threads, publication and closing of a sink of shards."""
 
     _NAME = "sink"  # how a family names its sink in an error

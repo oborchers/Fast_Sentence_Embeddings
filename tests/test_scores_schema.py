@@ -77,18 +77,18 @@ def test_a_head_without_a_link_stores_only_its_decision():
 
 
 @pytest.mark.parametrize(
-    ("store", "error", "message"),
+    ("stored", "error", "message"),
     [
-        ("labels", ValueError, "store must be one of"),
-        ({"toxic": 3}, ValueError, "store must be one of"),
+        ("labels", ValueError, "stored must be one of"),
+        ({"toxic": 3}, ValueError, "stored must be one of"),
         ({"nope": "decision"}, ValueError, "names the head 'nope'"),
         ({3: "decision"}, ValueError, "names the head 3"),
-        (["decision"], TypeError, "store must be"),
+        (["decision"], TypeError, "stored must be"),
     ],
 )
-def test_wrong_store_arguments_are_refused(store, error, message):
+def test_wrong_stored_arguments_are_refused(stored, error, message):
     with pytest.raises(error, match=message):
-        ScoreSchema.from_heads(sh.group(), store)
+        ScoreSchema.from_heads(sh.group(), stored)
 
 
 def test_heads_must_be_a_group():

@@ -26,7 +26,14 @@ from fse._runtime import Pipeline, check_workers, wants_inverse_norms
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
-from ._doc_ids import check_batch_mode, check_id_mode, infer_ids, refuse_score_sink
+from ._doc_ids import (
+    check_id_mode,
+    check_modes,
+    check_switch,
+    infer_ids,
+    refuse_score_sink,
+    split_pair,
+)
 from ._sources import opened
 
 
@@ -157,13 +164,12 @@ def prepare(
 ) -> str:
     """The dtype of an ``encode_batches`` run; checks the sink, the document-ID mode and the
     workers when the method is called, before any batch is read."""
-    if not isinstance(doc_ids, bool):
-        raise TypeError(f"doc_ids must be a bool, not {type(doc_ids).__name__}")
+    check_switch(doc_ids, "encode_batches")
     if sink is not None:
         dtype = check_sink(sink, dtype, fingerprint, dim)
     else:
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)
-    check_batch_mode(sink, doc_ids)
+    check_modes([] if sink is None else [("sink", sink)], doc_ids, "encode_batches")
     check_workers(workers)
     return dtype
 
@@ -193,9 +199,7 @@ def batches(
     for k, item in enumerate(items):
         ids = None
         if doc_ids:
-            if not isinstance(item, tuple) or len(item) != 2:
-                raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
-            item, ids = item
+            item, ids = split_pair(k, item, "encode_batches")
         with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
             if sink is None:
                 rows = pipeline.infer(source, workers=workers, dtype=dtype, first_row=row)

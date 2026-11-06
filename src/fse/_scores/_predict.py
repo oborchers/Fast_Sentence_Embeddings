@@ -91,7 +91,7 @@ def _check(head: ScoreHead, want: str, rule: Head) -> None:
     )
     if ok:
         return
-    hint = f"; write the store with store={{{head.name!r}: ...}} to keep what you need"
+    hint = f"; write the store with stored={{{head.name!r}: ...}} to keep what you need"
     if stored == "proba" and want == "labels":
         reason = "its label rule linear@1 decides on the logits, which the store does not hold"
     else:

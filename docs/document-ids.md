@@ -127,10 +127,10 @@ of the sink says how many rows at the start of the run are durable. `durable_row
 means that the run positions 0 to 209 are durable. It is not a position.
 
 Two stores written by one run, vectors in a `ShardSink` and scores in a `ScoreSink`
-(`Heads.predict_batches(..., return_vectors=True, vector_sink=..., score_sink=..., doc_ids=True)`),
+(`Heads.predict_batches(..., return_vectors=True, vector_sink=..., score_sink=..., doc_ids=True)`, or the same call of a single `Classifier` or `Regressor`),
 have one store position for each run position: `vector_sink.first_row + r` and
 `score_sink.first_row + r`. Both positions can differ when the stores held different numbers
-of rows before the run, which a run accepts only with `doc_ids`. `HeadsBatch.durable_rows` is
+of rows before the run, which a run accepts only with `doc_ids`. `HeadsBatch.durable_rows` (and `PredictedBatch.durable_rows` of a single head) is
 the minimum of both sinks. A replay after a crash writes the rows beyond the confirmed ones
 again, so a store can hold a row twice, and `max_per_doc=1` returns the best hit per document
 without removing duplicates.

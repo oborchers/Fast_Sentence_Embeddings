@@ -13,9 +13,9 @@ PATHS = {"quality": "folded", "toxic": "folded", "topic": "folded"}
 @pytest.mark.parametrize(
     ("kwargs", "error", "message"),
     [
-        ({"store": "labels"}, ValueError, "store must be one of"),
-        ({"store": "proba"}, ValueError, "head 'quality' cannot store 'proba'"),
-        ({"store": {"nope": "decision"}}, ValueError, "names the head 'nope'"),
+        ({"stored": "labels"}, ValueError, "stored must be one of"),
+        ({"stored": "proba"}, ValueError, "head 'quality' cannot store 'proba'"),
+        ({"stored": {"nope": "decision"}}, ValueError, "names the head 'nope'"),
         ({"durability": "sometimes"}, Exception, "durability"),
         ({"shard_rows": 0}, Exception, "shard_rows"),
         ({"doc_ids": "yes"}, Exception, "doc_ids"),
@@ -27,11 +27,18 @@ def test_wrong_arguments_raise_before_anything_is_created(tmp_path, kwargs, erro
     assert not (tmp_path / "s").exists()
 
 
-def test_the_heads_must_be_a_group(tmp_path):
-    with pytest.raises(TypeError, match=r"fse\.Heads"):
+def test_the_heads_must_be_a_group_or_one_named_head(tmp_path):
+    with pytest.raises(TypeError, match=r"a single head needs name="):
         fse.ScoreSink(tmp_path / "s", sh.group()["quality"])
-    with pytest.raises(TypeError, match=r"fse\.Heads"):
+    with pytest.raises(TypeError, match=r"fse\.Heads, a Classifier or a Regressor"):
         fse.ScoreSink(tmp_path / "s", {"quality": 1})
+    with pytest.raises(ValueError, match="name is for a single head"):
+        fse.ScoreSink(tmp_path / "s", sh.group(), name="quality")
+    with pytest.raises(ValueError, match=r"must match \[a-z\]"):
+        fse.ScoreSink(tmp_path / "s", sh.group()["quality"], name="Quality")
+    with pytest.raises(TypeError, match="name must be a str"):
+        fse.ScoreSink(tmp_path / "s", sh.group()["quality"], name=3)
+    assert not (tmp_path / "s").exists()
 
 
 def test_a_missing_parent_directory_is_refused_when_the_run_attaches(tmp_path):

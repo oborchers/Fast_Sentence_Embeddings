@@ -49,16 +49,16 @@ class Sink(Protocol):
     ``inverse_norms`` (True: the target ends with a float32 vector the workers fill with
     the inverse norm of every stored row), ``encoder_fingerprint`` (the fingerprint of the only
     encoder the sink takes), ``flush()`` (called after the last commit of a successful
-    run), ``publish()`` (called by ``encode_batches`` after the rows of every batch are
+    run), ``publish()`` (called by every ``*_batches`` call after the rows of every batch are
     committed, before ``durable_rows`` is read: make durable what is finished, without
     waiting for the end) and ``durable_rows`` (the number of leading rows of the run that
     are durable, for a stream that confirms its input only up to there; a sink without
     it promises nothing) and ``has_doc_ids`` (exactly True: the sink stores one document
     ID per row; ``encode`` then needs ``doc_ids=`` and ``encode_batches`` ``doc_ids=True``,
     and every commit is ``commit(first_row, rows, doc_ids=ids)``, ``ids`` a read-only
-    one-dimensional int64 array with one ID per committed row; other values are ignored,
-    and the sinks of ``Classifier`` and ``Regressor`` refuse a sink with True). A sink
-    takes one run: the rows of a second run into it would start again at row 0, which it
+    one-dimensional int64 array with one ID per committed row; other values are ignored. A
+    call without IDs gives a sink of your own with True the rows without IDs, as in 2.0; a
+    shard sink of fse in ID mode is refused then). A sink takes one run: the rows of a second run into it would start again at row 0, which it
     refuses.
     """
 

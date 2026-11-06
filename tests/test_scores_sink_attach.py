@@ -38,7 +38,7 @@ def test_appending_with_another_path_is_refused_before_a_row_is_taken(tmp_path):
     with fse.ScoreSink(path, sh.group()) as sink:
         with pytest.raises(ValueError, match=r"'quality'.*'folded'.*'unfolded'"):
             sink._attach(OTHER)
-        with pytest.raises(RuntimeError, match=r"fse\.Heads\.predict_batches"):
+        with pytest.raises(RuntimeError, match=r"only from predict_batches\(score_sink="):
             sink.target(0, 1)
     assert sc.read_back(path)[1].shape == (4, 7)
 
@@ -67,7 +67,7 @@ def test_the_heads_of_a_store_must_be_those_of_the_sink(tmp_path):
     with pytest.raises(ValueError, match="has_doc_ids"):
         fse.ScoreSink(path, sh.group(), doc_ids=True)
     with pytest.raises(ValueError, match="stored"):
-        fse.ScoreSink(path, sh.group(), store={"toxic": "proba"})
+        fse.ScoreSink(path, sh.group(), stored={"toxic": "proba"})
     different = fse.Heads(
         quality=sh.regressor(enc, seed=1),
         toxic=sh.group(enc)["toxic"],

@@ -1,4 +1,5 @@
-"""Only fse.Heads writes a ScoreSink: everything else refuses it before reading."""
+"""A ScoreSink is the score_sink= of a predict_batches call; as an encoder sink or as sink= of a
+head it is refused before anything is read, with the way to give it."""
 
 import pytest
 
@@ -36,7 +37,10 @@ def test_encoder_classifier_and_regressor_refuse_a_score_sink_before_reading(
 ):
     heads = sh.group()
     classifier, regressor = heads["topic"], heads["quality"]
-    with _sink(tmp_path, doc_ids) as sink, pytest.raises(ValueError, match=r"fse\.Heads"):
+    with (
+        _sink(tmp_path, doc_ids) as sink,
+        pytest.raises(ValueError, match=r"pass it as score_sink="),
+    ):
         call(classifier.encoder, classifier, regressor, sink)
     assert not (tmp_path / "s").exists()
 

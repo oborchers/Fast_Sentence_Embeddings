@@ -9,7 +9,7 @@
 
 The shards published when the store is opened are mapped read-only (a snapshot: later
 appends need a new open). ``iter_batches`` gives the stored values as they are, read-only
-views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` does, derived
+views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
 from what is stored, with the thresholds of the multilabel heads replaced if asked. No
 encoder, tokenizer or weight table is loaded.
 """
@@ -29,7 +29,6 @@ from numpy import ndarray
 from fse import _log
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import NpyContainer
-from fse._head import Heads
 from fse._head._heads_run import OutputRule, resolve_outputs
 from fse._head._thresholds import updated
 from fse._store._id_stats import check_removed
@@ -42,6 +41,7 @@ from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _predict
 from ._batches import ScoreBatch, blocks
+from ._schema import group_of
 
 DEFAULT_BLOCK_ROWS = 65_536
 KIND = "prediction_scores"
@@ -61,10 +61,14 @@ class ScoreStore:
     _closed: bool
 
     @classmethod
-    def open(cls, path: Any, *, heads: Any = None, backend: str = "cpu") -> ScoreStore:
+    def open(
+        cls, path: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+    ) -> ScoreStore:
         """Open the store ``path``; with ``heads`` (a ``fse.Heads``), the store must hold
-        exactly those heads, in that order, with those models."""
-        return _open(cls, path, heads=heads, backend=backend)
+        exactly those heads, in that order, with those models. ``heads`` may also be one
+        ``Classifier`` or ``Regressor``: then ``name`` is required and the store must hold
+        exactly that head under that name, as that model, of that encoder."""
+        return _open(cls, path, heads=heads, name=name, backend=backend)
 
     def __init__(self, *_args: Any, **_kwargs: Any):
         raise TypeError("open a store with ScoreStore.open(path)")
@@ -322,10 +326,9 @@ def _predict_derived(info: ScoreInfo, state: Any, scores: ndarray, store_row: in
     return _predict.predict(host, plans, columns, store_row, work, ids)
 
 
-def _check_heads(path: Path, info: ScoreInfo, heads: Any) -> None:
+def _check_heads(path: Path, info: ScoreInfo, heads: Any, name: Any = None) -> None:
     """The store must hold exactly the heads of ``heads``, in order, as the same models."""
-    if not isinstance(heads, Heads):
-        raise TypeError(f"heads must be a fse.Heads, not {type(heads).__name__}")
+    heads = group_of(heads, name)
     names = [head.name for head in info.heads]
     if names != list(heads):
         raise ValueError(f"the store {path} holds the heads {names}, not {list(heads)}")
@@ -341,21 +344,23 @@ def _check_heads(path: Path, info: ScoreInfo, heads: Any) -> None:
 
 
 @validate_arguments
-def _open(cls: Any, path: Any, *, heads: Any = None, backend: str = "cpu") -> Any:
+def _open(cls: Any, path: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu") -> Any:
     try:
-        return _opened(cls, path, heads=heads, backend=backend)
+        return _opened(cls, path, heads=heads, name=name, backend=backend)
     except BaseException as error:
         clear_exception_frames(error)
         raise
 
 
-def _opened(cls: Any, path: Any, *, heads: Any, backend: str) -> Any:
+def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
     path = Path(path)
     info = read_store(path, KIND)
     if heads is not None:
-        _check_heads(path, info, heads)
+        _check_heads(path, info, heads, name)
+    elif name is not None:
+        raise ValueError("name goes with a single head given as heads")
     out = cls.__new__(cls)
     out.path, out._info = path, info
     checked = snapshot(path, info, verify=True)

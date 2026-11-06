@@ -64,6 +64,8 @@ DEFAULTS = {
     "heads": 1,
     "return_vectors": False,
     "sinks": "scores",
+    "batch_rows": None,
+    "lone": False,
     "base_heads_mode": "separate",
     "candidate_heads_mode": "separate",
     "practical_saving": None,
@@ -159,6 +161,9 @@ def _profile(cell):
         raise ValueError("linear-heads@1 PR-1 comparisons require float32")
     if heads and cell["decision_gate"]:
         raise ValueError("linear-heads@1 regression cells are descriptive, not speedup gates")
+    from _development_heads import validate_batches
+
+    validate_batches(cell)
 
 
 def _bounds(cell):

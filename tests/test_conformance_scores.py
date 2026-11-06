@@ -51,7 +51,7 @@ def test_the_stored_columns_are_the_bits_of_the_run_without_a_sink(
 ):
     heads, texts = _group(), sh.texts(37)
     stored = _store(heads, kind)
-    with fse.ScoreSink(tmp_path / "s", heads, store=stored, shard_rows=16) as sink:
+    with fse.ScoreSink(tmp_path / "s", heads, stored=stored, shard_rows=16) as sink:
         list(
             heads.predict_batches(
                 [texts[:20], texts[20:]],
@@ -72,11 +72,27 @@ def test_the_stored_columns_are_the_bits_of_the_run_without_a_sink(
     assert {h.path for h in info.heads} <= {"folded", "unfolded", "normalized"}
 
 
+@pytest.mark.parametrize("kind", ["decision", "proba"])
+@pytest.mark.parametrize("vectors", [False, True])
+def test_a_single_head_stores_the_bits_of_the_run_without_a_sink(tmp_path, kind, vectors):
+    model, texts = sh.classifier(sh.encoder(), 3, seed=4), sh.texts(37)
+    with fse.ScoreSink(tmp_path / "s", model, name="m", stored=kind, shard_rows=16) as sink:
+        list(
+            model.predict_batches(
+                [texts[:20], texts[20:]], score_sink=sink, return_vectors=vectors, workers=3
+            )
+        )
+    info, scores, _ = sc.read_back(tmp_path / "s")
+    (want,) = model.predict_batches([texts], output=kind, return_vectors=vectors, workers=1)
+    np.testing.assert_array_equal(bits(scores), bits(want.outputs))
+    assert info.heads[0].path == model.path(return_vectors=vectors)
+
+
 def test_both_backends_store_the_same_bits(tmp_path):
     heads, texts = _group(), sh.texts(40)
     stored = _store(heads, "decision")
     for backend in ("cpu", "numpy"):
-        with fse.ScoreSink(tmp_path / backend, heads, store=stored) as sink:
+        with fse.ScoreSink(tmp_path / backend, heads, stored=stored) as sink:
             list(heads.predict_batches([texts], score_sink=sink, backend=backend))
     np.testing.assert_array_equal(
         bits(sc.read_back(tmp_path / "cpu")[1]), bits(sc.read_back(tmp_path / "numpy")[1])

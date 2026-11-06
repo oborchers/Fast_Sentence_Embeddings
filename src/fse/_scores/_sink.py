@@ -4,13 +4,13 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""``fse.ScoreSink``: the scores of a group of heads written straight into the shards of a
-score store (docs/architecture/scores.md, "Writing").
+"""``fse.ScoreSink``: the scores of heads, a group or a single head, written straight into
+the shards of a score store (docs/architecture/scores.md, "Writing").
 
 The sink is a float32 sink of ``dim`` values per row, the columns of all heads side by side.
-``Heads.predict_batches(score_sink=sink)`` fills them: the adapter of the run copies the
-output of each head into its columns. The constructor checks everything but the path of
-each head and creates nothing for a new store; ``Heads.predict_batches`` attaches the run,
+``predict_batches(score_sink=sink)`` of ``fse.Heads``, ``Classifier`` or ``Regressor`` fills
+them: the adapter of the run copies the output of each head into its columns. The constructor checks everything but the path of
+each head and creates nothing for a new store; ``predict_batches`` attaches the run,
 before it reads a text, and passes the paths, and only then is ``store.json`` written, whole
 and for good. The reservation, the threads, the publication and the closing are those of
 every shard store (``ShardSinkBase``).
@@ -48,13 +48,15 @@ def _created_by() -> str:
 
 
 class ScoreSink(ShardSinkBase):
-    """Write the scores of a group of heads into the score store at ``path``: a new store,
-    or the end of an existing one of the same heads.
+    """Write the scores of heads into the score store at ``path``: a new store, or the end
+    of an existing one of the same heads. ``heads`` is a ``fse.Heads``, or one ``Classifier``
+    or ``Regressor`` with its ``name`` (required: the name is written to the store, and
+    ``ScoreStore`` reads the head by it).
 
-    ``store`` says what each head stores: None (the decision of a classifier, the values of
+    ``stored`` says what each head stores: None (the decision of a classifier, the values of
     a regressor), one name for all heads, or a mapping of head names to ``decision``,
-    ``proba`` or ``values``. Give the sink to ``heads.predict_batches(score_sink=...)``; it
-    takes rows from nothing else. A new store is created when that call attaches the run,
+    ``proba`` or ``values``. Give the sink to ``predict_batches(score_sink=...)`` of the same
+    heads or head; it takes rows from nothing else. A new store is created when that call attaches the run,
     not before; closing a sink that never attached leaves nothing behind.
 
     Use it as a context manager (or call ``close``): leaving it publishes the committed rows,
@@ -73,12 +75,13 @@ class ScoreSink(ShardSinkBase):
         path: Any,
         heads: Any,
         *,
-        store: Any = None,
+        name: Any = None,
+        stored: Any = None,
         doc_ids: bool = False,
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
     ):
-        schema = ScoreSchema.from_heads(heads, store)
+        schema = ScoreSchema.from_heads(heads, stored, name)
         path = Path(path)
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
@@ -114,7 +117,7 @@ class ScoreSink(ShardSinkBase):
     # --- the run attaches ---------------------------------------------------------------
 
     def _attach(self, paths: Mapping[str, str]) -> None:
-        """Attach the run that ``Heads.predict_batches`` starts, with the path of each head:
+        """Attach the run that ``predict_batches`` starts, with the path of each head:
         a new store gets its ``store.json`` now, whole; an existing one must hold the same
         paths. Called before the first text is read."""
         self._check_open()
@@ -150,7 +153,10 @@ class ScoreSink(ShardSinkBase):
 
     def target(self, first_row: int, n_rows: int) -> Any:  # the (n_rows, dim) matrix
         if not self._attached:
-            raise RuntimeError("a ScoreSink takes rows only from fse.Heads.predict_batches")
+            raise RuntimeError(
+                "a ScoreSink takes rows only from predict_batches(score_sink=...) of a "
+                "Classifier, a Regressor or fse.Heads"
+            )
         return super().target(first_row, n_rows)[0]
 
     def commit(self, first_row: int, rows: Any, *, doc_ids: Any = None) -> None:

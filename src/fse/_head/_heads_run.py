@@ -9,7 +9,8 @@ batches (docs/architecture/runtime.md, "Runtime", Groups of heads).
 
 Texts run through the one runtime of heads, in the workers: one tokenization per task for
 all heads. A group has no store mode: its results are in memory, unless a ``score_sink`` takes the
-scores of every head for good (``_score_target``). The ``output`` rule resolves what each
+scores of every head for good (``_score_target``). A single head runs the same way
+(``_lone_run``). The ``output`` rule resolves what each
 head gives before any text is read.
 """
 
@@ -22,14 +23,16 @@ from typing import Any
 
 from numpy import ndarray
 
-from fse._encoder._batches import _named, batch_size, batch_source
+from fse._encoder._doc_ids import check_switch
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
 from ._run import RUNTIME, check_backend, finish
-from ._sink_run import SinkRun, start
+from ._sink_run import SinkRun, run_batches, start
+
+METHOD = "Heads.predict_batches"
 
 # What a head can give: labels, probabilities or decisions of a classifier, values of a regressor.
 OUTPUT_NAMES = ("labels", "proba", "decision", "values")
@@ -108,7 +111,8 @@ def check_group_call(workers: Any, backend: Any, items: Any) -> None:
     check_backend(backend)
     if isinstance(items, VectorStore):
         raise ValueError(
-            "a group of heads reads texts; take the outputs of a store from each head's predict"
+            "a group of heads reads texts; take the outputs of a store from the predict_batches of "
+            "each head, or read a score store with fse.ScoreStore"
         )
 
 
@@ -133,17 +137,18 @@ def batches(
     backend: Any,
     vector_sink: Any = None,
     score_sink: Any = None,
-    doc_ids: bool = False,
+    doc_ids: Any = False,
 ) -> Iterator[HeadsBatch]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
     the first batch is read: the sink learns the path of each head."""
     check_group_call(workers, backend, items)
+    check_switch(doc_ids, METHOD)
     outputs = resolve_outputs(rules_of(heads), output)
     if return_vectors and heads._standalone:
         raise ValueError("a standalone group has no vectors: its table is folded")
     kinds = tuple(RUNTIME[o] for o in outputs)
-    run = start(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids)
+    run = start(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids, METHOD)
     pipeline = heads._pipeline(backend, with_vectors=return_vectors)
     return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids)
 
@@ -157,32 +162,20 @@ def _batches(
     run: SinkRun | None = None,
     doc_ids=False,
 ) -> Iterator[HeadsBatch]:
-    row, last = 0, None
     kinds = tuple(RUNTIME[o] for o in outputs)
-    for k, item in enumerate(items):
-        ids = None
-        if doc_ids:
-            if not isinstance(item, tuple) or len(item) != 2:
-                raise TypeError(f"batch {k} must be a (texts, doc_ids) tuple")
-            item, ids = item
-            if ids is None:
-                raise TypeError(f"batch {k} must give its doc_ids, not None")
-        with (
-            _named(k, row, batch_size(k, item)),
-            batch_source(item, heads._tokenizer) as (source, n),
-        ):
-            if run is None:
-                rows, vectors = pipeline.infer(
-                    source, outputs=kinds, workers=workers, first_row=row
-                )
-            else:
-                rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
-                last = run.durable(row + n)
-            given = _outputs(heads, rows, outputs)
-        yield HeadsBatch(first_row=row, n_rows=n, outputs=given, vectors=vectors, durable_rows=last)
-        row += n
-    if run is not None:
-        run.flush()
+
+    def make(row, n, rows, vectors, last):
+        return HeadsBatch(
+            first_row=row,
+            n_rows=n,
+            outputs=_outputs(heads, rows, outputs),
+            vectors=vectors,
+            durable_rows=last,
+        )
+
+    yield from run_batches(
+        heads._tokenizer, pipeline, items, kinds, workers, run, doc_ids, METHOD, make
+    )
 
 
 def _outputs(heads: Any, rows: list, outputs: tuple[str, ...]) -> Mapping[str, ndarray]:

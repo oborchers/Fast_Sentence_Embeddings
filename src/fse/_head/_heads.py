@@ -123,7 +123,9 @@ class Heads(Mapping):
         within the rounding of the fold (docs/architecture/numerical-contract.md)."""
         if return_vectors and self._standalone:
             raise ValueError("a standalone group has no vectors: its table is folded")
-        return MappingProxyType({n: _path(m, return_vectors) for n, m in self._heads.items()})
+        return MappingProxyType(
+            {n: m.path(return_vectors=return_vectors) for n, m in self._heads.items()}
+        )
 
     @validate_arguments
     def predict(
@@ -152,7 +154,7 @@ class Heads(Mapping):
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
-        doc_ids: bool = False,
+        doc_ids: Any = False,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
@@ -178,7 +180,10 @@ class Heads(Mapping):
         stores that hold unequal numbers of rows take a run only with ``doc_ids``. With
         ``doc_ids=True`` the batches are ``(texts, doc_ids)`` pairs as for
         ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
-        been made with ``doc_ids=True``. Stopping early does not flush: close the sink."""
+        been made with ``doc_ids=True``. Stopping early does not flush: close the sink.
+
+        A single head takes the same keywords in its own ``predict_batches``, without a
+        group."""
         return _heads_run.batches(
             self,
             batches,
@@ -253,14 +258,6 @@ def _check_encoder(heads: dict[str, Any]) -> None:
             )
 
 
-def _path(model: LinearModel, vectors: bool) -> Path:
-    if model.standalone:
-        return "standalone"
-    if model.normalized:
-        return "normalized"
-    return "unfolded" if vectors else "folded"
-
-
 def _describe(model: LinearModel) -> str:
     kind = "Regressor" if model.TASK == "regression" else "Classifier"
-    return f"{kind}({model.n_outputs} outputs, {model.link}, {_path(model, False)})"
+    return f"{kind}({model.n_outputs} outputs, {model.link}, {model.path()})"

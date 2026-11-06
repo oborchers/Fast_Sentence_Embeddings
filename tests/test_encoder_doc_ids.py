@@ -78,7 +78,7 @@ def test_the_mode_is_checked_when_called_before_any_batch(tmp_path):
             encoder.encode_batches(_poisoned(), sink=ids_sink, doc_ids=None)
     with (
         fse.ShardSink(tmp_path / "plain", encoder) as plain_sink,
-        pytest.raises(ValueError, match="needs a sink with doc_ids"),
+        pytest.raises(ValueError, match="needs the sink to have doc_ids"),
     ):
         encoder.encode_batches(_poisoned(), sink=plain_sink, doc_ids=True)
     with pytest.raises(ValueError, match="needs a sink with doc_ids"):

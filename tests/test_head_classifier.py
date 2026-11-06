@@ -211,7 +211,7 @@ def test_a_sink_with_document_ids_is_refused_before_a_batch_is_read(tmp_path):
         fse.ShardSink(tmp_path / "s", model.encoder, doc_ids=True) as sink,
         pytest.raises(
             ValueError,
-            match=r"one pass with fse\.Heads\(name=model\)\.predict_batches\(.*vector_sink=sink",
+            match=r"pass it as vector_sink= with doc_ids=True",
         ),
     ):
         model.predict_batches(_poisoned(), return_vectors=True, sink=sink)
@@ -227,7 +227,7 @@ def test_the_hint_is_the_same_when_the_head_and_the_store_differ(tmp_path):
     with (
         fse.ShardSink(tmp_path / "s", encoder, doc_ids=True) as sink,
         pytest.raises(
-            ValueError, match=r"Classifier\.predict_batches does not give.*vector_sink=sink"
+            ValueError, match=r"Classifier\.predict_batches does not give.*pass it as vector_sink="
         ),
     ):
         model.predict_batches(_poisoned(), return_vectors=True, sink=sink)

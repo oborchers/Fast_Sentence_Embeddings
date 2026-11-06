@@ -33,7 +33,7 @@ def test_a_score_sink_is_no_vector_sink(tmp_path):
     heads = sh.group()
     with (
         fse.ScoreSink(tmp_path / "s", heads) as scores,
-        pytest.raises(ValueError, match=r"stores the scores of fse\.Heads"),
+        pytest.raises(ValueError, match=r"stores the scores of heads.*pass it as score_sink="),
     ):
         _call(heads, {"vector_sink": scores})
 
@@ -72,10 +72,10 @@ def test_the_id_mode_must_match_each_sink(tmp_path):
     vectors, scores = sr.sinks(tmp_path, heads, doc_ids=True)
     with vectors, scores:
         for given in ({"vector_sink": vectors}, {"score_sink": scores}):
-            with pytest.raises(ValueError, match="doc_ids=True is needed exactly"):
+            with pytest.raises(ValueError, match="stores doc_ids; pass doc_ids=True"):
                 _call(heads, given)
         name = "score_sink"
-        with pytest.raises(ValueError, match=f"the {name} has no doc_ids"):
+        with pytest.raises(ValueError, match=f"needs the {name} to have doc_ids"):
             _call(
                 heads, {"vector_sink": vectors, "score_sink": _plain(tmp_path, heads)}, doc_ids=True
             )
@@ -112,7 +112,7 @@ def test_a_rejected_call_leaves_no_score_store_and_reserves_no_row(tmp_path):
     heads = sh.group()
     vectors, scores = sr.sinks(tmp_path, heads, doc_ids=True)
     with vectors, scores:
-        with pytest.raises(ValueError, match="doc_ids=True is needed exactly"):
+        with pytest.raises(ValueError, match="stores doc_ids; pass doc_ids=True"):
             _call(heads, {"vector_sink": vectors, "score_sink": scores})
         assert not (tmp_path / "s").exists()
         assert vectors._reserved == 0

@@ -33,7 +33,7 @@ from fse._encoder._batches import (
     durable,
     flush,
 )
-from fse._encoder._doc_ids import id_mode, refuse_score_sink
+from fse._encoder._doc_ids import own_id_sink, refuse_score_sink
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import ShardSink, VectorStore
@@ -56,7 +56,7 @@ def check_output_sink(model: Any, sink: Any, output: str, *, batches: bool = Fal
     """A sink of the outputs ``output``: float32 rows of their width, without inverse norms;
     one that names an ``encoder_fingerprint`` must name their output identity."""
     if output == "labels":
-        raise ValueError("labels go to no sink in 2.0; take them from predict_batches")
+        raise ValueError("labels go to no sink; take them from predict_batches")
     _refuse_doc_ids(model, sink, vectors=False)
     if isinstance(sink, ShardSink):
         raise ValueError(
@@ -77,22 +77,20 @@ def check_output_sink(model: Any, sink: Any, output: str, *, batches: bool = Fal
 
 
 def _refuse_doc_ids(model: Any, sink: Any, *, vectors: bool) -> None:
-    """A sink in document-ID mode (``has_doc_ids`` exactly True) takes neither the outputs
-    of a head nor its vectors, as a head gives no IDs: refused before any batch is read."""
+    """``sink=`` keeps its role of 2.0: it takes rows without document IDs. A shard sink of
+    fse in document-ID mode (2.0 had none) is refused before any batch is read, with the way
+    to give it the IDs; a foreign sink with ``has_doc_ids`` True runs as in 2.0."""
     refuse_score_sink(sink)
-    if not id_mode(sink):
+    if not own_id_sink(sink):
         return
     if not vectors:
         raise ValueError(
-            "the sink stores document IDs; the outputs of a head carry none, so give a sink "
-            "without doc_ids; store the scores with fse.Heads(name=model).predict_batches(..., "
-            "score_sink=fse.ScoreSink(path, heads, doc_ids=True), doc_ids=True)"
+            "the sink stores document IDs; sink= gives none, so store the scores with "
+            "score_sink=fse.ScoreSink(path, model, name=..., doc_ids=True) and doc_ids=True"
         )
     raise ValueError(
-        f"the sink stores document IDs, which {type(model).__name__}.predict_batches does not "
-        "give; write the vectors and the predictions in one pass with "
-        "fse.Heads(name=model).predict_batches(batches, return_vectors=True, vector_sink=sink, "
-        "doc_ids=True)"
+        f"the sink stores document IDs, which sink= of {type(model).__name__}.predict_batches "
+        "does not give; pass it as vector_sink= with doc_ids=True"
     )
 
 
