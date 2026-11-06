@@ -63,6 +63,7 @@ def validate(cell):
         "linear-heads-scores@1",
         "int8-prefilter@1",
         "length-report@1",
+        "source-identity@1",
         *DOCUMENT_PROFILES,
     ):
         raise ValueError("unknown development adapter profile")

@@ -28,8 +28,8 @@ def test_canonical_bounds(value):
 
 
 def test_unknown_resume_is_unsupported():
-    with pytest.raises(UnsupportedArtifactError, match="source_rows@1"):
-        check_mode({"fse.resume": "source_rows@1"}, "test")
+    with pytest.raises(UnsupportedArtifactError, match="source_rows@2"):
+        check_mode({"fse.resume": "source_rows@2"}, "test")
 
 
 @pytest.mark.parametrize("key", ["fse.row_ids", "fse.row_ids_min", "fse.row_ids_sorted"])

@@ -44,6 +44,8 @@ from ._id_stats import (
     verify_stats,
 )
 from ._kind import Shard, shard_name
+from ._resume_format import MODE as SOURCE_ROWS
+from ._resume_format import SOURCE_KEYS, SourceRows, parse
 
 NAME = "sentence_vectors"
 # The format of the sentence vectors; it starts with the xxh3-128 checksums (maintainer
@@ -73,6 +75,7 @@ class StoreInfo:
     dim: int
     has_doc_ids: bool = False
     version: int = 1
+    resume: SourceRows | None = None  # the identity of a store of the mode source_rows@1
 
     @property
     def kind(self) -> str:
@@ -90,8 +93,13 @@ class StoreInfo:
 
         if self.version == 2:
             metadata.update(
-                {"fse.doc_ids": "int64" if self.has_doc_ids else "none", "fse.resume": "none"}
+                {
+                    "fse.doc_ids": "int64" if self.has_doc_ids else "none",
+                    "fse.resume": "none" if self.resume is None else SOURCE_ROWS,
+                }
             )
+            if self.resume is not None:
+                metadata.update(self.resume.metadata(metadata))
         return metadata
 
     def check(self, other: StoreInfo, path: Path) -> None:
@@ -127,7 +135,13 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
     check_mode(metadata, file)
     if isinstance(version, str) and version not in ("1", "2"):
         raise UnsupportedArtifactError(f"{file}: unsupported sentence_vectors format {version!r}")
-    keys = (*_SHARED, *(MODE_KEYS if version == "2" else ()), *extra)
+    resumable = version == "2" and metadata.get("fse.resume") == SOURCE_ROWS
+    keys = (
+        *_SHARED,
+        *(MODE_KEYS if version == "2" else ()),
+        *(SOURCE_KEYS if resumable else ()),
+        *extra,
+    )
     if not isinstance(metadata, dict) or set(metadata) != set(keys):
         raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(keys)}")
     if (
@@ -154,15 +168,20 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
         )
     if version == "2" and any(
         metadata.get(key) not in values
-        for key, values in (("fse.doc_ids", ("none", "int64")), ("fse.resume", ("none",)))
+        for key, values in (
+            ("fse.doc_ids", ("none", "int64")),
+            ("fse.resume", ("none", SOURCE_ROWS)),
+        )
     ):
         raise CorruptArtifactError(f"{file}: invalid document-ID or resume mode")
+    shared = {k: metadata[k] for k in (*_SHARED, *(MODE_KEYS if version == "2" else ()))}
     return StoreInfo(
         metadata["fse.encoder"],
         metadata["fse.dtype"],
         int(dim),
         metadata.get("fse.doc_ids") == "int64",
         int(str(version)),
+        parse(metadata, shared, file) if resumable else None,
     )
 
 
@@ -181,22 +200,18 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         info.check(shard_info, path)
         if info.version != shard_info.version:
             raise ValueError("store and shard format versions differ")
+        if info.resume != shard_info.resume:
+            raise ValueError("the shard and the store describe different sources")
     except ValueError as error:
         raise CorruptArtifactError(str(error)) from error
     check_quantization(metadata, info, file)
-    rows = metadata.get("fse.rows", "")
-    if (
-        metadata.get("fse.first_row") != str(first_row)
-        or not INTEGER.fullmatch(rows)
-        or rows == "0"
-    ):
-        raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
+    rows = _shard_rows(metadata, info, first_row, file)
     want = {"vectors", "inv_norms"} | ({"scales"} if info.dtype == "int8" else set())
     if info.has_doc_ids:
         want.add("doc_ids")
     if set(tensors) != want:
         raise CorruptArtifactError(f"{file}: a {info.dtype} shard holds exactly {sorted(want)}")
-    n = int(rows)
+    n = rows
     if tensors["vectors"].shape != (n, info.dim) or any(
         tensors[k].shape != (n,) for k in want - {"vectors"}
     ):
@@ -219,6 +234,20 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         parsed_stats(metadata, file) if info.has_doc_ids else None,
         fingerprint=metadata[FINGERPRINT_KEY],
     ), tensors
+
+
+def _shard_rows(metadata: dict, info: StoreInfo, first_row: int, file: Path) -> int:
+    """The rows of the shard that starts at ``first_row``, which its metadata must name."""
+    rows = metadata.get("fse.rows", "")
+    if (
+        metadata.get("fse.first_row") != str(first_row)
+        or not INTEGER.fullmatch(rows)
+        or rows == "0"
+    ):
+        raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
+    if info.resume is not None and first_row + int(rows) > info.resume.span:
+        raise CorruptArtifactError(f"{file}: the shard holds rows beyond the source")
+    return int(rows)
 
 
 def _shard_info(metadata: dict, info: StoreInfo, file: Path) -> tuple[StoreInfo, bool]:

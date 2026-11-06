@@ -19,6 +19,7 @@ the threads, the publication and the closing are those of every shard store
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal
@@ -27,13 +28,18 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes, _log
+from fse._container import PublishedNotDurableError
+from fse._container._common import _sync_directory
 from fse._encoder import Encoder
 from fse._ids import checked_ids, id_block
+from fse._partition import partition
 from fse._validation import PositiveInt, validate_arguments
 
 from ._base_sink import ShardSinkBase
 from ._layout import create_store, read_store
 from ._recovery import refuse_unsynced, snapshot
+from ._resume_format import MODE as SOURCE_ROWS
+from ._resume_format import SourceRows
 from ._shard import ShardWriter
 from ._vectors_format import VECTORS, StoreInfo
 
@@ -50,6 +56,64 @@ def default_shard_rows(dim: int, dtype: str) -> int:
     row_bytes = dim * np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize
     rows = min(_MAX_SHARD_ROWS, _SHARD_BYTES // row_bytes)
     return max(1, rows - rows % _ALIGN_ROWS if rows >= _ALIGN_ROWS else rows)
+
+
+def _check_mode(existing: StoreInfo, resume: bool, path: Path) -> None:
+    """A store of the mode source_rows@1 is opened with ``resume=True`` only, and ``resume=True``
+    opens such a store only."""
+    if existing.resume is not None and not resume:
+        raise ValueError(
+            f"the store {path} is resumable (mode {SOURCE_ROWS}); open it with resume=True"
+        )
+    if existing.resume is None and resume:
+        raise ValueError(
+            f"the store {path} is not a resumable store; write a new store with resume=True"
+        )
+
+
+def _check_source(existing: StoreInfo, wanted: SourceRows, path: Path) -> None:
+    """The source and part of this run must be those the store was written from."""
+    assert existing.resume is not None
+    what = existing.resume.same_source(wanted)
+    if what is not None:
+        raise ValueError(
+            f"the store {path} was written from another source or partition ({what} differs); "
+            "a store is resumed with the same source and shard, or written anew"
+        )
+
+
+def _open_store(
+    path: Path, info: StoreInfo, *, new: bool, resume: bool, synced: bool
+) -> tuple[StoreInfo, int]:
+    """The info of the store ``path`` (made if it is new, unless it resumes: it is made once
+    a run brings its source) and the rows it holds."""
+    if new and resume:
+        return info, 0
+    if new:
+        create_store(path, info)
+    existing = read_store(path, VECTORS.name)
+    _check_mode(existing, resume, path)
+    existing.check(info, path)
+    checked = snapshot(path, existing, verify=False)
+    try:
+        if synced:
+            refuse_unsynced(path, checked.shards)
+        return existing, sum(shard.rows for shard, _ in checked.shards)
+    finally:
+        checked.shards.clear()  # a sink keeps no mappings, also on refusal
+
+
+def _sync_store(path: Path) -> None:
+    """Make the entries of the store directory durable: a shard published by an earlier run
+    may have been renamed in without its sync (docs/architecture/store.md, "Resume stores")."""
+    try:
+        _sync_directory(path)
+        _sync_directory(path.parent)  # the entry of a store an earlier run made
+    except OSError as error:
+        raise PublishedNotDurableError(
+            f"the shards of {path} are published, but syncing the directory failed ({error}); "
+            "they are not confirmed durable"
+        ) from error
 
 
 def _created_by() -> str:
@@ -84,28 +148,18 @@ class ShardSink(ShardSinkBase):
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
         doc_ids: bool = False,
+        resume: bool = False,
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
         path = Path(path)
         self._start = time.perf_counter()
         info = StoreInfo(
-            encoder.fingerprint, dtype, encoder.output_dim, doc_ids, 2 if doc_ids else 1
+            encoder.fingerprint, dtype, encoder.output_dim, doc_ids, 2 if doc_ids or resume else 1
         )
         new = not path.exists() and not path.is_symlink()
-        if new:
-            create_store(path, info)
-        existing = read_store(path, VECTORS.name)
-        existing.check(info, path)
-        info = existing
         synced = durability == "full"
-        checked = snapshot(path, info, verify=False)
-        try:
-            if synced:
-                refuse_unsynced(path, checked.shards)
-            first_row = sum(shard.rows for shard, _ in checked.shards)
-        finally:
-            checked.shards.clear()  # a sink keeps no mappings, also on refusal
+        info, first_row = _open_store(path, info, new=new, resume=resume, synced=synced)
 
         created_by = _created_by()  # before the threads start
         super().__init__(
@@ -118,22 +172,73 @@ class ShardSink(ShardSinkBase):
         self._info = info
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self._created_by = created_by
+        self.resume = resume
+        self._new, self._kept = new, 0
+        if resume:  # the store is made or compared once a run brings its source
+            self._ready = False
+            return
+        self._opened_event(new, durability)
+
+    def _opened_event(self, new: bool, durability: str, **resumed: Any) -> None:
+        info = self._info
         _log.emit(
             "store.sink_opened",
             "fse store: a sink %s a store at row %d: %d dimensions, %s of %d rows, durability=%s",
             "creates" if new else "appends to",
             self.first_row,
             info.dim,
-            dtype,
+            self.dtype,
             self.shard_rows,
             durability,
             mode="new" if new else "append",
             rows=self.first_row,
             dim=info.dim,
-            dtype=dtype,
+            dtype=self.dtype,
             shard_rows=self.shard_rows,
             durability=durability,
+            **resumed,
         )
+
+    # --- resuming ----------------------------------------------------------------------
+
+    def _attach_source(self, identity: Any, shard: tuple[int, int], seconds: float) -> int:
+        """Bind this sink to the source of a run (``Encoder.encode(texts, shard=)``): make the
+        store with its identity, or compare the identity with that of the store, which
+        raises a ValueError before any row is reserved. Verifies the published shards,
+        makes the entries of the store durable under full durability and returns the rows
+        the store holds (the rows of the part that are done)."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        first, _ = partition(identity.rows, *shard)
+        wanted = SourceRows(identity.fingerprint, identity.form, identity.rows, shard, first)
+        if self._new:
+            create_store(self.path, replace(self._info, resume=wanted))
+        info = read_store(self.path, VECTORS.name)
+        _check_mode(info, True, self.path)
+        info.check(self._info, self.path)
+        _check_source(info, wanted, self.path)
+        checked = snapshot(self.path, info, verify=True)
+        try:
+            if self._synced:
+                refuse_unsynced(self.path, checked.shards)
+            rows = sum(shard_.rows for shard_, _ in checked.shards)
+        finally:
+            checked.shards.clear()
+        if self._synced:
+            _sync_store(self.path)
+        self._info, self.first_row, self._kept, self._ready = info, rows, rows, True
+        self._opened_event(
+            self._new,
+            self.durability,
+            resume=SOURCE_ROWS,
+            kept_rows=rows,
+            source_rows=identity.rows,
+            source_bytes=identity.nbytes,
+            source_seconds=seconds,
+            source_fingerprint=identity.fingerprint,
+        )
+        return rows
 
     # --- what a row of sentence vectors holds ------------------------------------------
 
@@ -216,6 +321,7 @@ class ShardSink(ShardSinkBase):
             durability=self.durability,
             outcome=outcome,
             seconds=time.perf_counter() - self._start,
+            **({"skipped_rows": self._kept} if self.resume else {}),
         )
 
     def _published_event(self, writer, rows: int) -> None:

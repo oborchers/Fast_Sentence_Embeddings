@@ -9,7 +9,7 @@ A score store keeps what the heads of a group, or a single head, gave for every 
 - **One tensor `scores`**, F32 `(rows, columns)`, with the columns of all heads side by side in head order. `fse.score_heads` names the columns of each head.
 - A classifier stores its **decision** (the float32 logits) or its **probabilities**; a regressor its **values**. The default is the decision, because probabilities and labels follow from float32 logits bit for bit (the links are functions of the finished logits, [numerical contract](numerical-contract.md)), and the way back does not exist. `ScoreSink(stored=...)` takes `None`, one name for all heads or a mapping of head names to `decision`, `proba` or `values`.
 - Optional `doc_ids` (I64, `(rows,)`) exactly when the store has document IDs, and `thresholds.<head>` (F32 `(k,)`) for each head with `multilabel@1`, the same in every shard, kept whole in a shard that ends early.
-- Without document IDs the row `n` of a run is the text `n` of the run: `ScoreSink.first_row` plus the row in the run is the row of the store. No tensor and no metadata name the run. A resume across runs belongs to DR-165 (Shards und Resume für große Jobs einführen) and would add `fse.resume=source_rows@1` within this version.
+- Without document IDs the row `n` of a run is the text `n` of the run: `ScoreSink.first_row` plus the row in the run is the row of the store. No tensor and no metadata name the run. A resume across runs belongs to DR-165 (Shards und Resume für große Jobs einführen). The format of `fse.resume=source_rows@1` (six more keys in the root and in every shard, [document-ids.md](document-ids.md)) is read and repaired within this version since DR-248 (Vektor-Stores wiederaufnehmen und feste Partitionen schreiben); `ScoreSink` writes it with DR-250 (Score-Stores und Köpfe wiederaufnehmen).
 
 ### store.json and the metadata
 
@@ -22,7 +22,7 @@ A score store keeps what the heads of a group, or a single head, gave for every 
 | `fse.transform_version` | `2` |
 | `fse.encoder` | fingerprint of the encoder of the heads |
 | `fse.doc_ids` | `int64` or `none` |
-| `fse.resume` | `none` |
+| `fse.resume` | `none`, or `source_rows@1` (with the six source keys of [document-ids.md](document-ids.md)) |
 | `fse.score_heads` | canonical JSON list of the heads in head order |
 
 Each entry of `fse.score_heads` has exactly `name`, `model` (fingerprint of the complete head artifact), `task`, `rule`, `link`, `stored`, `path`, `labels`, `width`, `columns` (`[begin, end]` in `scores`, without a gap), `flat`. A shard adds `fse.created_by`, `fse.first_row`, `fse.rows`, for document IDs the three statistics of [document-ids.md](document-ids.md) and optionally `fse.durability=none`.

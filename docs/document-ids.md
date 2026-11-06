@@ -167,4 +167,5 @@ ID stores use store/format version 2 and are cleanly refused by fse 2.0.0.
 Vector-only stores remain version 1. IDs, checksums and statistics are published with
 their vectors under the same durability policy. Explicit verification and repair
 check the ID column too. Repair quarantines whole shards, preserving the verified
-prefix. This change does not yet implement automatic resume.
+prefix. A store written with `resume=True` continues after a stop; see
+[resuming a run](../recipes/03-files-with-resume.ipynb).

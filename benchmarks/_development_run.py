@@ -11,6 +11,8 @@ from _development_data import prepare
 from _development_descriptive import describe, regression_screen
 from _development_heads import nonregression
 from _development_heads_multi import practical
+from _development_identity import STAGE
+from _development_identity_run import run as run_identity
 from _development_locks import coordinated
 from _development_pairs import block
 from _development_preflight import preflight
@@ -168,43 +170,10 @@ def run(args):
 def _cell(args, cell, prepared, ledger):
     started = time.monotonic()
     try:
-        with coordinated(
-            "heavy",
-            args.worker_name,
-            "small adapter preflight",
-            lambda row: append(args.results / "coordination.jsonl", row),
-            lambda: stopped(ledger),
-        ) as owner:
-            identities = preflight(args, cell, prepared, ledger, owner)
-        key = tuple(
-            cell[name]
-            for name in (
-                "model",
-                "corpus",
-                "table_dtype",
-                "workers",
-                "profile",
-                "base_doc_ids",
-                "candidate_doc_ids",
-                "candidate_lengths",
-                "id_chunks",
-                "heads",
-                "return_vectors",
-                "sinks",
-                "base_heads_mode",
-                "candidate_heads_mode",
-            )
-        )
-        if key not in ledger.quality_cache:
-            ledger.stage = "full_output_quality_gate"
-            ledger.quality_cache[key] = quality_gate(
-                args, cell, prepared, ledger, cell["id"] + "-quality"
-            )
-        quality = ledger.quality_cache[key]
-        if quality["identities"] != identities:
-            raise ValueError("preflight build identities differ from the full quality gate")
-        check_args(args)
-        result = _locked(args, cell, prepared, ledger, quality)
+        if cell["stage"] == STAGE:
+            result = run_identity(args, cell, prepared, ledger)
+        else:
+            result = _measured(args, cell, prepared, ledger)
         check_args(args)
     except WallBudgetExpiredError as error:
         ledger.stopping = True
@@ -220,6 +189,46 @@ def _cell(args, cell, prepared, ledger):
     if cell["stop_session_on_reject"] and _ended_badly(result):
         ledger.stopping = True  # the cells after it stay not_started
     return True
+
+
+def _measured(args, cell, prepared, ledger):
+    with coordinated(
+        "heavy",
+        args.worker_name,
+        "small adapter preflight",
+        lambda row: append(args.results / "coordination.jsonl", row),
+        lambda: stopped(ledger),
+    ) as owner:
+        identities = preflight(args, cell, prepared, ledger, owner)
+    key = tuple(
+        cell[name]
+        for name in (
+            "model",
+            "corpus",
+            "table_dtype",
+            "workers",
+            "profile",
+            "base_doc_ids",
+            "candidate_doc_ids",
+            "candidate_lengths",
+            "id_chunks",
+            "heads",
+            "return_vectors",
+            "sinks",
+            "base_heads_mode",
+            "candidate_heads_mode",
+        )
+    )
+    if key not in ledger.quality_cache:
+        ledger.stage = "full_output_quality_gate"
+        ledger.quality_cache[key] = quality_gate(
+            args, cell, prepared, ledger, cell["id"] + "-quality"
+        )
+    quality = ledger.quality_cache[key]
+    if quality["identities"] != identities:
+        raise ValueError("preflight build identities differ from the full quality gate")
+    check_args(args)
+    return _locked(args, cell, prepared, ledger, quality)
 
 
 def _ended_badly(result):

@@ -118,45 +118,56 @@ def child(file):
     atomic(Path(job["receipt"]), {**result, **LABEL, "identity": before})
 
 
+def _head_profile(job):
+    if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
+        from _development_heads_multi import profile
+    else:
+        from _development_heads import profile
+    return profile(job)
+
+
 def _action(job):
-    if job["action"] == "prepare":
+    action = job["action"]
+    if action == "prepare":
         from _development_data import prepare_child
 
-        result = prepare_child(job)
-    elif job["action"] == "probe":
+        return prepare_child(job)
+    if action == "probe":
         from _development_preflight import probe
 
-        result = probe(job)
-    elif job["action"] == "quality":
+        return probe(job)
+    if action == "quality":
         from _quality.development_child import export
 
-        result = export(job)
-    elif job["action"] == "prefilter-count":
+        return export(job)
+    if action == "prefilter-count":
         from _quality.prefilter_child import count_job
 
-        result = count_job(job)
-    elif job["action"] == "measure":
+        return count_job(job)
+    if action == "measure":
         from _development_measure import measure
 
-        result = measure(job)
-    elif job["action"] == "profile-head":
-        if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
-            from _development_heads_multi import profile
-        else:
-            from _development_heads import profile
+        return measure(job)
+    return _other_action(job)
 
-        result = profile(job)
-    elif job["action"] == "pooling-input":
+
+def _other_action(job):
+    action = job["action"]
+    if action == "identity":
+        from _development_identity_run import measure
+
+        return measure(job)
+    if action == "profile-head":
+        return _head_profile(job)
+    if action == "pooling-input":
         from _development_stages import prepare_batch
 
-        result = {"batch": prepare_batch(job)}
-    elif job["action"] == "filter-memory":
+        return {"batch": prepare_batch(job)}
+    if action == "filter-memory":
         from _development_filter_memory import profile
 
-        result = profile(job)
-    else:
-        raise ValueError("unknown development child action")
-    return result
+        return profile(job)
+    raise ValueError("unknown development child action")
 
 
 def checked(path, expected):

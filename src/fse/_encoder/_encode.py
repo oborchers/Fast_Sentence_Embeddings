@@ -19,9 +19,16 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse import _codes
-from fse._runtime import LengthCollector, LengthReport, LengthSettings, QuantizedRows, rule_of
+from fse._runtime import (
+    LengthCollector,
+    LengthReport,
+    LengthSettings,
+    QuantizedRows,
+    check_workers,
+    rule_of,
+)
 
-from . import _batches
+from . import _batches, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._doc_ids import check_id_mode
 from ._sources import opened
@@ -47,6 +54,7 @@ class _Encoding:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        shard: tuple[int, int] | None = None,
     ) -> ndarray | QuantizedRows | None: ...
 
     @overload
@@ -62,6 +70,7 @@ class _Encoding:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        shard: tuple[int, int] | None = None,
     ) -> tuple[ndarray | QuantizedRows | None, LengthReport]: ...
 
     def encode(
@@ -76,6 +85,7 @@ class _Encoding:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        shard: tuple[int, int] | None = None,
     ) -> Any:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
         default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
@@ -96,10 +106,23 @@ class _Encoding:
         ``fse.TruncationError`` for the first sentence the rule would cut instead of cutting
         it. A flag costs at most one more word of a sentence that reaches
         ``max_tokens``; counting tokenizes the rest of every cut sentence. Without these keywords nothing is recorded and nothing changes.
+
+        With a sink made with ``resume=True`` (``fse.ShardSink``) the call resumes: ``texts``
+        must be read again (a list, tuple or array of str, token lists or a path), the sink
+        compares its fingerprint with the store's and refuses another source or encoder, and
+        only the rows the store does not hold yet are encoded, bit for bit as an
+        uninterrupted run would. ``shard=(i, n)`` takes part ``i`` of ``n`` of the rows (whole
+        blocks of 16,384; the parts are disjoint and complete) so ``n`` processes can share a
+        source, each writing a store of its own. A report of ``lengths`` covers the rows run
+        by this call, and its ``first_row`` is their row in the source.
         """
         me: Any = self  # the Encoder
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Encoder.encode")
         check_id_mode(sink, doc_ids)
+        if _resume.wanted(sink, shard):
+            return _encode_resumed(
+                me, texts, dtype, workers, backend, sink, doc_ids, settings, shard
+            )
         collector = _collector(settings, 0, me)
         if sink is not None:
             check_sink(sink, dtype, me.fingerprint, me.output_dim)
@@ -198,6 +221,35 @@ class _Encoding:
             lengths=settings,
             rule=rule_of(me._spec.tokenizer),
         )
+
+
+def _encode_resumed(
+    me: Any,
+    texts: Any,
+    dtype: str | None,
+    workers: Any,
+    backend: str,
+    sink: Any,
+    doc_ids: Any,
+    settings: LengthSettings | None,
+    shard: Any,
+) -> Any:
+    """``encode`` into a sink made with ``resume=True``: the rows after those it holds."""
+    part = _resume.check_arguments(texts, sink, shard)
+    check_workers(workers)  # also where no row is left to run
+    check_sink(sink, dtype, me.fingerprint, me.output_dim, resumed=True)
+    pipeline = me._pipeline(backend)
+    with _resume.prepared(texts, sink, part, doc_ids, me.tokenizer) as run:
+        collector = _collector(settings, run.first_row, me)
+        if run.rows:
+            try:
+                run_into(pipeline, run.source, sink, workers, 0, run.ids, settings, collector)
+            except Exception as error:
+                _resume.add_row_note(error, run.first_row)
+                raise
+            run.check_unchanged()
+    flush(sink)
+    return None if collector is None else (None, collector.report())
 
 
 def _collector(

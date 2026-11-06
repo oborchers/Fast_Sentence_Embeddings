@@ -144,7 +144,7 @@ def test_a_future_format_is_unsupported_before_the_keys_are_checked():
 
 def test_a_future_resume_rule_is_unsupported_and_a_malformed_one_corrupt():
     with pytest.raises(UnsupportedArtifactError, match=r"fse.resume"):
-        parse_info(_edited(**{"fse.resume": "source_rows@1"}), FILE)
+        parse_info(_edited(**{"fse.resume": "source_rows@2"}), FILE)
     with pytest.raises(CorruptArtifactError):
         parse_info(_edited(**{"fse.resume": "not an id"}), FILE)
 
