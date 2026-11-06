@@ -205,6 +205,6 @@ def _collector(
     settings: LengthSettings | None, first_row: int, encoder: Any
 ) -> LengthCollector | None:
     """The collector of a call that asked for a report (a level of ``lengths``)."""
-    if settings is None or settings.lengths is None:
+    if settings is None:
         return None
-    return LengthCollector(settings, first_row, rule_of(encoder._spec.tokenizer))
+    return settings.collector(first_row, rule_of(encoder._spec.tokenizer))

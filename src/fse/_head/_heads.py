@@ -18,11 +18,11 @@ import re
 import threading
 from collections.abc import Iterator, Mapping
 from types import MappingProxyType
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal, NoReturn, overload
 
 from numpy import ndarray
 
-from fse._runtime import HeadsPipeline, Member, plan_heads
+from fse._runtime import HeadsPipeline, LengthReport, LengthSettings, Member, plan_heads
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _heads_run
@@ -127,6 +127,32 @@ class Heads(Mapping):
             {n: m.path(return_vectors=return_vectors) for n, m in self._heads.items()}
         )
 
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Mapping[str, ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Literal["summary", "per_row"],
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
+
     @validate_arguments
     def predict(
         self,
@@ -135,13 +161,21 @@ class Heads(Mapping):
         output: Any = None,
         workers: PositiveInt | None = None,
         backend: str = "cpu",
-    ) -> Mapping[str, ndarray]:
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Any:
         """The outputs of every head for every text, by name, in head order. By default each
         head gives what its own ``predict`` gives (labels, or the values of a regressor).
         ``output`` is an output name for all heads (``labels``, ``proba``, ``decision``,
         ``values``) or a mapping of head names to names; unnamed heads keep their default.
-        All checks run before a text is read."""
-        return _heads_run.infer(self, texts, output, workers, backend)
+        All checks run before a text is read.
+
+        ``lengths="summary"`` or ``"per_row"`` returns ``(outputs, fse.LengthReport)``: what
+        the length rule of the encoder cut. See ``Encoder.encode`` for ``lengths``,
+        ``count_truncated`` and ``on_truncation``."""
+        settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
+        return _heads_run.infer(self, texts, output, workers, backend, settings)
 
     @validate_arguments
     def predict_batches(
@@ -155,6 +189,9 @@ class Heads(Mapping):
         vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: Any = False,
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
@@ -182,8 +219,14 @@ class Heads(Mapping):
         ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
         been made with ``doc_ids=True``. Stopping early does not flush: close the sink.
 
+        With ``lengths="summary"`` or ``"per_row"`` each batch has a ``HeadsBatch.lengths``,
+        the ``fse.LengthReport`` of its rows (see ``Encoder.encode``).
+
         A single head takes the same keywords in its own ``predict_batches``, without a
         group."""
+        settings = LengthSettings.of(
+            lengths, count_truncated, on_truncation, "Heads.predict_batches"
+        )
         return _heads_run.batches(
             self,
             batches,
@@ -194,6 +237,7 @@ class Heads(Mapping):
             vector_sink,
             score_sink,
             doc_ids,
+            settings,
         )
 
     # --- a value ----------------------------------------------------------------------

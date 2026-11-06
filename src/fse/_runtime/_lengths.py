@@ -85,6 +85,13 @@ class LengthSettings:
             return 0
         return _TASK_ROW_BYTES + (_COUNT_ROW_BYTES if self.count_truncated else 0)
 
+    def collector(
+        self, first_row: int, rule: tuple[int | None, int | None]
+    ) -> LengthCollector | None:
+        """The collector of a run from ``first_row`` under ``rule``, or None if the call asked
+        only for ``on_truncation="raise"`` and wants no report."""
+        return None if self.lengths is None else LengthCollector(self, first_row, rule)
+
     def workspace(self) -> Any:
         """A native workspace that records for these settings."""
         return new_workspace(self.watch, self.raise_cut, self.store_rows)

@@ -220,13 +220,12 @@ def batches(
     lists) or an Arrow string column each; with ``lengths`` of a level, the pair of it and
     the ``LengthReport`` of its rows (``rule`` is the encoder's)."""
     row, last = 0, None
-    reported = lengths if lengths is not None and lengths.lengths is not None else None
     for k, item in enumerate(items):
         ids = None
         if doc_ids:
             item, ids = split_pair(k, item, "encode_batches")
         with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
-            collector = None if reported is None else LengthCollector(reported, row, rule)
+            collector = None if lengths is None else lengths.collector(row, rule)
             if sink is None:
                 rows = pipeline.infer(
                     source,

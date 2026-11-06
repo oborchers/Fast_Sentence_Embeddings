@@ -25,7 +25,7 @@ from numpy import ndarray
 
 from fse._encoder._doc_ids import check_switch
 from fse._encoder._sources import opened
-from fse._runtime import check_workers
+from fse._runtime import LengthSettings, check_workers, rule_of
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
@@ -116,16 +116,34 @@ def check_group_call(workers: Any, backend: Any, items: Any) -> None:
         )
 
 
-def infer(heads: Any, texts: Any, output: Any, workers: Any, backend: Any) -> Mapping[str, ndarray]:
-    """The outputs of every head for every text of ``texts``, in head order."""
+def infer(
+    heads: Any,
+    texts: Any,
+    output: Any,
+    workers: Any,
+    backend: Any,
+    settings: LengthSettings | None = None,
+) -> Any:
+    """The outputs of every head for every text of ``texts``, in head order; with a level
+    of ``settings`` the pair of them and the ``LengthReport``."""
     check_group_call(workers, backend, texts)
     outputs = resolve_outputs(rules_of(heads), output)
     pipeline = heads._pipeline(backend, with_vectors=False)
+    collector = None if settings is None else settings.collector(0, _rule(heads))
     with opened(texts, heads._tokenizer) as source:
         rows, _ = pipeline.infer(
-            source, outputs=tuple(RUNTIME[o] for o in outputs), workers=workers
+            source,
+            outputs=tuple(RUNTIME[o] for o in outputs),
+            workers=workers,
+            lengths=settings,
+            collector=collector,
         )
-    return _outputs(heads, rows, outputs)
+    found = _outputs(heads, rows, outputs)
+    return found if collector is None else (found, collector.report())
+
+
+def _rule(heads: Any) -> tuple[int | None, int | None]:
+    return rule_of(next(iter(heads.values()))._encoder._spec.tokenizer)
 
 
 def batches(
@@ -138,6 +156,7 @@ def batches(
     vector_sink: Any = None,
     score_sink: Any = None,
     doc_ids: Any = False,
+    settings: LengthSettings | None = None,
 ) -> Iterator[HeadsBatch]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
@@ -150,7 +169,7 @@ def batches(
     kinds = tuple(RUNTIME[o] for o in outputs)
     run = start(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids, METHOD)
     pipeline = heads._pipeline(backend, with_vectors=return_vectors)
-    return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids)
+    return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids, settings)
 
 
 def _batches(
@@ -161,20 +180,32 @@ def _batches(
     workers,
     run: SinkRun | None = None,
     doc_ids=False,
+    settings: LengthSettings | None = None,
 ) -> Iterator[HeadsBatch]:
     kinds = tuple(RUNTIME[o] for o in outputs)
 
-    def make(row, n, rows, vectors, last):
+    def make(row, n, rows, vectors, last, report):
         return HeadsBatch(
             first_row=row,
             n_rows=n,
             outputs=_outputs(heads, rows, outputs),
             vectors=vectors,
             durable_rows=last,
+            lengths=report,
         )
 
     yield from run_batches(
-        heads._tokenizer, pipeline, items, kinds, workers, run, doc_ids, METHOD, make
+        heads._tokenizer,
+        pipeline,
+        items,
+        kinds,
+        workers,
+        run,
+        doc_ids,
+        METHOD,
+        make,
+        settings,
+        _rule(heads),
     )
 
 
