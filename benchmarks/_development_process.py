@@ -131,6 +131,10 @@ def _action(job):
         from _quality.development_child import export
 
         result = export(job)
+    elif job["action"] == "prefilter-count":
+        from _quality.prefilter_child import count_job
+
+        result = count_job(job)
     elif job["action"] == "measure":
         from _development_measure import measure
 

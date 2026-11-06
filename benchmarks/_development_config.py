@@ -25,6 +25,7 @@ STAGES = (
     "head-group-folded",
     "head-group-mixed",
     "head-group-score-sink",
+    "prefilter-count",
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
@@ -70,6 +71,12 @@ DEFAULTS = {
     "candidate_heads_mode": "separate",
     "practical_saving": None,
     "stop_session_on_reject": False,
+    "scope": "main",
+    "store_sizes": [65_536, 859_346],
+    "queries_per_set": 256,
+    "k_values": [1, 10, 100],
+    "probe_rows": 70_000,
+    "probe_queries": 32,
 }
 
 
@@ -92,7 +99,11 @@ def validate_cell(raw, defaults):
         r"[a-zA-Z0-9][a-zA-Z0-9_-]*", cell["id"]
     ):
         raise ValueError("development cell id must be a safe file stem")
-    if cell["model"] not in MODEL_PINS or cell["corpus"] not in ("stsb", "wikitext"):
+    if cell["model"] not in MODEL_PINS or cell["corpus"] not in (
+        "stsb",
+        "wikitext",
+        "wikitext-train",
+    ):
         raise ValueError("development cell requires a pinned model and a known corpus")
     if cell["stage"] not in STAGES or cell["order"] not in ("alternating", "abba"):
         raise ValueError("unknown development stage or pair order")
@@ -144,6 +155,9 @@ def validate_cell(raw, defaults):
     from _development_search import validate as validate_search
 
     validate_search(cell)
+    from _quality.prefilter_inputs import validate as validate_prefilter
+
+    validate_prefilter(cell)
     return cell
 
 
