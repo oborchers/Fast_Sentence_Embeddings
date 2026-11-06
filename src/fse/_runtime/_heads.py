@@ -18,7 +18,6 @@ is a group of one: the same code, the same bits.
 
 from __future__ import annotations
 
-import threading
 from typing import Any
 
 import numpy as np
@@ -40,7 +39,8 @@ from ._heads_plan import (
     HeadsPlan,
 )
 from ._heads_targets import Slots, Targets
-from ._pipeline import check_workers
+from ._lengths import LengthCollector, LengthSettings
+from ._pipeline import WorkerLocal, check_workers, collect, recorded
 from ._sinks import Sink, split_target
 from ._tasks import Task
 
@@ -83,6 +83,8 @@ class HeadsPipeline:
         tees: list[Sink | None] | None = None,
         extras: list[tuple[str, Sink] | None] | None = None,
         tee_bytes: int = 0,
+        lengths: LengthSettings | None = None,
+        collector: LengthCollector | None = None,
     ) -> tuple[list[ndarray | None], Any]:
         """The ``outputs`` ("logits", "proba" or "labels" per head) of every sentence of
         ``source`` (and, if the plan has the vectors, the vectors, as ``vector_dtype``,
@@ -102,7 +104,14 @@ class HeadsPipeline:
         sinks = sinks or [None] * count
         heads = [m.head for m in plan.members]
         slots = Slots(heads, outputs, sinks, tees, extras)
-        row_bytes = plan.row_bytes(outputs, vector_dtype, inverse, slots.extra_kinds, tee_bytes)
+        row_bytes = plan.row_bytes(
+            outputs,
+            vector_dtype,
+            inverse,
+            slots.extra_kinds,
+            tee_bytes,
+            0 if lengths is None else lengths.row_bytes,
+        )
         tasks, window, stop = plan.primary.plan_tasks(
             source, workers, chunk_bytes, row_bytes, first_row
         )
@@ -116,7 +125,7 @@ class HeadsPipeline:
             vectors=vectors,
             tees=slots.tees,
         )
-        local = threading.local()
+        local = WorkerLocal(lengths)
 
         def work(item: tuple) -> tuple:
             task, (rows, vrows) = item
@@ -141,12 +150,12 @@ class HeadsPipeline:
                 earliest(run_rows, task.n_rows)
             except PoolingError as error:
                 raise attribute(plan, error, task, local, first_row) from None
-            return rows, vrows
+            return recorded(collector, local, task, (rows, vrows))
 
         run(
             tasks.tasks,
             work,
-            lambda item, done: targets.commit(item[0], done),
+            lambda item, done: targets.commit(item[0], collect(collector, item[0], done)),
             workers=workers,
             inline=tasks.inline,
             window=window,

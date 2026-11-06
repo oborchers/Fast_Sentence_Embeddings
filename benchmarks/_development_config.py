@@ -7,6 +7,7 @@ import math
 import re
 from pathlib import Path
 
+from _development_lengths import CORPORA
 from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
 from _measurement import document
@@ -32,6 +33,7 @@ DEFAULTS = {
     "profile": "standard@1",
     "base_doc_ids": "none",
     "candidate_doc_ids": "none",
+    "candidate_lengths": "none",
     "id_chunks": 4,
     "filter_kind": "doc_ids",
     "filter_layout": "range",
@@ -103,6 +105,7 @@ def validate_cell(raw, defaults):
         "stsb",
         "wikitext",
         "wikitext-train",
+        *CORPORA,
     ):
         raise ValueError("development cell requires a pinned model and a known corpus")
     if cell["stage"] not in STAGES or cell["order"] not in ("alternating", "abba"):
@@ -150,8 +153,10 @@ def validate_cell(raw, defaults):
     validate_group(cell)
     _bounds(cell)
     from _development_ids import validate
+    from _development_lengths import validate as validate_lengths
 
     validate(cell)
+    validate_lengths(cell)
     from _development_search import validate as validate_search
 
     validate_search(cell)

@@ -468,3 +468,30 @@ def test_the_cases_catch_cuts_in_the_wrong_place():
     assert in_bytes != expected
     added_first = [model.ids(ref.normalize(t, uni.STEPS, model.charsmap)) for t in META[:3]]
     assert added_first != uni.hf_ids(hf, META[:3])
+
+
+@pytest.mark.parametrize("max_tokens", [None, 1, 5])
+@pytest.mark.parametrize("max_chars", [None, 7])
+def test_the_lengths_are_those_of_the_overflow_of_tokenizers(max_tokens, max_chars):
+    full = uni.hf_tokenizer(VOCAB)
+    cut = uni.hf_tokenizer(VOCAB, max_length=max_tokens)
+    model = uni.Reference(VOCAB)
+    for text in CORPUS[:500]:
+        got = ref.encode_lengths(
+            text,
+            model.model,
+            added=model.added,
+            normalizer=model.steps,
+            charsmap=model.charsmap,
+            max_tokens=max_tokens,
+            max_chars=max_chars,
+        )
+        head = text if max_chars is None else text[:max_chars]
+        ids = uni.hf_ids(full, [head])[0]
+        encoding = cut.encode(head, add_special_tokens=False)
+        over = 0 if max_tokens is None else max(0, len(ids) - max_tokens)
+        assert got["truncated_tokens"] == over == sum(len(o.ids) for o in encoding.overflowing)
+        assert got["truncated_chars"] == len(text) - len(head)
+        kept = ids[: len(ids) - over]
+        assert got["dropped_unknown"] == kept.count(uni.UNK_ID)
+        assert got["tokens"] == len(kept) - got["dropped_unknown"]

@@ -40,6 +40,25 @@ class UnsupportedArtifactError(ValueError):
     """An artifact needs an aggregation, step or version this fse does not know."""
 
 
+class TruncationError(ValueError):
+    """The length rule of the encoder would cut a sentence and ``on_truncation="raise"`` was
+    asked for. ``row`` is the sentence of the run, ``cut`` the rule that fires (``"characters"``
+    when both do) and ``limit`` its limit."""
+
+    def __init__(self, message: str, *, row: int, cut: str, limit: int):
+        super().__init__(message)
+        self.row = row
+        self.cut = cut
+        self.limit = limit
+
+    def __reduce__(self):
+        return (_rebuild_truncation, (self.args[0], self.row, self.cut, self.limit))
+
+
+def _rebuild_truncation(message: str, row: int, cut: str, limit: int) -> TruncationError:
+    return TruncationError(message, row=row, cut=cut, limit=limit)
+
+
 def parse_id(text: object) -> tuple[str, int]:
     """Split ``"<name>@<version>"`` into its name and version, or raise a ValueError."""
     if not isinstance(text, str):

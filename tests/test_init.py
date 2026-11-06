@@ -136,6 +136,7 @@ def test_public_api_is_pinned():
         "FastTextParams",
         "Heads",
         "HeadsBatch",
+        "LengthReport",
         "MemorySink",
         "PredictedBatch",
         "PublishedNotDurableError",
@@ -148,6 +149,7 @@ def test_public_api_is_pinned():
         "ShardSink",
         "Sink",
         "StaticModel",
+        "TruncationError",
         "UnsupportedArtifactError",
         "VectorBatch",
         "VectorStore",
@@ -174,10 +176,12 @@ def test_the_readme_shows_only_names_fse_has():
 
 def test_the_public_errors_and_fasttext_params_are_the_ones_fse_raises_and_takes():
     from fse._container import CorruptArtifactError
-    from fse._contract import UnsupportedArtifactError
+    from fse._contract import TruncationError, UnsupportedArtifactError
     from fse._wordvectors_format import FastTextParams
 
     assert fse.CorruptArtifactError is CorruptArtifactError
     assert fse.UnsupportedArtifactError is UnsupportedArtifactError
+    assert fse.TruncationError is TruncationError
+    assert issubclass(fse.TruncationError, ValueError)
     assert fse.FastTextParams is FastTextParams
     assert issubclass(fse.CorruptArtifactError, ValueError)

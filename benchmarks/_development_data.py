@@ -188,7 +188,7 @@ def _wikitext_train(work, cache, deadline=None):
 def _models(cells, work, cache, deadline=None):
     from fse import Encoder, StaticModel
 
-    result = {}
+    result, loaded = {}, {}
     for repo in sorted({cell["model"] for cell in cells}):
         check(deadline)
         revision = MODEL_PINS[repo]
@@ -214,17 +214,68 @@ def _models(cells, work, cache, deadline=None):
             artifacts[dtype] = dict(
                 path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
             )
+        loaded[repo] = model
         result[repo] = dict(revision=revision, artifacts=artifacts, dimensions=model.output_dim)
-    return result
+    return result, loaded
 
 
-def _corpus(name, work, cache, deadline):
+def _rule(model):
+    """The length rule ``[max_tokens, max_chars]`` of a model (null: none)."""
+    spec = model._spec.tokenizer
+    return [spec.max_tokens, spec.max_chars]
+
+
+def _length_corpus(name, work, cache, models, deadline):
+    """The data cases of the length report (DR-163), built from the rows of the pinned
+    WikiText test split by the rule of one model. The statistics of the case, from a report
+    outside every timer, are declared with it."""
+    from _development_lengths import (
+        REPO_OF,
+        declared,
+        documents,
+        documents_at_cut,
+        uncut_mask,
+    )
+
+    data = _wikitext(work, cache, deadline)
+    model = models[REPO_OF[name]]
+    rule = model._spec.tokenizer
+    normalized = [" ".join(row.split()) for row in data["texts"]]
+    if name == "wikitext-lines-uncut":
+        keep = uncut_mask(model, normalized)
+        data["texts"] = [row for row, ok in zip(data["texts"], keep, strict=True) if ok]
+        derived = "the rows of the split that the length rule does not cut, in order"
+        stats = declared(model, [t for t, ok in zip(normalized, keep, strict=True) if ok], True)
+    elif name == "wikitext-docs-at-cut":
+        data["texts"] = documents_at_cut(model, documents(data["texts"], rule.max_chars), deadline)
+        derived = (
+            "the documents of wikitext-docs-m2v, each cut after the word at which it has "
+            "exactly max_tokens ids; documents that never have exactly that many are dropped"
+        )
+        stats = declared(model, data["texts"])
+    else:
+        data["texts"] = documents(data["texts"], rule.max_chars)
+        derived = (
+            f"non-empty rows joined with one space until more than {rule.max_chars} code "
+            "points; the incomplete rest is dropped"
+        )
+        stats = declared(model, data["texts"])
+    data["source"] = {**data["source"], "derived": derived, "declared": stats, "rule": _rule(model)}
+    return data
+
+
+def _corpus(name, work, cache, loaded, deadline):
     if name == "wikitext-train":
         data = _wikitext_train(work, cache, deadline)
         data["timing_texts"] = data["texts"]  # already collapsed; saved once (see prepare_child)
         data["timing_policy"] = "paragraphs of the training split, one-space whitespace"
         return data
-    data = _stsb(deadline) if name == "stsb" else _wikitext(work, cache, deadline)
+    if name == "stsb":
+        data = _stsb(deadline)
+    elif name == "wikitext":
+        data = _wikitext(work, cache, deadline)
+    else:
+        data = _length_corpus(name, work, cache, loaded, deadline)
     data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
     data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
     return data
@@ -235,9 +286,10 @@ def prepare_child(job):
     work = Path(job["work"])
     cache = job.get("hf_cache")
     corpora = {}
+    models, loaded = _models(job["cells"], work, cache, deadline)
     for name in sorted({n for cell in job["cells"] for n in corpus_names(cell)}):
         check(deadline)
-        data = _corpus(name, work, cache, deadline)
+        data = _corpus(name, work, cache, loaded, deadline)
         timing = data["timing_texts"]
         if timing is data["texts"]:
             del data["timing_texts"]  # the training store texts are saved once
@@ -251,4 +303,4 @@ def prepare_child(job):
             timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in timing),
             timing_policy=data["timing_policy"],
         )
-    return {**LABEL, "corpora": corpora, "models": _models(job["cells"], work, cache, deadline)}
+    return {**LABEL, "corpora": corpora, "models": models}

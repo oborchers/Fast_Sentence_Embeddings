@@ -9,11 +9,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 from numpy import ndarray
 
 from fse._encoder import _pretrained
+from fse._runtime import LengthReport, LengthSettings
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
 from . import _lone_run, _model2vec_files, _run, _sklearn
@@ -88,6 +89,32 @@ class Regressor(LinearModel):
         _model2vec_files.refuse_for_regressor(files)
         return cls._from_files(files, mmap)
 
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Any = None,
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> ndarray | None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Any = None,
+        lengths: Literal["summary", "per_row"],
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> tuple[ndarray | None, LengthReport]: ...
+
     @validate_arguments
     def predict(
         self,
@@ -96,10 +123,53 @@ class Regressor(LinearModel):
         workers: PositiveInt | None = None,
         backend: str = "cpu",
         sink: Any = None,
-    ) -> ndarray | None:
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Any:
         """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
-        target, else (n, targets); with a ``sink`` the rows go there."""
-        return _run.infer(self, texts, "values", workers, backend, sink)
+        target, else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
+        or ``"per_row"`` returns ``(values, fse.LengthReport)``, the values ``None`` for a
+        sink: what the length rule of the encoder cut (texts only; see ``Encoder.encode``)."""
+        method = "Regressor.predict"
+        settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
+        return _run.infer(self, texts, "values", workers, backend, sink, settings, method)
+
+    @overload
+    def predict_batches(
+        self,
+        batches: Any,
+        *,
+        output: Literal["values"] = "values",
+        return_vectors: bool = False,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Any = None,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = False,
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Iterator[PredictedBatch]: ...
+
+    @overload
+    def predict_batches(
+        self,
+        batches: Any,
+        *,
+        output: Literal["values"] = "values",
+        return_vectors: bool = False,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Any = None,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = False,
+        lengths: Literal["summary", "per_row"],
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
     def predict_batches(
@@ -114,9 +184,15 @@ class Regressor(LinearModel):
         vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: Any = False,
-    ) -> Iterator[PredictedBatch]:
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+    ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
-        ``sink``, ``vector_sink``, ``score_sink`` and ``doc_ids``."""
+        ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids`` and ``lengths``."""
+        settings = LengthSettings.of(
+            lengths, count_truncated, on_truncation, "Regressor.predict_batches"
+        )
         return _lone_run.batches(
             self,
             batches,
@@ -128,4 +204,5 @@ class Regressor(LinearModel):
             vector_sink,
             score_sink,
             doc_ids,
+            settings,
         )

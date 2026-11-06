@@ -192,3 +192,16 @@ def test_unknown_tokenizer_is_rejected(text):
         UnsupportedArtifactError, match="supported: external, fse_words@1, wordpiece@1"
     ):
         check_tokenizer(text)
+
+
+def test_a_truncation_error_is_a_value_error_with_its_row_rule_and_limit():
+    import pickle
+
+    from fse._contract import TruncationError
+
+    error = TruncationError("sentence 3 would be cut", row=3, cut="tokens", limit=512)
+    assert isinstance(error, ValueError)
+    assert (error.row, error.cut, error.limit) == (3, "tokens", 512)
+    again = pickle.loads(pickle.dumps(error))
+    assert str(again) == "sentence 3 would be cut"
+    assert (again.row, again.cut, again.limit) == (3, "tokens", 512)

@@ -21,12 +21,12 @@ from collections.abc import Iterator
 from typing import Any
 
 from fse._encoder._doc_ids import check_switch
-from fse._runtime import check_workers
+from fse._runtime import LengthSettings, check_workers
 from fse._store import VectorStore
 
 from . import _run
 from ._outputs import PredictedBatch
-from ._run import RUNTIME, check_backend, finish
+from ._run import RUNTIME, check_backend, finish, refuse_store_lengths, rule
 from ._sink_run import run_batches, start_lone
 
 
@@ -41,7 +41,8 @@ def batches(
     vector_sink: Any = None,
     score_sink: Any = None,
     doc_ids: Any = False,
-) -> Iterator[PredictedBatch]:
+    settings: LengthSettings | None = None,
+) -> Iterator[Any]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
     the first batch is read."""
@@ -57,8 +58,11 @@ def batches(
             "doc_ids=True, without sink="
         )
     if not new:
-        return _run.batches(model, items, output, return_vectors, workers, backend, sink)
+        return _run.batches(
+            model, items, output, return_vectors, workers, backend, sink, settings, method
+        )
     if isinstance(items, VectorStore):
+        refuse_store_lengths(settings, method)
         raise (
             ValueError(
                 "vector_sink, score_sink and doc_ids take texts; the outputs of a store come from "
@@ -73,9 +77,20 @@ def batches(
     run = start_lone(model, kinds, return_vectors, vector_sink, score_sink, doc_ids, method)
     pipeline = model._pipeline(backend, with_vectors=return_vectors).runtime
 
-    def make(row: int, n: int, rows: list, vectors: Any, last: int | None) -> PredictedBatch:
-        return PredictedBatch(row, n, finish(model, rows[0], output), vectors, last)
+    def make(row: int, n: int, rows: list, vectors: Any, last: int | None, report: Any) -> Any:
+        batch = PredictedBatch(row, n, finish(model, rows[0], output), vectors, last)
+        return batch if report is None else (batch, report)
 
     return run_batches(
-        model._tokenizer, pipeline, iter(items), kinds, workers, run, doc_ids, method, make
+        model._tokenizer,
+        pipeline,
+        iter(items),
+        kinds,
+        workers,
+        run,
+        doc_ids,
+        method,
+        make,
+        settings,
+        rule(model),
     )

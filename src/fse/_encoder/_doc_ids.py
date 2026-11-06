@@ -110,13 +110,27 @@ def check_id_mode(sink: Any, ids: Any) -> None:
 
 
 def infer_ids(
-    pipeline: Any, source: Any, sink: Any, workers: Any, first_row: int, ids: Any
+    pipeline: Any,
+    source: Any,
+    sink: Any,
+    workers: Any,
+    first_row: int,
+    ids: Any,
+    lengths: Any = None,
+    collector: Any = None,
 ) -> None:
     with IdSource(ids) as values:
         if not isinstance(source, StreamSource) and len(source) != len(values):
             raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
         adapter = _IdSink(sink, values, first_row)
-        pipeline.infer(source, workers=workers, sink=adapter, first_row=first_row)
+        pipeline.infer(
+            source,
+            workers=workers,
+            sink=adapter,
+            first_row=first_row,
+            lengths=lengths,
+            collector=collector,
+        )
         if adapter.end != first_row + len(values):
             raise ValueError("doc_ids has more rows than the text stream")
 

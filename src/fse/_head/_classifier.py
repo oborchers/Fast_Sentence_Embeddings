@@ -9,7 +9,7 @@ its outputs (``predict``, ``predict_proba``, ``decision_function``, ``classes_``
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping
 from dataclasses import replace
 from types import MappingProxyType
 from typing import Any, Literal
@@ -20,20 +20,19 @@ from fse._contract import Head, Link
 from fse._encoder import _pretrained
 from fse._validation import (
     PathLike,
-    PositiveInt,
     Temperature,
     ThresholdInput,
     validate_arguments,
 )
 
-from . import _calibration, _lone_run, _model2vec_files, _model2vec_objects, _run, _sklearn
+from . import _calibration, _model2vec_files, _model2vec_objects, _sklearn
 from ._content import classes
 from ._model import LinearModel
-from ._outputs import PredictedBatch
+from ._predict import _Predicting
 from ._thresholds import updated
 
 
-class Classifier(LinearModel):
+class Classifier(_Predicting, LinearModel):
     """Predicts labels of texts with an encoder and a linear head ``z = A x + b`` on its
     rows. Single-label heads choose one class. Multilabel heads independently compare
     each probability with its stored cutoff, returning a boolean matrix.
@@ -267,97 +266,6 @@ class Classifier(LinearModel):
         """The labels in output order (int64 or str)."""
         assert self._content.labels is not None
         return classes(self._content.labels)
-
-    @validate_arguments
-    def predict(
-        self, texts: Any, *, workers: PositiveInt | None = None, backend: str = "cpu"
-    ) -> ndarray:
-        """The label of each text or VectorStore row. For multilabel heads, a boolean
-        (n, k) indicator in classes_ order, true strictly above each stored cutoff.
-        Other classifiers return one class per row as before."""
-        return _run.infer(self, texts, "labels", workers, backend, None)
-
-    @validate_arguments
-    def predict_proba(
-        self,
-        texts: Any,
-        *,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-    ) -> ndarray | None:
-        """The probability of every label for every text, float32 (n, classes); with a
-        ``sink`` the rows go there and nothing is returned."""
-        self._check_proba()
-        return _run.infer(self, texts, "proba", workers, backend, sink)
-
-    @validate_arguments
-    def decision_function(
-        self,
-        texts: Any,
-        *,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-    ) -> ndarray | None:
-        """The logits of every text as float32. Multilabel always returns (n, k),
-        including k = 1. Single-label heads return (n,) for one output, else (n, k)."""
-        return _run.infer(self, texts, "decision", workers, backend, sink)
-
-    @validate_arguments
-    def predict_batches(
-        self,
-        batches: Any,
-        *,
-        output: Literal["labels", "proba", "decision"] = "labels",
-        return_vectors: bool = False,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = False,
-    ) -> Iterator[PredictedBatch]:
-        """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
-        yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
-        rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
-        ``return_vectors=True`` also its vectors, the encoder's own rows (one pooling gives
-        both). What the ``sink`` takes depends on ``return_vectors``::
-
-            batches      return_vectors  the sink takes                 outputs       vectors
-            texts        False           the outputs (not labels)       None (sink)   None
-            texts        True            the vectors of the encoder     the outputs   None (sink)
-            VectorStore  False           the outputs (not labels)       None (sink)   None
-            VectorStore  True            raises ValueError
-
-        ``sink`` keeps this role and stores no document IDs; a shard sink of fse with
-        ``doc_ids=True`` is refused, a sink of your own with ``has_doc_ids`` True takes the
-        rows without IDs, as in 2.0. For vectors, scores and document IDs use the keywords
-        of ``fse.Heads.predict_batches``, which work the same here and exclude ``sink``:
-
-        - ``vector_sink`` takes the vectors of the encoder (needs ``return_vectors=True``;
-          the head on raw means then takes the unfolded path, see ``path``);
-        - ``score_sink`` is a ``fse.ScoreSink(path, model, name=...)`` of this head; the
-          outputs of the batch stay in it, ``durable_rows`` is the minimum of both sinks;
-        - ``doc_ids=True`` gives the batches as ``(texts, doc_ids)`` pairs, stored with the
-          rows of every sink that has ``doc_ids=True``.
-
-        These three take texts; a ``VectorStore`` input with one of them raises. Checked
-        before any batch is read."""
-        if output == "proba":
-            self._check_proba()
-        return _lone_run.batches(
-            self,
-            batches,
-            output,
-            return_vectors,
-            workers,
-            backend,
-            sink,
-            vector_sink,
-            score_sink,
-            doc_ids,
-        )
 
     def _check_proba(self) -> None:
         if self._content.link is None:

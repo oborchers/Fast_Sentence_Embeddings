@@ -122,6 +122,7 @@ cdef enum:
     ENCODE_BAD_UTF8 = 2
     ENCODE_TOO_LONG = 3
     ENCODE_BROKEN = 4
+    ENCODE_TRUNCATED = 5
 
 
 cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
@@ -129,37 +130,6 @@ cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
     if extra <= b.capacity - b.size:
         return 0
     return _grow_nogil(b, extra)
-
-
-cdef class Workspace:
-    """The buffers one worker reuses for every batch it encodes from text.
-
-    A Workspace is used by one thread at a time; give every worker its own.
-    """
-
-    cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams, norm, run
-    cdef _Buffer lattice, cands  # the lattice and the candidates of unigram@1
-    cdef bint busy
-    # The tokens the tokenizer gave in the last encode, unknown words included
-    # (benchmarks/bench_vocab.py measures per token with it).
-    cdef readonly int64_t tokens_seen
-
-    def __dealloc__(self):
-        free(self.cand.data)
-        free(self.starts.data)
-        free(self.ends.data)
-        free(self.word.data)
-        free(self.tokens.data)
-        free(self.offsets.data)
-        free(self.ngram_offsets.data)
-        free(self.ngrams.data)
-        free(self.norm.data)
-        free(self.run.data)
-        free(self.lattice.data)
-        free(self.cands.data)
-
-    def __reduce__(self):
-        raise TypeError("a Workspace belongs to one worker and cannot be pickled")
 
 
 cdef class TextLookup:
@@ -359,7 +329,7 @@ cdef class TextLookup:
             _nogil_sections += 1
             with nogil:
                 status = _encode_span(self, &span, ws)
-            _raise_encode_status(status, data, &span, first_row)
+            _raise_encode_status(status, data, &span, first_row, ws)
             tokens = _to_array(&ws.tokens, np.uint32)
             batch_offsets = _to_array(&ws.offsets, np.int64)
             if not self.fasttext:
@@ -420,6 +390,9 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
     cdef const unsigned char *newline
     cdef const unsigned char *p = span.p
     cdef int status = _start_batch(ws)
+    cdef bint watched = ws.watch != 0  # picked once for the batch
+    if watched:
+        _start_lengths(ws)
     while status == ENCODE_OK and pos < last:
         if items == NULL:
             newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
@@ -430,7 +403,8 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
             start = items[pos]
             end = items[pos + 1]
             pos += 1
-        status = lookup._sentence(p + start, end - start, ws, &bad)
+        status = (_sentence_watched(lookup, p + start, end - start, ws, &bad) if watched
+                  else lookup._sentence(p + start, end - start, ws, &bad))
         if status == ENCODE_OK:
             sentence += 1
     span.start, span.end, span.sentence, span.bad = start, end, sentence, bad
@@ -438,12 +412,14 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
 
 
 cdef int _raise_encode_status(int status, const unsigned char[::1] data, _Span *span,
-                              first_row) except -1:
+                              first_row, Workspace ws) except -1:
     """Raise the error of a status of _encode_span, naming the row of the run."""
     if status == ENCODE_OK:
         return 0
     if status == ENCODE_NO_MEMORY:
         raise MemoryError("could not grow the buffers of the Workspace")
+    if status == ENCODE_TRUNCATED:
+        _truncation_error(ws, first_row + span.sentence)
     if status == ENCODE_BROKEN:
         raise AssertionError(f"the lattice of unigram@1 broke in sentence {first_row + span.sentence}")
     if status == ENCODE_TOO_LONG:

@@ -39,6 +39,7 @@ from fse._text import (
 
 from ._errors import earliest, first_rows
 from ._executor import run
+from ._lengths import LengthCollector, LengthSettings
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -119,13 +120,18 @@ class Pipeline:
         chunk_bytes: int | None = None,
         dtype: str = "float32",
         first_row: int = 0,
+        lengths: LengthSettings | None = None,
+        collector: LengthCollector | None = None,
     ) -> Rows | None:
         """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
         float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
         numbered from ``first_row`` there (the rows of a run before this source). Errors
         name their rows from ``first_row`` either way; rows returned count from 0.
 
-        Every argument is checked before the source is read.
+        ``lengths`` (checked settings) make the workers record what the length rule cuts, and
+        raise a ``TruncationError`` for the first sentence it would cut if they ask for it;
+        the record of each task is added to ``collector`` in commit order (the caller makes
+        the report of it). Every argument is checked before the source is read.
         """
         start = time.perf_counter()
         workers = check_workers(workers) or usable_cpus()
@@ -141,7 +147,9 @@ class Pipeline:
             source,
             workers,
             chunk_bytes,
-            self._row_bytes(dtype, inverse) + getattr(sink, "extra_row_bytes", 0),
+            self._row_bytes(dtype, inverse)
+            + getattr(sink, "extra_row_bytes", 0)
+            + (0 if lengths is None else lengths.row_bytes),
             base,
         )
         self._planned(source, tasks, workers, window, dtype, sink)
@@ -155,17 +163,18 @@ class Pipeline:
                 else ArrayRows(rows, self.output_dim, dtype)
             )
             sink = own
-        local = threading.local()
+        local = WorkerLocal(lengths)
         done = [0, 0]  # the rows and tasks committed, for the record of the run
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
             return task, sink.target(tbase + task.first_row, task.n_rows)
 
-        def work(item: tuple[Task, Stored]) -> Stored:
+        def work(item: tuple[Task, Stored]) -> Any:
             self._work(local, item[0], split_target(item[1], dtype, inverse), base)
-            return item[1]
+            return recorded(collector, local, item[0], item[1])
 
-        def commit(item: tuple[Task, Stored], rows: Stored):
+        def commit(item: tuple[Task, Stored], rows: Any):
+            rows = collect(collector, item[0], rows)
             sink.commit(tbase + item[0].first_row, rows)
             done[0] += item[0].n_rows
             done[1] += 1
@@ -313,12 +322,56 @@ class Pipeline:
             norms[...] = self.backend.inverse_norms(codes, first)
 
 
+class WorkerLocal(threading.local):
+    """What one worker thread keeps during a run (its workspace and scratch), and the length
+    settings of the run, which every thread sees (a plain attribute set in the calling
+    thread would not reach the workers)."""
+
+    def __init__(self, lengths: LengthSettings | None = None):
+        self.lengths = lengths
+
+
 def _workspace(local: threading.local) -> Any:
-    """The workspace of the worker thread, made at its first task."""
+    """The workspace of the worker thread, made at its first task; it records the length rule
+    if the run asks (``local.lengths``, set by ``infer``)."""
     workspace = getattr(local, "workspace", None)
     if workspace is None:
-        workspace = local.workspace = new_workspace()
+        lengths = getattr(local, "lengths", None)
+        workspace = local.workspace = new_workspace() if lengths is None else lengths.workspace()
     return workspace
+
+
+def recorded(collector: LengthCollector | None, local: threading.local, task: Task, found: Any):
+    """What a worker hands to the commit: ``found``, with the record of the length rule of its
+    task if the run collects one."""
+    return found if collector is None else (found, taken(local, task))
+
+
+def collect(collector: LengthCollector | None, task: Task, done: Any) -> Any:
+    """In the calling thread, in commit order: the record out of ``done`` into ``collector``;
+    returns what the worker found."""
+    if collector is None:
+        return done
+    found, record = done
+    collector.add(task.n_rows, record)
+    return found
+
+
+def taken(local: threading.local, task: Task) -> tuple:
+    """The record of the length rule of the task a worker just encoded, from its workspace;
+    an empty task encoded nothing, so it has no rows (and the workspace holds an older task)."""
+    if task.n_rows == 0:
+        return (0, 0, 0, 0, 0, 0, 0, 0), _empty_rows(local)
+    return local.workspace.take_lengths()
+
+
+def _empty_rows(local: threading.local) -> tuple | None:
+    lengths = local.lengths
+    if lengths is None or not lengths.store_rows:
+        return None
+    none = np.empty(0, np.int64)
+    counted = lengths.count_truncated
+    return np.empty(0, np.uint8), none, none, none if counted else None, none if counted else None
 
 
 def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
