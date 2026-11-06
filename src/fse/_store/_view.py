@@ -218,23 +218,41 @@ def _paths(paths: Any) -> list[Path]:
         if not isinstance(path, (str, os.PathLike)):
             raise TypeError(f"paths must hold str or path objects, not {type(path).__name__}")
         named.append(Path(path))
-    seen: dict[str, Path] = {}
+    seen: set[tuple[int, int] | str] = set()
     for path in named:
-        key = os.path.realpath(path)
+        key = _identity(path)
         if key in seen:
             raise ValueError(f"the store {path} is listed twice")
-        seen[key] = path
+        seen.add(key)
     return named
+
+
+def _identity(path: Path) -> tuple[int, int] | str:
+    """What names the directory ``path`` whatever its spelling: device and inode (so a
+    case-insensitive file system and links agree), else the resolved path of one that does
+    not exist, which opening it refuses."""
+    try:
+        found = path.stat()
+    except OSError:
+        return os.path.realpath(path)
+    return found.st_dev, found.st_ino
 
 
 def _ordered(stores: list) -> tuple[list, str, SourceRows | None]:
     """The stores in the order of the positions, the mode that gave it and the identity of the
     whole source if the stores are its parts. Stores of the mode ``source_rows@1`` must be all
-    parts of one source, each part once and finished; then the order is that of the parts.
-    Any other stores keep the order given."""
+    parts of one source, each part once and finished (and no store of another kind among
+    them); then the order is that of the parts. Stores without a source keep the order given."""
     resumes = [store._info.resume for store in stores]
-    if any(resume is None for resume in resumes):
+    if all(resume is None for resume in resumes):
         return stores, LIST_ORDER, None
+    for store, resume in zip(stores, resumes, strict=True):
+        if resume is None:
+            raise ValueError(
+                f"the store {store.path} has no source, but other stores of the view were "
+                f"written from one ({SOURCE_ROWS}); a view reads either the parts of one source "
+                "or stores without a source"
+            )
     first = resumes[0]
     for store, resume in zip(stores, resumes, strict=True):
         _same_source(first, resume, store.path)

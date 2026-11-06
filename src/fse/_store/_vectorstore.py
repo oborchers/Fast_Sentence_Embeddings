@@ -75,12 +75,13 @@ class VectorStore(MemberReaders):
     @classmethod
     def open_view(cls, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
         """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
-        other, without merging them on disk; see ``MemberReaders``. Every search, score and
-        read gives what one store holding the same rows gives, ties included. The stores
-        must hold the same encoder, dtype, dimension and document-ID mode; stores written
-        by ``Encoder.encode(shard=)`` must be all parts of one source, and are read in the
-        order of the parts. A view has no ``refresh`` and no ``path`` (``paths`` names
-        them), and ``close`` closes its stores."""
+        other, without merging them on disk (``paths``, ``members``, ``source`` and
+        ``locate`` describe them). Every search, score and read gives what one store holding
+        the same rows gives, ties included (with ``mode="exact"``; BLAS blocks follow the
+        shards). The stores must hold the same encoder, dtype, dimension and document-ID
+        mode; stores written by ``Encoder.encode(shard=)`` must be all parts of one source,
+        and are read in the order of the parts. A view has no ``refresh`` and no ``path``,
+        and ``close`` closes its stores."""
         return _opened_view(cls, paths, encoder=encoder, backend=backend)
 
     def __init__(self, *_args: Any, **_kwargs: Any):

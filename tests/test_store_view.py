@@ -222,6 +222,10 @@ def test_what_a_list_of_paths_must_be(tmp_path):
         VectorStore.open_view([parts[0], 3])
     with pytest.raises(ValueError, match="listed twice"):
         VectorStore.open_view([parts[0], parts[1], str(parts[0])])
+    link = tmp_path / "link"
+    link.symlink_to(parts[0], target_is_directory=True)
+    with pytest.raises(ValueError, match="listed twice"):
+        VectorStore.open_view([parts[0], link])
     with pytest.raises(TypeError, match="encoder must be an Encoder"):
         VectorStore.open_view(parts, encoder=3)
     with pytest.raises(ValueError, match="backend"):
@@ -267,12 +271,13 @@ def test_a_failed_open_closes_the_members_and_holds_no_mappings(tmp_path, monkey
 
     monkeypatch.setattr(NpyContainer, "open", opened)
     monkeypatch.setattr(VectorStore, "close", closing)
-    with pytest.raises((ValueError, CorruptArtifactError)):
+    with pytest.raises((ValueError, CorruptArtifactError)) as caught:
         VectorStore.open_view([parts[0], parts[1], bad])
-    gc.collect()
+    gc.collect()  # the error and its traceback are still held: only the cleared frames free them
     assert len(closed) == (2 if failing == "missing" else 3)
     assert refs
     assert all(ref() is None for ref in refs)
+    assert str(caught.value)
 
 
 # --- life cycle ----------------------------------------------------------------------

@@ -88,7 +88,8 @@ class ScoreStore(MemberReaders):
     ) -> ScoreStore:
         """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
         other, without merging them on disk; ``heads`` and ``name`` are checked against every
-        store as ``open`` does. Every read gives what one store holding the same rows gives.
+        store as ``open`` does. Every read gives what one store holding the same rows gives (blocks end at the
+        shards of the stores).
         The stores must hold the same heads, columns and paths, the same encoder and
         document-ID mode and, across their boundaries, the same thresholds; stores written by
         ``Encoder.encode(shard=)`` must be all parts of one source, and are read in the order

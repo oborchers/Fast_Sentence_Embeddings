@@ -98,12 +98,18 @@ def test_parts_of_another_source_or_cut_are_refused(stores, tmp_path):
         VectorStore.open_view([parts[0], halves])
 
 
-def test_stores_without_a_source_keep_the_order_given(stores, tmp_path):
+def test_stores_with_and_without_a_source_are_not_mixed(stores, tmp_path):
     plain = tmp_path / "plain"
     with ShardSink(plain, ENCODER, shard_rows=3) as sink:
         ENCODER.encode(["w1 w2"] * 5, sink=sink, workers=1)
-    with VectorStore.open_view([plain, stores / "part1"]) as view:
-        assert view.paths == (plain, stores / "part1")
+    for paths in ([plain, stores / "part1"], [stores / "part1", plain]):
+        with pytest.raises(ValueError, match="has no source"):
+            VectorStore.open_view(paths)
+    with VectorStore.open_view([plain]) as view:
         assert view.source is None
-        assert [dict(m["source"] or {}).get("shard") for m in view.members] == [None, [1, 3]]
-        assert len(view) == 5 + 16_384
+        assert dict(view.members[0]) == {
+            "path": plain,
+            "first_row": 0,
+            "rows": 5,
+            "source": None,
+        }
