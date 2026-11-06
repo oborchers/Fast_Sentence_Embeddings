@@ -6,6 +6,7 @@ import pytest
 from fse import ScoreStore
 from support import scores as sc
 from support.logs import expect_log
+from support.resume_heads import run
 from support.views import SIZES, score_parts
 
 pytestmark = pytest.mark.filterwarnings("ignore::ResourceWarning")
@@ -144,3 +145,23 @@ def test_verify_and_the_event(tmp_path):
         view = ScoreStore.open_view(parts)
     with view, expect_log("scores.verified", rows=6), expect_log("scores.verified", rows=7):
         view.verify()
+
+
+def test_the_parts_of_a_resumable_score_run_are_read_in_the_order_of_the_source(tmp_path):
+    source = [f"w{i % 200} w{(i * 7) % 200}" for i in range(49_252)]  # three parts
+    run(tmp_path / "whole", source, vectors=False, rows=8192)
+    for k in range(3):
+        run(tmp_path / f"part{k}", source, vectors=False, rows=4096, shard=(k, 3))
+    paths = [tmp_path / f"part{k}" / "s" for k in (2, 0, 1)]
+    with ScoreStore.open(tmp_path / "whole" / "s") as one, ScoreStore.open_view(paths) as view:
+        assert view.paths == tuple(tmp_path / f"part{k}" / "s" for k in range(3))
+        assert dict(view.source) == dict(one.source)
+        assert view.source["shard"] == [0, 1]
+        for head in one.heads:
+            assert bits(view.get_scores(head, one.heads[head].stored)) == bits(
+                one.get_scores(head, one.heads[head].stored)
+            )
+    with ScoreStore.open_view(paths[1:]) as partial:
+        assert partial.source is None
+        assert [dict(m["source"])["shard"] for m in partial.members] == [[0, 3], [1, 3]]
+        assert len(partial) == 2 * 16_384
