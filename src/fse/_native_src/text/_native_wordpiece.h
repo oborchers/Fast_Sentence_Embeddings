@@ -18,6 +18,15 @@
 #ifndef FSE_NATIVE_WORDPIECE_H
 #define FSE_NATIVE_WORDPIECE_H
 
+/* The step functions of a wordpiece piece have two callers (the default sentence and the one
+   that records the length rule, _native_text_watched.pxi). Each must be inlined into both, as
+   it was into the one, or the default path calls them. */
+#if defined(__GNUC__) || defined(__clang__)
+#define FSE_WP_INLINE static inline __attribute__((always_inline))
+#else
+#define FSE_WP_INLINE static inline
+#endif
+
 #include <stdint.h>
 #include <string.h>
 
@@ -105,7 +114,7 @@ static inline int64_t fse_wp_step(const uint8_t *p, int64_t *i, int64_t n, uint8
 /* Steps 3.1 to 3.5 of the piece p[0:n] into out, which holds 3 n bytes; run holds 3 n
    items (each is at least one byte of out). Returns the bytes written, or -1 - i for the
    first invalid UTF-8 at p[i]. The generic path: every code point by fse_wp_step. */
-static int64_t fse_wp_normalize(const uint8_t *p, int64_t n, uint8_t *out, uint32_t *run) {
+FSE_WP_INLINE int64_t fse_wp_normalize(const uint8_t *p, int64_t n, uint8_t *out, uint32_t *run) {
     int64_t i = 0, m = 0, r = 0;
     while (i < n) {
         m = fse_wp_step(p, &i, n, out, run, &r, m);
@@ -178,7 +187,7 @@ static inline int fse_wp_bytes_below(uint64_t mask) {
    byte is its table entry. A byte that is not ASCII, and any byte while the run holds
    marks (an ASCII byte ends the run, a removed one does not), takes fse_wp_step. out has
    3 n bytes, so the 8 bytes stored at out + m always fit (m <= 3 i and i + 8 <= n). */
-static int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
+FSE_WP_INLINE int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
                                       uint32_t *run) {
     int64_t i = 0, m = 0, r = 0;
     while (i < n) {
@@ -275,7 +284,7 @@ static inline uint64_t fse_wp_not_alnum8(uint64_t x) {
    lookup for them. Inside a word, at an ASCII byte, the bytes of a-z and 0-9 (word bytes,
    as module init checks) among the next 8 are skipped at once while at least 8 bytes are
    left. */
-static inline int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
+FSE_WP_INLINE int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
                                          int64_t *start, int64_t *end) {
     int64_t i = *pos;
     int len;
