@@ -2,7 +2,7 @@
 
 Binding for score stores (`fse._store._scores_info`, `_scores_format`, `_score_shard`, `fse._scores`). DR-162 (Scores und Vorhersagen dauerhaft speichern).
 
-A score store keeps what the heads of a group gave for every text, so that labels, new thresholds and filters need no new inference. It is a directory of shards like a store of sentence vectors ([store.md](store.md), "Shared shard base"), written by `fse.ScoreSink` and read by `fse.ScoreStore`.
+A score store keeps what the heads of a group, or a single head, gave for every text, so that labels, new thresholds and filters need no new inference. It is a directory of shards like a store of sentence vectors ([store.md](store.md), "Shared shard base"), written by `fse.ScoreSink` and read by `fse.ScoreStore`.
 
 ### What is stored
 
@@ -64,7 +64,15 @@ The only rule between shards is that two neighbours have equal thresholds (`summ
 - `HeadsPlan.row_bytes` counts the second outputs, the sink matrix and the IDs per row, so the window keeps its 512 MiB with a sink. The queues of the sink (16 pieces and 64 MiB per thread) and the shared buffer of a task over a shard boundary are outside the window. Without a sink the sum is the one of a group without one.
 - `HeadsBatch.durable_rows` is, after each batch, the sink's `durable_rows` once `publish` ran: run-relative, monotonic, at most the rows given so far. `flush` runs after the last batch of a complete iteration, so the last batch can report an older value; the consumer reads `sink.durable_rows` for the final count. Stopping early does not flush: close the sink. With `durability="none"` the value is 0.
 - `doc_ids=True` takes `(texts, doc_ids)` batches as `Encoder.encode_batches(doc_ids=True)` does (lists, int64 arrays, Arrow int64 columns without nulls); the mode must equal that of the sink.
-- `Encoder`, `Classifier` and `Regressor` refuse a `ScoreSink` before they read anything; only a group writes it.
+- The `Encoder` refuses a `ScoreSink` before it reads anything, and so does `sink=` of a `Classifier` or `Regressor`, with the way to give it: `score_sink=`. `fse.Heads`, `Classifier` and `Regressor` write it.
+
+### A single head
+
+`Classifier.predict_batches` and `Regressor.predict_batches` take `vector_sink=`, `score_sink=` and `doc_ids=` with the rules of `Heads` (DR-243, Umwege über fse.Heads bei einzelnen Köpfen entfernen), because a single head is a group of one on the same runtime and the same code (`fse._head._sink_run`). `ScoreSink(path, model, name=..., stored=...)` and `ScoreStore.open(path, heads=model, name=...)` take a single head. The name is required and has no default: it is written to the store (`fse.score_heads`, `thresholds.<name>`), the reader finds the head by it, and a default of fse would stand in every store from 2.1 on. `ScoreStore.open` compares name, model and encoder as it does for a group, and the store must hold exactly one head.
+
+The same input gives the same files as `Heads(name=model)` with the same build, batches in the same order, `doc_ids`, `name`, `stored`, path, `shard_rows` and `durability`, from an empty start or the same earlier rows: `store.json`, the manifests, the shard grid, the metadata and the tensors. A single head and a group of one append to each other's stores in both directions. The path is `LinearModel.path(return_vectors=...)`: `folded` or `unfolded` for raw means, `normalized`, or `standalone` (no vectors).
+
+`sink=` keeps its role of 2.0 (the outputs, or with `return_vectors=True` the vectors, without IDs) and excludes the three keywords. A `VectorStore` input is refused with them: the score of float16 and int8 rows has no path name and no bit rule yet, so the outputs of a store keep their way out through `sink=` and a later ticket decides whether and under which path name a store writes scores. A foreign sink with `has_doc_ids = True` that gets a call without IDs runs as in 2.0; the shard sinks of fse in ID mode, which 2.0 did not have, are refused with the way to pass them.
 
 ### Vectors and scores in one run
 
@@ -73,11 +81,11 @@ The only rule between shards is that two neighbours have equal thresholds (`summ
 Checks, all before `iter(batches)` and in this order:
 
 1. The checks of a group as before (workers, backend, `output=`, a standalone group has no vectors).
-2. `vector_sink` needs `return_vectors=True`, else `ValueError`: the heads on raw means then take the unfolded path (`Heads.paths`), and the score store records the path.
+2. `vector_sink` needs `return_vectors=True`, else `ValueError`: the heads on raw means then take the unfolded path (`Heads.paths`, `path()`), and the score store records the path.
 3. `vector_sink` is checked as a sink of encoder rows: protocol, encoder fingerprint, `dim`, `flush`, `publish` and `durable_rows`. A `ScoreSink` is refused.
 4. A `ShardSink` (any `ShardSinkBase`) must be open and have reserved no row.
 5. The `score_sink` is checked as above (names, models, encoder).
-6. `doc_ids=True` is needed exactly when each sink given stores IDs; `has_doc_ids` that is not a bool with `doc_ids=True` is a `TypeError`.
+6. `doc_ids=True` is needed exactly when each sink given stores IDs (a shard sink of fse in ID mode needs it; a foreign sink with `True` runs without IDs as in 2.0); `has_doc_ids` that is not a bool with `doc_ids=True` is a `TypeError`.
 7. Two shard stores need two folders that do not contain each other.
 8. Two shard stores that already hold rows of different numbers take a run only with `doc_ids=True`: without IDs the position is the only link, and an append would shift it. This is checked before the attach if the score store exists, with both numbers in the message.
 9. Mixed durability and sinks without `durable_rows` are allowed.
@@ -132,4 +140,4 @@ Related practice: a write to two systems without a shared transaction gives at-l
 
 ### Errors
 
-Before the first text or block: a `heads` that is no `fse.Heads`; a `stored=` that does not fit the table; an unknown head name in `stored`, `output`, `thresholds` or `get_scores`; appending with other heads, models, paths, ID mode or thresholds; a full append behind a tagged prefix; a root over 1 MiB; a `ScoreSink` given to something else than a group, a `target` before the attach and a second attach; an output that cannot be derived. Damage (an unreadable shard, other thresholds between neighbours, a gap, an orphan) is a `CorruptArtifactError` naming the shard, its first row and `fse.repair_store(path)`. An unknown version, kind, rule, link or path is an `UnsupportedArtifactError`.
+Before the first text or block: a `heads` that is no `fse.Heads`, `Classifier` or `Regressor`, or a single head without `name=`; a `stored=` that does not fit the table; an unknown head name in `stored`, `output`, `thresholds` or `get_scores`; appending with other heads, models, paths, ID mode or thresholds; a full append behind a tagged prefix; a root over 1 MiB; a `ScoreSink` given to something else than `score_sink=` of a head or a group, a `target` before the attach and a second attach; an output that cannot be derived. Damage (an unreadable shard, other thresholds between neighbours, a gap, an orphan) is a `CorruptArtifactError` naming the shard, its first row and `fse.repair_store(path)`. An unknown version, kind, rule, link or path is an `UnsupportedArtifactError`.

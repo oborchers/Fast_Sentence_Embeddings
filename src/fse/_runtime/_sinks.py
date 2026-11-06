@@ -57,9 +57,8 @@ class Sink(Protocol):
     ID per row; ``encode`` then needs ``doc_ids=`` and ``encode_batches`` ``doc_ids=True``,
     and every commit is ``commit(first_row, rows, doc_ids=ids)``, ``ids`` a read-only
     one-dimensional int64 array with one ID per committed row; other values are ignored. A
-    call without IDs gives a sink with True of its own, not one of fse's shard sinks, the
-    same rows without IDs, as in 2.0). A sink
-    takes one run: the rows of a second run into it would start again at row 0, which it
+    call without IDs gives a sink of your own with True the rows without IDs, as in 2.0; a
+    shard sink of fse in ID mode is refused then). A sink takes one run: the rows of a second run into it would start again at row 0, which it
     refuses.
     """
 
