@@ -1,5 +1,7 @@
 """A window onto the rows of a source: the rows after a point, as a source of their own."""
 
+import os
+
 import numpy as np
 import pytest
 
@@ -70,7 +72,8 @@ def test_a_window_of_a_file_raises_when_the_file_changes(tmp_path):
     path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     with FileSource(path) as whole:
         window = Window.of_bytes(whole, 0, whole.nbytes, len(SENTENCES))
-        path.write_text("changed\n", encoding="utf-8", newline="\n")
+        stat = path.stat()  # not rewritten: Windows refuses to truncate a mapped file
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
         with pytest.raises(RuntimeError, match="changed while it was read"):
             ENCODER._pipeline("cpu").infer(window, workers=1)
 
