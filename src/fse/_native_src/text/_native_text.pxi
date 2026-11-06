@@ -122,6 +122,7 @@ cdef enum:
     ENCODE_BAD_UTF8 = 2
     ENCODE_TOO_LONG = 3
     ENCODE_BROKEN = 4
+    ENCODE_TRUNCATED = 5
 
 
 cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
@@ -129,37 +130,6 @@ cdef inline int _ensure(_Buffer *b, Py_ssize_t extra) noexcept nogil:
     if extra <= b.capacity - b.size:
         return 0
     return _grow_nogil(b, extra)
-
-
-cdef class Workspace:
-    """The buffers one worker reuses for every batch it encodes from text.
-
-    A Workspace is used by one thread at a time; give every worker its own.
-    """
-
-    cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams, norm, run
-    cdef _Buffer lattice, cands  # the lattice and the candidates of unigram@1
-    cdef bint busy
-    # The tokens the tokenizer gave in the last encode, unknown words included
-    # (benchmarks/bench_vocab.py measures per token with it).
-    cdef readonly int64_t tokens_seen
-
-    def __dealloc__(self):
-        free(self.cand.data)
-        free(self.starts.data)
-        free(self.ends.data)
-        free(self.word.data)
-        free(self.tokens.data)
-        free(self.offsets.data)
-        free(self.ngram_offsets.data)
-        free(self.ngrams.data)
-        free(self.norm.data)
-        free(self.run.data)
-        free(self.lattice.data)
-        free(self.cands.data)
-
-    def __reduce__(self):
-        raise TypeError("a Workspace belongs to one worker and cannot be pickled")
 
 
 cdef class TextLookup:
@@ -260,6 +230,7 @@ cdef class TextLookup:
         cdef int64_t err
         cdef uINT_t index
         cdef size_t written
+        cdef int status
         if n > _MAX_SENTENCE_BYTES:
             return ENCODE_TOO_LONG
         if self.tokenizer == FSE_TOKENIZER_WORDPIECE:
@@ -313,6 +284,10 @@ cdef class TextLookup:
                 ws.ngrams.size += written * sizeof(uINT_t)
                 if _push_i64_nogil(&ws.ngram_offsets, ws.ngrams.size // sizeof(uINT_t)):
                     return ENCODE_NO_MEMORY
+        if ws.watch:  # no length rule: the unknown words are all that is lost
+            status = _note_row(ws, 0, 0 if self.fasttext else out.n_tokens - kept, 0, 0, 0, 0)
+            if status != ENCODE_OK:
+                return status
         ws.tokens.size += kept * sizeof(uINT_t)
         if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
             return ENCODE_NO_MEMORY
@@ -359,7 +334,7 @@ cdef class TextLookup:
             _nogil_sections += 1
             with nogil:
                 status = _encode_span(self, &span, ws)
-            _raise_encode_status(status, data, &span, first_row)
+            _raise_encode_status(status, data, &span, first_row, ws)
             tokens = _to_array(&ws.tokens, np.uint32)
             batch_offsets = _to_array(&ws.offsets, np.int64)
             if not self.fasttext:
@@ -401,6 +376,8 @@ cdef int _span_of(_Span *span, const unsigned char[::1] data, offsets, Py_ssize_
 cdef int _start_batch(Workspace ws) noexcept nogil:
     """Empty the batch buffers of ws and start its offsets at 0."""
     ws.tokens_seen = 0
+    if ws.watch:
+        _start_lengths(ws)
     ws.tokens.size = 0
     ws.offsets.size = 0
     ws.ngram_offsets.size = 0
@@ -438,12 +415,14 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
 
 
 cdef int _raise_encode_status(int status, const unsigned char[::1] data, _Span *span,
-                              first_row) except -1:
+                              first_row, Workspace ws) except -1:
     """Raise the error of a status of _encode_span, naming the row of the run."""
     if status == ENCODE_OK:
         return 0
     if status == ENCODE_NO_MEMORY:
         raise MemoryError("could not grow the buffers of the Workspace")
+    if status == ENCODE_TRUNCATED:
+        _truncation_error(ws, first_row + span.sentence)
     if status == ENCODE_BROKEN:
         raise AssertionError(f"the lattice of unigram@1 broke in sentence {first_row + span.sentence}")
     if status == ENCODE_TOO_LONG:

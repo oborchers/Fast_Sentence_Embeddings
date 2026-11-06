@@ -307,7 +307,7 @@ cdef int _pool_buffer(TextLookup lookup, WeightedMean kernel, Workspace ws, text
             if result.encode == ENCODE_OK:
                 _pool_stages(kernel, ws, s, result)
         fse_fpenv_pop(saved)
-        _raise_encode_status(result.encode, view, &span, first_row)
+        _raise_encode_status(result.encode, view, &span, first_row, ws)
     finally:
         ws.busy = False
     return 0
@@ -334,7 +334,7 @@ cdef int _pool_arrow(WeightedMean kernel, TextLookup lookup, Workspace ws, Arrow
                 _pool_stages(kernel, ws, s, result)
         fse_fpenv_pop(saved)
         _arrow_encode_status(result.encode, row.p, row.n, row.bad, row.sentence,
-                             first_row + row.sentence)
+                             first_row + row.sentence, ws)
     finally:
         ws.busy = False
         column._readers -= 1

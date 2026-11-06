@@ -470,7 +470,8 @@ cdef class ArrowColumn:
             _nogil_sections += 1
             with nogil:
                 status = self._encode_rows(lookup, first, last, ws, &row)
-            _arrow_encode_status(status, row.p, row.n, row.bad, row.sentence, first_row + row.sentence)
+            _arrow_encode_status(status, row.p, row.n, row.bad, row.sentence,
+                                 first_row + row.sentence, ws)
             tokens = _to_array(&ws.tokens, np.uint32)
             offsets = _to_array(&ws.offsets, np.int64)
             if not lookup.fasttext:
