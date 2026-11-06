@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import itertools
 import shutil
-from contextlib import ExitStack
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 PROFILE = "linear-heads-scores@1"
