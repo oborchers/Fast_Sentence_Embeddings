@@ -38,14 +38,22 @@ def _group_components(cell, prepared, count, output, components):
         # The reference run (the logits of every head and their side-by-side copy), the IDs
         # and the sink matrix of the window.
         components["score_reference_and_ids"] = count * (cell["heads"] * 16 * 3 + 16)
+        if cell["sinks"] != "scores":
+            # The vectors of the reference run beside the sink's own buffers, and with both
+            # stores a second set of writer queues (three threads of 64 MiB) outside the window.
+            components["vector_reference"] = output
+            components["second_writer_queues"] = 3 * 64 * 1024**2 * (cell["sinks"] == "both")
 
 
-def _score_sink_disk(cell, count):
-    """The store of the stage head-group-score-sink: the scores of every head (four logits of
-    four bytes) and the eight-byte IDs of each row, before and after the sync."""
+def _score_sink_disk(cell, count, dim):
+    """The stores of the stage head-group-score-sink: the scores of every head (four logits of
+    four bytes), the vectors (a float32 row, its inverse norm) and the eight-byte IDs of each
+    row, before and after the sync."""
     if cell["stage"] != "head-group-score-sink":
         return 0
-    return count * (cell["heads"] * 16 + 8) * cell["iterations"] * 2
+    row = (cell["heads"] * 16 + 8) * (cell["sinks"] != "vectors")
+    row += (dim * 4 + 4 + 8) * (cell["sinks"] != "scores")
+    return count * row * cell["iterations"] * 2
 
 
 def admission(cell, prepared, count, work, requested_limit=None):
@@ -99,7 +107,7 @@ def admission(cell, prepared, count, work, requested_limit=None):
     elif cell["stage"] in ("store-open", "store-search"):
         components["mapped_store_and_filter"] = output + count * 48
         disk += (output + count * 8) * 2
-    disk += _score_sink_disk(cell, count)
+    disk += _score_sink_disk(cell, count, dim)
     free_disk = shutil.disk_usage(work).free
     return {
         **LABEL,

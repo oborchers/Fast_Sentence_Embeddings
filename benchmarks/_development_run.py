@@ -189,6 +189,7 @@ def _cell(args, cell, prepared, ledger):
                 "id_chunks",
                 "heads",
                 "return_vectors",
+                "sinks",
                 "base_heads_mode",
                 "candidate_heads_mode",
             )

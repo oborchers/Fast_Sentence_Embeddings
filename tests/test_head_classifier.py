@@ -209,20 +209,25 @@ def test_a_sink_with_document_ids_is_refused_before_a_batch_is_read(tmp_path):
     model = _model(2)
     with (
         fse.ShardSink(tmp_path / "s", model.encoder, doc_ids=True) as sink,
-        pytest.raises(ValueError, match="predict from the store"),
+        pytest.raises(
+            ValueError,
+            match=r"one pass with fse\.Heads\(name=model\)\.predict_batches\(.*vector_sink=sink",
+        ),
     ):
         model.predict_batches(_poisoned(), return_vectors=True, sink=sink)
     with fse.VectorStore.open(tmp_path / "s") as store:
         assert len(store) == 0
 
 
-def test_the_hint_names_the_texts_when_the_head_and_the_store_differ(tmp_path):
+def test_the_hint_is_the_same_when_the_head_and_the_store_differ(tmp_path):
     encoder = finished(normalize=False)
     model = fse.Classifier.from_arrays(
         encoder, np.ones((2, encoder.output_dim), F32), labels=["a", "b"], normalized=True
     )
     with (
         fse.ShardSink(tmp_path / "s", encoder, doc_ids=True) as sink,
-        pytest.raises(ValueError, match=r"predict from the texts.*reads normalized rows"),
+        pytest.raises(
+            ValueError, match=r"Classifier\.predict_batches does not give.*vector_sink=sink"
+        ),
     ):
         model.predict_batches(_poisoned(), return_vectors=True, sink=sink)

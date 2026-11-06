@@ -85,18 +85,14 @@ def _refuse_doc_ids(model: Any, sink: Any, *, vectors: bool) -> None:
     if not vectors:
         raise ValueError(
             "the sink stores document IDs; the outputs of a head carry none, so give a sink "
-            "without doc_ids"
+            "without doc_ids; store the scores with fse.Heads(name=model).predict_batches(..., "
+            "score_sink=fse.ScoreSink(path, heads, doc_ids=True), doc_ids=True)"
         )
-    start = (
-        "the sink stores document IDs, which predict_batches does not give; write the vectors "
-        "with Encoder.encode_batches(..., doc_ids=True) into the sink"
-    )
-    if model.normalized == ("normalize@1" in model.encoder.steps):
-        raise ValueError(f"{start}, then predict from the store with predict_batches(store)")
-    reads = "normalized" if model.normalized else "raw"
     raise ValueError(
-        f"{start} and predict from the texts with predict_batches(texts) without that sink "
-        f"(this head reads {reads} rows, the store holds the other)"
+        f"the sink stores document IDs, which {type(model).__name__}.predict_batches does not "
+        "give; write the vectors and the predictions in one pass with "
+        "fse.Heads(name=model).predict_batches(batches, return_vectors=True, vector_sink=sink, "
+        "doc_ids=True)"
     )
 
 

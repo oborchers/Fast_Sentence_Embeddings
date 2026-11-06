@@ -67,7 +67,7 @@ def _poisoned():
 
 def test_a_document_id_sink_takes_no_outputs():
     model = _model(3)
-    with pytest.raises(ValueError, match="carry none"):
+    with pytest.raises(ValueError, match=r"carry none.*score_sink=fse\.ScoreSink"):
         check_output_sink(model, _IdSink(3), "decision")
 
 
