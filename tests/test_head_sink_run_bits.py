@@ -23,7 +23,7 @@ def _heads(dtype="float32", normalize=False, head_normalized=False):
     return fse.Heads(quality=sh.regressor(enc), toxic=toxic, topic=topic)
 
 
-def _separate(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype, store=None):
+def _separate(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype, stored=None):
     """The vector store of encode_batches and the score store of a run without a vector sink."""
     batches = sr.batches_of(texts, batch, ids)
     with fse.ShardSink(
@@ -39,7 +39,7 @@ def _separate(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype,
             )
         )
     with fse.ScoreSink(
-        tmp_path / "rs", heads, store=store, shard_rows=shard_rows, doc_ids=ids is not None
+        tmp_path / "rs", heads, stored=stored, shard_rows=shard_rows, doc_ids=ids is not None
     ) as sink:
         list(
             heads.predict_batches(
@@ -52,7 +52,7 @@ def _separate(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype,
         )
 
 
-def _together(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype, store=None):
+def _together(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype, stored=None):
     with (
         fse.ShardSink(
             tmp_path / "v",
@@ -62,7 +62,7 @@ def _together(tmp_path, heads, texts, ids, *, batch, workers, shard_rows, dtype,
             doc_ids=ids is not None,
         ) as vectors,
         fse.ScoreSink(
-            tmp_path / "s", heads, store=store, shard_rows=shard_rows, doc_ids=ids is not None
+            tmp_path / "s", heads, stored=stored, shard_rows=shard_rows, doc_ids=ids is not None
         ) as scores,
     ):
         return list(
@@ -87,14 +87,14 @@ def _check(
     workers=2,
     shard_rows=7,
     dtype="float32",
-    store=None,
+    stored=None,
 ):
     arguments = {
         "batch": batch,
         "workers": workers,
         "shard_rows": shard_rows,
         "dtype": dtype,
-        "store": store,
+        "stored": stored,
     }
     _separate(tmp_path, heads, texts, ids, **arguments)
     got = _together(tmp_path, heads, texts, ids, **arguments)
@@ -124,8 +124,8 @@ def test_tasks_over_shard_boundaries_and_workers(tmp_path, workers, shard_rows):
 
 def test_the_stored_output_is_independent_of_the_returned_one(tmp_path):
     heads, texts = _heads("float16"), sh.texts(40)
-    store = {"quality": "values", "toxic": "proba", "topic": "decision"}
-    _check(tmp_path, heads, texts, store=store)
+    stored = {"quality": "values", "toxic": "proba", "topic": "decision"}
+    _check(tmp_path, heads, texts, stored=stored)
 
 
 def test_returned_outputs_are_those_of_a_run_with_vectors_and_without_sinks(tmp_path):

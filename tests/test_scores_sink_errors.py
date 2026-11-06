@@ -13,9 +13,9 @@ PATHS = {"quality": "folded", "toxic": "folded", "topic": "folded"}
 @pytest.mark.parametrize(
     ("kwargs", "error", "message"),
     [
-        ({"store": "labels"}, ValueError, "store must be one of"),
-        ({"store": "proba"}, ValueError, "head 'quality' cannot store 'proba'"),
-        ({"store": {"nope": "decision"}}, ValueError, "names the head 'nope'"),
+        ({"stored": "labels"}, ValueError, "stored must be one of"),
+        ({"stored": "proba"}, ValueError, "head 'quality' cannot store 'proba'"),
+        ({"stored": {"nope": "decision"}}, ValueError, "names the head 'nope'"),
         ({"durability": "sometimes"}, Exception, "durability"),
         ({"shard_rows": 0}, Exception, "shard_rows"),
         ({"doc_ids": "yes"}, Exception, "doc_ids"),

@@ -16,7 +16,7 @@ STORED = {"quality": "values", "toxic": "proba", "topic": "decision"}
 
 @pytest.fixture
 def store(tmp_path):
-    sc.write_store(tmp_path / "s", sh.group(), sh.texts(40), store=STORED, doc_ids=True)
+    sc.write_store(tmp_path / "s", sh.group(), sh.texts(40), stored=STORED, doc_ids=True)
     with fse.ScoreStore.open(tmp_path / "s") as opened:
         yield opened
 

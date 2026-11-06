@@ -6,8 +6,8 @@
 
 """The schema of the scores a group of heads stores (docs/architecture/scores.md, "Schema").
 
-``ScoreSchema.from_heads(heads, store)`` reads what each head is (its model fingerprint, task,
-rule, link, labels) and what it stores (``store=``: the decision (logits) or the
+``ScoreSchema.from_heads(heads, stored)`` reads what each head is (its model fingerprint, task,
+rule, link, labels) and what it stores (``stored=``: the decision (logits) or the
 probabilities of a classifier, the values of a regressor), and lays the heads side by side in
 the columns of ``scores``. The path of each head is not known yet: a head on raw means runs
 folded without the vectors and unfolded with them, which only ``Heads.predict_batches``
@@ -43,15 +43,15 @@ class ScoreSchema:
     thresholds: Mapping[str, ndarray]
 
     @classmethod
-    def from_heads(cls, heads: Any, store: Any = None) -> ScoreSchema:
-        """The schema of ``heads`` storing ``store`` (None: the decision of every classifier
+    def from_heads(cls, heads: Any, stored: Any = None) -> ScoreSchema:
+        """The schema of ``heads`` storing ``stored`` (None: the decision of every classifier
         and the values of every regressor; one name for all heads; or a mapping of head names
         to names). Raises before anything is created."""
         if not isinstance(heads, Heads):
             raise TypeError(f"heads must be a fse.Heads, not {type(heads).__name__}")
-        stored = _stored(heads, store)
+        choices = _stored(heads, stored)
         found, limits, column = [], {}, 0
-        for (name, model), what in zip(heads.items(), stored, strict=True):
+        for (name, model), what in zip(heads.items(), choices, strict=True):
             head = _head(name, model, what, column)
             found.append(head)
             column = head.columns[1]
@@ -101,21 +101,21 @@ def _frozen(array: ndarray | None) -> ndarray:
     return np.ascontiguousarray(array, dtype=np.float32)
 
 
-def _stored(heads: Mapping[str, Any], store: Any) -> list[str]:
-    """What each head stores, in head order, from ``store``."""
-    if store is None:
+def _stored(heads: Mapping[str, Any], stored: Any) -> list[str]:
+    """What each head stores, in head order, from ``stored``."""
+    if stored is None:
         given: dict[str, str | None] = {}
-    elif isinstance(store, str):
-        given = dict.fromkeys(heads, store)
-    elif isinstance(store, Mapping):
-        given = dict(store)
+    elif isinstance(stored, str):
+        given = dict.fromkeys(heads, stored)
+    elif isinstance(stored, Mapping):
+        given = dict(stored)
         for key in given:
             if not isinstance(key, str) or key not in heads:
-                raise ValueError(f"store names the head {key!r}, but the heads are {list(heads)}")
+                raise ValueError(f"stored names the head {key!r}, but the heads are {list(heads)}")
     else:
         raise TypeError(
-            "store must be None, a name or a mapping of head names to names, "
-            f"not {type(store).__name__}"
+            "stored must be None, a name or a mapping of head names to names, "
+            f"not {type(stored).__name__}"
         )
     return [_choice(name, model, given.get(name)) for name, model in heads.items()]
 
@@ -125,7 +125,7 @@ def _choice(name: str, model: Any, what: Any) -> str:
     if what is None:
         return "values" if regressor else "decision"
     if not isinstance(what, str) or what not in STORED:
-        raise ValueError(f"store must be one of {', '.join(STORED)}, not {what!r} (head {name!r})")
+        raise ValueError(f"stored must be one of {', '.join(STORED)}, not {what!r} (head {name!r})")
     if (what == "values") != regressor:
         raise ValueError(
             f"head {name!r} cannot store {what!r}: "

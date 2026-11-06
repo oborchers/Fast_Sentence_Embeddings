@@ -15,9 +15,9 @@ def bits(x):
     return np.ascontiguousarray(x, dtype=F32).view(np.uint32)
 
 
-def _write(path, heads, texts, *, store=None, batch=15, workers=2, output=None, **kwargs):
+def _write(path, heads, texts, *, stored=None, batch=15, workers=2, output=None, **kwargs):
     batches = [texts[i : i + batch] for i in range(0, len(texts), batch)]
-    with fse.ScoreSink(path, heads, store=store, shard_rows=16) as sink:
+    with fse.ScoreSink(path, heads, stored=stored, shard_rows=16) as sink:
         got = list(
             heads.predict_batches(
                 batches, score_sink=sink, output=output, workers=workers, **kwargs
@@ -44,7 +44,7 @@ def test_the_stored_values_and_logits_are_the_bits_of_the_same_run_without_a_sin
 
 def test_stored_probabilities_are_those_of_the_run_without_a_sink(tmp_path):
     heads, texts = sh.group(), sh.texts(40)
-    _write(tmp_path / "s", heads, texts, store={"toxic": "proba", "topic": "proba"})
+    _write(tmp_path / "s", heads, texts, stored={"toxic": "proba", "topic": "proba"})
     _, scores, _ = sc.read_back(tmp_path / "s")
     ref = _reference(heads, texts, {"toxic": "proba", "topic": "proba"})
     np.testing.assert_array_equal(bits(scores[:, 1:4]), bits(ref["toxic"]))

@@ -109,7 +109,7 @@ def test_the_comparison_is_strictly_above_the_cutoff(tmp_path):
     enc = sh.encoder()
     model = sh.classifier(enc, 2, link="multilabel", labels=["a", "b"])
     heads = fse.Heads(m=model)
-    sc.write_store(tmp_path / "s", heads, sh.texts(8), store="proba")
+    sc.write_store(tmp_path / "s", heads, sh.texts(8), stored="proba")
     with fse.ScoreStore.open(tmp_path / "s") as store:
         proba = store.get_scores("m", "proba")
         edge = float(proba[0, 0])
@@ -136,7 +136,7 @@ def test_thresholds_for_heads_that_have_none_are_refused_before_a_row_is_read(de
 def test_what_cannot_be_derived_raises_before_a_row_is_read(tmp_path):
     heads, texts = _group(), sh.texts(10)
     stored = {"topic": "proba", "toxic": "proba", "flag": "proba"}
-    sc.write_store(tmp_path / "p", heads, texts, store=stored)
+    sc.write_store(tmp_path / "p", heads, texts, stored=stored)
     with fse.ScoreStore.open(tmp_path / "p") as store:
         _joined(store, output={"toxic": "labels", "topic": "proba", "flag": "proba"})
         with pytest.raises(ValueError, match=r"cannot give 'labels'.*linear@1"):
@@ -159,7 +159,7 @@ def test_linear2_labels_of_a_single_label_head_come_from_stored_probabilities(tm
     enc = sh.encoder()
     model = sh.classifier(enc, 4, seed=6)
     heads = fse.Heads(topic=model)
-    sc.write_store(tmp_path / "s", heads, sh.texts(20), store="proba")
+    sc.write_store(tmp_path / "s", heads, sh.texts(20), stored="proba")
     with fse.ScoreStore.open(tmp_path / "s") as store:
         assert store.heads["topic"].rule == "linear@1"
         with pytest.raises(ValueError, match="linear@1"):

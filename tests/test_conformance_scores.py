@@ -51,7 +51,7 @@ def test_the_stored_columns_are_the_bits_of_the_run_without_a_sink(
 ):
     heads, texts = _group(), sh.texts(37)
     stored = _store(heads, kind)
-    with fse.ScoreSink(tmp_path / "s", heads, store=stored, shard_rows=16) as sink:
+    with fse.ScoreSink(tmp_path / "s", heads, stored=stored, shard_rows=16) as sink:
         list(
             heads.predict_batches(
                 [texts[:20], texts[20:]],
@@ -76,7 +76,7 @@ def test_both_backends_store_the_same_bits(tmp_path):
     heads, texts = _group(), sh.texts(40)
     stored = _store(heads, "decision")
     for backend in ("cpu", "numpy"):
-        with fse.ScoreSink(tmp_path / backend, heads, store=stored) as sink:
+        with fse.ScoreSink(tmp_path / backend, heads, stored=stored) as sink:
             list(heads.predict_batches([texts], score_sink=sink, backend=backend))
     np.testing.assert_array_equal(
         bits(sc.read_back(tmp_path / "cpu")[1]), bits(sc.read_back(tmp_path / "numpy")[1])

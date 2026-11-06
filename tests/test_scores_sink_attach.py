@@ -67,7 +67,7 @@ def test_the_heads_of_a_store_must_be_those_of_the_sink(tmp_path):
     with pytest.raises(ValueError, match="has_doc_ids"):
         fse.ScoreSink(path, sh.group(), doc_ids=True)
     with pytest.raises(ValueError, match="stored"):
-        fse.ScoreSink(path, sh.group(), store={"toxic": "proba"})
+        fse.ScoreSink(path, sh.group(), stored={"toxic": "proba"})
     different = fse.Heads(
         quality=sh.regressor(enc, seed=1),
         toxic=sh.group(enc)["toxic"],

@@ -16,7 +16,7 @@ STORED = {"quality": "values", "toxic": "proba", "topic": "decision"}
 
 @pytest.fixture
 def store_path(tmp_path):
-    sc.write_store(tmp_path / "s", sh.group(), sh.texts(40), store=STORED, doc_ids=True)
+    sc.write_store(tmp_path / "s", sh.group(), sh.texts(40), stored=STORED, doc_ids=True)
     return tmp_path / "s"
 
 
@@ -177,7 +177,7 @@ def test_a_closed_store_gives_nothing_more_but_views_stay_readable(store_path):
 def test_only_the_shards_published_at_open_are_read(store_path):
     store = fse.ScoreStore.open(store_path)
     heads = sh.group()
-    with fse.ScoreSink(store_path, heads, store=STORED, doc_ids=True) as sink:
+    with fse.ScoreSink(store_path, heads, stored=STORED, doc_ids=True) as sink:
         list(heads.predict_batches([(sh.texts(5), np.arange(5))], score_sink=sink, doc_ids=True))
     assert len(store) == 40
     with fse.ScoreStore.open(store_path) as again:
@@ -188,7 +188,7 @@ def test_only_the_shards_published_at_open_are_read(store_path):
 def test_one_label_multilabel_probabilities_keep_their_column(tmp_path):
     enc = sh.encoder()
     heads = fse.Heads(one=sh.classifier(enc, 1, link="multilabel", labels=["a"]))
-    sc.write_store(tmp_path / "s", heads, sh.texts(6), store="proba")
+    sc.write_store(tmp_path / "s", heads, sh.texts(6), stored="proba")
     with fse.ScoreStore.open(tmp_path / "s") as store:
         assert store.get_scores("one", "proba").shape == (6, 1)
         assert next(iter(store.iter_batches())).outputs["one"].shape == (6, 1)

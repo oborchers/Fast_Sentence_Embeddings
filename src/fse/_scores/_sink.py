@@ -51,7 +51,7 @@ class ScoreSink(ShardSinkBase):
     """Write the scores of a group of heads into the score store at ``path``: a new store,
     or the end of an existing one of the same heads.
 
-    ``store`` says what each head stores: None (the decision of a classifier, the values of
+    ``stored`` says what each head stores: None (the decision of a classifier, the values of
     a regressor), one name for all heads, or a mapping of head names to ``decision``,
     ``proba`` or ``values``. Give the sink to ``heads.predict_batches(score_sink=...)``; it
     takes rows from nothing else. A new store is created when that call attaches the run,
@@ -73,12 +73,12 @@ class ScoreSink(ShardSinkBase):
         path: Any,
         heads: Any,
         *,
-        store: Any = None,
+        stored: Any = None,
         doc_ids: bool = False,
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
     ):
-        schema = ScoreSchema.from_heads(heads, store)
+        schema = ScoreSchema.from_heads(heads, stored)
         path = Path(path)
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
