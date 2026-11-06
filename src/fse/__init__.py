@@ -17,7 +17,6 @@ from typing import Any as _Any
 from fse._container import CorruptArtifactError, PublishedNotDurableError
 from fse._contract import UnsupportedArtifactError
 from fse._log_config import disable_logging, enable_logging
-from fse._validation import ThresholdInput
 from fse._wordvectors import WordVectors
 from fse._wordvectors_format import FastTextParams
 
@@ -26,7 +25,7 @@ if TYPE_CHECKING:
     from fse._head import Classifier, Heads, HeadsBatch, PredictedBatch, Regressor
     from fse._runtime import MemorySink, Sink
     from fse._static_model import StaticModel
-    from fse._store import SearchResult, ShardSink, VectorStore, repair_store
+    from fse._store import DocumentSearchResult, SearchResult, ShardSink, VectorStore, repair_store
 del TYPE_CHECKING  # not a name of fse
 
 # The encoder, the static model and the sinks load on first access (PEP 562), not when fse is
@@ -40,7 +39,10 @@ _LAZY = {
     ),
     **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
     "StaticModel": "fse._static_model",
-    **dict.fromkeys(("SearchResult", "ShardSink", "VectorStore", "repair_store"), "fse._store"),
+    **dict.fromkeys(
+        ("DocumentSearchResult", "SearchResult", "ShardSink", "VectorStore", "repair_store"),
+        "fse._store",
+    ),
     **dict.fromkeys(
         ("Classifier", "Heads", "HeadsBatch", "PredictedBatch", "Regressor"), "fse._head"
     ),
@@ -92,6 +94,7 @@ def __dir__() -> list[str]:
 __all__ = [
     "Classifier",
     "CorruptArtifactError",
+    "DocumentSearchResult",
     "EncodedBatch",
     "Encoder",
     "FastTextParams",
@@ -106,7 +109,6 @@ __all__ = [
     "ShardSink",
     "Sink",
     "StaticModel",
-    "ThresholdInput",
     "UnsupportedArtifactError",
     "VectorStore",
     "WordVectors",

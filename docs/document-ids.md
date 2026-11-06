@@ -21,7 +21,8 @@ Repeated document IDs do not group or deduplicate the results unless you pass
 
 ID inputs are Python integer lists, one-dimensional NumPy int64 arrays, or
 primitive Arrow int64 columns without nulls. Other dtypes, nulls, bools, floats
-and out-of-range integers raise. One ID is required per text. Keep input buffers
+and out-of-range integers raise. One ID is required per text. `encode(texts, doc_ids=ids, sink=sink)` takes the IDs themselves;
+`doc_ids=True` is the switch of `encode_batches`, and `encode` refuses it with a `TypeError`. Keep input buffers
 unchanged until processing finishes. IDs require an ID-enabled sink. Appending
 with a different ID mode raises rather than changing an existing store.
 
@@ -93,8 +94,31 @@ Without IDs, existing text-only `encode_batches` input remains unchanged.
 
 `store.has_doc_ids` tells whether every row has an ID. `store.get_doc_ids(start=0, stop=100)`
 returns the IDs of those rows as an int64 copy, like `get_vectors`. A store without IDs
-raises `ValueError`. `DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
+raises `ValueError`. `fse.DocumentSearchResult` keeps `doc_ids` in `_replace`, `_asdict` and
 `repr`; `_make` raises `TypeError`, because two values hold no IDs.
+
+## Positions, counts and IDs
+
+Four different things are easy to mix up. Positions are indexes that start at 0:
+
+| Kind | Names |
+| :--- | :--- |
+| Store position | `SearchResult.ids`, `search(rows=)`, `get_vectors(start=, stop=)`, `get_doc_ids(start=, stop=)`, `ShardSink.first_row` (the store position of run position 0) |
+| Run position | `first_row` of `EncodedBatch`, `PredictedBatch` and `HeadsBatch`; `first_row` of `Sink.target` and `Sink.commit` |
+
+A store position is `ShardSink.first_row` plus the run position. A new store has
+`ShardSink.first_row == 0`; an appended run starts after the rows already there.
+
+Counts are lengths. `n_rows` of a batch is its length: the batch covers the run positions
+`first_row` to `first_row + n_rows - 1`.
+
+The durable prefix is a count too. `durable_rows` of `EncodedBatch`, `PredictedBatch` and
+of the sink says how many rows at the start of the run are durable. `durable_rows=210`
+means that the run positions 0 to 209 are durable. It is not a position.
+
+A document ID (`doc_ids`) is your own label for a document. It is not unique: several rows
+may share one. It appears in the input (`doc_ids=`), in filters, in
+`DocumentSearchResult.doc_ids` and in `get_doc_ids`.
 
 ## Filters and limits
 

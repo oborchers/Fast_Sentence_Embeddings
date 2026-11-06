@@ -79,8 +79,7 @@ def test_semantic_checks_and_nonmultilabel_errors():
     single = fse.Classifier.from_arrays(original.encoder, original.coef_, labels=["a", "b"])
     with pytest.raises(ValueError, match="only for multilabel"):
         single.with_thresholds(None)
-    with pytest.raises(ValueError, match="only for multilabel"):
-        _ = single.thresholds
+    assert single.thresholds is None
 
 
 def test_changes_verify_loaded_tensors(tmp_path):

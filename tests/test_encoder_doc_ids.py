@@ -88,3 +88,70 @@ def test_the_mode_is_checked_when_called_before_any_batch(tmp_path):
 def test_a_pair_of_strings_is_two_sentences_without_the_mode():
     batches = list(finished().encode_batches([("w1", "w2")]))
     assert batches[0].rows.shape[0] == 2
+
+
+class _IdsRecorder(fse.MemorySink):
+    has_doc_ids = True
+
+    def __init__(self, dim):
+        super().__init__(dim)
+        self.seen = []
+
+    def commit(self, first_row, rows, doc_ids=None):
+        self.seen.append(doc_ids)
+        super().commit(first_row, rows)
+
+
+def _flagged(value):
+    class Flagged(fse.MemorySink):
+        has_doc_ids = value
+
+    return Flagged
+
+
+def test_commit_gets_read_only_int64_ids_of_the_commit_length():
+    encoder = finished()
+    sink = _IdsRecorder(encoder.output_dim)
+    encoder.encode(["w1", "w2", "w3"], sink=sink, doc_ids=[4, 5, 6])
+    ids = np.concatenate(sink.seen)
+    assert list(ids) == [4, 5, 6]
+    assert all(s.dtype == np.int64 and not s.flags.writeable for s in sink.seen)
+
+
+@pytest.mark.parametrize("value", [0, 1, None, "yes"])
+def test_other_values_of_has_doc_ids_keep_the_2_0_behavior_without_ids(value):
+    encoder = finished()
+    texts = ["w1", "w2"]
+    plain = fse.MemorySink(encoder.output_dim)
+    encoder.encode(texts, sink=plain)
+    sink = _flagged(value)(encoder.output_dim)
+    encoder.encode(texts, sink=sink)
+    assert np.array_equal(sink.result().view("u4"), plain.result().view("u4"))
+    batched = _flagged(value)(encoder.output_dim)
+    assert len(list(encoder.encode_batches([texts], sink=batched))) == 1
+    assert np.array_equal(batched.result().view("u4"), plain.result().view("u4"))
+
+
+@pytest.mark.parametrize("value", [1, "yes", None])
+def test_ids_need_a_sink_with_exactly_true(value):
+    encoder = finished()
+    sink = _flagged(value)(encoder.output_dim)
+    with pytest.raises(TypeError, match="must be True"):
+        encoder.encode(["w1"], sink=sink, doc_ids=[1])
+    with pytest.raises(TypeError, match="must be True"):
+        encoder.encode_batches(_poisoned(), sink=sink, doc_ids=True)
+
+
+def test_encode_refuses_a_bool_for_the_ids(tmp_path):
+    encoder = finished()
+    with (
+        fse.ShardSink(tmp_path / "s", encoder, doc_ids=True) as sink,
+        pytest.raises(TypeError, match="not a bool"),
+    ):
+        encoder.encode(["w1"], sink=sink, doc_ids=True)
+    with pytest.raises(TypeError, match="not a bool"):
+        encoder.encode(["w1"], doc_ids=True)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        assert len(store) == 0
+    with pytest.raises(ValueError, match="doc_ids"):
+        encoder.encode(["w1"], doc_ids=[1])

@@ -88,11 +88,21 @@ class ShardSinkBase:
         """The publication policy fixed when this sink was opened."""
         return "full" if self._synced else "none"
 
+    def _check_next(self, first_row: int) -> None:
+        if first_row == self._reserved:
+            return
+        if first_row == 0:
+            raise ValueError(
+                f"the {self._NAME} took {self._reserved} rows of a run already; a sink takes "
+                f"exactly one run, so open a new {self._NAME} on the same store to append the "
+                "next one"
+            )
+        raise ValueError(f"rows from {first_row} reserved, expected rows from {self._reserved}")
+
     def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
         self._check_threads()  # a failed write first: no row after it is taken
-        if first_row != self._reserved:
-            raise ValueError(f"rows from {first_row} reserved, expected rows from {self._reserved}")
+        self._check_next(first_row)
         parts = []
         left = n_rows
         while left:
