@@ -112,8 +112,11 @@ def operation(encoder, texts, job, *, backend="cpu"):
         return sink_operation(encoder, texts, job, backend=backend)
     group = models(encoder, job)
     options = {"workers": job["workers"], "backend": backend}
-    build = _one_pass if job["heads_mode"] == "one-pass" else _separate
-    predict = build(group, texts, job["return_vectors"], {**options, "output": _output(job)})
+    options = {**options, "output": _output(job)}
+    if job["heads_mode"] == "one-pass":
+        predict = _one_pass(group, texts, job["return_vectors"], options, job.get("batch_rows"))
+    else:
+        predict = _separate(group, texts, job["return_vectors"], options)
     # Make every lazy table and plan outside every timer, and check the shape once.
     prepared = predict()
     if list(prepared.outputs) != list(group):
@@ -126,16 +129,33 @@ def operation(encoder, texts, job, *, backend="cpu"):
     return predict
 
 
-def _one_pass(group, texts, vectors, options):
+def _one_pass(group, texts, vectors, options, batch_rows=None):
     from fse import Heads
 
     heads = Heads(**group)
+    if batch_rows:
+        return _streamed(heads, texts, vectors, options, batch_rows)
     if not vectors:
         return lambda: HeadsOutput(dict(heads.predict(texts, **options)), None)
 
     def predict():
         (batch,) = heads.predict_batches((texts,), return_vectors=True, **options)
         return HeadsOutput(dict(batch.outputs), batch.vectors)
+
+    return predict
+
+
+def _streamed(heads, texts, vectors, options, batch_rows):
+    """One call of ``predict_batches`` over batches of ``batch_rows`` texts (DR-243)."""
+    import numpy as np
+    from _development_heads import chunks
+
+    def predict():
+        got = list(
+            heads.predict_batches(chunks(texts, batch_rows), return_vectors=vectors, **options)
+        )
+        outputs = {name: np.concatenate([b.outputs[name] for b in got]) for name in heads}
+        return HeadsOutput(outputs, np.concatenate([b.vectors for b in got]) if vectors else None)
 
     return predict
 

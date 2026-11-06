@@ -17,9 +17,33 @@ RULES = ("linear@1", "linear@2")
 SPEC = {"outputs": 4, "seed": 17, "link": "softmax", "normalized": False}
 
 
+BATCH_STAGES = ("head-folded", "head-with-vectors", "head-group-folded", "head-group-mixed")
+
+
 class HeadOutput(NamedTuple):
     probabilities: object
     vectors: object
+
+
+def validate_batches(cell):
+    """The cell field ``batch_rows`` (DR-243, Umwege über fse.Heads bei einzelnen Köpfen
+    entfernen): None (one call on all texts), or the rows of each batch of a stream through
+    ``predict_batches``, for the stages that return the outputs and the vectors in memory."""
+    rows = cell["batch_rows"]
+    if rows is None:
+        return
+    if type(rows) is not int or rows < 1:
+        raise ValueError("batch_rows is a positive integer, or null")
+    if cell["stage"] not in BATCH_STAGES:
+        raise ValueError(f"batch_rows belongs to the stages {', '.join(BATCH_STAGES)}")
+    modes = (cell["base_heads_mode"], cell["candidate_heads_mode"])
+    if cell["stage"].startswith("head-group") and modes != ("one-pass", "one-pass"):
+        raise ValueError("batch_rows of a head group needs both arms in one-pass mode")
+
+
+def chunks(texts, rows):
+    """``texts`` as the batches of a stream of ``rows`` texts each."""
+    return [texts[start : start + rows] for start in range(0, len(texts), rows)]
 
 
 def operation(encoder, texts, job, *, backend="cpu"):
@@ -48,6 +72,8 @@ def operation(encoder, texts, job, *, backend="cpu"):
     )
 
     def predict():
+        if job.get("batch_rows"):
+            return _streamed(model, texts, job, backend)
         if labels_stage:
             return HeadOutput(model.predict(texts, workers=job["workers"], backend=backend), None)
         if job["stage"] == "head-folded":
@@ -61,21 +87,38 @@ def operation(encoder, texts, job, *, backend="cpu"):
 
     # Prepare the lazy folded table outside every timer. Verify the complete public
     # output shape once here; the controller checks every subsequent output's bytes.
-    prepared = predict()
-    if labels_stage:
-        if (
-            prepared.probabilities.shape != (len(texts),)
-            or prepared.probabilities.dtype.kind != "i"
-        ):
-            raise ValueError("head label shape or dtype differs from the fixed profile")
-    elif prepared.probabilities.shape != (len(texts), SPEC["outputs"]):
-        raise ValueError("head probability shape differs from the fixed profile")
-    if job["stage"] == "head-with-vectors" and prepared.vectors.shape != (
-        len(texts),
-        encoder.output_dim,
-    ):
-        raise ValueError("head vector shape differs from the fixed profile")
+    _check_shapes(predict(), job, len(texts), encoder.output_dim)
     return predict
+
+
+def _check_shapes(prepared, job, rows, dim):
+    if job["stage"] == "head-labels":
+        if prepared.probabilities.shape != (rows,) or prepared.probabilities.dtype.kind != "i":
+            raise ValueError("head label shape or dtype differs from the fixed profile")
+    elif prepared.probabilities.shape != (rows, SPEC["outputs"]):
+        raise ValueError("head probability shape differs from the fixed profile")
+    if job["stage"] == "head-with-vectors" and prepared.vectors.shape != (rows, dim):
+        raise ValueError("head vector shape differs from the fixed profile")
+
+
+def _streamed(model, texts, job, backend):
+    """The same outputs as one call, from ``predict_batches`` over batches of ``batch_rows``."""
+    import numpy as np
+
+    vectors = job["stage"] == "head-with-vectors"
+    got = list(
+        model.predict_batches(
+            chunks(texts, job["batch_rows"]),
+            output="proba",
+            return_vectors=vectors,
+            workers=job["workers"],
+            backend=backend,
+        )
+    )
+    return HeadOutput(
+        np.concatenate([b.outputs for b in got]),
+        np.concatenate([b.vectors for b in got]) if vectors else None,
+    )
 
 
 def probe(job, texts):

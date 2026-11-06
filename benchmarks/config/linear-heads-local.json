@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "linear-heads@1: one fixed four-output softmax head, base versus candidate on the same path. M1 local indication only, no README speed claims.",
+  "description": "linear-heads@1: one fixed four-output softmax head, base versus candidate on the same path. M1 local indication only, no README speed claims. The cells heads-single-batches and heads-single-batches-vectors (DR-243, Umwege über fse.Heads bei einzelnen Köpfen entfernen) stream the same texts through predict_batches in batches of batch_rows (regression screens with --local-phase regression-screen, a declared --regression-limit and a base interpreter of the build before the change).",
   "defaults": {
     "profile": "linear-heads@1",
     "decision_gate": false,
@@ -25,6 +25,26 @@
       "corpus": "wikitext",
       "stage": "head-labels",
       "rule": "linear@1"
+    },
+    {
+      "id": "heads-single-batches",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-folded",
+      "batch_rows": 1024,
+      "iterations": 1000,
+      "target_seconds": 2.0,
+      "minimum_seconds": 2.0
+    },
+    {
+      "id": "heads-single-batches-vectors",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "head-with-vectors",
+      "batch_rows": 1024,
+      "iterations": 1000,
+      "target_seconds": 2.0,
+      "minimum_seconds": 2.0
     }
   ]
 }

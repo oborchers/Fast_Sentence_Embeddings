@@ -17,6 +17,11 @@ selects what the same stage writes: ``scores`` (the default, the folded path, as
 one pass, ``return_vectors=true``, so the heads on raw means take the unfolded path). The
 timer is one continuous group over opening the sinks, the complete run and every ``close``;
 the three values are absolute costs and are never compared with each other.
+
+The cell field ``lone`` (DR-243, Umwege über fse.Heads bei einzelnen Köpfen entfernen) runs
+the same stage with ``heads: 1`` through the ``predict_batches`` of the single ``Classifier``
+instead of ``fse.Heads``, for the profile of the single-head path; the stores and their proofs
+are those of the group of one.
 """
 
 from __future__ import annotations
@@ -40,9 +45,13 @@ def enabled(cell):
 
 def validate(cell):
     if not enabled(cell):
-        if cell["sinks"] != "scores":
-            raise ValueError("sinks is a field of linear-heads-scores@1 cells")
+        if cell["sinks"] != "scores" or cell["lone"]:
+            raise ValueError("sinks and lone are fields of linear-heads-scores@1 cells")
         return
+    if type(cell["lone"]) is not bool or (
+        cell["lone"] and (cell["stage"] != STAGE or cell["heads"] != 1)
+    ):
+        raise ValueError("lone is a boolean for the stage head-group-score-sink with heads: 1")
     if cell["sinks"] not in SINKS:
         raise ValueError("sinks is scores, vectors or both")
     if cell["sinks"] != "scores" and cell["stage"] != STAGE:
@@ -103,9 +112,11 @@ def operation(encoder, texts, job, *, backend="cpu"):
     import numpy as np
     from _development_heads_multi import models
 
-    from fse import Heads, ScoreSink, ShardSink
+    from fse import Heads, ShardSink
 
-    heads = Heads(**models(encoder, job))
+    group = models(encoder, job)
+    heads = Heads(**group)
+    caller = _lone(group) if job.get("lone") else heads
     ids = np.arange(len(texts), dtype=np.int64)
     expected = reference(heads, texts, job, backend, encoder)  # also makes every plan and table
     counter = itertools.count()
@@ -123,12 +134,10 @@ def operation(encoder, texts, job, *, backend="cpu"):
                     ShardSink(folders["vectors"], encoder, doc_ids=True)
                 )
             if "scores" in kinds:
-                sinks["scores"] = stack.enter_context(
-                    ScoreSink(folders["scores"], heads, doc_ids=True)
-                )
+                sinks["scores"] = stack.enter_context(_score_sink(folders["scores"], group, job))
             first_read = time.perf_counter()
             vector_argument = {"vector_sink": sinks["vectors"]} if "vectors" in sinks else {}
-            for _ in heads.predict_batches(
+            for _ in caller.predict_batches(
                 [(texts, ids)],
                 return_vectors=job["return_vectors"],
                 score_sink=sinks.get("scores"),
@@ -158,6 +167,23 @@ def operation(encoder, texts, job, *, backend="cpu"):
         }
 
     return run
+
+
+def _lone(group):
+    """The single head of a group of one, whose ``predict_batches`` takes the sinks itself."""
+    (model,) = group.values()
+    return model
+
+
+def _score_sink(folder, group, job):
+    from fse import ScoreSink
+
+    if not job.get("lone"):
+        from fse import Heads
+
+        return ScoreSink(folder, Heads(**group), doc_ids=True)
+    ((name, model),) = group.items()
+    return ScoreSink(folder, model, name=name, doc_ids=True)
 
 
 def identity(value):
