@@ -7,7 +7,6 @@ import time
 
 from _development_budget import check_args
 from _development_heads_multi import configure as configure_heads
-from _development_lengths import artifact_of
 from _development_lengths import mode_for as lengths_for
 from _development_locks import busy, lock_paths
 from _development_process import launch
@@ -22,7 +21,7 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
     return {
         **cell,
         "action": "measure",
-        "artifact": artifact_of(cell, model),
+        "artifact": model["artifacts"][cell["table_dtype"]],
         "corpus": prepared["corpora"][cell["corpus"]],
         "texts": count,
         "tag": tag,

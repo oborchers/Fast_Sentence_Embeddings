@@ -9,7 +9,6 @@ from _development_budget import WallBudgetExpiredError, check_args, stopped
 from _development_config import load
 from _development_data import prepare
 from _development_ids import mode_for
-from _development_lengths import artifact_of
 from _development_locks import coordinated
 from _development_process import checked, launch
 from _development_records import record_result, session
@@ -109,7 +108,7 @@ def quality_gate(args, cell, prepared, ledger, tag):
         for name, python in builds:
             job = dict(
                 action="quality",
-                artifact=artifact_of(cell, model),
+                artifact=model["artifacts"][cell["table_dtype"]],
                 corpus=corpus,
                 workers=cell["workers"],
                 output=str(args.work / (tag + "-" + name)),

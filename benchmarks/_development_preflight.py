@@ -27,8 +27,6 @@ def preflight(args, cell, prepared, ledger, owner):
     for name, python in builds:
         tag = cell["id"] + "-probe-" + name
         job = job_for(cell, prepared, 1, tag, owner)
-        if cell["profile"] == "length-report@1" and job["artifact"]["rule"][0] is None:
-            raise ValueError("the encoder has no length rule: the cell is void for this revision")
         configure(job, cell, name, False)
         configure_heads(job, cell, name, False)
         job.update(
@@ -40,7 +38,7 @@ def preflight(args, cell, prepared, ledger, owner):
         row = launch(args, job, python, tag)
         model = prepared["models"][cell["model"]]
         if (
-            row["encoder_fingerprint"] != job["artifact"]["fingerprint"]
+            row["encoder_fingerprint"] != model["artifacts"][cell["table_dtype"]]["fingerprint"]
             or row["dimensions"] != model["dimensions"]
         ):
             raise ValueError("preflight model metadata differs from prepared provenance")

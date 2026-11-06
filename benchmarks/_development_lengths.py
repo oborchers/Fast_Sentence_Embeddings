@@ -10,21 +10,12 @@ from __future__ import annotations
 
 MODES = ("none", "summary", "per_row", "per_row-count", "raise")
 PROFILE = "length-report@1"
-# The corpora built from WikiText rows by the rule of one model (see ``documents``).
-CORPORA = ("wikitext-docs-m2v", "wikitext-docs-st", "wikitext-lines-uncut")
-# Documents for a rule without max_chars end after this many code points (a text of this
-# length gives about 640 wordpiece ids of WikiText prose, so most documents pass 512 ids);
-# the share the rule really cuts is measured at preparation and declared with the corpus.
-ST_DOCUMENT_CODEPOINTS = 3500
+# The corpora built from WikiText rows by the rule of one model (see ``documents``). No pinned
+# sentence-transformers model has a length rule in its tokenizer.json, so only the rule of
+# Model2Vec is measured.
+CORPORA = ("wikitext-docs-m2v", "wikitext-docs-at-cut", "wikitext-lines-uncut")
 M2V_REPO = "minishlab/potion-base-8M"
-ST_REPO = "sentence-transformers/static-retrieval-mrl-en-v1"
-# The model whose rule shapes each data case.
-REPO_OF = {
-    "wikitext-docs-m2v": M2V_REPO,
-    "wikitext-docs-st": ST_REPO,
-    "wikitext-lines-uncut": M2V_REPO,
-}
-RULE_ARTIFACT = "float32-rule"
+REPO_OF = dict.fromkeys(CORPORA, M2V_REPO)
 
 
 def validate(cell):
@@ -38,13 +29,6 @@ def validate(cell):
         raise ValueError(
             f"the corpus {cell['corpus']} is built for the model {REPO_OF[cell['corpus']]}"
         )
-
-
-def artifact_of(cell, model):
-    """The prepared artifact a cell reads: its table dtype, or for the length report the
-    model with its own length rule where it was prepared."""
-    kind = RULE_ARTIFACT if cell["profile"] == PROFILE else cell["table_dtype"]
-    return model["artifacts"].get(kind) or model["artifacts"][cell["table_dtype"]]
 
 
 def mode_for(cell, candidate=False):
@@ -219,6 +203,35 @@ def _share_at_cut(report):
         return 0.0
     at = (report.tokens + report.dropped_unknown == report.max_tokens) & ~report.token_truncated
     return float(np.count_nonzero(at)) / max(1, report.n_rows)
+
+
+def documents_at_cut(model, rows):
+    """Documents of exactly ``max_tokens`` ids: the longest prefix of the words of each
+    document of ``rows`` with that many ids (the ids before unknown ids are dropped), where
+    one exists. A sentence of this kind ends exactly at the cut, so the flag of the length
+    report costs a second tokenization of it (docs/architecture/tokenizers.md)."""
+    limit = model._spec.tokenizer.max_tokens
+
+    def ids(text):
+        _, report = model.encode([text], lengths="per_row", count_truncated=True, workers=1)
+        return int(report.tokens[0] + report.dropped_unknown[0] + report.truncated_tokens[0])
+
+    found = []
+    for row in rows:
+        words = row.split()
+        low, high = 0, len(words)  # the smallest prefix with at least limit ids
+        if high == 0 or ids(row) < limit:
+            continue
+        while low < high:
+            middle = (low + high) // 2
+            if ids(" ".join(words[:middle])) >= limit:
+                high = middle
+            else:
+                low = middle + 1
+        text = " ".join(words[:low])
+        if ids(text) == limit:
+            found.append(text)
+    return found
 
 
 def uncut_mask(model, texts):

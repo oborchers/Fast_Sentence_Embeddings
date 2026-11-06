@@ -168,31 +168,9 @@ def _models(cells, work, cache, deadline=None):
             artifacts[dtype] = dict(
                 path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
             )
-        loaded[repo] = _with_rule(cells, repo, snapshot, work, artifacts, model, deadline)
-        for kind, record in artifacts.items():
-            record["rule"] = _rule(loaded[repo] if kind == "float32-rule" else model)
+        loaded[repo] = model
         result[repo] = dict(revision=revision, artifacts=artifacts, dimensions=model.output_dim)
     return result, loaded
-
-
-def _with_rule(cells, repo, snapshot, work, artifacts, model, deadline):
-    """For a sentence-transformers model that a length-report cell reads: the model with its
-    own length rule (the standard artifacts read it whole), saved as ``float32-rule``. The
-    model the data cases of the repo are built from."""
-    from fse import Encoder
-
-    if repo.startswith("minishlab/") or not any(
-        c["profile"] == "length-report@1" and c["model"] == repo for c in cells
-    ):
-        return model
-    check(deadline)
-    ruled = Encoder.from_pretrained(str(snapshot), normalize=True)
-    path = work / (repo.replace("/", "--") + "-float32-rule.safetensors")
-    ruled.save(path)
-    artifacts["float32-rule"] = dict(
-        path=str(path), sha256=sha256(path), fingerprint=ruled.fingerprint
-    )
-    return ruled
 
 
 def _rule(model):
@@ -207,9 +185,9 @@ def _length_corpus(name, work, cache, models, deadline):
     outside every timer, are declared with it."""
     from _development_lengths import (
         REPO_OF,
-        ST_DOCUMENT_CODEPOINTS,
         declared,
         documents,
+        documents_at_cut,
         uncut_mask,
     )
 
@@ -222,14 +200,18 @@ def _length_corpus(name, work, cache, models, deadline):
         data["texts"] = [row for row, ok in zip(data["texts"], keep, strict=True) if ok]
         derived = "the rows of the split that the length rule does not cut, in order"
         stats = declared(model, [t for t, ok in zip(normalized, keep, strict=True) if ok], True)
-    else:
-        limit = rule.max_chars if name == "wikitext-docs-m2v" else ST_DOCUMENT_CODEPOINTS
-        if limit is None:
-            raise ValueError("the pinned model has no max_chars for its documents")
-        data["texts"] = documents(data["texts"], limit)
+    elif name == "wikitext-docs-at-cut":
+        data["texts"] = documents_at_cut(model, documents(data["texts"], rule.max_chars))
         derived = (
-            f"non-empty rows joined with one space until more than {limit} code points; "
-            "the incomplete rest is dropped"
+            "the documents of wikitext-docs-m2v, each cut after the word at which it has "
+            "exactly max_tokens ids; documents that never have exactly that many are dropped"
+        )
+        stats = declared(model, data["texts"])
+    else:
+        data["texts"] = documents(data["texts"], rule.max_chars)
+        derived = (
+            f"non-empty rows joined with one space until more than {rule.max_chars} code "
+            "points; the incomplete rest is dropped"
         )
         stats = declared(model, data["texts"])
     data["source"] = {**data["source"], "derived": derived, "declared": stats, "rule": _rule(model)}
