@@ -110,6 +110,10 @@ def test_a_crash_leaves_two_valid_prefixes_and_a_new_run_with_ids_appends(
     confirmed = [int(line) for line in done.stdout.split() if line.isdigit()]
     last = confirmed[-1] if confirmed else 0
     lengths = _lengths(root, reference)
+    for name, store in (("v", fse.VectorStore), ("s", fse.ScoreStore)):
+        if (root / name / "store.json").exists():
+            with store.open(root / name) as opened:
+                opened.verify()
     assert last <= min(lengths)
     if durability == "none":
         assert last == 0  # nothing is confirmed without syncs
@@ -117,7 +121,7 @@ def test_a_crash_leaves_two_valid_prefixes_and_a_new_run_with_ids_appends(
     assert all(".shard-" in name and ".writing-" in name for name in hidden)
     if durability == "none":
         return  # a store written under none is not appended to without repair
-    _append(root, heads, texts, ids, lengths)
+    _append(root, heads, texts, ids, lengths, last)
 
 
 def _hidden(path):
@@ -136,10 +140,9 @@ def _lengths(root, reference):
     return out["v"], out["s"]
 
 
-def _append(root, heads, texts, ids, lengths):
+def _append(root, heads, texts, ids, lengths, start):
     """Run on from the last confirmed row with IDs: allowed whatever the two lengths are."""
     enc = heads["quality"].encoder
-    start = min(lengths)
     with (
         fse.ShardSink(root / "v", enc, shard_rows=64, doc_ids=True) as v,
         fse.ScoreSink(root / "s", heads, shard_rows=64, doc_ids=True) as s,

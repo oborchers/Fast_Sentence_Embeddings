@@ -365,7 +365,7 @@ def test_the_two_sinks_get_the_same_id_array_and_one_fetch_per_task(tmp_path, mo
     assert len(calls) == len(by_row)  # one fetch per task, not one per sink
 
 
-def test_a_vector_sink_alone_releases_the_ids_and_checks_their_number(tmp_path):
+def test_a_vector_sink_alone_checks_the_number_of_ids(tmp_path):
     heads, texts = sh.group(), sh.texts(20)
     with (
         fse.ShardSink(tmp_path / "v", heads["quality"].encoder, doc_ids=True, shard_rows=8) as sink,
@@ -376,3 +376,22 @@ def test_a_vector_sink_alone_releases_the_ids_and_checks_their_number(tmp_path):
                 [(texts, np.arange(19))], return_vectors=True, vector_sink=sink, doc_ids=True
             )
         )
+
+
+def test_a_vector_sink_alone_stores_the_ids_and_releases_every_block(tmp_path):
+    heads, texts = sh.group(), sh.texts(40)
+    ids = np.arange(40, dtype=np.int64) * 2 + 5
+    with fse.ShardSink(
+        tmp_path / "v", heads["quality"].encoder, doc_ids=True, shard_rows=8
+    ) as sink:
+        run = heads.predict_batches(
+            sr.batches_of(texts, 13, ids),
+            return_vectors=True,
+            vector_sink=sink,
+            doc_ids=True,
+            workers=2,
+        )
+        list(run)
+    vectors, stored = sr.read_vectors(tmp_path / "v")
+    assert stored.tolist() == ids.tolist()
+    assert vectors.shape == (40, 6)

@@ -117,23 +117,26 @@ def operation(encoder, texts, job, *, backend="cpu"):
         folders = {k: folder_of(job["work"], job["tag"], k, index) for k in kinds}
         opened = time.perf_counter()
         sinks = {}
-        if "vectors" in kinds:
-            sinks["vectors"] = ShardSink(folders["vectors"], encoder, doc_ids=True)
-        if "scores" in kinds:
-            sinks["scores"] = ScoreSink(folders["scores"], heads, doc_ids=True)
-        first_read = time.perf_counter()
         with ExitStack() as stack:
-            for sink in sinks.values():
-                stack.enter_context(sink)
+            if "vectors" in kinds:
+                sinks["vectors"] = stack.enter_context(
+                    ShardSink(folders["vectors"], encoder, doc_ids=True)
+                )
+            if "scores" in kinds:
+                sinks["scores"] = stack.enter_context(
+                    ScoreSink(folders["scores"], heads, doc_ids=True)
+                )
+            first_read = time.perf_counter()
+            vector_argument = {"vector_sink": sinks["vectors"]} if "vectors" in sinks else {}
             for _ in heads.predict_batches(
                 [(texts, ids)],
                 return_vectors=job["return_vectors"],
-                vector_sink=sinks.get("vectors"),
                 score_sink=sinks.get("scores"),
                 doc_ids=True,
                 output=OUTPUT,
                 workers=job["workers"],
                 backend=backend,
+                **vector_argument,
             ):
                 pass
         seconds = time.perf_counter() - first_read

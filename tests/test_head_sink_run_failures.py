@@ -129,15 +129,24 @@ def test_a_full_disk_in_one_folder_only(tmp_path, monkeypatch, writer, folder):
     assert lengths[0 if folder == "v" else 1] < 90
 
 
-@pytest.mark.parametrize("which", ["v", "s"])
-def test_a_published_shard_that_is_not_durable_stops_the_run(tmp_path, which):
-    error = fse.PublishedNotDurableError("injected")
+def test_a_published_shard_that_is_not_durable_stops_the_run(tmp_path, monkeypatch):
+    from fse._container import _npy_inplace
 
-    def inject(x):
-        _fail_on(x[which], "publish", 2, error)
+    real, calls = _npy_inplace._sync_directory, [0]
 
-    delivered, _ = _run_failing(tmp_path, inject, expect=fse.PublishedNotDurableError)
-    assert len(delivered) == 1
+    def failing(path):
+        calls[0] += 1
+        if calls[0] == 2:  # the rename of a shard is done, its parent cannot be synced
+            raise OSError(errno.EIO, "injected")
+        return real(path)
+
+    delivered, lengths = _run_failing(
+        tmp_path,
+        lambda _: monkeypatch.setattr(_npy_inplace, "_sync_directory", failing),
+        expect=fse.PublishedNotDurableError,
+    )
+    assert len(delivered) <= 2
+    assert max(lengths) > 0  # the shard that was not confirmed durable is visible
 
 
 def test_a_keyboard_interrupt_during_the_inference_publishes_what_was_committed(tmp_path):
