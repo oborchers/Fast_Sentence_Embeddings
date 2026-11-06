@@ -20,8 +20,12 @@ cdef class Workspace:
 
     cdef _Buffer cand, starts, ends, word, tokens, offsets, ngram_offsets, ngrams, norm, run
     cdef _Buffer lattice, cands  # the lattice and the candidates of unigram@1
-    cdef _Buffer cuts, dropped, cut_tokens, cut_chars  # one entry per sentence, if store_rows
     cdef bint busy
+    # The tokens the tokenizer gave in the last encode, unknown words included
+    # (benchmarks/bench_vocab.py measures per token with it).
+    cdef readonly int64_t tokens_seen
+    # What the length rule did (below the fields above, so those keep their places).
+    cdef _Buffer cuts, dropped, cut_tokens, cut_chars  # one entry per sentence, if store_rows
     cdef readonly int watch
     cdef readonly bint raise_cut, store_rows
     # The cut that stopped the encode (a CUT_ kind) and its limit, for the error.
@@ -30,9 +34,6 @@ cdef class Workspace:
     # The sums of the batch: sentences cut by characters, by tokens, by either, the unknown
     # tokens dropped and the tokens and characters cut.
     cdef int64_t n_char, n_token, n_either, dropped_sum, cut_token_sum, cut_char_sum
-    # The tokens the tokenizer gave in the last encode, unknown words included
-    # (benchmarks/bench_vocab.py measures per token with it).
-    cdef readonly int64_t tokens_seen
 
     def __init__(self, int watch=0, bint raise_cut=False, bint store_rows=False):
         if not 0 <= watch <= 2:

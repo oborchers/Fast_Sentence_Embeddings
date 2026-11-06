@@ -222,10 +222,9 @@ cdef int _uni_piece(UnigramState st, const unsigned char *p, Py_ssize_t n, Works
 cdef int _unigram_sentence(UnigramState st, const unsigned char *p, Py_ssize_t n,
                            Workspace ws, Py_ssize_t *bad) noexcept nogil:
     """Append the ids of the sentence p[0:n] (steps 1 to 6) to the batch buffers of ws."""
-    cdef Py_ssize_t limit = n, pos = 0, piece = 0, count = 0, kept = 0, i, over = 0
+    cdef Py_ssize_t limit = n, pos = 0, piece = 0, count = 0, kept = 0, i
     cdef int64_t found, cut
     cdef int status = UNI_GO_ON
-    cdef int kind = 0
     cdef uINT_t *ids
     if _ensure(&ws.tokens, sizeof(uINT_t)):
         return ENCODE_NO_MEMORY
@@ -263,28 +262,16 @@ cdef int _unigram_sentence(UnigramState st, const unsigned char *p, Py_ssize_t n
     if status == UNI_BROKEN:
         return ENCODE_BROKEN
     if st.max_tokens and count > st.max_tokens:
-        over = count - st.max_tokens
         count = st.max_tokens
     ws.tokens_seen += count
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
-    kept = count
     if st.drop_unknown:
-        kept = 0
         for i in range(count):
             if ids[i] != st.unk_id:
                 ids[kept] = ids[i]
                 kept += 1
-    if ws.watch:
-        if limit < n:
-            kind = CUT_CHARS
-        if over > 0:
-            kind |= CUT_TOKENS
-        status = _note_row(ws, kind, count - kept, over,
-                           _code_points(p + limit, n - limit) if ws.watch == 2 else 0,
-                           st.max_chars, st.max_tokens)
-        if status != ENCODE_OK:
-            return status
-    ws.tokens.size += kept * sizeof(uINT_t)
+        count = kept
+    ws.tokens.size += count * sizeof(uINT_t)
     if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
         return ENCODE_NO_MEMORY
     return ENCODE_OK

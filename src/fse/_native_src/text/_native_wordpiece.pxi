@@ -336,10 +336,9 @@ cdef enum:
 
 
 cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t n, Workspace ws,
-                          uINT_t *ids, Py_ssize_t *count, Py_ssize_t *bad,
-                          Py_ssize_t stop_at) noexcept nogil:
-    """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once ``stop_at`` ids
-    (0: no limit) are reached after a whole word."""
+                          uINT_t *ids, Py_ssize_t *count, Py_ssize_t *bad) noexcept nogil:
+    """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once the token cut
+    is reached after a whole word."""
     cdef unsigned char *q = <unsigned char *>ws.norm.data
     cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
                       else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
@@ -350,77 +349,22 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     if st.generic:
         while fse_wp_next_word(q, m, &pos, &start, &end):
             count[0] += _wp_word(st, q + start, end - start, ids + count[0])
-            if stop_at and count[0] >= stop_at:
+            if st.max_tokens and count[0] >= st.max_tokens:
                 return WP_FULL
         return WP_GO_ON
     while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
         count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
-        if stop_at and count[0] >= stop_at:
+        if st.max_tokens and count[0] >= st.max_tokens:
             return WP_FULL
     return WP_GO_ON
-
-
-cdef int _wp_run(WordPieceState st, const unsigned char *p, Py_ssize_t limit, Workspace ws,
-                 uINT_t *ids, Py_ssize_t stop_at, Py_ssize_t *count, Py_ssize_t *done,
-                 Py_ssize_t *bad) noexcept nogil:
-    """The loop of _wordpiece_sentence for the second run of a sentence that stopped at the
-    token cut (_wp_over): ``count`` ids into ``ids``, stopping at ``stop_at`` (0: never);
-    ``done`` is where it read to. It writes only ids, so it repeats the first run."""
-    cdef Py_ssize_t pos = 0, piece = 0
-    cdef int64_t found
-    cdef int status = WP_GO_ON
-    count[0] = 0
-    done[0] = 0
-    while pos < limit and status == WP_GO_ON:
-        if not st.generic:  # straight to the next byte a token may start at
-            pos = fse_wp_next_candidate(p, pos, limit, st.first, st.single_first) if st.n_added else limit
-            if pos == limit:
-                break
-        found = fse_wp_added_at(p, pos, limit, st.first, st.added_bytes, st.added_offsets,
-                                st.n_added) if st.n_added else -1
-        if found < 0:
-            pos += 1
-            continue
-        status = _wp_piece(st, p + piece, pos - piece, ws, ids, count, bad, stop_at)
-        done[0] = pos
-        if status == WP_GO_ON:
-            ids[count[0]] = st.added_ids[found]
-            count[0] += 1
-            pos += st.added_offsets[found + 1] - st.added_offsets[found]
-            piece = done[0] = pos
-            if stop_at and count[0] >= stop_at:
-                status = WP_FULL
-    if status == WP_GO_ON:
-        status = _wp_piece(st, p + piece, limit - piece, ws, ids, count, bad, stop_at)
-        done[0] = limit
-    if status == WP_BAD:
-        bad[0] += piece
-    return status
-
-
-cdef Py_ssize_t _wp_over(WordPieceState st, const unsigned char *p, Py_ssize_t limit,
-                         Workspace ws, uINT_t *ids, Py_ssize_t count, Py_ssize_t *redone,
-                         Py_ssize_t *bad) noexcept nogil:
-    """The ids beyond ``st.max_tokens`` once the first run of ``count`` ids stopped at the cut:
-    for the flags up to one more (0, or 1 and more), when counting all; -1 for invalid UTF-8.
-    The first ``count`` ids stay as they are. ``redone`` is where the second run read to
-    (not set if none ran: more than the limit already is the flag)."""
-    cdef Py_ssize_t total = 0, over = count - st.max_tokens
-    if ws.watch == 1 and over > 0:
-        return over
-    if _wp_run(st, p, limit, ws, ids, 0 if ws.watch == 2 else st.max_tokens + 1,
-               &total, redone, bad) == WP_BAD:
-        return -1
-    return total - st.max_tokens
 
 
 cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize_t n,
                              Workspace ws, Py_ssize_t *bad) noexcept nogil:
     """Append the ids of the sentence p[0:n] (steps 1 to 6) to the batch buffers of ws."""
-    cdef Py_ssize_t limit = n, pos = 0, piece = 0, done = 0, count = 0, kept = 0, i
-    cdef Py_ssize_t over = 0, redone = 0
+    cdef Py_ssize_t limit = n, pos = 0, piece = 0, done = 0, count = 0, kept = 0, k, i
     cdef int64_t found, cut
-    cdef int status = WP_GO_ON, kind = 0
+    cdef int status = WP_GO_ON
     cdef uINT_t *ids
     if st.max_chars:  # the whole sentence is validated here
         cut = (fse_wp_char_cut(p, n, st.max_chars) if st.generic
@@ -437,7 +381,6 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
             or _ensure(&ws.tokens, (4 * limit + 1) * <Py_ssize_t>sizeof(uINT_t))):
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
-    # The loop of _wp_run, counters in registers: the path of every sentence.
     while pos < limit and status == WP_GO_ON:
         if not st.generic:  # straight to the next byte a token may start at
             pos = fse_wp_next_candidate(p, pos, limit, st.first, st.single_first) if st.n_added else limit
@@ -448,7 +391,7 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
         if found < 0:
             pos += 1
             continue
-        status = _wp_piece(st, p + piece, pos - piece, ws, ids, &count, bad, st.max_tokens)
+        status = _wp_piece(st, p + piece, pos - piece, ws, ids, &count, bad)
         done = pos
         if status == WP_GO_ON:
             ids[count] = st.added_ids[found]
@@ -458,17 +401,11 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
             if st.max_tokens and count >= st.max_tokens:
                 status = WP_FULL
     if status == WP_GO_ON:
-        status = _wp_piece(st, p + piece, limit - piece, ws, ids, &count, bad, st.max_tokens)
+        status = _wp_piece(st, p + piece, limit - piece, ws, ids, &count, bad)
         done = limit
     if status == WP_BAD:
         bad[0] += piece
         return ENCODE_BAD_UTF8
-    if ws.watch and status == WP_FULL:  # the cut was reached: is there more behind it?
-        over = _wp_over(st, p, limit, ws, ids, count, &redone, bad)
-        if over < 0:
-            return ENCODE_BAD_UTF8
-        if redone:
-            done = redone
     if not st.max_chars and done < n:  # the rest of a sentence the token cut ended early
         found = fse_wp_validate(p, done, n)
         if found >= 0:
@@ -477,24 +414,13 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
     if st.max_tokens and count > st.max_tokens:
         count = st.max_tokens
     ws.tokens_seen += count
-    kept = count
     if st.drop_unknown:
-        kept = 0
         for i in range(count):
             if ids[i] != st.unk_id:
                 ids[kept] = ids[i]
                 kept += 1
-    if ws.watch:
-        if limit < n:
-            kind = CUT_CHARS
-        if over > 0:
-            kind |= CUT_TOKENS
-        status = _note_row(ws, kind, count - kept, over,
-                           _code_points(p + limit, n - limit) if ws.watch == 2 else 0,
-                           st.max_chars, st.max_tokens)
-        if status != ENCODE_OK:
-            return status
-    ws.tokens.size += kept * sizeof(uINT_t)
+        count = kept
+    ws.tokens.size += count * sizeof(uINT_t)
     if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
         return ENCODE_NO_MEMORY
     return ENCODE_OK

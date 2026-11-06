@@ -230,7 +230,6 @@ cdef class TextLookup:
         cdef int64_t err
         cdef uINT_t index
         cdef size_t written
-        cdef int status
         if n > _MAX_SENTENCE_BYTES:
             return ENCODE_TOO_LONG
         if self.tokenizer == FSE_TOKENIZER_WORDPIECE:
@@ -284,10 +283,6 @@ cdef class TextLookup:
                 ws.ngrams.size += written * sizeof(uINT_t)
                 if _push_i64_nogil(&ws.ngram_offsets, ws.ngrams.size // sizeof(uINT_t)):
                     return ENCODE_NO_MEMORY
-        if ws.watch:  # no length rule: the unknown words are all that is lost
-            status = _note_row(ws, 0, 0 if self.fasttext else out.n_tokens - kept, 0, 0, 0, 0)
-            if status != ENCODE_OK:
-                return status
         ws.tokens.size += kept * sizeof(uINT_t)
         if _push_i64_nogil(&ws.offsets, ws.tokens.size // sizeof(uINT_t)):
             return ENCODE_NO_MEMORY
@@ -376,8 +371,6 @@ cdef int _span_of(_Span *span, const unsigned char[::1] data, offsets, Py_ssize_
 cdef int _start_batch(Workspace ws) noexcept nogil:
     """Empty the batch buffers of ws and start its offsets at 0."""
     ws.tokens_seen = 0
-    if ws.watch:
-        _start_lengths(ws)
     ws.tokens.size = 0
     ws.offsets.size = 0
     ws.ngram_offsets.size = 0
@@ -397,6 +390,9 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
     cdef const unsigned char *newline
     cdef const unsigned char *p = span.p
     cdef int status = _start_batch(ws)
+    cdef bint watched = ws.watch != 0  # picked once for the batch
+    if watched:
+        _start_lengths(ws)
     while status == ENCODE_OK and pos < last:
         if items == NULL:
             newline = <const unsigned char *>memchr(p + pos, 10, n - pos)
@@ -407,7 +403,8 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
             start = items[pos]
             end = items[pos + 1]
             pos += 1
-        status = lookup._sentence(p + start, end - start, ws, &bad)
+        status = (_sentence_watched(lookup, p + start, end - start, ws, &bad) if watched
+                  else lookup._sentence(p + start, end - start, ws, &bad))
         if status == ENCODE_OK:
             sentence += 1
     span.start, span.end, span.sentence, span.bad = start, end, sentence, bad
