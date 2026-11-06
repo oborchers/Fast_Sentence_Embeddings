@@ -295,3 +295,40 @@ def test_fasttext_counts_an_unknown_word_as_one_token_and_drops_nothing():
     assert dropped.tolist() == [0, 0, 0]
     assert cuts.tolist() == [0, 0, 0]
     assert sums[3] == 1  # only the empty sentence is empty
+
+
+# --- the flags read one word beyond the cut in the same run -----------------------------------
+
+CUT_EDGES = [
+    "ab ab ab",  # exactly at the cut, nothing after
+    "ab ab ab ",  # white space after
+    "ab ab ab​",  # a character that normalization removes
+    "ab ab ab\x00 \x01",
+    "ab ab ab [MASK]",  # an added token behind the cut
+    "ab ab ab[MASK]",
+    "ab ab [MASK] ab",  # the added token is the last id
+    "ab ab ab zzz",  # only an unknown behind the cut
+    "ab ab ab zzz zzz",
+    "ab ab zzzzzzzzzzzzzzzzzzzz ab",
+    "ab ab abab",  # the last word with several pieces
+    "ab ab xyzxyz",
+    "ab ab abxxab ab",
+    "",
+    "[MASK]",
+    "[MASK] [MASK] [MASK] [MASK]",
+    "ab ab ab ab ab ab",
+]
+
+
+@pytest.mark.parametrize("drop", [True, False])
+@pytest.mark.parametrize("max_tokens", [1, 2, 3])
+@pytest.mark.parametrize("watch", [1, 2])
+def test_the_edges_of_the_cut_are_read_as_the_reference_reads_them(max_tokens, drop, watch):
+    want = expected(CUT_EDGES, max_tokens, 0, drop)
+    for lookup in lookups(max_tokens, 0, drop):
+        plain, plain_ws = encode(lookup, CUT_EDGES)
+        batch, ws = encode(lookup, CUT_EDGES, watch=watch, store_rows=True)
+        assert batch.tokens.tobytes() == plain.tokens.tobytes()
+        assert batch.offsets.tobytes() == plain.offsets.tobytes()
+        assert ws.tokens_seen == plain_ws.tokens_seen
+        check(ws, want, watch == 2)

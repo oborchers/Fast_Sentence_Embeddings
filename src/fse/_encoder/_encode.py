@@ -94,9 +94,8 @@ class _Encoding:
         also per row (with a sink the result is ``None``). ``count_truncated=True`` adds how
         many tokens and characters were cut. ``on_truncation="raise"`` raises
         ``fse.TruncationError`` for the first sentence the rule would cut instead of cutting
-        it. A flag costs a second tokenization of a sentence that ends exactly at
-        ``max_tokens``, up to one more token; counting tokenizes the rest of every cut
-        sentence. Without these keywords nothing is recorded and nothing changes.
+        it. A flag costs at most one more word of a sentence that reaches
+        ``max_tokens``; counting tokenizes the rest of every cut sentence. Without these keywords nothing is recorded and nothing changes.
         """
         me: Any = self  # the Encoder
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Encoder.encode")

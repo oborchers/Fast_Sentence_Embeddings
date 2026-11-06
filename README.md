@@ -275,7 +275,7 @@ print(report.n_truncated, "of", report.n_rows, "texts were cut")
 cut = report.truncated_rows()  # their positions
 ```
 
-`lengths="summary"` keeps only the sums (use it for big streams), `count_truncated=True` adds how many tokens and characters were cut, and `on_truncation="raise"` raises `fse.TruncationError` for the first text the model would cut. The same keywords work on `encode_batches` (each batch comes with its own report), on `fse.Heads` and on a single `Classifier` or `Regressor` (`labels, report = clf.predict(texts, lengths="summary")`). `report.empty` marks texts without any token: they become the zero vector. A zero vector can have other causes, so it does not always mean bad text. Without these keywords nothing is recorded and nothing changes. A text that ends exactly at the cut costs a second tokenization to find out whether more follows; counting the cut tokens tokenizes the rest of the text.
+`lengths="summary"` keeps only the sums (use it for big streams), `count_truncated=True` adds how many tokens and characters were cut, and `on_truncation="raise"` raises `fse.TruncationError` for the first text the model would cut. The same keywords work on `encode_batches` (each batch comes with its own report), on `fse.Heads` and on a single `Classifier` or `Regressor` (`labels, report = clf.predict(texts, lengths="summary")`). `report.empty` marks texts without any token: they become the zero vector. A zero vector can have other causes, so it does not always mean bad text. Without these keywords nothing is recorded and nothing changes. A text that reaches the cut costs at most one more word to find out whether more follows; counting the cut tokens tokenizes the rest of the text.
 
 ## When to use fse
 

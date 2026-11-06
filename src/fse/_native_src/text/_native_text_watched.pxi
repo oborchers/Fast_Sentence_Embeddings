@@ -4,8 +4,9 @@
 # _unigram_sentence, _wp_piece), which stay as they were before the length report and know
 # nothing of it, so the encoding without a report runs the same machine code. The loop of a
 # batch picks one or the other once (``ws.watch``). Recording changes no id, offset or other
-# state: a sentence at the token cut is tokenized a second time (_wp_over) in the scratch
-# of the ids.
+# state. For the flags the run reads one more word than the cut needs (stop_at is
+# max_tokens + 1) and cuts afterwards; counting tokenizes the rest of the sentence a second
+# time (_wp_over) in the scratch of the ids.
 
 # Copies of the word functions of _wp_piece: each piece function keeps its own, so the
 # compiler inlines them in both as it did in the one.
@@ -139,17 +140,13 @@ cdef int _wp_run(WordPieceState st, const unsigned char *p, Py_ssize_t limit, Wo
 
 
 cdef Py_ssize_t _wp_over(WordPieceState st, const unsigned char *p, Py_ssize_t limit,
-                         Workspace ws, uINT_t *ids, Py_ssize_t count, Py_ssize_t *redone,
+                         Workspace ws, uINT_t *ids, Py_ssize_t *redone,
                          Py_ssize_t *bad) noexcept nogil:
-    """The ids beyond ``st.max_tokens`` once the first run of ``count`` ids stopped at the cut:
-    for the flags up to one more (0, or 1 and more), when counting all; -1 for invalid UTF-8.
-    The first ``count`` ids stay as they are. ``redone`` is where the second run read to
-    (not set if none ran: more than the limit already is the flag)."""
-    cdef Py_ssize_t total = 0, over = count - st.max_tokens
-    if ws.watch == 1 and over > 0:
-        return over
-    if _wp_run(st, p, limit, ws, ids, 0 if ws.watch == 2 else st.max_tokens + 1,
-               &total, redone, bad) == WP_BAD:
+    """For counting: the ids beyond ``st.max_tokens`` of the whole text, by a second run
+    without a limit (-1 for invalid UTF-8). The first ids stay as they are: it repeats them.
+    ``redone`` is where it read to."""
+    cdef Py_ssize_t total = 0
+    if _wp_run(st, p, limit, ws, ids, 0, &total, redone, bad) == WP_BAD:
         return -1
     return total - st.max_tokens
 
@@ -175,11 +172,17 @@ cdef int _wordpiece_sentence_watched(WordPieceState st, const unsigned char *p, 
             or _ensure(&ws.tokens, (4 * limit + 1) * <Py_ssize_t>sizeof(uINT_t))):
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)
-    status = _wp_run(st, p, limit, ws, ids, st.max_tokens, &count, &done, bad)
+    # The flags read one word beyond the cut in the same run (more ids than max_tokens is the
+    # flag); counting reads up to the cut and then the rest in a second run.
+    status = _wp_run(st, p, limit, ws, ids,
+                     st.max_tokens + 1 if st.max_tokens and ws.watch == 1 else st.max_tokens,
+                     &count, &done, bad)
     if status == WP_BAD:
         return ENCODE_BAD_UTF8
-    if status == WP_FULL:  # the cut was reached: is there more behind it?
-        over = _wp_over(st, p, limit, ws, ids, count, &redone, bad)
+    if st.max_tokens and count > st.max_tokens:
+        over = count - st.max_tokens
+    if status == WP_FULL and ws.watch == 2:  # counting: the whole rest
+        over = _wp_over(st, p, limit, ws, ids, &redone, bad)
         if over < 0:
             return ENCODE_BAD_UTF8
         if redone:

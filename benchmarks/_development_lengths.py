@@ -216,8 +216,8 @@ def declared(model, texts, expect_uncut=False):
 
 
 def _share_at_cut(report):
-    """The share of rows whose ids end exactly at max_tokens, where the flag costs a second
-    tokenization (rows with tokens == max_tokens before the unknown ids dropped)."""
+    """The share of rows whose ids end exactly at max_tokens, where the flag reads one more
+    word (rows with tokens == max_tokens before the unknown ids dropped)."""
     import numpy as np
 
     if report.max_tokens is None:
@@ -230,7 +230,7 @@ def documents_at_cut(model, rows, deadline=None):
     """Documents of exactly ``max_tokens`` ids: the longest prefix of the words of each
     document of ``rows`` with that many ids (the ids before unknown ids are dropped), where
     one exists. A sentence of this kind ends exactly at the cut, so the flag of the length
-    report costs a second tokenization of it (docs/architecture/tokenizers.md)."""
+    report reads one more word of it (docs/architecture/tokenizers.md)."""
     limit = model._spec.tokenizer.max_tokens
 
     def ids(text):
