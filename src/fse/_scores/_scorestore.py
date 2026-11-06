@@ -245,7 +245,7 @@ class ScoreStore:
                 if not closed:
                     self._shards = [*shards, *checked.shards]
             if closed:
-                checked = None  # the mappings go with the error
+                del checked  # the mappings go with the error
                 raise RuntimeError("the ScoreStore is closed")
         _log.emit(
             "scores.refreshed",
