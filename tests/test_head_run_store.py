@@ -134,7 +134,7 @@ def test_a_store_cannot_close_while_it_is_predicted(tmp_path):
     store = _store(tmp_path, encoder, sentences=texts(5000))
     batches = model.predict_batches(store, output="decision", workers=1)
     next(batches)
-    with pytest.raises(RuntimeError, match="being searched"):
+    with pytest.raises(RuntimeError, match="in use"):
         store.close()
     batches.close()
     store.close()
