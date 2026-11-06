@@ -143,7 +143,15 @@ def open_shard(
     stats = parsed_stats(metadata, file) if info.has_doc_ids else None
     return (
         ScoreShard(
-            name, first_row, n, unsynced, expected, stats, info.proba_columns, info.threshold_names
+            name,
+            first_row,
+            n,
+            unsynced,
+            expected,
+            stats,
+            proba_columns=info.proba_columns,
+            thresholds=info.threshold_names,
+            fingerprint=metadata[FINGERPRINT_KEY],
         ),
         tensors,
     )

@@ -36,10 +36,12 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds; `skipped_rows` (resume sinks only) | `ShardSink.close` |
 | `scores.opened` | INFO | `fse.store` | rows, shards, heads, columns, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.open` |
 | `scores.verified` | INFO | `fse.store` | rows, shards, seconds | `ScoreStore.verify` |
+| `scores.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.refresh`, once per call, also when it adds nothing |
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
 | `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
 | `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
+| `store.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.refresh`, once per call, also when it adds nothing |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
 | `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids | `ScoreSink`, when `predict_batches` of `Heads`, `Classifier` or `Regressor` attaches the run (a new store is created then; `heads` is 1 for a single head) |
 | `scores.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ScoreSink` (thread `fse-shard-publish`) |
@@ -48,5 +50,7 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
 For `store.opened`, `unsynced_shards` counts shards tagged `fse.durability=none`. `verified_bytes` counts their mapped tensor data bytes, excluding headers and manifests. `verify_seconds` covers their checksum and value checks. All three fields are zero for an untagged snapshot.
+
+For `store.refreshed` and `scores.refreshed`, `rows` is the length after the call; `unsynced_shards`, `verified_bytes` and `verify_seconds` count the new shards only, as `store.opened` counts them for all.
 
 For `store.repaired`, `rows` is the kept prefix length. `moved_rows` sums the row counts of moved entries whose structure was readable; it is `None` if any moved entry has an unknown row count. It is zero when nothing moved. A failed repair raises without also emitting this event.

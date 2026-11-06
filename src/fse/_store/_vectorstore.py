@@ -6,8 +6,8 @@
 
 """``fse.VectorStore``: a store of sentence vectors opened for search and score.
 
-The shards published when the store is opened are mapped read-only (a snapshot: later
-appends need a new open), and every search runs on the stored float32, float16 or int8
+The shards published when the store is opened are mapped read-only (a snapshot: ``refresh``
+adds the shards published since), and every search runs on the stored float32, float16 or int8
 rows directly, through their inverse norms, without a normalized float32 copy. ``mode``
 picks the arithmetic: ``"exact"`` gives the cosines, scores and the order of the results
 of ``fse._reference``, bit for bit; ``"blas"`` decodes each block to float32 and
@@ -39,7 +39,8 @@ from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
-from ._recovery import check_chain, clear_exception_frames, snapshot
+from ._recovery import check_chain, clear_exception_frames, rows_in, snapshot, stop_row
+from ._refresh import refreshed
 from ._result import DocumentSearchResult, SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
@@ -49,16 +50,18 @@ DEFAULT_BLOCK_ROWS = 65_536
 
 
 class VectorStore:
-    """The rows of a store at the time it was opened, searched by cosine (``search``) or
-    scored with linear weights (``score``). Close it (or use it as a context manager) to
-    release the mappings; a closed store raises, and ``close`` raises while a search, score
-    or read runs."""
+    """The rows of a store at the time it was opened (or last refreshed), searched by cosine
+    (``search``) or scored with linear weights (``score``). Every call reads the shards it
+    finds when it starts, so a ``refresh`` meanwhile does not reach it. Close it (or use it
+    as a context manager) to release the mappings; a closed store raises, and ``close``
+    raises while a search, score, read or refresh runs."""
 
     path: Path
     _info: StoreInfo
     _shards: list[tuple[Shard, dict[str, ndarray]]]
     _backend: Any
     _lock: threading.Lock
+    _refreshing: threading.Lock
     _active: int
     _closed: bool
 
@@ -73,7 +76,7 @@ class VectorStore:
     # --- what it holds --------------------------------------------------------------
 
     def __len__(self) -> int:
-        return sum(shard.rows for shard, _ in self._shards)
+        return rows_in(self._shards)
 
     @property
     def dim(self) -> int:
@@ -129,14 +132,14 @@ class VectorStore:
         """
         self._check_open()
         matrix, single = self._queries(queries, "queries")
-        values, kind = self._plan_filter(doc_ids, rows, max_per_doc)
-        with self._using():
+        with self._using() as shards:
+            values, kind = self._plan_filter(doc_ids, rows, max_per_doc, rows_in(shards))
             workers = workers or usable_cpus()
             exact = _search.is_exact(mode, len(matrix))
             if max_per_doc is not None:
                 found = _unique_search.search(
                     self._backend,
-                    self._shards,
+                    shards,
                     matrix,
                     k,
                     values,
@@ -148,12 +151,12 @@ class VectorStore:
                 return DocumentSearchResult(ids, scores, labels)
             if values is None:
                 ids, scores = _search.search(
-                    self._backend, self._shards, matrix, k, workers=workers, exact=exact
+                    self._backend, shards, matrix, k, workers=workers, exact=exact
                 )
             else:
                 ids, scores = _filtered.search(
                     self._backend,
-                    self._shards,
+                    shards,
                     matrix,
                     k,
                     values,
@@ -164,11 +167,11 @@ class VectorStore:
             if single:
                 ids, scores = ids[0], scores[0]
             if self._info.has_doc_ids:
-                return DocumentSearchResult(ids, scores, _filtered.document_ids(self._shards, ids))
+                return DocumentSearchResult(ids, scores, _filtered.document_ids(shards, ids))
             return SearchResult(ids, scores)
 
     def _plan_filter(
-        self, doc_ids: Any, rows: Any, max_per_doc: int | None
+        self, doc_ids: Any, rows: Any, max_per_doc: int | None, n_rows: int
     ) -> tuple[ndarray | None, str]:
         """Check the filters and ``max_per_doc`` of a search before any row is read; returns
         the prepared filter (None for all rows) and its kind."""
@@ -185,9 +188,7 @@ class VectorStore:
             raise ValueError("max_per_doc needs a store with doc_ids")
         kind = "doc_ids" if doc_ids is not None else "rows"
         if doc_ids is not None or rows is not None:
-            return _selection.prepare(
-                doc_ids if doc_ids is not None else rows, kind, len(self)
-            ), kind
+            return _selection.prepare(doc_ids if doc_ids is not None else rows, kind, n_rows), kind
         return None, kind
 
     @validate_arguments
@@ -207,10 +208,10 @@ class VectorStore:
         """
         self._check_open()
         matrix, single = self._queries(weights, "weights")
-        with self._using():
+        with self._using() as shards:
             out = _search.score(
                 self._backend,
-                self._shards,
+                shards,
                 matrix,
                 bias,
                 workers=workers or usable_cpus(),
@@ -256,11 +257,11 @@ class VectorStore:
         Keep ``rows`` unchanged until the call returns."""
         self._check_open()
         wanted = _take.positions(rows)
-        with self._using():
+        with self._using() as shards:
             return _take.gather(
-                self._shards,
+                shards,
                 wanted,
-                len(self),
+                rows_in(shards),
                 _take.read_vectors,
                 tail=(self.dim,),
                 dtype=F32,
@@ -275,11 +276,11 @@ class VectorStore:
         if not self._info.has_doc_ids:
             raise ValueError("this store has no doc_ids")
         wanted = _take.positions(rows)
-        with self._using():
+        with self._using() as shards:
             return _take.gather(
-                self._shards,
+                shards,
                 wanted,
-                len(self),
+                rows_in(shards),
                 _take.read_doc_ids,
                 tail=(),
                 dtype=np.int64,
@@ -305,29 +306,25 @@ class VectorStore:
         block raises ``RuntimeError``, also before the first; views given before stay
         readable."""
         self._check_open()
-        stop = self._stop(start, stop)
-        return self._batches(block_rows, start, stop)
+        with self._using() as shards:  # the shards and the rows of this call, also for a generator
+            stop = stop_row(shards, start, stop)
+        return self._batches(shards, block_rows, start, stop)
 
-    def _batches(self, block_rows: int, start: int, stop: int) -> Iterator[VectorBatch]:
-        with self._using():  # the snapshot cannot meet a close; it is left before the first yield
-            shards = list(self._shards)
+    def _batches(
+        self, shards: list, block_rows: int, start: int, stop: int
+    ) -> Iterator[VectorBatch]:
+        self._check_open()  # also for no rows, and before the first block
         for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more
             yield _vector_batches.make(tensors, shard.first_row, first, end)
 
-    def _stop(self, start: int, stop: int | None) -> int:
-        stop = len(self) if stop is None else stop
-        if not start <= stop <= len(self):
-            raise ValueError(f"rows {start} to {stop} are not within the {len(self)} rows")
-        return stop
-
     def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
         """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
         ``np.concatenate`` of the parts copies them out of the mappings."""
-        stop = self._stop(start, stop)
         parts = []
-        with self._using():
-            for shard, tensors in self._shards:
+        with self._using() as shards:
+            stop = stop_row(shards, start, stop)
+            for shard, tensors in shards:
                 lo, hi = max(start, shard.first_row), min(stop, shard.first_row + shard.rows)
                 if lo < hi:
                     parts.append(read(tensors, lo - shard.first_row, hi - shard.first_row))
@@ -340,22 +337,53 @@ class VectorStore:
         start = time.perf_counter()
         read_store(self.path, VECTORS.name)
         kind = kind_of(self._info)
-        with self._using():
-            for shard, tensors in self._shards:
+        with self._using() as shards:
+            for shard, tensors in shards:
                 file = self.path / shard.name / "manifest.json"
                 check_removed(NpyContainer().metadata(self.path / shard.name), file)
                 NpyContainer().verify(self.path / shard.name)
                 kind.check_values(shard, tensors)
-            check_chain(self.path, kind, self._shards)
+            check_chain(self.path, kind, shards)
         _log.emit(
             "store.verified",
             "fse store: verified %d rows in %d shards",
-            len(self),
-            len(self._shards),
-            rows=len(self),
-            shards=len(self._shards),
+            rows_in(shards),
+            len(shards),
+            rows=rows_in(shards),
+            shards=len(shards),
             seconds=time.perf_counter() - start,
         )
+
+    def refresh(self) -> int:
+        """Add the shards published since the store was opened (or last refreshed) and return
+        the number of rows they hold (0 if there are none). The store changes in place: a
+        search, score or read that runs, or a generator already made, keeps the rows it
+        started with. Only the new shards are checked and, if tagged ``durability="none"``,
+        hashed. A gap, an orphan or a break of the chain raises ``CorruptArtifactError``; a
+        store that is no longer the one that was opened raises ``RuntimeError``; the rows
+        stay as they were. Nothing is promised against ``repair_store`` running meanwhile.
+        ``close`` raises while a refresh runs."""
+        self._check_open()
+        with self._refreshing, self._using() as shards:
+            checked = refreshed(self.path, self._info, shards)
+            added = rows_in(checked.shards)
+            total = rows_in(shards) + added
+            with self._lock:
+                self._shards = [*shards, *checked.shards]
+        _log.emit(
+            "store.refreshed",
+            "fse store: refreshed to %d rows: %d rows in %d shards added",
+            total,
+            added,
+            len(checked.shards),
+            rows=total,
+            added_rows=added,
+            added_shards=len(checked.shards),
+            unsynced_shards=checked.unsynced_shards,
+            verified_bytes=checked.verified_bytes,
+            verify_seconds=checked.verify_seconds,
+        )
+        return added
 
     # --- life cycle ---------------------------------------------------------------------
 
@@ -402,16 +430,19 @@ class VectorStore:
 
 
 class _Use:
-    """Counts a search or score in flight, so ``close`` cannot unmap rows it reads."""
+    """Counts a search, score, read or refresh in flight, so ``close`` cannot unmap rows it
+    reads, and gives its shards."""
 
     def __init__(self, store: VectorStore):
         self.store = store
 
-    def __enter__(self):
+    def __enter__(self) -> list:
+        """The shards of the store at this moment: a list that is replaced, never changed."""
         with self.store._lock:
             if self.store._closed:
                 raise RuntimeError("the VectorStore is closed")
             self.store._active += 1
+            return self.store._shards
 
     def __exit__(self, *_exc: object) -> None:
         with self.store._lock:
@@ -445,6 +476,7 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
     out._shards = checked.shards
     out._backend = get_backend(backend)
     out._lock = threading.Lock()
+    out._refreshing = threading.Lock()
     out._active = 0
     out._closed = False
     _log.emit(

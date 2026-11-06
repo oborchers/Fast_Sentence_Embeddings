@@ -7,8 +7,8 @@
 """``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md,
 "Reading").
 
-The shards published when the store is opened are mapped read-only (a snapshot: later
-appends need a new open). ``iter_batches`` gives the stored values as they are, read-only
+The shards published when the store is opened are mapped read-only (a snapshot: ``refresh``
+adds the shards published since). ``iter_batches`` gives the stored values as they are, read-only
 views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
 from what is stored, with the thresholds of the multilabel heads replaced if asked. No
 encoder, tokenizer or weight table is loaded.
@@ -35,7 +35,14 @@ from fse._store._id_stats import check_removed
 from fse._store._kind import Shard
 from fse._store._kinds import kind_of
 from fse._store._layout import read_store
-from fse._store._recovery import check_chain, clear_exception_frames, snapshot
+from fse._store._recovery import (
+    check_chain,
+    clear_exception_frames,
+    rows_in,
+    snapshot,
+    stop_row,
+)
+from fse._store._refresh import refreshed
 from fse._store._scores_info import ScoreHead, ScoreInfo
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
@@ -48,7 +55,9 @@ KIND = "prediction_scores"
 
 
 class ScoreStore:
-    """The rows of a score store at the time it was opened. Close it (or use it as a context
+    """The rows of a score store at the time it was opened (or last refreshed). Every call
+    reads the shards it finds when it starts, so a ``refresh`` meanwhile does not reach it,
+    not even a generator already made. Close it (or use it as a context
     manager) to release the mappings; views given before stay readable, and a closed store
     gives nothing more: the next block of ``iter_batches`` or ``predict_batches`` raises
     ``RuntimeError``, also before the first."""
@@ -58,6 +67,7 @@ class ScoreStore:
     _shards: list[tuple[Shard, dict[str, ndarray]]]
     _backend: str
     _lock: threading.Lock
+    _refreshing: threading.Lock
     _closed: bool
 
     @classmethod
@@ -76,7 +86,7 @@ class ScoreStore:
     # --- what it holds --------------------------------------------------------------
 
     def __len__(self) -> int:
-        return sum(shard.rows for shard, _ in self._shards)
+        return rows_in(self._shards)
 
     @property
     def heads(self) -> Mapping[str, ScoreHead]:
@@ -110,9 +120,9 @@ class ScoreStore:
         ``(n,)`` for a head that is flat). A head of several columns is not contiguous in
         the view; copy it if you need that. Raises ``RuntimeError`` for the next block after
         ``close``, also before the first."""
-        self._check_open()
-        stop = self._rows(start, stop)
-        return self._blocks(block_rows, start, stop, _predict_raw, None)
+        shards = self._snapshot()
+        stop = stop_row(shards, start, stop)
+        return self._blocks(shards, block_rows, start, stop, _predict_raw, None)
 
     @validate_arguments
     def predict_batches(
@@ -131,13 +141,18 @@ class ScoreStore:
         new cutoffs (a partial mapping keeps the stored cutoffs of the labels it does not
         name; None resets to 0.5); no model, encoder or tokenizer is loaded. Raises
         ``RuntimeError`` for the next block after ``close``, also before the first."""
-        self._check_open()
+        shards = self._snapshot()
         name = self._backend if backend is None else backend
         if name not in BACKEND_NAMES:
             raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {name!r}")
-        plans = self._plans(output, thresholds)
+        plans = self._plans(shards, output, thresholds)
         return self._blocks(
-            block_rows, 0, len(self), _predict_derived, (get_backend(name), plans, {})
+            shards,
+            block_rows,
+            0,
+            rows_in(shards),
+            _predict_derived,
+            (get_backend(name), plans, {}),
         )
 
     @validate_arguments
@@ -152,7 +167,7 @@ class ScoreStore:
         """A copy of the values of ``head`` for the rows ``start`` to ``stop - 1`` (all by
         default): ``stored`` must be what the head stored (``decision``, ``proba`` or
         ``values``), so that logits and probabilities are never taken for each other."""
-        self._check_open()
+        shards = self._snapshot()
         found = self.heads.get(head)
         if found is None:
             raise ValueError(f"the store holds the heads {list(self.heads)}, not {head!r}")
@@ -161,10 +176,10 @@ class ScoreStore:
                 f"head {head!r} stored {found.stored}, not {stored!r}; the values are not "
                 "converted here (predict_batches derives other outputs)"
             )
-        stop = self._rows(start, stop)
+        stop = stop_row(shards, start, stop)
         parts = [
             np.array(_columns(found, tensors["scores"][first:end]))
-            for _, tensors, first, end in blocks(self._shards, start, stop, 1 << 62)
+            for _, tensors, first, end in blocks(shards, start, stop, 1 << 62)
         ]
         shape = (0,) if _flat(found) else (0, found.width)
         return np.concatenate(parts) if parts else np.empty(shape, np.float32)
@@ -175,13 +190,13 @@ class ScoreStore:
     ) -> ndarray:
         """The document IDs (int64) of the rows ``start`` to ``stop - 1`` (all by default),
         a copy."""
-        self._check_open()
+        shards = self._snapshot()
         if not self._info.has_doc_ids:
             raise ValueError("this store has no doc_ids")
-        stop = self._rows(start, stop)
+        stop = stop_row(shards, start, stop)
         parts = [
             np.array(tensors["doc_ids"][first:end])
-            for _, tensors, first, end in blocks(self._shards, start, stop, 1 << 62)
+            for _, tensors, first, end in blocks(shards, start, stop, 1 << 62)
         ]
         return (
             np.concatenate(parts).astype(np.int64, copy=False) if parts else np.empty(0, np.int64)
@@ -191,25 +206,61 @@ class ScoreStore:
         """Hash every shard on disk against its checksums and check its values: finite
         scores, probabilities within [0, 1], thresholds within [0, 1], the document-ID
         statistics, and that the thresholds of neighbours are equal."""
-        self._check_open()
+        shards = self._snapshot()
         start = time.perf_counter()
         read_store(self.path, KIND)
         kind = kind_of(self._info)
-        for shard, tensors in self._shards:
+        for shard, tensors in shards:
             file = self.path / shard.name / "manifest.json"
             check_removed(NpyContainer().metadata(self.path / shard.name), file)
             NpyContainer().verify(self.path / shard.name)
             kind.check_values(shard, tensors)
-        check_chain(self.path, kind, self._shards)
+        check_chain(self.path, kind, shards)
         _log.emit(
             "scores.verified",
             "fse scores: verified %d rows in %d shards",
-            len(self),
-            len(self._shards),
-            rows=len(self),
-            shards=len(self._shards),
+            rows_in(shards),
+            len(shards),
+            rows=rows_in(shards),
+            shards=len(shards),
             seconds=time.perf_counter() - start,
         )
+
+    def refresh(self) -> int:
+        """Add the shards published since the store was opened (or last refreshed) and return
+        the number of rows they hold (0 if there are none). The store changes in place: a
+        read or a generator already made keeps the rows it started with. Only the new
+        shards are checked and, if tagged ``durability="none"``, hashed. A gap, an orphan,
+        a break of the chain or a shard whose thresholds differ raises
+        ``CorruptArtifactError``; a store that is no longer the one that was opened raises
+        ``RuntimeError``; the rows stay as they were. Nothing is promised against
+        ``repair_store`` running meanwhile."""
+        with self._refreshing:
+            shards = self._snapshot()
+            checked = refreshed(self.path, self._info, shards)
+            added = rows_in(checked.shards)
+            total = rows_in(shards) + added
+            with self._lock:
+                closed = self._closed
+                if not closed:
+                    self._shards = [*shards, *checked.shards]
+            if closed:
+                del checked  # the mappings go with the error
+                raise RuntimeError("the ScoreStore is closed")
+        _log.emit(
+            "scores.refreshed",
+            "fse scores: refreshed to %d rows: %d rows in %d shards added",
+            total,
+            added,
+            len(checked.shards),
+            rows=total,
+            added_rows=added,
+            added_shards=len(checked.shards),
+            unsynced_shards=checked.unsynced_shards,
+            verified_bytes=checked.verified_bytes,
+            verify_seconds=checked.verify_seconds,
+        )
+        return added
 
     # --- life cycle -----------------------------------------------------------------
 
@@ -233,22 +284,22 @@ class ScoreStore:
 
     # --- internals ------------------------------------------------------------------
 
-    def _rows(self, start: int, stop: int | None) -> int:
-        stop = len(self) if stop is None else stop
-        if not start <= stop <= len(self):
-            raise ValueError(f"rows {start} to {stop} are not within the {len(self)} rows")
-        return stop
+    def _snapshot(self) -> list:
+        """The shards of the store now (a list that is replaced, never changed); a closed
+        store raises."""
+        with self._lock:
+            self._check_open()
+            return self._shards
 
-    def _blocks(self, block_rows: int, start: int, stop: int, make: Any, state: Any):
+    def _blocks(self, shards: list, block_rows: int, start: int, stop: int, make: Any, state: Any):
         self._check_open()  # also when closed after the call and before the first block
-        shards = list(self._shards)
         for shard, tensors, first, end in blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more
             scores = tensors["scores"][first:end]
             ids = tensors["doc_ids"][first:end] if self._info.has_doc_ids else None
             yield make(self._info, state, scores, shard.first_row + first, ids)
 
-    def _plans(self, output: Any, thresholds: Any) -> dict[str, _predict.HeadPlan]:
+    def _plans(self, shards: list, output: Any, thresholds: Any) -> dict[str, _predict.HeadPlan]:
         """How each head gives its output and what its cutoffs are, checked now."""
         heads = self._info.heads
         rules = {h.name: OutputRule(h.task, None if h.link == "none" else h.link) for h in heads}
@@ -256,18 +307,18 @@ class ScoreStore:
         given = _threshold_names(self.heads, thresholds)
         plans = {}
         for head in heads:
-            limits = self._limits(head, given.get(head.name, _NOT_GIVEN))
+            limits = self._limits(shards, head, given.get(head.name, _NOT_GIVEN))
             plans[head.name] = _predict.HeadPlan(head, wanted[head.name], limits)
         return plans
 
-    def _limits(self, head: ScoreHead, given: Any) -> ndarray | None:
+    def _limits(self, shards: list, head: ScoreHead, given: Any) -> ndarray | None:
         """The cutoffs of a multilabel head: the stored ones, with ``given`` on top."""
         if not head.multilabel:
             return None
         labels = head.labels
         assert labels is not None
-        if self._shards:
-            tensors = self._shards[0][1]
+        if shards:
+            tensors = shards[0][1]
             stored = tensors[head.threshold_name]
         else:
             stored = np.full(len(labels), 0.5, np.float32)
@@ -367,6 +418,7 @@ def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
     out._shards = checked.shards
     out._backend = backend
     out._lock = threading.Lock()
+    out._refreshing = threading.Lock()
     out._closed = False
     _log.emit(
         "scores.opened",

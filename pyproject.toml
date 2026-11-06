@@ -406,7 +406,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind", "_columns | _id_stats", "_resume_format"]
+layers = ["_sink | _vectorstore | _repair", "_refresh", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind", "_columns | _id_stats", "_resume_format"]
 
 [[tool.importlinter.contracts]]
 name = "Scores: the store on its predictions, those and the batches and sink on the schema"

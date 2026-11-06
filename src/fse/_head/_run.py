@@ -212,7 +212,9 @@ def batches(
             check_output_sink(model, sink, output)
         refuse_store_lengths(settings, method)
         _check_store(model, items)
-        return _store_batches(model, items, output, workers, backend, sink)
+        with items._using() as shards:  # the rows of this call, whatever refresh does later
+            pass
+        return _store_batches(model, items, output, workers, backend, sink, shards)
     if return_vectors:
         if model.standalone:
             raise ValueError("a standalone model has no vectors: its table is folded")
@@ -278,8 +280,11 @@ def _check_store(model: Any, store: VectorStore) -> None:
         )
 
 
-def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, backend: Any):
-    """(first row, outputs) of every block of the store, in row order."""
+def _store_blocks(
+    model: Any, store: VectorStore, output: str, workers: Any, backend: Any, shards: Any = None
+):
+    """(first row, outputs) of every block of the shards ``shards`` of the store (its shards
+    when the run starts if None), in row order."""
     _check_store(model, store)
     host = get_backend(backend)
     head = model._head
@@ -296,10 +301,10 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
             first_row=first_row,
         )
 
-    with store._using():
+    with store._using() as now:  # held for the run, so close cannot unmap the rows
         yield from score_blocks(
             host,
-            store._shards,
+            now if shards is None else shards,
             head.weight,
             head.bias,
             workers=check_workers(workers) or usable_cpus(),
@@ -307,9 +312,11 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
         )
 
 
-def _store_batches(model, store, output, workers, backend, sink) -> Iterator[PredictedBatch]:
+def _store_batches(
+    model, store, output, workers, backend, sink, shards
+) -> Iterator[PredictedBatch]:
     last = None
-    for first_row, block in _store_blocks(model, store, output, workers, backend):
+    for first_row, block in _store_blocks(model, store, output, workers, backend, shards):
         n = len(block)
         if sink is None:
             yield PredictedBatch(first_row, n, finish(model, block, output), None, None)
