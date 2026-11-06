@@ -30,6 +30,8 @@ from fse._container._common import _strict_json
 from fse._contract import LINK_NONE, UnsupportedArtifactError, parse_id
 
 from ._id_stats import MODE_KEYS, check_mode
+from ._resume_format import MODE as SOURCE_ROWS
+from ._resume_format import SOURCE_KEYS, SourceRows, parse
 
 NAME = "prediction_scores"
 FORMAT_VERSION = "1"
@@ -124,6 +126,7 @@ class ScoreInfo:
     has_doc_ids: bool
     heads: tuple[ScoreHead, ...]
     version: int = STORE_VERSION
+    resume: SourceRows | None = None  # the identity of a store of the mode source_rows@1
 
     @property
     def kind(self) -> str:
@@ -142,15 +145,18 @@ class ScoreInfo:
         return tuple(head.columns for head in self.heads if head.stored == "proba")
 
     def metadata(self) -> dict[str, str]:
-        return {
+        metadata = {
             "fse.kind": NAME,
             "fse.format_version": FORMAT_VERSION,
             "fse.transform_version": "2",
             "fse.encoder": self.encoder,
             "fse.doc_ids": "int64" if self.has_doc_ids else "none",
-            "fse.resume": "none",
+            "fse.resume": "none" if self.resume is None else SOURCE_ROWS,
             "fse.score_heads": canonical_json([head.entry() for head in self.heads]),
         }
+        if self.resume is not None:
+            metadata.update(self.resume.metadata(metadata))
+        return metadata
 
     def check(self, other: ScoreInfo, path: Path, *, paths: bool = True) -> None:
         """Raise unless ``other`` describes the same rows as this store; with ``paths``
@@ -199,8 +205,10 @@ def parse_info(metadata: Any, file: Path) -> ScoreInfo:
     heads = metadata.get("fse.score_heads")
     if isinstance(heads, str):
         _identifiers(heads, file)
-    if set(metadata) != set(SHARED):
-        raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(SHARED)}")
+    resumable = metadata.get("fse.resume") == SOURCE_ROWS
+    keys = (*SHARED, *(SOURCE_KEYS if resumable else ()))
+    if set(metadata) != set(keys):
+        raise CorruptArtifactError(f"{file}: the metadata must hold exactly {', '.join(keys)}")
     if not all(isinstance(value, str) for value in metadata.values()):
         raise CorruptArtifactError(f"{file}: every value of the metadata must be text")
     if metadata["fse.kind"] != NAME or metadata["fse.transform_version"] != "2":
@@ -212,10 +220,19 @@ def parse_info(metadata: Any, file: Path) -> ScoreInfo:
         raise CorruptArtifactError(
             f"{file}: fse.encoder must be an encoder fingerprint ({FINGERPRINT_FORM})"
         )
-    if metadata["fse.doc_ids"] not in ("none", "int64") or metadata["fse.resume"] != "none":
+    if metadata["fse.doc_ids"] not in ("none", "int64") or metadata["fse.resume"] not in (
+        "none",
+        SOURCE_ROWS,
+    ):
         raise CorruptArtifactError(f"{file}: invalid document-ID or resume mode")
     parsed = _heads(metadata["fse.score_heads"], file)
-    return ScoreInfo(metadata["fse.encoder"], metadata["fse.doc_ids"] == "int64", parsed)
+    shared = {key: metadata[key] for key in SHARED}
+    return ScoreInfo(
+        metadata["fse.encoder"],
+        metadata["fse.doc_ids"] == "int64",
+        parsed,
+        resume=parse(metadata, shared, file) if resumable else None,
+    )
 
 
 def _entries(text: str, file: Path) -> list[Any]:

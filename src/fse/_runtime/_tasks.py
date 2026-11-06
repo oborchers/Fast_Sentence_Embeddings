@@ -25,6 +25,7 @@ from fse._text import (
     Chunk,
     StringSource,
     TokenListSource,
+    Window,
     check_chunk_bytes,
     default_chunk_bytes,
 )
@@ -37,7 +38,7 @@ INLINE_MAX_BYTES = 1 << 16
 # window spans collections, so a stream keeps its smaller tasks.
 STREAM_TASKS_PER_COLLECTION = 8
 
-SOURCES = (StringSource, FileSource, TokenListSource, StreamSource, ArrowSource)
+SOURCES = (StringSource, FileSource, TokenListSource, StreamSource, ArrowSource, Window)
 
 
 @dataclass(frozen=True)

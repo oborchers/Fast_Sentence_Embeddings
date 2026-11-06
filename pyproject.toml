@@ -386,7 +386,7 @@ layers = [
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram | _log_config",
     # Independent of each other: the references never share code with what they check.
-    "_ids | _container | _codes | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
+    "_ids | _container | _codes | _partition | _reference | _reference_text | _reference_wordpiece | _tokenizer_spec | _validation",
     # The parameters of unigram@1, which TokenizerSpec holds.
     "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
@@ -406,7 +406,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind", "_columns | _id_stats"]
+layers = ["_sink | _vectorstore | _repair", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind", "_columns | _id_stats", "_resume_format"]
 
 [[tool.importlinter.contracts]]
 name = "Scores: the store on its predictions, those and the batches and sink on the schema"
@@ -434,7 +434,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder | _model2vec_rules", "_encode", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_encode", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_resume", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"
@@ -448,7 +448,7 @@ name = "Text: the sources and the lookup on the scan of one buffer"
 type = "layers"
 containers = ["fse._text"]
 exhaustive = true
-layers = ["_arrow | _ids | _strings | _lookup", "_scan", "_plan"]
+layers = ["_arrow | _ids | _strings | _lookup | _window", "_scan", "_plan"]
 
 [[tool.importlinter.contracts]]
 name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"

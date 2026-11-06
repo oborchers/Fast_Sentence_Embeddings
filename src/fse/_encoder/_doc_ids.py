@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from fse._stream import StreamSource
-from fse._text._ids import IdSource
+from fse._text._ids import IdSource, IdWindow
 
 
 def refuse_score_sink(sink: Any) -> None:
@@ -119,20 +119,36 @@ def infer_ids(
     lengths: Any = None,
     collector: Any = None,
 ) -> None:
+    if isinstance(ids, IdWindow):  # a resumed run: its IDs are open already
+        _run_ids(pipeline, source, sink, workers, first_row, ids, lengths, collector)
+        return
     with IdSource(ids) as values:
-        if not isinstance(source, StreamSource) and len(source) != len(values):
-            raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
-        adapter = _IdSink(sink, values, first_row)
-        pipeline.infer(
-            source,
-            workers=workers,
-            sink=adapter,
-            first_row=first_row,
-            lengths=lengths,
-            collector=collector,
-        )
-        if adapter.end != first_row + len(values):
-            raise ValueError("doc_ids has more rows than the text stream")
+        _run_ids(pipeline, source, sink, workers, first_row, values, lengths, collector)
+
+
+def _run_ids(
+    pipeline: Any,
+    source: Any,
+    sink: Any,
+    workers: Any,
+    first_row: int,
+    values: Any,
+    lengths: Any,
+    collector: Any,
+) -> None:
+    if not isinstance(source, StreamSource) and len(source) != len(values):
+        raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
+    adapter = _IdSink(sink, values, first_row)
+    pipeline.infer(
+        source,
+        workers=workers,
+        sink=adapter,
+        first_row=first_row,
+        lengths=lengths,
+        collector=collector,
+    )
+    if adapter.end != first_row + len(values):
+        raise ValueError("doc_ids has more rows than the text stream")
 
 
 class _IdSink:

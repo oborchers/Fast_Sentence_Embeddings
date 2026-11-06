@@ -36,6 +36,7 @@ from fse._contract import UnsupportedArtifactError
 
 from ._id_stats import ID_KEYS, check_removed, parsed_stats, verify_stats
 from ._kind import Shard, shard_name
+from ._resume_format import SOURCE_KEYS
 from ._scores_info import (
     FORMAT_VERSION,
     NAME,
@@ -135,6 +136,8 @@ def open_shard(
     ):
         raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
     n = int(rows)
+    if info.resume is not None and first_row + n > info.resume.span:
+        raise CorruptArtifactError(f"{file}: the shard holds rows beyond the source")
     _check_tensors(tensors, info, n, file)
     expected = {key: metadata[CHECKSUM_PREFIX + key] for key in tensors}
     stats = parsed_stats(metadata, file) if info.has_doc_ids else None
@@ -216,6 +219,6 @@ class ScoreKind:
         return None
 
 
-_ROOT_KEYS = frozenset(SHARED)
+_ROOT_KEYS = frozenset((*SHARED, *SOURCE_KEYS))
 SCORES = ScoreKind()
 __all__ = ["FORMAT_VERSION", "SCORES", "ScoreKind", "ScoreShard", "open_shard", "shard_metadata"]

@@ -27,6 +27,7 @@ from ._lookup import (
 )
 from ._scan import Chunk, Scan, _Buffered, check_chunk_bytes, default_chunk_bytes
 from ._strings import RowTypeError, StringSource, TokenListSource, encode_string
+from ._window import Window
 
 __all__ = [
     "MAX_CHUNK_ROWS",
@@ -39,6 +40,7 @@ __all__ = [
     "TextLookup",
     "TokenListSource",
     "Vocabulary",
+    "Window",
     "Workspace",
     "_Buffered",
     "check_chunk_bytes",

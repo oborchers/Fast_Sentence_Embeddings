@@ -31,14 +31,14 @@ from typing import Any, Literal
 from numpy import ndarray
 
 from fse._container import PublishedNotDurableError, note_cleanup
-from fse._encoder._doc_ids import ShardSinkMarker
+from fse._encoder._resume import ResumableSinkMarker
 
 from ._layout import failed_cleanup
 from ._shard import ShardBase
 from ._writer import WriterFailure, WriterThread, deferred_interrupts
 
 
-class ShardSinkBase(ShardSinkMarker):
+class ShardSinkBase(ResumableSinkMarker):
     """The reservation, threads, publication and closing of a sink of shards."""
 
     _NAME = "sink"  # how a family names its sink in an error
@@ -53,6 +53,7 @@ class ShardSinkBase(ShardSinkMarker):
         self._made: set[ShardBase] = set()  # shards of the run not yet published
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = self._interrupted = False
+        self._ready = True  # False for a resumable sink until a run attached its source
         self._interrupts: list = []  # those noted while it closes
         self._unnoted: list = []  # failed cleanups for the note of a deferred interrupt
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
@@ -89,6 +90,13 @@ class ShardSinkBase(ShardSinkMarker):
         """The publication policy fixed when this sink was opened."""
         return "full" if self._synced else "none"
 
+    def _check_ready(self) -> None:
+        if not self._ready:
+            raise ValueError(
+                f"the {self._NAME} was made with resume=True: it takes rows from "
+                "Encoder.encode(texts, sink=sink), which reads the source first"
+            )
+
     def _check_next(self, first_row: int) -> None:
         if first_row == self._reserved:
             return
@@ -104,10 +112,12 @@ class ShardSinkBase(ShardSinkMarker):
         """Raise unless this sink is open and has reserved no row, so that it can take a
         whole run (a group run checks it before it reads anything)."""
         self._check_open()
+        self._check_ready()
         self._check_next(0)
 
     def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
+        self._check_ready()
         self._check_threads()  # a failed write first: no row after it is taken
         self._check_next(first_row)
         parts = []

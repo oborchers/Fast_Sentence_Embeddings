@@ -11,6 +11,8 @@ import numpy as np
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError, parse_id
 
+from ._resume_format import MODE as SOURCE_ROWS
+
 ID_KEYS = ("fse.doc_ids_min", "fse.doc_ids_max", "fse.doc_ids_sorted")
 MODE_KEYS = ("fse.doc_ids", "fse.resume")
 _SIGNED = re.compile(r"(?:0|-?[1-9][0-9]*)\Z")
@@ -57,7 +59,10 @@ def check_removed(metadata: dict[str, Any], file: Any) -> None:
 def check_mode(metadata: dict[str, Any], file: Any) -> None:
     """Recognize future capabilities before applying a closed known schema."""
     check_removed(metadata, file)
-    for key, supported in (("fse.doc_ids", ("none", "int64")), ("fse.resume", ("none",))):
+    for key, supported in (
+        ("fse.doc_ids", ("none", "int64")),
+        ("fse.resume", ("none", SOURCE_ROWS)),
+    ):
         value = metadata.get(key)
         if isinstance(value, str) and value not in supported:
             if key == "fse.resume":

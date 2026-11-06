@@ -40,6 +40,7 @@ from ._doc_ids import (
     refuse_score_sink,
     split_pair,
 )
+from ._resume import refuse_resume_sink
 from ._sources import opened
 
 
@@ -63,10 +64,21 @@ class EncodedBatch(NamedTuple):
         return self.rows
 
 
-def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int, hint: str = "") -> str:
+def check_sink(
+    sink: Any,
+    dtype: str | None,
+    fingerprint: str,
+    dim: int,
+    hint: str = "",
+    *,
+    resumed: bool = False,
+) -> str:
     """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder; ``hint``
-    ends the message about a wrong width."""
+    ends the message about a wrong width. A sink made with ``resume=True`` is refused unless
+    ``resumed`` says the call resumes (``Encoder.encode``)."""
     refuse_score_sink(sink)
+    if not resumed:
+        refuse_resume_sink(sink)
     if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
         raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))
