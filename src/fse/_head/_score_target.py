@@ -32,9 +32,8 @@ from fse._text._ids import IdSource
 STORED_RUNTIME = {"decision": "logits", "values": "logits", "proba": "proba"}
 
 
-def attach(sink: Any, heads: Mapping[str, Any], paths: Mapping[str, str], doc_ids: bool) -> None:
-    """Check ``sink`` against ``heads`` and the document-ID mode, then attach the run with
-    the ``paths`` of the heads. Raises before anything is read."""
+def check_score_sink(sink: Any, heads: Mapping[str, Any]) -> None:
+    """Check ``sink`` against ``heads``. Raises before anything is read."""
     schema = getattr(sink, "score_schema", None)
     if schema is None or not callable(getattr(sink, "_attach", None)):
         raise TypeError(f"a score_sink must be a fse.ScoreSink, not {type(sink).__name__}")
@@ -46,12 +45,6 @@ def attach(sink: Any, heads: Mapping[str, Any], paths: Mapping[str, str], doc_id
             raise ValueError(f"head {name!r} is not the model the sink was made for")
     if schema.encoder != next(iter(heads.values())).encoder_fingerprint:
         raise ValueError("the heads read another encoder than the sink was made for")
-    if doc_ids != sink.has_doc_ids:
-        raise ValueError(
-            "doc_ids=True is needed exactly when the sink has doc_ids; pass (texts, doc_ids) "
-            "batches to a sink with doc_ids"
-        )
-    sink._attach(paths)
 
 
 class TaskIds:
@@ -142,22 +135,9 @@ class ScoreRun:
         self.tee_bytes = 4 * sink.dim + (8 if self.doc_ids else 0)
         self._open: dict[int, list] = {}
 
-    def infer(
-        self, pipeline: Any, source: Any, kinds: tuple[str, ...], workers: Any, row: int, ids: Any
-    ):
-        """The batch ``source`` starting at ``row`` of the run (``(arrays, vectors)`` of
-        the pipeline); ``ids`` are its document IDs, given exactly if the sink has them."""
-        self._open.clear()  # nothing of an earlier batch that failed
-        arguments = {
-            "outputs": kinds,
-            "workers": workers,
-            "first_row": row,
-            "tees": self.tees,
-            "extras": self.extras,
-            "tee_bytes": self.tee_bytes,
-        }
-        with self.ids.batch(source, row, ids):
-            return pipeline.infer(source, **arguments)
+    def reset(self) -> None:
+        """Forget the tasks of an earlier batch that failed."""
+        self._open.clear()
 
     # --- the tees -------------------------------------------------------------------
 

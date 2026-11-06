@@ -150,6 +150,7 @@ class Heads(Mapping):
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
         backend: str = "cpu",
+        vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: bool = False,
     ) -> Iterator[HeadsBatch]:
@@ -169,7 +170,15 @@ class Heads(Mapping):
         ``Encoder.encode_batches(doc_ids=True)``, stored with the rows; the sink must have
         been made with ``doc_ids=True``. Stopping early does not flush: close the sink."""
         return _heads_run.batches(
-            self, batches, output, return_vectors, workers, backend, score_sink, doc_ids
+            self,
+            batches,
+            output,
+            return_vectors,
+            workers,
+            backend,
+            vector_sink,
+            score_sink,
+            doc_ids,
         )
 
     # --- a value ----------------------------------------------------------------------

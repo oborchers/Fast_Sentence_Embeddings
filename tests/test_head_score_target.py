@@ -164,7 +164,7 @@ def test_the_id_mode_must_match_the_sink_before_a_text_is_read(tmp_path):
         pytest.raises(ValueError, match="doc_ids=True is needed exactly"),
     ):
         heads.predict_batches(iter(()), score_sink=sink, doc_ids=True)
-    with pytest.raises(ValueError, match="needs a score_sink"):
+    with pytest.raises(ValueError, match="needs a vector_sink or a score_sink"):
         heads.predict_batches(iter(()), doc_ids=True)
 
 
