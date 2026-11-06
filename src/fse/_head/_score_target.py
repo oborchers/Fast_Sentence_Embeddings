@@ -26,17 +26,23 @@ from typing import Any
 from numpy import ndarray
 
 from fse._stream import StreamSource
-from fse._text._ids import IdSource
+from fse._text._ids import IdSource, IdWindow
 
 # What the runtime computes for a stored output.
 STORED_RUNTIME = {"decision": "logits", "values": "logits", "proba": "proba"}
 
 
-def check_score_sink(sink: Any, heads: Mapping[str, Any]) -> None:
-    """Check ``sink`` against ``heads``. Raises before anything is read."""
+def check_score_sink(sink: Any, heads: Mapping[str, Any], *, resumed: bool = False) -> None:
+    """Check ``sink`` against ``heads``; a sink made with ``resume=True`` is refused unless
+    ``resumed`` says the call resumes (``predict``). Raises before anything is read."""
     schema = getattr(sink, "score_schema", None)
     if schema is None or not callable(getattr(sink, "_attach", None)):
         raise TypeError(f"a score_sink must be a fse.ScoreSink, not {type(sink).__name__}")
+    if not resumed and getattr(sink, "resume", False) is True:
+        raise ValueError(
+            "a score_sink made with resume=True takes the rows of predict(texts, score_sink=sink) "
+            "of a source that can be read again; use a sink without resume for predict_batches"
+        )
     names = [head.name for head in schema.heads]
     if names != list(heads):
         raise ValueError(f"the sink was made for the heads {names}, not for {list(heads)}")
@@ -45,6 +51,16 @@ def check_score_sink(sink: Any, heads: Mapping[str, Any]) -> None:
             raise ValueError(f"head {name!r} is not the model the sink was made for")
     if schema.encoder != next(iter(heads.values())).encoder_fingerprint:
         raise ValueError("the heads read another encoder than the sink was made for")
+
+
+@contextmanager
+def _opened(ids: Any) -> Iterator[Any]:
+    """``ids`` as a source of IDs: a window of a resumed run is open already."""
+    if isinstance(ids, IdWindow):
+        yield ids
+        return
+    with IdSource(ids) as values:
+        yield values
 
 
 class TaskIds:
@@ -68,7 +84,7 @@ class TaskIds:
         if ids is None:
             yield
             return
-        with IdSource(ids) as values:
+        with _opened(ids) as values:
             if not isinstance(source, StreamSource) and len(source) != len(values):
                 raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
             self._values, self._base, self._end = values, row, row

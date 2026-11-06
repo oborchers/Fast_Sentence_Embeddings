@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping
+from dataclasses import replace
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal
@@ -29,9 +30,12 @@ from numpy import ndarray
 
 from fse import _log
 from fse._ids import checked_ids, id_block
+from fse._partition import partition
 from fse._store._base_sink import ShardSinkBase
 from fse._store._layout import create_store, read_store
 from fse._store._recovery import refuse_unsynced, snapshot
+from fse._store._resume_format import MODE as SOURCE_ROWS
+from fse._store._resume_format import SourceRows, check_mode, check_source, sync_store
 from fse._store._score_shard import ScoreShardWriter
 from fse._store._scores_format import SCORES
 from fse._store._sink import default_shard_rows
@@ -63,6 +67,11 @@ class ScoreSink(ShardSinkBase):
     also after an error. ``first_row`` is the row of the store the first row of the run
     becomes; ``published_rows`` counts visible leading rows; ``durable_rows`` counts rows
     published and synced with ``durability="full"`` and stays zero under "none".
+
+    With ``resume=True`` the sink resumes: give it to ``predict(texts, score_sink=sink,
+    shard=)`` of the same heads, which reads a source that can be read again, compares its
+    identity with the store and runs the rows the store does not hold yet
+    (docs/architecture/scores.md, "Resuming"). It takes rows from nothing else.
     """
 
     inverse_norms = False
@@ -80,6 +89,7 @@ class ScoreSink(ShardSinkBase):
         doc_ids: bool = False,
         shard_rows: PositiveInt | None = None,
         durability: Literal["full", "none"] = "full",
+        resume: bool = False,
     ):
         schema = ScoreSchema.from_heads(heads, stored, name)
         path = Path(path)
@@ -88,7 +98,7 @@ class ScoreSink(ShardSinkBase):
         synced = durability == "full"
         first_row = 0
         if self._exists:
-            first_row = _existing(path, schema, doc_ids, synced)
+            first_row = _existing(path, schema, doc_ids, synced, resume)
         created_by = _created_by()  # before the threads start
         row_values = schema.dim + (2 if doc_ids else 0)  # the 8 bytes of an ID, as float32 values
         super().__init__(
@@ -102,6 +112,10 @@ class ScoreSink(ShardSinkBase):
         self._schema, self._info = schema, None
         self._created_by = created_by
         self._attached = False
+        self.resume = resume
+        self._kept = 0
+        if resume:  # the store is made or compared once a run brings its source
+            self._ready = False
 
     @property
     def score_schema(self) -> ScoreSchema:
@@ -121,6 +135,12 @@ class ScoreSink(ShardSinkBase):
         a new store gets its ``store.json`` now, whole; an existing one must hold the same
         paths. Called before the first text is read."""
         self._check_open()
+        if self.resume:
+            raise ValueError(
+                "a ScoreSink made with resume=True takes the rows of predict(texts, "
+                "score_sink=sink) of a source that can be read again; use a sink without "
+                "resume for predict_batches"
+            )
         if self._attached:
             raise RuntimeError("a ScoreSink takes one run; make a new one for another run")
         schema = self._schema.with_paths(paths)
@@ -129,8 +149,56 @@ class ScoreSink(ShardSinkBase):
         existing = read_store(self.path, SCORES.name)
         existing.check(info, self.path)
         if not self._exists:  # a store made now (or by a writer that was faster)
-            self.first_row = _existing(self.path, schema, self.has_doc_ids, self._synced)
+            self.first_row = _existing(self.path, schema, self.has_doc_ids, self._synced, False)
         self._schema, self._info, self._attached = schema, existing, True
+        self._opened_event(created)
+
+    def _attach_source(
+        self, identity: Any, shard: tuple[int, int], seconds: float, paths: Mapping[str, str]
+    ) -> int:
+        """Bind this sink to the source of a run (``predict(texts, score_sink=, shard=)``)
+        with the path of each head: make the store with its identity, or compare the identity
+        with that of the store, which raises a ValueError before any row is reserved.
+        Verifies the published shards, makes the entries of the store durable under full
+        durability and returns the rows the store holds (the rows of the part that are
+        done)."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        first, _ = partition(identity.rows, *shard)
+        wanted = SourceRows(identity.fingerprint, identity.form, identity.rows, shard, first)
+        schema = self._schema.with_paths(paths)
+        info = replace(schema.info(self.has_doc_ids), resume=wanted)
+        created = False if self._exists else create_store(self.path, info)
+        existing = read_store(self.path, SCORES.name)
+        check_mode(existing, True, self.path)
+        existing.check(info, self.path)
+        check_source(existing, wanted, self.path)
+        checked = snapshot(self.path, existing, verify=True)
+        try:
+            if self._synced:
+                refuse_unsynced(self.path, checked.shards)
+            _same_thresholds(schema, checked.shards)
+            rows = sum(shard_.rows for shard_, _ in checked.shards)
+        finally:
+            checked.shards.clear()
+        if self._synced:
+            sync_store(self.path)
+        self._schema, self._info = schema, existing
+        self.first_row, self._kept, self._attached, self._ready = rows, rows, True, True
+        self._opened_event(
+            created,
+            resume=SOURCE_ROWS,
+            kept_rows=rows,
+            source_rows=identity.rows,
+            source_bytes=identity.nbytes,
+            source_seconds=seconds,
+            source_fingerprint=identity.fingerprint,
+        )
+        return rows
+
+    def _opened_event(self, created: bool, **resumed: Any) -> None:
+        schema = self._schema
         _log.emit(
             "scores.sink_opened",
             "fse scores: a sink %s a store at row %d: %d heads, %d columns, rows of %d, durability=%s",
@@ -147,6 +215,7 @@ class ScoreSink(ShardSinkBase):
             shard_rows=self.shard_rows,
             durability=self.durability,
             doc_ids=self.has_doc_ids,
+            **resumed,
         )
 
     # --- the sink protocol --------------------------------------------------------------
@@ -234,6 +303,7 @@ class ScoreSink(ShardSinkBase):
             durability=self.durability,
             outcome=outcome,
             seconds=time.perf_counter() - self._start,
+            **({"skipped_rows": self._kept} if self.resume else {}),
         )
 
     def _published_event(self, writer: Any, rows: int) -> None:
@@ -251,11 +321,13 @@ class ScoreSink(ShardSinkBase):
         )
 
 
-def _existing(path: Path, schema: ScoreSchema, doc_ids: bool, synced: bool) -> int:
+def _existing(path: Path, schema: ScoreSchema, doc_ids: bool, synced: bool, resume: bool) -> int:
     """The rows of the existing store ``path``, which must hold the heads of ``schema`` (but
     for their paths, known later), and whose last shard must hold the thresholds of the
-    heads: a run with other thresholds would break the chain of the shards."""
+    heads: a run with other thresholds would break the chain of the shards. A resumable
+    store is opened with ``resume=True`` only, and ``resume=True`` opens such a store only."""
     info = read_store(path, SCORES.name)
+    check_mode(info, resume, path)
     info.check(schema.info(doc_ids), path, paths=False)
     checked = snapshot(path, info, verify=False)
     try:

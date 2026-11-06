@@ -17,7 +17,7 @@ from fse._encoder import _pretrained
 from fse._runtime import LengthReport, LengthSettings
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from . import _lone_run, _model2vec_files, _run, _sklearn
+from . import _lone_run, _model2vec_files, _resume_run, _run, _sklearn
 from ._model import LinearModel
 from ._outputs import PredictedBatch
 
@@ -100,6 +100,11 @@ class Regressor(LinearModel):
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -113,7 +118,48 @@ class Regressor(LinearModel):
         lengths: Literal["summary", "per_row"],
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
     def predict(
@@ -126,13 +172,33 @@ class Regressor(LinearModel):
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> Any:
         """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
         target, else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
         or ``"per_row"`` returns ``(values, fse.LengthReport)``, the values ``None`` for a
-        sink: what the length rule of the encoder cut (texts only; see ``Encoder.encode``)."""
+        sink: what the length rule of the encoder cut (texts only; see ``Encoder.encode``).
+
+        With a ``score_sink`` (``fse.ScoreSink(path, regressor, name=..., resume=True)``) or
+        a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
+        ``sink=`` is then not given. See ``Heads.predict`` for ``vector_sink``,
+        ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``."""
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
+        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard, return_vectors):
+            if sink is not None:
+                raise ValueError(
+                    "sink= keeps its role: the values. Give the vectors as vector_sink= and the "
+                    "scores as score_sink=, without sink="
+                )
+            return _resume_run.predict_lone(
+                self, texts, return_vectors, workers, backend,
+                vector_sink, score_sink, doc_ids, shard, settings,
+            )  # fmt: skip
         return _run.infer(self, texts, "values", workers, backend, sink, settings, method)
 
     @overload
