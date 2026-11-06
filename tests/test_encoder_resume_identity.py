@@ -1,6 +1,8 @@
 """The identity of a source: what changes its fingerprint, and a changed source or execution
 is refused before any row is reserved."""
 
+import os
+
 import numpy as np
 import pytest
 
@@ -200,8 +202,8 @@ def test_a_file_that_changes_while_it_is_hashed_raises(tmp_path, monkeypatch):
             super().update(data)
             if not calls:
                 calls.append(1)
-                with open(path, "r+b") as file:  # in place: a shorter file would end in SIGBUS
-                    file.write(b"X")
+                stat = path.stat()  # the time, not the bytes: Windows may delay the time of a write
+                os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
 
     monkeypatch.setattr(_resume, "Hasher", Changing)
     with FileSource(path) as source, pytest.raises(RuntimeError, match="changed while it was read"):
