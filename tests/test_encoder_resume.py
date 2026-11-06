@@ -140,7 +140,7 @@ def test_a_new_resumable_store_is_made_when_a_source_comes(tmp_path):
 def test_a_mode_of_the_future_is_unsupported(tmp_path):
     write(tmp_path / "s", SENTENCES)
     text = (tmp_path / "s" / "store.json").read_text()
-    (tmp_path / "s" / "store.json").write_text(text.replace("source_rows@1", "source_position@1"))
+    (tmp_path / "s" / "store.json").write_text(text.replace("source_rows@1", "source_position@2"))
     with pytest.raises(UnsupportedArtifactError, match=r"unsupported fse\.resume"):
         _sink(tmp_path / "s")
 

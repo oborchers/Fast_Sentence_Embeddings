@@ -45,6 +45,7 @@ from fse._container._npy_inplace import publish_directory, sync_data
 from ._columns import Entry, MemoryColumn, StreamColumn
 from ._id_writer import IdColumn
 from ._kind import shard_name
+from ._position_format import SourcePosition
 from ._vectors_format import StoreInfo, shard_metadata
 
 
@@ -56,6 +57,7 @@ class ShardBase:
     ):
         self.store, self.first_row, self.capacity = store, first_row, capacity
         self.created_by, self.synced = created_by, synced
+        self.anchor: SourcePosition | None = None  # set when the shard is handed over
         self.tmp = store / f".{shard_name(first_row)}.writing-{secrets.token_hex(4)}"
         self.tmp.mkdir()
         self.columns: list = []  # in the order they are finished: the order of the syncs
@@ -234,7 +236,12 @@ class ShardWriter(ShardBase):
 
     def _metadata(self, rows: int) -> dict[str, str]:
         metadata = shard_metadata(
-            self.info, self.first_row, rows, self.created_by, unsynced=not self.synced
+            self.info,
+            self.first_row,
+            rows,
+            self.created_by,
+            unsynced=not self.synced,
+            anchor=self.anchor,
         )
         if self.ids is not None:
             metadata.update(self.ids.stats.metadata())

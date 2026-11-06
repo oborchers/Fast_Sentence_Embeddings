@@ -6,7 +6,8 @@ import pytest
 
 import fse
 from fse import ScoreSink, ShardSink
-from fse._head._resume_run import _Discard, _Shifted
+from fse._head._resume_run import _Discard
+from fse._head._sink_run import Shifted
 from fse._store._layout import read_store
 from support import score_heads as sh
 from support.resume_heads import (
@@ -313,7 +314,7 @@ class _Recorder:
 
 def test_a_shifted_sink_moves_the_rows_and_keeps_the_rest():
     inner = _Recorder()
-    sink = _Shifted(inner, -10)
+    sink = Shifted(inner, -10)
     rows = sink.target(14, 4)
     sink.commit(14, rows)
     sink.commit(18, rows, doc_ids="ids")

@@ -70,10 +70,12 @@ def start_lone(
     score_sink: Any,
     doc_ids: bool,
     method: str,
-) -> SinkRun | None:
-    """``start`` for a single head. The score sink names it: a sink of one head."""
+    starter: Callable[..., Any] = start,
+) -> Any:
+    """``start`` (or ``starter``, which takes the same arguments) for a single head. The score
+    sink names it: a sink of one head."""
     schema = getattr(score_sink, "score_schema", None)
-    if vector_sink is not None:  # the checks of a group come in this order
+    if vector_sink is not None and starter is start:  # the checks of a group come in this order
         _check_vector_sink(model, return_vectors, vector_sink)
     name = "head"
     if schema is not None:
@@ -83,7 +85,7 @@ def start_lone(
                 f"the sink was made for the heads {names}; a single head writes a sink of one head"
             )
         name = names[0]
-    return start({name: model}, kinds, return_vectors, vector_sink, score_sink, doc_ids, method)
+    return starter({name: model}, kinds, return_vectors, vector_sink, score_sink, doc_ids, method)
 
 
 def _check_vector_sink(first: Any, return_vectors: bool, sink: Any) -> None:
@@ -273,3 +275,21 @@ class _VectorIds:
         block = self.pending.pop(first_row)
         self.ids.release(first_row)
         self.sink.commit(first_row, rows, doc_ids=block)
+
+
+class Shifted:
+    """``sink`` for a run whose rows are numbered ``delta`` rows later than the sink counts
+    them: row ``r`` of the run is row ``r + delta`` of the sink. Everything else is the
+    sink's own."""
+
+    def __init__(self, sink: Any, delta: int):
+        self.sink, self.delta = sink, delta
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.sink, name)
+
+    def target(self, first_row: int, n_rows: int) -> Any:
+        return self.sink.target(first_row + self.delta, n_rows)
+
+    def commit(self, first_row: int, rows: Any, **keywords: Any) -> None:
+        self.sink.commit(first_row + self.delta, rows, **keywords)

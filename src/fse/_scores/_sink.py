@@ -32,13 +32,15 @@ from fse import _log
 from fse._ids import checked_ids, id_block
 from fse._partition import partition
 from fse._store._base_sink import ShardSinkBase
-from fse._store._layout import create_store, read_store
+from fse._store._layout import check_root_size, create_store, read_store
+from fse._store._position_format import MODE as SOURCE_POSITION
+from fse._store._position_format import SourcePosition, check_position
 from fse._store._recovery import refuse_unsynced, snapshot
 from fse._store._resume_format import MODE as SOURCE_ROWS
 from fse._store._resume_format import SourceRows, check_mode, check_source, sync_store
 from fse._store._score_shard import ScoreShardWriter
 from fse._store._scores_format import SCORES
-from fse._store._sink import default_shard_rows
+from fse._store._sink import default_shard_rows, stream_of
 from fse._validation import PositiveInt, validate_arguments
 
 from ._schema import ScoreSchema
@@ -96,9 +98,9 @@ class ScoreSink(ShardSinkBase):
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
         synced = durability == "full"
-        first_row = 0
+        first_row, stream = 0, None
         if self._exists:
-            first_row = _existing(path, schema, doc_ids, synced, resume)
+            first_row, stream = _existing(path, schema, doc_ids, synced, resume)
         created_by = _created_by()  # before the threads start
         row_values = schema.dim + (2 if doc_ids else 0)  # the 8 bytes of an ID, as float32 values
         super().__init__(
@@ -110,6 +112,7 @@ class ScoreSink(ShardSinkBase):
         self.has_doc_ids = doc_ids
         self.dim, self.encoder_fingerprint = schema.dim, schema.encoder
         self._schema, self._info = schema, None
+        self._stream = stream
         self._created_by = created_by
         self._attached = False
         self.resume = resume
@@ -149,7 +152,7 @@ class ScoreSink(ShardSinkBase):
         existing = read_store(self.path, SCORES.name)
         existing.check(info, self.path)
         if not self._exists:  # a store made now (or by a writer that was faster)
-            self.first_row = _existing(self.path, schema, self.has_doc_ids, self._synced, False)
+            self.first_row = _existing(self.path, schema, self.has_doc_ids, self._synced, False)[0]
         self._schema, self._info, self._attached = schema, existing, True
         self._opened_event(created)
 
@@ -172,7 +175,7 @@ class ScoreSink(ShardSinkBase):
         schema.check_info_size(info)  # before a store is made
         created = False if self._exists else create_store(self.path, info)
         existing = read_store(self.path, SCORES.name)
-        check_mode(existing, True, self.path)
+        check_mode(existing, True, self.path, SOURCE_ROWS)
         existing.check(info, self.path)
         check_source(existing, wanted, self.path)
         checked = snapshot(self.path, existing, verify=True)
@@ -197,6 +200,50 @@ class ScoreSink(ShardSinkBase):
             source_fingerprint=identity.fingerprint,
         )
         return rows
+
+    def _attach_stream(self, position: str | None, paths: Mapping[str, str]) -> int:
+        """Bind this sink to a stream (``predict_batches(..., score_sink=sink, positions=True)``)
+        with the path of each head: an existing store is compared with the sink, verified and
+        made durable under full durability, and its rows are returned. A new store is made now,
+        with the anchor ``(position, 0)`` of the first batch (the size of its root is checked
+        before it is made). A second attach is a RuntimeError."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        schema = self._schema.with_paths(paths)
+        info = schema.info(self.has_doc_ids)
+        if not self._exists:
+            info = replace(info, resume=SourcePosition(check_position(position), 0))
+            check_root_size(info)
+            create_store(self.path, info)
+        existing = read_store(self.path, SCORES.name)
+        check_mode(existing, True, self.path, SOURCE_POSITION)
+        existing.check(info, self.path)
+        checked = snapshot(self.path, existing, verify=True)
+        try:
+            if self._synced:
+                refuse_unsynced(self.path, checked.shards)
+            _same_thresholds(schema, checked.shards)
+            rows = sum(shard_.rows for shard_, _ in checked.shards)
+            stream = stream_of(existing, checked.shards)
+        finally:
+            checked.shards.clear()
+        if self._synced:
+            sync_store(self.path)
+        assert stream is not None
+        self._schema, self._info, self._stream = schema, existing, stream
+        self.first_row, self._kept, self._attached, self._ready = rows, rows, True, True
+        self._opened_event(not self._exists, resume=SOURCE_POSITION, kept_rows=rows)
+        return rows
+
+    def _check_stream(self) -> None:
+        """The checks of ``predict_batches(positions=True)`` that read nothing: the sink
+        resumes, took no run yet, and an existing store is of the mode ``source_position@1``."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        if self._exists:
+            check_mode(read_store(self.path, SCORES.name), True, self.path, SOURCE_POSITION)
 
     def _opened_event(self, created: bool, **resumed: Any) -> None:
         schema = self._schema
@@ -322,7 +369,9 @@ class ScoreSink(ShardSinkBase):
         )
 
 
-def _existing(path: Path, schema: ScoreSchema, doc_ids: bool, synced: bool, resume: bool) -> int:
+def _existing(
+    path: Path, schema: ScoreSchema, doc_ids: bool, synced: bool, resume: bool
+) -> tuple[int, Any]:
     """The rows of the existing store ``path``, which must hold the heads of ``schema`` (but
     for their paths, known later), and whose last shard must hold the thresholds of the
     heads: a run with other thresholds would break the chain of the shards. A resumable
@@ -335,7 +384,8 @@ def _existing(path: Path, schema: ScoreSchema, doc_ids: bool, synced: bool, resu
         if synced:
             refuse_unsynced(path, checked.shards)
         _same_thresholds(schema, checked.shards)
-        return sum(shard.rows for shard, _ in checked.shards)
+        rows = sum(shard.rows for shard, _ in checked.shards)
+        return rows, stream_of(info, checked.shards)
     finally:
         checked.shards.clear()  # a sink keeps no mappings, also on refusal
 

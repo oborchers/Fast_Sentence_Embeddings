@@ -85,7 +85,12 @@ class ScoreShardWriter(ShardBase):
 
     def _metadata(self, rows: int) -> dict[str, str]:
         metadata = shard_metadata(
-            self.info, self.first_row, rows, self.created_by, unsynced=not self.synced
+            self.info,
+            self.first_row,
+            rows,
+            self.created_by,
+            unsynced=not self.synced,
+            anchor=self.anchor,
         )
         if self.ids is not None:
             metadata.update(self.ids.stats.metadata())

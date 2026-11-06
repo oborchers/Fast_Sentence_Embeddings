@@ -41,6 +41,7 @@ from fse._contract import UnsupportedArtifactError
 
 from ._kind import SHARD_PREFIX, Shard, shard_name
 from ._kinds import kind_of, kind_of_root
+from ._position_format import MODE, SourcePosition
 from ._vectors_format import StoreInfo, shard_metadata
 
 __all__ = [
@@ -50,6 +51,7 @@ __all__ = [
     "STORE_NAME",
     "Shard",
     "StoreInfo",
+    "check_root_size",
     "create_store",
     "failed_cleanup",
     "open_shard",
@@ -60,11 +62,13 @@ __all__ = [
     "shards",
 ]
 
+POSITION_MODE = f'"fse.resume": "{MODE}"'.encode()
 STORE_FILE = "store.json"
 STORE_NAME = "fse_shards"
 STORE_VERSION = 1
 _STORE_BYTES = 1 << 16  # store.json of sentence vectors is a few hundred bytes
-SCORE_STORE_BYTES = 1 << 20  # that of a score store lists its heads and their labels
+SCORE_STORE_BYTES = 1 << 20  # that of a score store lists its heads and their labels, and
+# that of a store of the mode source_position@1 holds a position of up to 64 KiB
 
 
 def root_text(info: Any) -> str:
@@ -74,6 +78,20 @@ def root_text(info: Any) -> str:
         sort_keys=True,
         indent=1,
     )
+
+
+def check_root_size(info: Any) -> None:
+    """Raise a ValueError unless the ``store.json`` of ``info`` stays within its limit (a store
+    of the mode ``source_position@1`` or of scores may hold 1 MiB, other stores 64 KiB); checked
+    before the store is made, with the serialized bytes."""
+    size = len(root_text(info).encode("utf-8")) + 1
+    large = info.kind == "prediction_scores" or isinstance(info.resume, SourcePosition)
+    limit = SCORE_STORE_BYTES if large else _STORE_BYTES
+    if size > limit:
+        raise ValueError(
+            f"the root of the store needs {size} bytes of store.json, more than the {limit} it "
+            "may hold (a shorter position or fewer heads and labels)"
+        )
 
 
 def create_store(path: Path, info: Any) -> bool:
@@ -167,23 +185,27 @@ def read_store(path: Path, kind: str | None = None) -> Any:
 
 
 def _check_size(raw: bytes, file: Path) -> None:
-    """Only a score store may be larger than ``_STORE_BYTES``, up to ``SCORE_STORE_BYTES``."""
+    """Only a score store or a store of the mode ``source_position@1`` may be larger than
+    ``_STORE_BYTES``, up to ``SCORE_STORE_BYTES``."""
     if len(raw) <= _STORE_BYTES:
         return
-    if not _names_scores(raw):
+    if not _names_large(raw):
         raise CorruptArtifactError(f"{file} is larger than {_STORE_BYTES} bytes")
     if len(raw) > SCORE_STORE_BYTES:
         raise CorruptArtifactError(f"{file} is larger than {SCORE_STORE_BYTES} bytes")
 
 
-def _names_scores(raw: bytes) -> bool:
-    """Whether the root names the kind ``prediction_scores``: read from the JSON, or from the
-    start of a file that is cut at the limit."""
+def _names_large(raw: bytes) -> bool:
+    """Whether the root names the kind ``prediction_scores`` or the resume mode
+    ``source_position@1``: read from the JSON, or from the start of a file that is cut at the
+    limit (the keys sort before the position and the heads)."""
     if len(raw) > SCORE_STORE_BYTES:
-        return b'"fse.kind": "prediction_scores"' in raw[:4096]
+        head = raw[:4096]
+        return b'"fse.kind": "prediction_scores"' in head or POSITION_MODE in head
     try:
-        return json.loads(raw.decode("utf-8"))["metadata"]["fse.kind"] == "prediction_scores"
-    except (ValueError, KeyError, TypeError):
+        metadata = json.loads(raw.decode("utf-8"))["metadata"]
+        return metadata["fse.kind"] == "prediction_scores" or metadata.get("fse.resume") == MODE
+    except (ValueError, KeyError, TypeError, AttributeError):
         return False
 
 

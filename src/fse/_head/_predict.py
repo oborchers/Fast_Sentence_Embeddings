@@ -246,6 +246,7 @@ class _Predicting:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -264,6 +265,7 @@ class _Predicting:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -282,6 +284,7 @@ class _Predicting:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
@@ -310,7 +313,11 @@ class _Predicting:
         These three take texts; a ``VectorStore`` input with one of them raises. With
         ``lengths="summary"`` or ``"per_row"`` every item is ``(PredictedBatch,
         fse.LengthReport)``, the report of the rows of that batch (texts only). Checked
-        before any batch is read."""
+        before any batch is read.
+
+        ``positions=True`` resumes an endless stream that can be read again from a position,
+        into sinks made with ``resume=True`` (see ``fse.Heads.predict_batches``); it excludes
+        ``sink``."""
         method = "Classifier.predict_batches"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if output == "proba":
@@ -327,4 +334,5 @@ class _Predicting:
             score_sink,
             doc_ids,
             settings,
+            positions,
         )

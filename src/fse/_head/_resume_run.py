@@ -43,7 +43,7 @@ from fse._text._ids import IdSource
 from ._heads_run import resolve_outputs, rules_of
 from ._run import check_backend
 from ._score_target import STORED_RUNTIME, check_score_sink
-from ._sink_run import SinkRun
+from ._sink_run import Shifted, SinkRun
 
 
 class _Discard:
@@ -63,24 +63,6 @@ class _Discard:
 
     def commit(self, first_row: int, rows: ndarray, *, doc_ids: Any = None) -> None:
         pass
-
-
-class _Shifted:
-    """``sink`` for a run whose rows are numbered ``delta`` rows later than the sink counts
-    them: row ``r`` of the run is row ``r + delta`` of the sink. Everything else is the
-    sink's own."""
-
-    def __init__(self, sink: Any, delta: int):
-        self.sink, self.delta = sink, delta
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.sink, name)
-
-    def target(self, first_row: int, n_rows: int) -> Any:
-        return self.sink.target(first_row + self.delta, n_rows)
-
-    def commit(self, first_row: int, rows: Any, **keywords: Any) -> None:
-        self.sink.commit(first_row + self.delta, rows, **keywords)
 
 
 @dataclass(frozen=True)
@@ -292,7 +274,7 @@ def _run_phase(run: _Run, phase: _Phase) -> None:
     source = _resume.window(run.base, run.identity, phase.first, phase.last)
     ids = None if run.ids is None else run.ids.window(phase.first, phase.last)
     try:
-        sinks = {m.role: _Shifted(m.sink, delta) if delta else m.sink for m, delta in phase.members}
+        sinks = {m.role: Shifted(m.sink, delta) if delta else m.sink for m, delta in phase.members}
         if "score" in sinks:
             _heads(run, source, sinks, phase.start, ids)
         else:
