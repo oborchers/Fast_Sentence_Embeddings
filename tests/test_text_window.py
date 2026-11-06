@@ -53,7 +53,7 @@ def test_a_window_does_not_copy_the_text():
 @pytest.mark.parametrize("workers", [1, 3])
 def test_a_window_of_lines_gives_the_rows_of_the_file(tmp_path, workers):
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     data = path.read_bytes()
     starts = [0] + [i + 1 for i, b in enumerate(data) if b == 10]
     first, last = 120, 333
@@ -67,10 +67,10 @@ def test_a_window_of_lines_gives_the_rows_of_the_file(tmp_path, workers):
 
 def test_a_window_of_a_file_raises_when_the_file_changes(tmp_path):
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     with FileSource(path) as whole:
         window = Window.of_bytes(whole, 0, whole.nbytes, len(SENTENCES))
-        path.write_text("changed\n", encoding="utf-8")
+        path.write_text("changed\n", encoding="utf-8", newline="\n")
         with pytest.raises(RuntimeError, match="changed while it was read"):
             ENCODER._pipeline("cpu").infer(window, workers=1)
 

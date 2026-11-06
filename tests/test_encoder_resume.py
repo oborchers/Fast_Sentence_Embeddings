@@ -188,7 +188,7 @@ def test_the_sources_of_a_collection_give_one_store(tmp_path):
 
 def test_a_file_gives_the_rows_of_its_lines(tmp_path):
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     write(tmp_path / "file", path)
     codes, _ = rows_of(tmp_path / "file")
     want = _reference.quantize_rows(ENCODER.encode(SENTENCES, workers=1), "float32")[0]
@@ -243,7 +243,7 @@ def test_a_part_of_a_file_resumes(tmp_path):
     rows = 40_000
     source = sentences(rows)
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(source) + "\n", encoding="utf-8")
+    path.write_text("\n".join(source) + "\n", encoding="utf-8", newline="\n")
     write(tmp_path / "whole", path, shard=(1, 3), rows=4096)
     write(tmp_path / "again", path, shard=(1, 3), rows=4096)
     drop_tail(tmp_path / "again", 2, rows=4096)

@@ -351,7 +351,7 @@ def test_ids_blank_lines_and_a_missing_final_newline_in_a_part(tmp_path):
     rows = 40_000
     source = [s if i % 7 else "" for i, s in enumerate(sentences(rows))]
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(source), encoding="utf-8")  # no final newline
+    path.write_text("\n".join(source), encoding="utf-8", newline="\n")  # no final newline
     ids = np.arange(5_000_000, 5_000_000 + rows, dtype=np.int64)
     kwargs = {"doc_ids": True, "ids": ids, "shard": (2, 3), "rows": 4096}
     write(tmp_path / "whole", path, **kwargs)

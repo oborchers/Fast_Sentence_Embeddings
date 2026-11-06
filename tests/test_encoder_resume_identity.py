@@ -55,7 +55,7 @@ def test_another_partition_is_refused(tmp_path):
 def test_another_form_is_refused(tmp_path):
     write(tmp_path / "s", SENTENCES)
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     _expect_untouched(tmp_path / "s", {}, lambda sink: ENCODER.encode(path, sink=sink))
 
 
@@ -118,7 +118,7 @@ def test_the_split_between_rows_matters():
 def test_the_form_matters(tmp_path):
     text = "\n".join(SENTENCES) + "\n"
     path = tmp_path / "t.txt"
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
     with FileSource(path) as source:
         lines = _identity(source)
     assert lines.form == "lines"
@@ -143,7 +143,7 @@ def test_the_lines_of_a_file_are_counted_as_a_file_source_counts_them(tmp_path, 
 def test_every_16384th_line_has_a_mark(tmp_path):
     rows = 40_000
     path = tmp_path / "t.txt"
-    path.write_text("".join(f"line {i}\n" for i in range(rows)), encoding="utf-8")
+    path.write_text("".join(f"line {i}\n" for i in range(rows)), encoding="utf-8", newline="\n")
     data = path.read_bytes()
     with FileSource(path) as source:
         identity = _identity(source)
@@ -158,7 +158,7 @@ def test_every_16384th_line_has_a_mark(tmp_path):
 def test_a_small_block_changes_nothing(tmp_path, monkeypatch):
     rows = 20_000
     path = tmp_path / "t.txt"
-    path.write_text("".join(f"line {i}\n" for i in range(rows)), encoding="utf-8")
+    path.write_text("".join(f"line {i}\n" for i in range(rows)), encoding="utf-8", newline="\n")
     with FileSource(path) as source:
         whole = _identity(source)
     monkeypatch.setattr(_resume, "_BLOCK_BYTES", 1000)
@@ -191,7 +191,7 @@ def test_arrow_ids_give_the_identity_of_a_list():
 
 def test_a_file_that_changes_while_it_is_hashed_raises(tmp_path, monkeypatch):
     path = tmp_path / "t.txt"
-    path.write_text("".join(f"line {i}\n" for i in range(2000)), encoding="utf-8")
+    path.write_text("".join(f"line {i}\n" for i in range(2000)), encoding="utf-8", newline="\n")
     monkeypatch.setattr(_resume, "_BLOCK_BYTES", 1000)
     real, calls = _resume.Hasher, []
 
@@ -210,10 +210,10 @@ def test_a_file_that_changes_while_it_is_hashed_raises(tmp_path, monkeypatch):
 
 def test_a_file_that_changes_before_a_resume_leaves_the_store_alone(tmp_path):
     path = tmp_path / "t.txt"
-    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES) + "\n", encoding="utf-8", newline="\n")
     write(tmp_path / "s", path)
     before = canonical(tmp_path / "s")
-    path.write_text("\n".join(SENTENCES[::-1]) + "\n", encoding="utf-8")
+    path.write_text("\n".join(SENTENCES[::-1]) + "\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="another source or partition"):
         write(tmp_path / "s", path)
     assert canonical(tmp_path / "s") == before
