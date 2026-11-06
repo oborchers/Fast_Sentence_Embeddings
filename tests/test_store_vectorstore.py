@@ -232,7 +232,7 @@ def test_a_store_cannot_be_closed_while_it_is_searched(tmp_path, monkeypatch):
         search = threading.Thread(target=lambda: found.append(store.search(query, k=3)))
         search.start()
         assert entered.wait(10)
-        with pytest.raises(RuntimeError, match="being searched"):
+        with pytest.raises(RuntimeError, match="in use"):
             store.close()
         release.set()
         search.join(10)

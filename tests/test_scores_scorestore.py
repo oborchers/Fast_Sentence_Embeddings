@@ -174,6 +174,25 @@ def test_a_closed_store_gives_nothing_more_but_views_stay_readable(store_path):
             call()
 
 
+@pytest.mark.parametrize("method", ["iter_batches", "predict_batches"])
+def test_a_store_closed_before_the_first_block_raises_at_the_first_block(store_path, method):
+    store = fse.ScoreStore.open(store_path)
+    batches = getattr(store, method)()
+    store.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        next(batches)
+
+
+@pytest.mark.parametrize("method", ["iter_batches", "predict_batches"])
+def test_a_spent_generator_ends_quietly_after_close(store_path, method):
+    store = fse.ScoreStore.open(store_path)
+    batches = getattr(store, method)()
+    assert len(list(batches)) > 0
+    store.close()
+    with pytest.raises(StopIteration):
+        next(batches)
+
+
 def test_only_the_shards_published_at_open_are_read(store_path):
     store = fse.ScoreStore.open(store_path)
     heads = sh.group()

@@ -149,6 +149,7 @@ def test_public_api_is_pinned():
         "Sink",
         "StaticModel",
         "UnsupportedArtifactError",
+        "VectorBatch",
         "VectorStore",
         "WordVectors",
     ]
