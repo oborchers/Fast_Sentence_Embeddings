@@ -6,6 +6,8 @@ import pytest
 
 import fse
 from fse._head import _resume_run
+from fse._head._resume_run import _Discard
+from fse._runtime import HeadsPipeline
 from fse._store._resume_format import MODE
 from support import sink_run as sr
 from support.logs import captured
@@ -245,3 +247,30 @@ def test_a_plain_run_logs_no_resume_fields(tmp_path):
     for record in records:
         assert not hasattr(record, "fse_resume")
         assert not hasattr(record, "fse_skipped_rows")
+
+
+# --- the outputs of the heads are not held ----------------------------------------------------
+
+
+def test_the_main_outputs_and_the_dropped_vectors_go_to_sinks_that_keep_nothing(
+    tmp_path, monkeypatch
+):
+    """Every phase gives the runtime a discarding sink for the output of each head (and for
+    the vectors that are asked for but no store takes), so no result array is made."""
+    seen = []
+    real = HeadsPipeline.infer
+
+    def spy(self, *args, **kwargs):
+        arrays, vectors = real(self, *args, **kwargs)
+        seen.append((kwargs["sinks"], kwargs.get("vector_sink"), arrays, vectors))
+        return arrays, vectors
+
+    monkeypatch.setattr(HeadsPipeline, "infer", spy)
+    run(tmp_path, SENTENCES, vectors=False, return_vectors=True)
+    assert len(seen) == 1
+    sinks, vector_sink, arrays, vectors = seen[0]
+    assert len(sinks) == len(HEADS)
+    assert all(isinstance(s, _Discard) for s in sinks)
+    assert isinstance(vector_sink, _Discard)
+    assert arrays == [None] * len(HEADS)  # nothing was made for the result
+    assert vectors is None
