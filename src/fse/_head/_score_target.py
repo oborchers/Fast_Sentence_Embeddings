@@ -19,7 +19,8 @@ worker threads do not change.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any
 
 from numpy import ndarray
@@ -53,6 +54,56 @@ def attach(sink: Any, heads: Mapping[str, Any], paths: Mapping[str, str], doc_id
     sink._attach(paths)
 
 
+class TaskIds:
+    """The document IDs of the tasks of a batch, fetched once per task for all ``users``
+    (the sinks that store them). The first reservation of a task fetches its block; every
+    user gets the same read-only array and ``release`` is called once per user, at its
+    commit. A run without IDs gives None."""
+
+    def __init__(self, users: int):
+        self.users = users
+        self._values: IdSource | None = None
+        self._open: dict[int, list] = {}
+        self._base = self._end = 0
+
+    @contextmanager
+    def batch(self, source: Any, row: int, ids: Any) -> Iterator[None]:
+        """The IDs ``ids`` of the batch ``source`` that starts at ``row`` of the run (None:
+        the run has none), checked against the rows of the texts once the batch ran."""
+        self._open.clear()  # nothing of an earlier batch that failed
+        self._values = None
+        if ids is None:
+            yield
+            return
+        with IdSource(ids) as values:
+            if not isinstance(source, StreamSource) and len(source) != len(values):
+                raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
+            self._values, self._base, self._end = values, row, row
+            yield
+            if self._end != row + len(values):
+                raise ValueError("doc_ids has more rows than the text stream")
+        self._values = None
+
+    def block(self, first_row: int, n_rows: int) -> Any:
+        """The IDs of the task (None without IDs); one fetch per task."""
+        if self._values is None:
+            return None
+        entry = self._open.get(first_row)
+        if entry is None:
+            begin = first_row - self._base
+            entry = self._open[first_row] = [self._values.block(begin, begin + n_rows), self.users]
+            self._end = first_row + n_rows
+        return entry[0]
+
+    def release(self, first_row: int) -> None:
+        """One user has committed the task; the block is dropped after the last."""
+        entry = self._open.get(first_row)
+        if entry is not None:
+            entry[1] -= 1
+            if entry[1] == 0:
+                del self._open[first_row]
+
+
 class _Column:
     """The tee of one head: it takes the finished rows of a task at the commit."""
 
@@ -74,8 +125,9 @@ class ScoreRun:
     stored output of each head; ``tee_bytes`` is what a row holds in the sink matrix and the
     document IDs beyond the outputs themselves."""
 
-    def __init__(self, sink: Any, kinds: tuple[str, ...]):
+    def __init__(self, sink: Any, kinds: tuple[str, ...], ids: TaskIds | None = None):
         self.sink = sink
+        self.ids = ids or TaskIds(1)
         schema = sink.score_schema
         self.segments = [slice(*head.columns) for head in schema.heads]
         self.doc_ids = bool(sink.has_doc_ids)
@@ -89,8 +141,6 @@ class ScoreRun:
                 self.extras[i] = (stored, column)
         self.tee_bytes = 4 * sink.dim + (8 if self.doc_ids else 0)
         self._open: dict[int, list] = {}
-        self._values: IdSource | None = None
-        self._base = self._end = 0
 
     def infer(
         self, pipeline: Any, source: Any, kinds: tuple[str, ...], workers: Any, row: int, ids: Any
@@ -106,17 +156,8 @@ class ScoreRun:
             "extras": self.extras,
             "tee_bytes": self.tee_bytes,
         }
-        if ids is None:
-            self._values = None
+        with self.ids.batch(source, row, ids):
             return pipeline.infer(source, **arguments)
-        with IdSource(ids) as values:
-            if not isinstance(source, StreamSource) and len(source) != len(values):
-                raise ValueError(f"doc_ids has {len(values)} rows for {len(source)} texts")
-            self._values, self._base, self._end = values, row, row
-            found = pipeline.infer(source, **arguments)
-            if self._end != row + len(values):
-                raise ValueError("doc_ids has more rows than the text stream")
-        return found
 
     # --- the tees -------------------------------------------------------------------
 
@@ -124,11 +165,8 @@ class ScoreRun:
         """The matrix and the IDs of the task, reserved once for all its tees."""
         if first_row in self._open:
             return
-        ids = None
-        if self._values is not None:
-            ids = self._values.block(first_row - self._base, first_row - self._base + n_rows)
+        ids = self.ids.block(first_row, n_rows)
         self._open[first_row] = [self.sink.target(first_row, n_rows), ids, len(self.segments)]
-        self._end = first_row + n_rows
 
     def _copy(self, index: int, first_row: int, rows: ndarray) -> None:
         entry = self._open[first_row]
@@ -137,6 +175,7 @@ class ScoreRun:
         entry[2] -= 1
         if entry[2] == 0:  # the last tee of the task
             del self._open[first_row]
+            self.ids.release(first_row)
             if ids is None:
                 self.sink.commit(first_row, matrix)
             else:

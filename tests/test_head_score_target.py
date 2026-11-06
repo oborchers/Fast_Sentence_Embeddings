@@ -197,3 +197,67 @@ def test_missing_document_ids_are_refused_before_the_text_is_processed(tmp_path)
         pytest.raises(TypeError, match="doc_ids, not None"),
     ):
         list(heads.predict_batches([([], None)], score_sink=sink, doc_ids=True))
+
+
+def test_the_ids_of_a_task_are_fetched_once_and_shared_by_its_users():
+    from fse._head._score_target import TaskIds
+
+    ids = TaskIds(2)
+    texts = ["a b", "c d", "e f", "g h"]
+    with ids.batch(texts, 10, [5, 6, 7, 8]):
+        first = ids.block(10, 2)
+        assert ids.block(10, 2) is first
+        assert first.tolist() == [5, 6] and not first.flags.writeable
+        second = ids.block(12, 2)
+        assert second.tolist() == [7, 8]
+        ids.release(10)
+        assert ids.block(10, 2) is first  # one user is still to commit
+        ids.release(10)
+        ids.release(12)
+        ids.release(12)
+        ids.release(12)  # a surplus release is harmless
+        assert not ids._open
+
+
+def test_a_run_without_ids_has_none():
+    from fse._head._score_target import TaskIds
+
+    ids = TaskIds(1)
+    with ids.batch(["a"], 0, None):
+        assert ids.block(0, 1) is None
+    ids.release(0)
+
+
+def test_the_ids_of_a_batch_are_checked_against_its_texts():
+    from fse._head._score_target import TaskIds
+
+    ids = TaskIds(1)
+    with (
+        pytest.raises(ValueError, match="doc_ids has 3 rows for 2 texts"),
+        ids.batch(["a", "b"], 0, [1, 2, 3]),
+    ):
+        pass
+    with (
+        pytest.raises(ValueError, match="more rows than the text stream"),
+        ids.batch(["a", "b"], 0, [1, 2]),
+    ):
+        ids.block(0, 1)  # the task of the second text is never opened
+
+
+def test_a_score_run_fetches_one_id_block_per_task(tmp_path, monkeypatch):
+    from fse._text._ids import IdSource
+
+    calls = []
+    original = IdSource.block
+
+    def counting(self, begin, end):
+        calls.append((begin, end))
+        return original(self, begin, end)
+
+    monkeypatch.setattr(IdSource, "block", counting)
+    heads, texts = sh.group(), sh.texts(30)
+    ids = np.arange(30, dtype=np.int64)
+    with fse.ScoreSink(tmp_path / "s", heads, doc_ids=True, shard_rows=16) as sink:
+        list(heads.predict_batches([(texts, ids)], score_sink=sink, doc_ids=True, workers=2))
+    assert len(calls) == len(set(calls)) >= 1  # no task asks twice, three heads or not
+    assert sorted(calls)[0][0] == 0 and max(end for _, end in calls) == 30
