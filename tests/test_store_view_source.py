@@ -63,27 +63,53 @@ def test_the_source_of_a_view_of_all_parts(stores):
         assert row.tolist() == [0, 16_383, 0, 0, 16_483]
 
 
+def test_a_view_of_all_parts_is_the_source_only_when_all_are_there(stores):
+    parts = [stores / f"part{k}" for k in range(3)]
+    with VectorStore.open_view(parts) as view:
+        assert view.source["shard"] == [0, 1]
+    with VectorStore.open_view(parts[:2]) as view:
+        assert view.source is None
+
+
 def test_a_view_of_one_whole_store_is_that_store(stores):
     with VectorStore.open_view([stores / "whole"]) as view:
         assert view.source["shard"] == [0, 1]
         assert len(view) == ROWS
 
 
-def test_every_part_once_and_finished(stores, tmp_path):
-    parts = [stores / f"part{k}" for k in range(3)]
-    with pytest.raises(ValueError, match="part 2 is missing"):
-        VectorStore.open_view(parts[:2])
-    with pytest.raises(ValueError, match="1 of the 3 parts"):
-        VectorStore.open_view(parts[:1])
-    copy = tmp_path / "copy"
-    shutil.copytree(parts[1], copy)
-    with pytest.raises(ValueError, match="part 1 of 3 is given twice"):
-        VectorStore.open_view([parts[0], parts[1], copy, parts[2]])
+def test_a_view_of_some_parts_is_a_snapshot_of_their_concatenation(stores):
+    with VectorStore.open(stores / "part0") as p0, VectorStore.open(stores / "part2") as p2:
+        want = np.concatenate([p0.get_vectors(), p2.get_vectors()])
+    with VectorStore.open_view([stores / "part2", stores / "part0"]) as view:
+        assert view.paths == (stores / "part0", stores / "part2")
+        assert view.source is None
+        assert len(view) == 16_384 + 16_484
+        assert bits(view.get_vectors()) == bits(want)
+        assert [dict(m["source"])["shard"] for m in view.members] == [[0, 3], [2, 3]]
+        assert [m["rows"] for m in view.members] == [16_384, 16_484]
+        assert view.locate([16_384])[0].tolist() == [1]
+        with pytest.raises(ValueError, match="does not refresh"):
+            view.refresh()
+    with VectorStore.open_view([stores / "part1"]) as single:
+        assert single.source is None
+
+
+def test_an_unfinished_part_is_read_as_far_as_it_is_written(stores, tmp_path):
     unfinished = tmp_path / "unfinished"
-    shutil.copytree(parts[2], unfinished)
-    drop_tail(unfinished, 2, rows=4096)
-    with pytest.raises(ValueError, match="finish it"):
-        VectorStore.open_view([parts[0], parts[1], unfinished])
+    shutil.copytree(stores / "part2", unfinished)
+    kept = drop_tail(unfinished, 2, rows=4096)
+    parts = [stores / "part0", stores / "part1", unfinished]
+    with VectorStore.open_view(parts) as view:
+        assert view.source is None  # not all parts are finished: positions are not source rows
+        assert len(view) == 2 * 16_384 + kept
+        assert [m["rows"] for m in view.members] == [16_384, 16_384, kept]
+
+
+def test_no_part_twice(stores, tmp_path):
+    copy = tmp_path / "copy"
+    shutil.copytree(stores / "part1", copy)
+    with pytest.raises(ValueError, match="part 1 of 3 is given twice"):
+        VectorStore.open_view([stores / "part0", stores / "part1", copy])
 
 
 def test_parts_of_another_source_or_cut_are_refused(stores, tmp_path):

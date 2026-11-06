@@ -243,9 +243,11 @@ def _identity(path: Path) -> tuple[int, int] | str:
 
 def _ordered(stores: list) -> tuple[list, str, SourceRows | None]:
     """The stores in the order of the positions, the mode that gave it and the identity of the
-    whole source if the stores are its parts. Stores of the mode ``source_rows@1`` must be all
-    parts of one source, each part once and finished (and no store of another kind among
-    them); then the order is that of the parts. Stores without a source keep the order given."""
+    whole source if the stores are all its parts, finished. Stores of the mode
+    ``source_rows@1`` must be parts of one source (maintainer decision of 2026-11-06), each
+    part at most once; the order is that of the parts. Parts may be missing or unfinished (a
+    producer still runs): the view is then a snapshot, its positions the concatenation, and
+    it has no source. Stores without a source keep the order given; a mix is refused."""
     resumes = [store._info.resume for store in stores]
     if all(resume is None for resume in resumes):
         return stores, LIST_ORDER, None
@@ -259,15 +261,14 @@ def _ordered(stores: list) -> tuple[list, str, SourceRows | None]:
     first = resumes[0]
     for store, resume in zip(stores, resumes, strict=True):
         _same_source(first, resume, store.path)
-        if len(store) != resume.span:
-            raise ValueError(
-                f"the store {store.path} holds {len(store)} of the {resume.span} rows of part "
-                f"{resume.shard[0]} of {resume.shard[1]}; finish it before it is read in a view"
-            )
     order = sorted(range(len(stores)), key=lambda k: resumes[k].shard[0])
     _check_parts(first, [(resumes[k].shard[0], stores[k].path) for k in order])
-    whole = SourceRows(first.fingerprint, first.form, first.rows, (0, 1), 0)
-    return [stores[k] for k in order], SOURCE_ROWS, whole
+    ordered = [stores[k] for k in order]
+    complete = len(order) == first.shard[1] and all(
+        len(store) == store._info.resume.span for store in ordered
+    )
+    whole = SourceRows(first.fingerprint, first.form, first.rows, (0, 1), 0) if complete else None
+    return ordered, SOURCE_ROWS, whole
 
 
 def _same_source(first: SourceRows, other: SourceRows, path: Path) -> None:
@@ -286,18 +287,11 @@ def _same_source(first: SourceRows, other: SourceRows, path: Path) -> None:
 
 
 def _check_parts(first: SourceRows, parts: list[tuple[int, Path]]) -> None:
-    """Every part ``0`` to ``n - 1`` of the source exactly once (``parts`` sorted by part)."""
+    """No part twice (``parts`` sorted by part)."""
     count = first.shard[1]
     for (index, path), (after, _) in itertools.pairwise(parts):
         if index == after:
             raise ValueError(f"part {index} of {count} is given twice (the store {path} is one)")
-    found = {index for index, _ in parts}
-    missing = [index for index in range(count) if index not in found]
-    if missing:
-        raise ValueError(
-            f"the stores hold {len(found)} of the {count} parts of the source; "
-            f"part {', '.join(map(str, missing))} is missing"
-        )
 
 
 def _check_alike(stores: list) -> None:

@@ -92,8 +92,8 @@ class ScoreStore(MemberReaders):
         shards of the stores).
         The stores must hold the same heads, columns and paths, the same encoder and
         document-ID mode and, across their boundaries, the same thresholds; stores written by
-        ``Encoder.encode(shard=)`` must be all parts of one source, and are read in the order
-        of the parts. A view has no ``refresh`` and no ``path`` (``paths`` names them), and
+        ``Encoder.encode(shard=)`` must be parts of one source and are read in the order
+        of the parts (all finished: positions are source rows). A view has no ``refresh`` and no ``path`` (``paths`` names them), and
         ``close`` closes its stores."""
         return _opened_view(cls, paths, heads=heads, name=name, backend=backend)
 

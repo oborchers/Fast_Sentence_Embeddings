@@ -79,8 +79,8 @@ class VectorStore(MemberReaders):
         ``locate`` describe them). Every search, score and read gives what one store holding
         the same rows gives, ties included (with ``mode="exact"``; BLAS blocks follow the
         shards). The stores must hold the same encoder, dtype, dimension and document-ID
-        mode; stores written by ``Encoder.encode(shard=)`` must be all parts of one source,
-        and are read in the order of the parts. A view has no ``refresh`` and no ``path``,
+        mode; stores written by ``Encoder.encode(shard=)`` must be parts of one source and are
+        read in the order of the parts (all finished: positions are source rows). A view has no ``refresh`` and no ``path``,
         and ``close`` closes its stores."""
         return _opened_view(cls, paths, encoder=encoder, backend=backend)
 
