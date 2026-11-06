@@ -53,7 +53,7 @@ def admission(cell, prepared, work, requested_limit):
         "safety_fraction": 0.85,
         "required_disk_bytes": disk,
         "available_disk_bytes": free,
-        "admitted": peak <= limit * 0.85 and free >= disk,
+        "admitted": peak <= limit * 0.85 and free * 0.85 >= disk,
     }
 
 
@@ -83,7 +83,10 @@ def _job(cell, prepared):
 
 
 def _write(args, cell, receipt):
-    append(args.results / "checks.jsonl", {"cell_id": cell["id"], "identity": receipt["identity"]})
+    append(
+        args.results / "checks.jsonl",
+        {"cell_id": cell["id"], "input_identity": receipt["input_identity"]},
+    )
     parts = receipt["synthetic"] + receipt["stores"]
     for part in parts:
         append(args.results / "checks.jsonl", {"cell_id": cell["id"], **part["checks"]})
@@ -110,6 +113,20 @@ def count_cell(args, cell, prepared, ledger):
     return receipt
 
 
+def _preflight(args, cells):
+    """A conservative check before the preparation downloads and writes anything."""
+    limit = memory_limit()
+    if args.memory_limit_bytes is not None:
+        limit = min(limit, args.memory_limit_bytes) if limit else args.memory_limit_bytes
+    if not limit:
+        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    free = shutil.disk_usage(args.work.parent).free
+    if any(c["scope"] == "main" for c in cells) and (
+        limit * 0.85 < 4 * 1024**3 or free * 0.85 < 6 * 1024**3
+    ):
+        raise MemoryError("less than 4 GiB RAM or 6 GiB disk for the preparation and the counts")
+
+
 def selected(cells):
     """Whether the cells are of the profile; it runs alone."""
     profiles = {cell["profile"] for cell in cells}
@@ -121,6 +138,7 @@ def selected(cells):
 def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
+        _preflight(args, cells)
         prepared = prepare(args, cells, ledger)
         check_args(args)
         done = {}
@@ -139,6 +157,17 @@ def run_cells(args, spec):
                     started,
                     status="inconclusive",
                     decision="inconclusive_budget",
+                    reason=str(error),
+                )
+                ledger.stopping = True
+                break
+            except MemoryError as error:  # refused before any counting began
+                record_result(
+                    ledger,
+                    cell,
+                    started,
+                    status="not_started",
+                    decision="not_run",
                     reason=str(error),
                 )
                 ledger.stopping = True

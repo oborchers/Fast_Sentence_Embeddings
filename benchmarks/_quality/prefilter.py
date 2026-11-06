@@ -50,9 +50,18 @@ def validate_queries(queries):
     return queries
 
 
+def _check_domain(unit):
+    """The rounding terms assume ||u|| <= 1.001; a query whose squares underflow in the
+    kernel's norm leaves that domain, so it is refused instead of covered by the slack."""
+    norms = np.linalg.norm(unit.astype(np.float64), axis=1)
+    if not ((norms >= 0.999) & (norms <= 1.001)).all():
+        raise ValueError("a normalized query is outside the domain of the proven bound")
+
+
 def query_bounds(queries):
     queries = validate_queries(queries)
     unit = _reference.postprocess(queries, [Normalize()])
+    _check_domain(unit)
     codes, scales = _reference.quantize_rows(unit, "int8")
     if codes.dtype != np.int8 or codes.shape != unit.shape or scales.dtype != np.float32:
         raise BoundViolationError("quantize_rows returned an unexpected form")
@@ -125,8 +134,7 @@ def survivors(estimate, slack, k, exact_kth):
     rows = len(estimate)
     low, high = estimate - slack, estimate + slack
     threshold = np.partition(low, rows - k)[rows - k]
-    kept = high >= threshold
-    return kept, high >= exact_kth
+    return high >= threshold, high >= exact_kth, float(threshold)
 
 
 def unslacked(estimate, eps, k):
@@ -146,6 +154,8 @@ def check_selection(column, kept, ids, scores, k):
     ids, scores = np.asarray(ids)[:k], np.asarray(scores)[:k]
     if not kept[ids].all():
         raise BoundViolationError("V2: a top-k row was dropped by the prefilter")
+    if not kept[column >= column[ids[-1]]].all():
+        raise BoundViolationError("V2: a tie at the k-th value was dropped by the prefilter")
     positions = np.flatnonzero(kept)  # ascending, so ties go to the smaller position
     order = _reference.top_k(column[positions], k)
     if not np.array_equal(positions[order], ids):

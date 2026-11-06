@@ -12,7 +12,7 @@ GROUP = 8
 SCHEMES = ("A", "A_unslacked", "B")
 
 
-def count(blocks, rows, queries, ks, public=None, deadline=None):
+def count(blocks, rows, queries, ks, public=None, deadline=None, emit=None):
     """Per-query rows and the counts of groups of eight queries, for every k.
 
     ``blocks`` is a callable giving the row blocks again for every block of queries;
@@ -29,9 +29,13 @@ def count(blocks, rows, queries, ks, public=None, deadline=None):
         found = bound.scan(blocks(), rows, block)
         worst = max(worst, found.worst)
         lists = _lists(found, public, begin, len(block), max(ks))
-        masks = _block(found, begin, lists, ks, rows_out)
+        first = len(rows_out)
+        masks = _block(found, begin, lists, ks, rows_out, deadline)
         _groups(masks, rows, groups)
         checked += len(block) * rows
+        if emit:
+            emit(rows_out[first:])
+        del found, lists, masks  # two blocks of a and c must not live at once
     return rows_out, groups, {"pairs": checked, "violations": 0, "worst_over_slack": worst}
 
 
@@ -42,23 +46,27 @@ def _lists(found, public, begin, width, top):
     return ids[begin : begin + width], scores[begin : begin + width]
 
 
-def _block(found, begin, lists, ks, rows_out):
+def _block(found, begin, lists, ks, rows_out, deadline):
     width = found.c.shape[1]
     masks = {k: np.zeros((width, len(found.c)), bool) for k in ks}
     for j in range(width):
+        check(deadline)
         column = np.ascontiguousarray(found.c[:, j])
         estimate = np.ascontiguousarray(found.a[:, j])
         for k in ks:
-            kept, kept_b = bound.survivors(
-                estimate, found.bounds.slack[j], k, bound.kth_value(column, k)
-            )
+            kth = bound.kth_value(column, k)
+            kept, kept_b, threshold = bound.survivors(estimate, found.bounds.slack[j], k, kth)
             bound.check_selection(column, kept, lists[0][j], lists[1][j], k)
             masks[k][j] = kept
-            rows_out.append(_row(found, j, begin, k, estimate, kept, kept_b))
+            tight = float(np.abs(column - estimate).max() / found.bounds.slack[j])
+            rows_out.append(
+                _row(found, j, begin, k, estimate, (kept, kept_b), (kth, threshold, tight))
+            )
     return masks
 
 
-def _row(found, j, begin, k, estimate, kept, kept_b):
+def _row(found, j, begin, k, estimate, sets, values):
+    kept, kept_b = sets
     b = found.bounds
     return {
         "query": begin + j,
@@ -67,6 +75,9 @@ def _row(found, j, begin, k, estimate, kept, kept_b):
         "kept_A": int(kept.sum()),
         "kept_A_unslacked": bound.unslacked(estimate, b.eps[j], k),
         "kept_B": int(kept_b.sum()),
+        "kth_exact": values[0],
+        "threshold_T": values[1],
+        "tightness": values[2],
         "scale": float(b.scale[j]),
         "max_abs": float(b.max_abs[j]),
         "eps": float(b.eps[j]),
@@ -92,7 +103,7 @@ def spread(values):
         "p90": float(high),
         "max": float(values.max()),
         "mean": float(values.mean()),
-        "n": len(values),
+        "samples": len(values),
     }
 
 

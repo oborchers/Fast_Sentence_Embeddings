@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from _development_budget import check
 from _development_process import checked
-from _measurement import document
+from _measurement import append, document
 
 from _quality import prefilter as bound
 from _quality.prefilter_count import count, summarize
@@ -30,7 +30,10 @@ def _synthetic(rows, nq, dim, seed):
     queries[2, :8] = np.float32(1e-40)
     queries[3] = 1.0 + 1e-3 * rng.standard_normal(dim).astype(np.float32)
     codes[200:300] = np.where(np.arange(dim) % 2, 127, -127).astype(np.int8)
-    best = int(np.argmax(codes.astype(np.float32) @ queries[0]))
+    unit = queries[0] / np.linalg.norm(queries[0])
+    best = int(
+        np.argmax((codes.astype(np.float32) * CpuBackend().inverse_norms(codes)[:, None]) @ unit)
+    )
     codes[list(TIE_POSITIONS)] = codes[best]
     codes[[5, 6, rows - 3]] = 0
     return codes, CpuBackend().inverse_norms(codes), queries
@@ -41,13 +44,15 @@ def _invalid_queries(dim):
     nan = np.ones((1, dim), np.float32)
     nan[0, 0] = np.nan
     tiny = np.full((1, dim), 1e-45, np.float32)
+    absorbed = np.full((1, dim), 2.0**-75, np.float32)
+    absorbed[0, 0] = 2.0**-74  # accepted by normalize@1, but its norm is far from one
     refused = 0
-    for bad in (zero, nan, tiny):
+    for bad in (zero, nan, tiny, absorbed):
         try:
             bound.query_bounds(bad)
         except ValueError:
             refused += 1
-    if refused != 3:
+    if refused != 4:
         raise bound.BoundViolationError("an invalid query was not refused before any work")
     return refused
 
@@ -92,8 +97,13 @@ def _count_set(store, name, queries, job, context):
     def blocks():
         return bound.store_blocks(store)
 
+    def emit(part):
+        path = Path(job["receipt"]).with_suffix(".partial.jsonl")
+        for row in part:
+            append(path, {**context, "n": rows, "set": name, **row})
+
     found, groups, stats = count(
-        blocks, rows, queries, ks, (public.ids, public.scores), job.get("wall_deadline")
+        blocks, rows, queries, ks, (public.ids, public.scores), job.get("wall_deadline"), emit
     )
     stats.update(kind="store", set=name, rows=rows, queries=len(queries))
     return stats, summarize(found, groups, rows, {**context, "n": rows, "set": name}), found
@@ -146,5 +156,5 @@ def count_job(job):
     context = {"model": job["model"], "dim": model.output_dim, "scope": job["scope"]}
     for size in sorted(job["store_sizes"]):
         result["stores"].extend(count_store(model, train[:size], queries, job, context))
-    result["identity"] = _identity(train, model, sets)
+    result["input_identity"] = _identity(train, model, sets)
     return result

@@ -6,36 +6,47 @@ import json
 from pathlib import Path
 
 THRESHOLD, REJECT = 0.10, 0.25
+FULL_N, QUERIES, SETS = 859_346, 256, ("stsb-test", "wikitext-test")
 MODELS = ("minishlab/potion-base-8M", "sentence-transformers/static-retrieval-mrl-en-v1")
 
 
 def _medians(path):
-    """model -> set -> median survivor fraction (scheme A, k=10, one query, largest N)."""
+    """model -> set -> median survivor share (scheme A, k=10, one query, 859,346 rows,
+    256 queries); None for a set that is missing."""
     rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
     rows = [
         r
         for r in rows
-        if r.get("scope") == "main" and r["k"] == 10 and r["scheme"] == "A" and r["queries"] == 1
+        if r.get("scope") == "main"
+        and r["k"] == 10
+        and r["scheme"] == "A"
+        and r["queries"] == 1
+        and r["n"] == FULL_N
+        and r["samples"] == QUERIES
     ]
-    largest = {m: max((r["n"] for r in rows if r["model"] == m), default=0) for m in MODELS}
     return {
-        m: {r["set"]: r["median"] for r in rows if r["model"] == m and r["n"] == largest[m]}
+        m: {
+            s: next((r["median"] for r in rows if r["model"] == m and r["set"] == s), None)
+            for s in SETS
+        }
         for m in MODELS
     }
 
 
 def decide(path, cells, finished, failed):
-    """failed, inconclusive, or the placement of DR-168 by the worse query set per model."""
+    """failed, inconclusive, or the placement of DR-168 by the worse query set per model.
+    A complete decision needs the probe and both models, each on the full store with
+    all 256 queries of both sets."""
     if failed:
         return {"result": "failed", "decision": None}
     status = {r["cell_id"]: r["status"] for r in finished}
-    required = [status.get(c["id"]) for c in cells if c["scope"] == "main"]
-    if len(required) < len(MODELS) or set(required) != {"valid"}:
+    scopes = sorted(c["scope"] for c in cells)
+    if scopes != ["main", "main", "probe"] or {status.get(c["id"]) for c in cells} != {"valid"}:
         return {"result": "inconclusive", "decision": None}
     medians = _medians(path)
-    worst = {m: max(sets.values()) for m, sets in medians.items() if sets}
-    if len(worst) != len(MODELS):
+    if any(v is None for sets in medians.values() for v in sets.values()):
         return {"result": "inconclusive", "decision": None}
+    worst = {m: max(sets.values()) for m, sets in medians.items()}
     return {"result": "complete", "M": worst, "medians": medians, **_place(worst)}
 
 
