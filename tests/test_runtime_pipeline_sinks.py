@@ -94,7 +94,7 @@ def test_the_memory_sink_returns_the_rows_of_a_run():
 
 
 def test_targets_are_checked():
-    rows = np.empty((3, 2), F32)
+    rows = np.zeros((3, 2), F32)  # cast below: no NaN from uninitialised memory
     assert split_target(rows, "float32", False)[1:] == (None, None)
     with pytest.raises(ValueError, match="holds 2 arrays, not 1"):
         split_target(rows, "float32", True)
