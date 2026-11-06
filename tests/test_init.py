@@ -130,6 +130,7 @@ def test_public_api_is_pinned():
     names = [
         "Classifier",
         "CorruptArtifactError",
+        "DocumentSearchResult",
         "EncodedBatch",
         "Encoder",
         "FastTextParams",
@@ -147,7 +148,6 @@ def test_public_api_is_pinned():
         "ShardSink",
         "Sink",
         "StaticModel",
-        "ThresholdInput",
         "UnsupportedArtifactError",
         "VectorStore",
         "WordVectors",

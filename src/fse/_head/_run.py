@@ -25,7 +25,15 @@ from numpy import ndarray
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._contract import Link
 from fse._cpus import usable_cpus
-from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
+from fse._encoder._batches import (
+    _named,
+    batch_size,
+    batch_source,
+    check_sink,
+    durable,
+    flush,
+)
+from fse._encoder._doc_ids import id_mode, refuse_score_sink
 from fse._encoder._sources import opened
 from fse._runtime import check_workers
 from fse._store import ShardSink, VectorStore
@@ -44,20 +52,62 @@ def check_backend(backend: Any) -> str:
     return backend
 
 
-def check_output_sink(model: Any, sink: Any, output: str) -> None:
+def check_output_sink(model: Any, sink: Any, output: str, *, batches: bool = False) -> None:
     """A sink of the outputs ``output``: float32 rows of their width, without inverse norms;
     one that names an ``encoder_fingerprint`` must name their output identity."""
     if output == "labels":
         raise ValueError("labels go to no sink in 2.0; take them from predict_batches")
+    _refuse_doc_ids(model, sink, vectors=False)
     if isinstance(sink, ShardSink):
         raise ValueError(
             "a ShardSink stores the vectors of an encoder, not the outputs of a head; take the "
             "outputs from predict_batches, or store the vectors with return_vectors=True"
         )
     width = model._head.width(RUNTIME[output])
-    dtype = check_sink(sink, None, model.output_identity(output), width)
+    hint = ""
+    if batches and not model.standalone:  # a standalone head has no vectors to name
+        hint = (
+            f"; without return_vectors the sink takes the {output} outputs ({width} values), "
+            f"with return_vectors=True the vectors of the encoder ({model.encoder.output_dim} "
+            "values)"
+        )
+    dtype = check_sink(sink, None, model.output_identity(output), width, hint)
     if dtype != "float32" or getattr(sink, "inverse_norms", False):
         raise ValueError("a sink of head outputs takes float32 rows without inverse norms")
+
+
+def _refuse_doc_ids(model: Any, sink: Any, *, vectors: bool) -> None:
+    """A sink in document-ID mode (``has_doc_ids`` exactly True) takes neither the outputs
+    of a head nor its vectors, as a head gives no IDs: refused before any batch is read."""
+    refuse_score_sink(sink)
+    if not id_mode(sink):
+        return
+    if not vectors:
+        raise ValueError(
+            "the sink stores document IDs; the outputs of a head carry none, so give a sink "
+            "without doc_ids"
+        )
+    start = (
+        "the sink stores document IDs, which predict_batches does not give; write the vectors "
+        "with Encoder.encode_batches(..., doc_ids=True) into the sink"
+    )
+    if model.normalized == ("normalize@1" in model.encoder.steps):
+        raise ValueError(f"{start}, then predict from the store with predict_batches(store)")
+    reads = "normalized" if model.normalized else "raw"
+    raise ValueError(
+        f"{start} and predict from the texts with predict_batches(texts) without that sink "
+        f"(this head reads {reads} rows, the store holds the other)"
+    )
+
+
+def _vector_hint(model: Any, output: str) -> str:
+    """What the sink of ``predict_batches(return_vectors=True)`` takes, for a wrong width."""
+    dim = model.encoder.output_dim
+    start = f"; with return_vectors=True the sink takes the vectors of the encoder ({dim} values)"
+    if output == "labels":
+        return f"{start}; the labels stay in the batch and go to no sink"
+    width = model._head.width(RUNTIME[output])
+    return f"{start}, without it the {output} outputs ({width} values)"
 
 
 def finish(model: Any, rows: ndarray, output: str) -> ndarray:
@@ -135,9 +185,11 @@ def batches(
         if model.standalone:
             raise ValueError("a standalone model has no vectors: its table is folded")
         if sink is not None:  # the vectors go to the sink, the outputs stay in the batch
-            check_sink(sink, None, model.encoder.fingerprint, model.encoder.output_dim)
+            dim = model.encoder.output_dim
+            check_sink(sink, None, model.encoder.fingerprint, dim, _vector_hint(model, output))
+            _refuse_doc_ids(model, sink, vectors=True)
     elif sink is not None:
-        check_output_sink(model, sink, output)
+        check_output_sink(model, sink, output, batches=True)
     head = model._pipeline(backend, with_vectors=return_vectors)
     return _text_batches(model, head, iter(items), output, return_vectors, workers, sink)
 

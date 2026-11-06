@@ -47,3 +47,81 @@ def test_check_output_sink(tmp_path):
         check_output_sink(model, fse.ShardSink(tmp_path / "s", model.encoder), "proba")
     with pytest.raises(TypeError, match="target and commit"):
         check_output_sink(model, object(), "proba")
+
+
+class _IdSink(fse.MemorySink):
+    has_doc_ids = True
+
+
+def _flagged(value):
+    class Flagged(fse.MemorySink):
+        has_doc_ids = value
+
+    return Flagged
+
+
+def _poisoned():
+    yield from ()
+    raise AssertionError("a batch was read")
+
+
+def test_a_document_id_sink_takes_no_outputs():
+    model = _model(3)
+    with pytest.raises(ValueError, match="carry none"):
+        check_output_sink(model, _IdSink(3), "decision")
+
+
+@pytest.mark.parametrize("value", [1, 0, "yes"])
+def test_other_values_of_has_doc_ids_keep_the_2_0_behavior(value):
+    model = _model(3)
+    check_output_sink(model, _flagged(value)(3), "decision")
+    sink = _flagged(value)(model.encoder.output_dim)
+    batches = list(model.predict_batches([["w1", "w2"]], return_vectors=True, sink=sink))
+    assert batches[0].vectors is None
+    assert sink.result().shape == (2, model.encoder.output_dim)
+
+
+def test_the_width_error_names_the_role_of_the_sink():
+    model = _model(3)
+    with pytest.raises(
+        ValueError,
+        match=r"must take rows of 6 values.*without it the decision outputs \(3 values\)",
+    ):
+        model.predict_batches(
+            _poisoned(), output="decision", return_vectors=True, sink=fse.MemorySink(3)
+        )
+    with pytest.raises(
+        ValueError,
+        match=r"must take rows of 3 values.*with return_vectors=True the vectors of the encoder "
+        r"\(6 values\)",
+    ):
+        model.predict_batches(_poisoned(), output="decision", sink=fse.MemorySink(6))
+    with pytest.raises(ValueError, match="labels stay in the batch"):
+        model.predict_batches(
+            _poisoned(), output="labels", return_vectors=True, sink=fse.MemorySink(3)
+        )
+    with pytest.raises(ValueError, match="must take rows of 3 values") as error:
+        model.predict_proba(["w1"], sink=fse.MemorySink(6))
+    assert "return_vectors" not in str(error.value)
+
+
+def test_a_standalone_head_takes_output_sinks_in_batches(tmp_path):
+    model = _model(3)
+    model.save(tmp_path / "m.safetensors", standalone=True)
+    standalone = fse.Classifier.load(tmp_path / "m.safetensors")
+    sink = fse.MemorySink(3)
+    batches = list(standalone.predict_batches([["w1", "w2"]], output="decision", sink=sink))
+    assert batches[0].outputs is None
+    assert sink.result().shape == (2, 3)
+    with pytest.raises(ValueError, match="must take rows of 3 values") as error:
+        standalone.predict_batches(_poisoned(), output="decision", sink=fse.MemorySink(6))
+    assert "return_vectors" not in str(error.value)
+
+
+def test_a_document_id_shard_sink_gets_the_id_message(tmp_path):
+    model = _model(3)
+    with (
+        fse.ShardSink(tmp_path / "s", model.encoder, doc_ids=True) as sink,
+        pytest.raises(ValueError, match="carry none"),
+    ):
+        check_output_sink(model, sink, "proba")

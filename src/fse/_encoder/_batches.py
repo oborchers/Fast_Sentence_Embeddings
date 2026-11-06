@@ -26,7 +26,7 @@ from fse._runtime import Pipeline, check_workers, wants_inverse_norms
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
-from ._doc_ids import check_batch_mode, check_id_mode, infer_ids
+from ._doc_ids import check_batch_mode, check_id_mode, infer_ids, refuse_score_sink
 from ._sources import opened
 
 
@@ -36,21 +36,24 @@ class EncodedBatch(NamedTuple):
     rows of the run that were durable when the batch was given (the sink's
     ``durable_rows`` after its ``publish``; None without a sink or for a sink that
     promises nothing). It is a snapshot: the last batch can report fewer rows than the
-    run has, as the sink's ``flush`` runs after it."""
+    run has, as the sink's ``flush`` runs after it. ``vectors`` is the same array as
+    ``rows``, named as in ``PredictedBatch`` and ``HeadsBatch``."""
 
     first_row: int
     n_rows: int
     rows: Any
     durable_rows: int | None
 
+    @property
+    def vectors(self) -> Any:
+        """An alias of ``rows``."""
+        return self.rows
 
-def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
-    """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder."""
-    if hasattr(sink, "score_schema"):
-        raise ValueError(
-            "a ScoreSink stores the scores of fse.Heads, not rows of an encoder or the "
-            "outputs of one head; use fse.Heads(name=model).predict_batches(..., score_sink=sink)"
-        )
+
+def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int, hint: str = "") -> str:
+    """The dtype of a run into ``sink``, checked against ``dtype`` and the encoder; ``hint``
+    ends the message about a wrong width."""
+    refuse_score_sink(sink)
     if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
         raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
     own = _codes.check_dtype(getattr(sink, "dtype", "float32"))
@@ -61,7 +64,7 @@ def check_sink(sink: Any, dtype: str | None, fingerprint: str, dim: int) -> str:
         raise ValueError(f"the sink takes the rows of encoder {takes}, not of {fingerprint}")
     if getattr(sink, "dim", None) != dim:
         raise ValueError(
-            f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}"
+            f"the sink must take rows of {dim} values, not {getattr(sink, 'dim', None)!r}{hint}"
         )
     wants_inverse_norms(sink)
     for name in ("flush", "publish"):

@@ -8,16 +8,53 @@ from fse._stream import StreamSource
 from fse._text._ids import IdSource
 
 
+def refuse_score_sink(sink: Any) -> None:
+    """A ScoreSink takes the scores of ``fse.Heads`` only, whatever its document-ID mode."""
+    if hasattr(sink, "score_schema"):
+        raise ValueError(
+            "a ScoreSink stores the scores of fse.Heads, not rows of an encoder or the "
+            "outputs of one head; use fse.Heads(name=model).predict_batches(..., score_sink=sink)"
+        )
+
+
+def id_mode(sink: Any) -> bool:
+    """Whether the sink stores document IDs: only ``has_doc_ids`` exactly True says so.
+
+    Any other value, also a truthy one, is what a sink of 2.0 may have set for itself; fse
+    ignores it unless the call brings document IDs.
+    """
+    return getattr(sink, "has_doc_ids", None) is True
+
+
+def _refuse_other_value(sink: Any) -> None:
+    """A call with IDs needs ``has_doc_ids`` True; a value that is no bool is a type error."""
+    value = getattr(sink, "has_doc_ids", False)
+    if not isinstance(value, bool):
+        raise TypeError(
+            f"has_doc_ids of the sink must be True for doc_ids, not {type(value).__name__}"
+        )
+
+
 def check_id_mode(sink: Any, ids: Any) -> None:
-    enabled = getattr(sink, "has_doc_ids", False)
+    refuse_score_sink(sink)
+    if isinstance(ids, bool):
+        raise TypeError(
+            "encode takes the document IDs themselves, one per text (a list of int, a "
+            "one-dimensional int64 array or an Arrow int64 column), not a bool; "
+            "doc_ids=True is the switch of encode_batches"
+        )
+    enabled = id_mode(sink)
+    if ids is not None and not enabled:
+        _refuse_other_value(sink)
     if (ids is not None) != enabled:
         raise ValueError("doc_ids must be supplied exactly when the sink has doc_ids=True")
 
 
 def check_batch_mode(sink: Any, doc_ids: bool) -> None:
     """The ``doc_ids`` argument of ``encode_batches`` must match the sink."""
-    enabled = getattr(sink, "has_doc_ids", False)
+    enabled = id_mode(sink)
     if doc_ids and not enabled:
+        _refuse_other_value(sink)
         raise ValueError(
             "doc_ids=True needs a sink with doc_ids; EncodedBatch holds no document IDs"
         )

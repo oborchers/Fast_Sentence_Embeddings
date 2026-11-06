@@ -11,6 +11,7 @@ remains a separate candidate, including rows sharing a document ID.
 IDs are a list of integers, an int64 NumPy array, or a primitive Arrow int64
 column without nulls. No coercion, table input, column-name selection or row pairs.
 `encode_batches(..., doc_ids=True)` takes `(texts, doc_ids)` per batch in an ID-enabled sink; the argument is checked against the sink when called.
+A sink is in ID mode only with `has_doc_ids` exactly `True`: every commit is then `commit(first_row, rows, doc_ids=ids)`, `ids` a read-only one-dimensional int64 array with one ID per committed row. Other values (0, 1, None) are ignored unless the call brings IDs, where a value that is no bool raises `TypeError`; this keeps sinks of 2.0 running. `encode` takes the IDs themselves (`doc_ids=ids`), `encode_batches` the switch `doc_ids=True`.
 One sink spans all batches, allowing full shards across input batch boundaries.
 The ordinary text-only batch API remains unchanged without document IDs.
 

@@ -6,7 +6,7 @@ import contextlib
 import numpy as np
 import pytest
 
-from fse import ShardSink
+from fse import ShardSink, VectorStore
 from fse._store._base_sink import ShardSinkBase, _same
 from fse._store._shard import ShardBase
 from support.encoder import finished
@@ -79,3 +79,14 @@ def test_the_rows_are_taken_in_order(tmp_path):
             array[...] = 0
         sink.commit(0, target)
         assert sink.flush() == 6
+
+
+def test_a_second_run_into_a_sink_says_a_sink_takes_one_run(tmp_path):
+    encoder = finished()
+    with ShardSink(tmp_path / "s", encoder, shard_rows=4) as sink:
+        encoder.encode(["w1", "w2", "w3"], sink=sink)
+        with pytest.raises(ValueError, match="exactly one run"):
+            encoder.encode(["w4"], sink=sink)
+        assert sink.flush() == 3
+    with VectorStore.open(tmp_path / "s") as store:
+        assert len(store) == 3

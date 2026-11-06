@@ -6,8 +6,8 @@ import fse
 from support import score_heads as sh
 
 
-def _sink(tmp_path):
-    return fse.ScoreSink(tmp_path / "s", sh.group())
+def _sink(tmp_path, doc_ids=False):
+    return fse.ScoreSink(tmp_path / "s", sh.group(), doc_ids=doc_ids)
 
 
 class Boom:
@@ -30,10 +30,13 @@ class Boom:
         lambda _e, _c, r, sink: list(r.predict_batches(Boom(), sink=sink)),
     ],
 )
-def test_encoder_classifier_and_regressor_refuse_a_score_sink_before_reading(tmp_path, call):
+@pytest.mark.parametrize("doc_ids", [False, True])
+def test_encoder_classifier_and_regressor_refuse_a_score_sink_before_reading(
+    tmp_path, call, doc_ids
+):
     heads = sh.group()
     classifier, regressor = heads["topic"], heads["quality"]
-    with _sink(tmp_path) as sink, pytest.raises(ValueError, match=r"fse\.Heads"):
+    with _sink(tmp_path, doc_ids) as sink, pytest.raises(ValueError, match=r"fse\.Heads"):
         call(classifier.encoder, classifier, regressor, sink)
     assert not (tmp_path / "s").exists()
 
