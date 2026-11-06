@@ -167,6 +167,7 @@ def identify(source: Any, values: IdSource | None) -> Identity:
     """The identity of ``source``, with the IDs ``values`` if the sink stores them. The
     whole source is hashed: a change of one byte, of the order or of an ID changes it."""
     form = next(name for kind, name in _FORMS.items() if isinstance(source, kind))
+    entries: dict[str, tuple[str, tuple[int, ...], str]]
     if form == "lines":
         digest, rows, nbytes, marks = _hash_lines(source)
         entries = {"text": ("U8", (nbytes,), digest)}
@@ -230,6 +231,15 @@ class Resumed:
     def check_unchanged(self) -> None:
         """Raise if the file changed during the run."""
         self.base._check_open()
+
+
+def add_row_note(error: Exception, first_row: int) -> None:
+    """Say which row of the source the rows of an error of a resumed run are: the run counts
+    from its first row (the rows the store holds are not part of it)."""
+    error.add_note(
+        f"this run resumed at row {first_row} of the source; add {first_row} to the row of "
+        "this message for the row in the source"
+    )
 
 
 @contextmanager

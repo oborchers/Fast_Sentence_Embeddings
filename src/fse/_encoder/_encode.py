@@ -234,7 +234,11 @@ def _encode_resumed(
     with _resume.prepared(texts, sink, part, doc_ids, me.tokenizer) as run:
         collector = _collector(settings, run.first_row, me)
         if run.rows:
-            run_into(pipeline, run.source, sink, workers, 0, run.ids, settings, collector)
+            try:
+                run_into(pipeline, run.source, sink, workers, 0, run.ids, settings, collector)
+            except Exception as error:
+                _resume.add_row_note(error, run.first_row)
+                raise
             run.check_unchanged()
     flush(sink)
     return None if collector is None else (None, collector.report())

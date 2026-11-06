@@ -49,16 +49,29 @@ ID shards also record `fse.doc_ids_min`, `fse.doc_ids_max` and
 Sorted means nondecreasing within this shard, including duplicates.
 Verification recomputes all three statistics in bounded blocks.
 
-The shared future resume mode for DR-165 (Shards und Resume für große Jobs
-einführen) is `source_rows@1`, within version 2. Until implemented it is rejected
-as unsupported, including during repair before any mutation. Its shard schema
-adds source and execution fingerprints, source interval and partition identity:
-`fse.source_fingerprint`, `fse.execution_fingerprint`, `fse.source_first_row`,
-`fse.source_rows`, `fse.source_shard` (canonical JSON `[i,n]`). Source identity
-includes ordered texts and document IDs. Execution identity binds the encoder,
-numerical versions, output format and semantic input configuration. Scheduling
-parameters do not change exact inference identity. No fictitious fingerprints
-are written for ordinary non-resumable append jobs.
+## Resume mode `source_rows@1`
+
+`fse.resume=source_rows@1`, within version 2, marks a store written from a source that can
+be read again (DR-165, Shards und Resume für große Jobs einführen; DR-248, Vektor-Stores
+wiederaufnehmen und feste Partitionen schreiben). A store of the mode writes six keys into
+`store.json` and into every shard, with the same values:
+
+| Key | Value |
+|---|---|
+| `fse.source_fingerprint` | the fingerprint of the whole source: its bytes, its order, its document IDs |
+| `fse.source_form` | `lines` (a text file), `strings` or `tokens` |
+| `fse.execution_fingerprint` | the fingerprint of the root metadata without the keys above: encoder, dtype, dimension, ID mode and mode. Scheduling (workers, batches, shard size) is not part of it |
+| `fse.source_first_row` | the source row where the part the store holds starts |
+| `fse.source_rows` | the number of rows of the whole source |
+| `fse.source_shard` | the part, canonical JSON `[i,n]` |
+
+A shard may hold no row beyond the end of its part. The parser checks the six values, the
+execution fingerprint (a mismatch is corruption) and that the first row is the start of the
+part. An unknown mode such as `source_rows@2` is `UnsupportedArtifactError`, also in a later
+shard or an orphan and in the preflight of repair, before anything is changed. The source
+fingerprint is made of the bytes of the text (and, for strings and token lists, their
+offsets) and the document IDs, so a changed byte, a moved row or another ID changes it.
+No fictitious fingerprints are written for ordinary non-resumable append jobs.
 
 ## Bounded search, writing and recovery
 

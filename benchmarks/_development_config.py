@@ -7,6 +7,8 @@ import math
 import re
 from pathlib import Path
 
+from _development_identity import STAGE
+from _development_identity import validate as validate_identity
 from _development_lengths import CORPORA
 from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
@@ -20,6 +22,7 @@ STAGES = (
     "encode-sink",
     "store-search",
     "store-open",
+    "source-identity",
     "head-folded",
     "head-with-vectors",
     "head-labels",
@@ -29,6 +32,10 @@ STAGES = (
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
+    "model": None,
+    "source_bytes": 1024**3,
+    "source_rows": 1_000_000,
+    "probe_bytes": 10 * 1024**2,
     "profile": "standard@1",
     "base_doc_ids": "none",
     "candidate_doc_ids": "none",
@@ -82,7 +89,8 @@ def _positive(value, name, integral=False):
 
 
 def validate_cell(raw, defaults):
-    required = {"id", "model", "corpus", "stage"}
+    identity = isinstance(raw, dict) and raw.get("stage") == STAGE
+    required = {"id", "corpus", "stage"} | (set() if identity else {"model"})
     if (
         not isinstance(raw, dict)
         or required - raw.keys()
@@ -94,8 +102,7 @@ def validate_cell(raw, defaults):
         r"[a-zA-Z0-9][a-zA-Z0-9_-]*", cell["id"]
     ):
         raise ValueError("development cell id must be a safe file stem")
-    if cell["model"] not in MODEL_PINS or cell["corpus"] not in ("stsb", "wikitext", *CORPORA):
-        raise ValueError("development cell requires a pinned model and a known corpus")
+    _inputs(cell, identity)
     if cell["stage"] not in STAGES or cell["order"] not in ("alternating", "abba"):
         raise ValueError("unknown development stage or pair order")
     if cell["table_dtype"] not in ("float32", "float16", "int8") or cell["output_dtype"] not in (
@@ -151,7 +158,16 @@ def validate_cell(raw, defaults):
     return cell
 
 
+def _inputs(cell, identity):
+    if identity:
+        validate_identity(cell)
+    elif cell["model"] not in MODEL_PINS or cell["corpus"] not in ("stsb", "wikitext", *CORPORA):
+        raise ValueError("development cell requires a pinned model and a known corpus")
+
+
 def _profile(cell):
+    if (cell["profile"] == "source-identity@1") != (cell["stage"] == STAGE):
+        raise ValueError("source-identity@1 and the stage source-identity require each other")
     heads = cell["stage"] in HEAD_STAGES
     if cell["rule"] not in ("linear@1", "linear@2") or (
         cell["rule"] != "linear@1" and cell["stage"] != "head-labels"

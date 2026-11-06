@@ -1,0 +1,22 @@
+{
+  "format": "local-development-v2",
+  "description": "source-identity@1 (DR-248: Vektor-Stores wiederaufnehmen und feste Partitionen schreiben). Class D1: absolute cost per GiB of fse._encoder._resume.identify(source, None), the fingerprint, the row count and the line marks of a source, from an opened source until the identity is done (encoding and writing are not included). Cell 1: a 1 GiB text file of the pinned WikiText-103 training sentences, warm page cache, read completely before every repetition. Cell 2: a list of 10^6 sentences of the same source, form strings. One warm-up call, repetitions and median with IQR from --descriptive-repetitions (7), one worker. Descriptive only, no comparison claim, no decision gate. Local development only, candidate build only.",
+  "defaults": {
+    "profile": "source-identity@1",
+    "workers": 1,
+    "warmup_calls": 1,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "identity-file-1gib",
+      "corpus": "wikitext-train-file",
+      "stage": "source-identity"
+    },
+    {
+      "id": "identity-strings-1m",
+      "corpus": "wikitext-train-strings",
+      "stage": "source-identity"
+    }
+  ]
+}

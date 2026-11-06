@@ -135,6 +135,10 @@ def _action(job):
         from _development_measure import measure
 
         result = measure(job)
+    elif job["action"] == "identity":
+        from _development_identity_run import measure
+
+        result = measure(job)
     elif job["action"] == "profile-head":
         if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
             from _development_heads_multi import profile

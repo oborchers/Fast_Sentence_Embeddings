@@ -63,7 +63,7 @@ def test_future_resume_aborts_repair_without_mutation(tmp_path):
     write_store(tmp_path / "s", [1, 2, 3, 4], shard_rows=2)
     directory = tmp_path / "s" / "shard-0000000000000002"
     tensors, metadata = NpyContainer().open(directory, mmap=False)
-    metadata["fse.resume"] = "source_rows@1"
+    metadata["fse.resume"] = "source_rows@2"
     metadata = {
         k: v
         for k, v in metadata.items()
@@ -75,7 +75,7 @@ def test_future_resume_aborts_repair_without_mutation(tmp_path):
     with first.open("r+b") as stream:
         stream.truncate(4)
     before = sorted(p.name for p in (tmp_path / "s").iterdir())
-    with pytest.raises(fse.UnsupportedArtifactError, match="source_rows@1"):
+    with pytest.raises(fse.UnsupportedArtifactError, match="source_rows@2"):
         fse.repair_store(tmp_path / "s")
     assert sorted(p.name for p in (tmp_path / "s").iterdir()) == before
 

@@ -7,6 +7,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from _development_budget import check, check_args, stopped
+from _development_identity import STAGE, prepare_cases, verify
 from _development_locks import coordinated
 from _development_process import checked, interpreter, launch
 from _development_system import LABEL
@@ -57,6 +58,9 @@ def _verify(receipt, cells, deadline=None):
         raise ValueError("prepared data must identify local development mode")
     for cell in cells:
         check(deadline)
+        if cell["stage"] == STAGE:
+            verify(receipt["corpora"][cell["corpus"]])
+            continue
         model = receipt["models"][cell["model"]]
         if model["revision"] != MODEL_PINS[cell["model"]]:
             raise ValueError("prepared model pin differs")
@@ -143,7 +147,7 @@ def _models(cells, work, cache, deadline=None):
     from fse import Encoder, StaticModel
 
     result, loaded = {}, {}
-    for repo in sorted({cell["model"] for cell in cells}):
+    for repo in sorted({cell["model"] for cell in cells if cell["model"] is not None}):
         check(deadline)
         revision = MODEL_PINS[repo]
         snapshot = _snapshot(
@@ -224,7 +228,8 @@ def prepare_child(job):
     cache = job.get("hf_cache")
     corpora = {}
     models, loaded = _models(job["cells"], work, cache, deadline)
-    for name in sorted({cell["corpus"] for cell in job["cells"]}):
+    corpora.update(prepare_cases(job["cells"], work, cache, deadline))
+    for name in sorted({c["corpus"] for c in job["cells"] if c["stage"] != STAGE}):
         check(deadline)
         if name == "stsb":
             data = _stsb(deadline)
