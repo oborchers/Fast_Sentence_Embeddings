@@ -722,3 +722,12 @@ python benchmarks/speed.py --diagnose \
 ```
 
 A rehearsal uses a separately named configuration that sets `source_bytes`, `source_rows` and `probe_bytes` small (for example 10 MiB, 1000 and 1 MiB) and `--diagnostic-rehearsal`; it proves the stage works and is labelled `functional_only`. Its seconds are never a result.
+
+## Rows a provable int8 prefilter keeps: `int8-prefilter@1`
+
+The gate of DR-168 (Suche mit int8-Vorfilter und beweisbarer Fehlerschranke beschleunigen) is class K and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/int8-prefilter-local.json` counts, for an int8 store built from the WikiText-103 training paragraphs, how many rows survive the filter `a + E >= T`. `a = s_q * (codes . qi) * inverse norm` is exact integer arithmetic in float64, `E = 1.003 * ||u - s_q * qi|| + 2^-14` bounds the quantization of the unit query `u` plus all roundings of the kernel (d up to 1024), and `T` is the k-th largest `a - E`. Every top-k row and every tie at the k-th value survives, so the exact rescoring of the survivors returns the same ids and bits.
+
+- Checks (any failure ends the study as `failed`): V1 `a - E <= c <= a + E` for every counted pair, with `c` from `CpuBackend.cosines`; V2 the ids of `store.search(..., mode="exact")` lie in the survivors; V3 the top-k over the survivors gives the same ids and score bits; V4 stored inverse norms and the backend equal the numpy reference, codes lie in [-127, 127].
+- Cells: `prefilter-probe` (synthetic arrays with zero rows, ties across the block edge 65,536, cancellation, a negated and a subnormal query, invalid queries; plus 4,096 real rows and 8 queries, no decision), then `prefilter-potion` and `prefilter-retrieval` on 65,536 and 859,346 rows. Queries: 256 of STS-B test and 256 of WikiText-103 test (PCG64 seed 0, texts that are stored or duplicated are excluded and counted), only stand-ins for retrieval queries.
+- Decision (fixed before the run): the median survivor share at k=10, one query, 859,346 rows, scheme A, the worse query set per model. At most 10 % for both models keeps DR-168 in 2.1 as a candidate (next a class D prototype). Otherwise it moves to 2.2. 10 % is a prioritisation limit, not a proof of a speed-up.
+- Outputs: `prefilter.jsonl` (median, p10, p90, max, mean per k and scheme; groups of eight queries as union and pair share), `queries.jsonl`, `checks.jsonl`, `memory.jsonl`, `decision.json`. Scheme `A_unslacked` is not a proof. Rotation and 4-bit copies are separate later studies.

@@ -118,45 +118,37 @@ def child(file):
     atomic(Path(job["receipt"]), {**result, **LABEL, "identity": before})
 
 
+_ACTIONS = {
+    "prepare": ("_development_data", "prepare_child"),
+    "probe": ("_development_preflight", "probe"),
+    "quality": ("_quality.development_child", "export"),
+    "prefilter-count": ("_quality.prefilter_child", "count_job"),
+    "measure": ("_development_measure", "measure"),
+    "identity": ("_development_identity_run", "measure"),
+    "filter-memory": ("_development_filter_memory", "profile"),
+}
+
+
+def _head_profile(job):
+    if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
+        from _development_heads_multi import profile
+    else:
+        from _development_heads import profile
+    return profile(job)
+
+
 def _action(job):
-    if job["action"] == "prepare":
-        from _development_data import prepare_child
-
-        result = prepare_child(job)
-    elif job["action"] == "probe":
-        from _development_preflight import probe
-
-        result = probe(job)
-    elif job["action"] == "quality":
-        from _quality.development_child import export
-
-        result = export(job)
-    elif job["action"] == "measure":
-        from _development_measure import measure
-
-        result = measure(job)
-    elif job["action"] == "identity":
-        from _development_identity_run import measure
-
-        result = measure(job)
-    elif job["action"] == "profile-head":
-        if job["profile"] in ("linear-heads-multi@1", "linear-heads-scores@1"):
-            from _development_heads_multi import profile
-        else:
-            from _development_heads import profile
-
-        result = profile(job)
-    elif job["action"] == "pooling-input":
+    action = job["action"]
+    if action == "profile-head":
+        return _head_profile(job)
+    if action == "pooling-input":
         from _development_stages import prepare_batch
 
-        result = {"batch": prepare_batch(job)}
-    elif job["action"] == "filter-memory":
-        from _development_filter_memory import profile
-
-        result = profile(job)
-    else:
+        return {"batch": prepare_batch(job)}
+    if action not in _ACTIONS:
         raise ValueError("unknown development child action")
-    return result
+    module, name = _ACTIONS[action]
+    return getattr(importlib.import_module(module), name)(job)
 
 
 def checked(path, expected):

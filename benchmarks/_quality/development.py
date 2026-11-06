@@ -140,6 +140,10 @@ def quality_gate(args, cell, prepared, ledger, tag):
 def run(args):
     spec = load(args.development_input, args.cells)
     spec["functional_only"] = args.diagnostic_rehearsal
+    from _quality.prefilter_run import run_cells, selected
+
+    if selected(spec["cells"]):
+        return run_cells(args, spec)
     seen, cells = set(), []
     for cell in spec["cells"]:
         key = tuple(
