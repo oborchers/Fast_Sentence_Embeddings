@@ -94,3 +94,37 @@ def same_tensors(one, other):
         assert one[name].dtype == other[name].dtype
         assert one[name].shape == other[name].shape, name
         assert one[name].tobytes() == other[name].tobytes(), name
+
+
+ROW_TENSORS = {"vectors", "scales", "inv_norms", "scores", "doc_ids"}
+
+
+def prefix_report(tmp_path, reference, names=("v", "s")):
+    """(vector rows, score rows) of two stores after a failed or crashed run; each store
+    verifies and holds the bits of the reference run in its rows."""
+    lengths = []
+    for name, tensor in zip(names, ("vectors", "scores"), strict=True):
+        path = tmp_path / name
+        got = tensors(path) if (path / "store.json").exists() else {}
+        rows = len(got[tensor]) if tensor in got else 0
+        if rows:
+            read_vectors(path) if tensor == "vectors" else read_scores(path)
+            for key in ROW_TENSORS & got.keys():  # per-shard tensors differ with the shard grid
+                assert got[key].tobytes() == reference[name][key][:rows].tobytes(), (name, key)
+        lengths.append(rows)
+    return tuple(lengths)
+
+
+def reference(tmp_path, heads, texts, *, batch=15, shard_rows=16, ids=None):
+    """The tensors of a clean run into two stores, by folder name."""
+    run(
+        tmp_path,
+        heads,
+        texts,
+        batch=batch,
+        shard_rows=shard_rows,
+        doc_ids=ids is not None,
+        ids=ids,
+        names=("rv", "rs"),
+    )
+    return {"v": tensors(tmp_path / "rv"), "s": tensors(tmp_path / "rs")}
