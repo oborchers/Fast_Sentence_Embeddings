@@ -1,0 +1,34 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-168 gate, class K: the share of rows of an int8 store that a provable int8 prefilter keeps for top-k. Synthetic and small real probe first, then both models on the WikiText-103 training paragraphs (65,536 and 859,346 rows) with STS-B test and WikiText-103 test queries as stand-ins. No timing.",
+  "defaults": {
+    "profile": "int8-prefilter@1",
+    "workers": 2,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "prefilter-probe",
+      "model": "minishlab/potion-base-8M",
+      "stage": "prefilter-count",
+      "corpus": "wikitext-train",
+      "scope": "probe",
+      "store_sizes": [
+        4096
+      ],
+      "queries_per_set": 8
+    },
+    {
+      "id": "prefilter-potion",
+      "model": "minishlab/potion-base-8M",
+      "stage": "prefilter-count",
+      "corpus": "wikitext-train"
+    },
+    {
+      "id": "prefilter-retrieval",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "stage": "prefilter-count",
+      "corpus": "wikitext-train"
+    }
+  ]
+}

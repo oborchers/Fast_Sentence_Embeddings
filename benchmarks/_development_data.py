@@ -13,6 +13,7 @@ from _development_system import LABEL
 from _measurement import append, atomic, document, sha256
 from _measurement_config import MODEL_PINS, PINS
 from _measurement_setup import outside_checkout
+from _quality.prefilter_inputs import corpus_names
 
 
 def prepare(args, cells, ledger):
@@ -63,8 +64,9 @@ def _verify(receipt, cells, deadline=None):
         for record in model["artifacts"].values():
             check(deadline)
             checked(record["path"], record["sha256"])
-        corpus = receipt["corpora"][cell["corpus"]]
-        checked(corpus["path"], corpus["sha256"])
+        for name in corpus_names(cell):
+            corpus = receipt["corpora"][name]
+            checked(corpus["path"], corpus["sha256"])
 
 
 def _snapshot(repo, revision, work, existing, dataset=False, patterns=None):
@@ -135,6 +137,50 @@ def _wikitext(work, cache, deadline=None):
             revision=pin["revision"],
             split="test",
             preprocessing="original rows, including empty rows and headings",
+        ),
+    )
+
+
+def _wikitext_train(work, cache, deadline=None):
+    """The raw paragraphs of the pinned training split by the rule of hub_classic_corpus
+    (strip, not empty, no heading, a letter or digit), whitespace collapsed, not tokenized."""
+    import re
+
+    import pyarrow.parquet as pq
+    from _quality.prefilter_inputs import TRAIN_ROWS
+
+    pin = PINS["corpus"]
+    snapshot = _snapshot(
+        pin["repo"],
+        pin["revision"],
+        work,
+        cache,
+        dataset=True,
+        patterns=["wikitext-103-raw-v1/train-*.parquet"],
+    )
+    parts = sorted((snapshot / "wikitext-103-raw-v1").glob("train-*.parquet"))
+    if not parts:
+        raise ValueError("pinned WikiText training split is missing")
+    texts = []
+    for part in parts:
+        for batch in pq.ParquetFile(part).iter_batches(columns=["text"], batch_size=4096):
+            check(deadline)
+            for row in batch.column(0).to_pylist():
+                text = row.strip()
+                if text and not text.startswith("=") and re.search("[A-Za-z0-9]", text):
+                    texts.append(" ".join(text.split()))
+    if len(texts) != TRAIN_ROWS:
+        raise ValueError(
+            f"WikiText training store has {len(texts)} paragraphs, expected {TRAIN_ROWS}"
+        )
+    return dict(
+        texts=texts,
+        score_slices=[],
+        source=dict(
+            repo=pin["repo"],
+            revision=pin["revision"],
+            split="train",
+            preprocessing="hub_classic_corpus row rule, raw text with collapsed whitespace",
         ),
     )
 
@@ -218,22 +264,35 @@ def _length_corpus(name, work, cache, models, deadline):
     return data
 
 
+def _corpus(name, work, cache, loaded, deadline):
+    if name == "wikitext-train":
+        data = _wikitext_train(work, cache, deadline)
+        data["timing_texts"] = data["texts"]  # already collapsed; saved once (see prepare_child)
+        data["timing_policy"] = "paragraphs of the training split, one-space whitespace"
+        return data
+    if name == "stsb":
+        data = _stsb(deadline)
+    elif name == "wikitext":
+        data = _wikitext(work, cache, deadline)
+    else:
+        data = _length_corpus(name, work, cache, loaded, deadline)
+    data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
+    data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
+    return data
+
+
 def prepare_child(job):
     deadline = job.get("wall_deadline")
     work = Path(job["work"])
     cache = job.get("hf_cache")
     corpora = {}
     models, loaded = _models(job["cells"], work, cache, deadline)
-    for name in sorted({cell["corpus"] for cell in job["cells"]}):
+    for name in sorted({n for cell in job["cells"] for n in corpus_names(cell)}):
         check(deadline)
-        if name == "stsb":
-            data = _stsb(deadline)
-        elif name == "wikitext":
-            data = _wikitext(work, cache, deadline)
-        else:
-            data = _length_corpus(name, work, cache, loaded, deadline)
-        data["timing_texts"] = [" ".join(text.split()) for text in data["texts"]]
-        data["timing_policy"] = "one-space whitespace; preserve row order, empty rows and headings"
+        data = _corpus(name, work, cache, loaded, deadline)
+        timing = data["timing_texts"]
+        if timing is data["texts"]:
+            del data["timing_texts"]  # the training store texts are saved once
         path = work / (name + ".json")
         atomic(path, data)
         corpora[name] = dict(
@@ -241,7 +300,7 @@ def prepare_child(job):
             sha256=sha256(path),
             texts=len(data["texts"]),
             source=data["source"],
-            timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in data["timing_texts"]),
+            timing_utf8_bytes=sum(len(text.encode("utf-8")) for text in timing),
             timing_policy=data["timing_policy"],
         )
     return {**LABEL, "corpora": corpora, "models": models}
