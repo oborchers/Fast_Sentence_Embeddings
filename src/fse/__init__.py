@@ -26,7 +26,14 @@ if TYPE_CHECKING:
     from fse._runtime import MemorySink, Sink
     from fse._scores import ScoreBatch, ScoreSink, ScoreStore
     from fse._static_model import StaticModel
-    from fse._store import DocumentSearchResult, SearchResult, ShardSink, VectorStore, repair_store
+    from fse._store import (
+        DocumentSearchResult,
+        SearchResult,
+        ShardSink,
+        VectorBatch,
+        VectorStore,
+        repair_store,
+    )
 del TYPE_CHECKING  # not a name of fse
 
 # The encoder, the static model and the sinks load on first access (PEP 562), not when fse is
@@ -42,7 +49,14 @@ _LAZY = {
     **dict.fromkeys(("ScoreBatch", "ScoreSink", "ScoreStore"), "fse._scores"),
     "StaticModel": "fse._static_model",
     **dict.fromkeys(
-        ("DocumentSearchResult", "SearchResult", "ShardSink", "VectorStore", "repair_store"),
+        (
+            "DocumentSearchResult",
+            "SearchResult",
+            "ShardSink",
+            "VectorBatch",
+            "VectorStore",
+            "repair_store",
+        ),
         "fse._store",
     ),
     **dict.fromkeys(
@@ -115,6 +129,7 @@ __all__ = [
     "Sink",
     "StaticModel",
     "UnsupportedArtifactError",
+    "VectorBatch",
     "VectorStore",
     "WordVectors",
     "__version__",

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -33,16 +34,18 @@ from fse._cpus import usable_cpus
 from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
-from . import _filtered, _search, _selection, _take, _unique_search
+from . import _filtered, _search, _selection, _take, _unique_search, _vector_batches
 from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, clear_exception_frames, snapshot
 from ._result import DocumentSearchResult, SearchResult
+from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
 
 F32 = np.float32
+DEFAULT_BLOCK_ROWS = 65_536
 
 
 class VectorStore:
@@ -283,12 +286,45 @@ class VectorStore:
                 row_bytes=_take.ID_ROW_BYTES,
             )
 
-    def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
-        """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
-        ``np.concatenate`` of the parts copies them out of the mappings."""
+    @validate_arguments
+    def iter_batches(
+        self,
+        *,
+        block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
+        start: NonNegativeInt = 0,
+        stop: NonNegativeInt | None = None,
+    ) -> Iterator[VectorBatch]:
+        """The stored rows ``start`` to ``stop - 1`` (all by default) in blocks of at most
+        ``block_rows`` rows, never over the end of a shard: ``VectorBatch`` objects whose
+        ``vectors`` (and ``doc_ids``) are read-only views of the mapped shards, in the stored
+        dtype (int8 as ``QuantizedRows``). No row is copied or decoded.
+
+        The views and a suspended generator keep the mapped files open, which on Windows
+        locks them: drop the views, and call ``close()`` on the generator (or use
+        ``contextlib.closing``) when you stop early. After ``VectorStore.close`` the next
+        block raises ``RuntimeError``, also before the first; views given before stay
+        readable."""
+        self._check_open()
+        stop = self._stop(start, stop)
+        return self._batches(block_rows, start, stop)
+
+    def _batches(self, block_rows: int, start: int, stop: int) -> Iterator[VectorBatch]:
+        self._check_open()
+        shards = list(self._shards)
+        for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
+            self._check_open()  # a closed store gives nothing more
+            yield _vector_batches.make(tensors, shard.first_row, first, end)
+
+    def _stop(self, start: int, stop: int | None) -> int:
         stop = len(self) if stop is None else stop
         if not start <= stop <= len(self):
             raise ValueError(f"rows {start} to {stop} are not within the {len(self)} rows")
+        return stop
+
+    def _row_parts(self, start: int, stop: int | None, read: Any) -> list[ndarray]:
+        """``read(tensors, a, b)`` for each shard part within the rows ``start`` to ``stop - 1``;
+        ``np.concatenate`` of the parts copies them out of the mappings."""
+        stop = self._stop(start, stop)
         parts = []
         with self._using():
             for shard, tensors in self._shards:
