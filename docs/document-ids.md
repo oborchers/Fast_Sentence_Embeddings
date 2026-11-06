@@ -169,3 +169,22 @@ their vectors under the same durability policy. Explicit verification and repair
 check the ID column too. Repair quarantines whole shards, preserving the verified
 prefix. A store written with `resume=True` continues after a stop; see
 [resuming a run](../recipes/03-files-with-resume.ipynb).
+
+A stream that never ends resumes at a **position**. `encode_batches(batches, sink=sink,
+positions=True)` takes batches `(texts, position)`, and `predict_batches(..., positions=True)`
+of `Heads`, `Classifier` and `Regressor` does the same into a vector store, a score store or
+both. A position is a text of 1 to 65,536 UTF-8 bytes that you choose (a Kafka offset, a byte
+offset); fse stores it with the shard in which the batch ends and never reads it. After a
+crash `sink.source_position` is `(P, skip)`: seek the source to `P`, give the batches again,
+and fse drops the first `skip` records, which the store holds. Three kinds of number appear
+and must not be mixed up:
+
+| Number | What it counts |
+|---|---|
+| store row | the rows in the store, from 0 |
+| replay row | the records the source delivered since the seek, from 0 (`first_row` of each result) |
+| record or offset | the position in the stream itself; offsets can have gaps |
+
+`durable_rows` counts replay rows. Commit to the stream system the offset of the record of
+replay row `durable_rows - 1`, plus one, and keep the map from replay rows to offsets
+yourself. See [fse behind Kafka](../recipes/09-fse-behind-kafka.ipynb).
