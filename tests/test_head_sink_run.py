@@ -367,9 +367,10 @@ def test_the_two_sinks_get_the_same_id_array_and_one_fetch_per_task(tmp_path, mo
 
 def test_a_vector_sink_alone_releases_the_ids_and_checks_their_number(tmp_path):
     heads, texts = sh.group(), sh.texts(20)
-    with fse.ShardSink(
-        tmp_path / "v", heads["quality"].encoder, doc_ids=True, shard_rows=8
-    ) as sink, pytest.raises(ValueError, match="doc_ids has 19 rows for 20 texts"):
+    with (
+        fse.ShardSink(tmp_path / "v", heads["quality"].encoder, doc_ids=True, shard_rows=8) as sink,
+        pytest.raises(ValueError, match="doc_ids has 19 rows for 20 texts"),
+    ):
         list(
             heads.predict_batches(
                 [(texts, np.arange(19))], return_vectors=True, vector_sink=sink, doc_ids=True
