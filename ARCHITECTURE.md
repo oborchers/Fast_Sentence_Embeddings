@@ -34,7 +34,7 @@ Sections formerly under "2.0 design" are binding for every 2.0 module.
 | [hub.md](docs/architecture/hub.md) | Model2Vec models and from_pretrained, model2vec compatibility (fse.StaticModel), sentence-transformers models, Hub folders |
 | [store.md](docs/architecture/store.md) | sentence_vectors 1, the shared shard base (columns, sink base, kinds and the chain check), resume stores, views over several stores |
 | [scores.md](docs/architecture/scores.md) | prediction_scores 1, writing and reading head scores, one run into two stores, resuming a run |
-| [document-ids.md](docs/architecture/document-ids.md) | sentence_vectors 2, document IDs and filtered search, the resume mode `source_rows@1` |
+| [document-ids.md](docs/architecture/document-ids.md) | sentence_vectors 2, document IDs and filtered search, the resume modes `source_rows@1` and `source_position@1` |
 
 ## Former sections
 

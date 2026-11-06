@@ -43,6 +43,8 @@ from fse import _log
 
 from ._kind import Kind
 from ._kinds import kind_of
+from ._position_format import MODE as SOURCE_POSITION
+from ._position_format import SourcePosition, anchor_of, skip_of
 from ._recovery import NO_SHARD, chain_breach, clear_exception_frames
 from ._resume_format import MODE as SOURCE_ROWS
 from ._resume_format import SourceRows, execution_fingerprint
@@ -72,10 +74,11 @@ class Joined:
             store.close()
 
 
-def source_mapping(resume: SourceRows | None) -> Mapping[str, Any] | None:
+def source_mapping(resume: SourceRows | SourcePosition | None) -> Mapping[str, Any] | None:
     """The source a store was written from, as a read-only mapping (a new one on every call),
-    or None for a store without one."""
-    if resume is None:
+    or None for a store without one, also for a store of the mode ``source_position@1``: a
+    stream is no source with rows of its own."""
+    if not isinstance(resume, SourceRows):
         return None
     return MappingProxyType(
         {
@@ -96,6 +99,7 @@ class MemberReaders:
     path: Path | None
     _info: Any
     _view: Joined | None
+    _shards: list
 
     def __len__(self) -> int:
         raise NotImplementedError
@@ -127,14 +131,31 @@ class MemberReaders:
     @property
     def members(self) -> tuple[Mapping[str, Any], ...]:
         """One read-only mapping for each store of the positions, in order: its ``path``, the
-        position ``first_row`` it starts at, its ``rows`` and its ``source`` (as ``source``)."""
+        position ``first_row`` it starts at, its ``rows`` and its ``source`` (as ``source``);
+        a member of the mode ``source_position@1`` also its ``position``, the pair of
+        ``source_position``."""
         if self._view is None:
-            return (_member(self._root, 0, len(self), self._info.resume),)
+            return (_member(self._root, 0, len(self), self._info.resume, self.source_position),)
         view = self._view
         return tuple(
-            _member(store.path, first, rows, store._info.resume)
+            _member(store.path, first, rows, store._info.resume, store.source_position)
             for store, first, rows in zip(view.stores, view.offsets, view.rows, strict=True)
         )
+
+    @property
+    def source_position(self) -> tuple[str, int] | None:
+        """``(P, skip)`` of a store of the mode ``source_position@1``: the position of the
+        stream to seek to and the records to drop after it so that the next record is the
+        next row of the store (the anchor of its last shard, else of its root; ``skip`` is the
+        rows from that anchor to the end). None for any other store and for a view, whose
+        members hold theirs in ``members``."""
+        self._check_open()
+        if self._view is not None:
+            return None
+        shards = self._shards
+        anchor = anchor_of(self._info, shards)
+        rows = sum(shard.rows for shard, _ in shards)
+        return None if anchor is None else skip_of(anchor, rows)
 
     def locate(self, ids: Any, /) -> tuple[ndarray, ndarray]:
         """For store positions ``ids`` (a list or an int64 array of one or two dimensions, as
@@ -155,10 +176,13 @@ class MemberReaders:
         return member.astype(np.int64, copy=False), wanted - offsets[member]
 
 
-def _member(path: Path, first: int, rows: int, resume: SourceRows | None) -> Mapping[str, Any]:
-    return MappingProxyType(
-        {"path": path, "first_row": first, "rows": rows, "source": source_mapping(resume)}
-    )
+def _member(
+    path: Path, first: int, rows: int, resume: Any, position: tuple[str, int] | None
+) -> Mapping[str, Any]:
+    entry = {"path": path, "first_row": first, "rows": rows, "source": source_mapping(resume)}
+    if position is not None:
+        entry["position"] = position
+    return MappingProxyType(entry)
 
 
 # --- opening ---------------------------------------------------------------------------
@@ -251,12 +275,20 @@ def _ordered(stores: list) -> tuple[list, str, SourceRows | None]:
     resumes = [store._info.resume for store in stores]
     if all(resume is None for resume in resumes):
         return stores, LIST_ORDER, None
+    if all(isinstance(resume, SourcePosition) for resume in resumes):
+        return stores, LIST_ORDER, None  # streams: the order given, no claim on a source
     for store, resume in zip(stores, resumes, strict=True):
         if resume is None:
             raise ValueError(
                 f"the store {store.path} has no source, but other stores of the view were "
                 f"written from one ({SOURCE_ROWS}); a view reads either the parts of one source "
                 "or stores without a source"
+            )
+        if not isinstance(resume, SourceRows):
+            raise ValueError(
+                f"the store {store.path} was written from a stream ({SOURCE_POSITION}), the "
+                f"others from a source ({SOURCE_ROWS}); a view reads either the parts of one "
+                "source or stores of streams"
             )
     first = resumes[0]
     for store, resume in zip(stores, resumes, strict=True):
@@ -319,12 +351,12 @@ def check_boundaries(kind: Kind, stores: list) -> None:
         shards = store._shards
         if not shards:
             continue
-        reason = chain_breach(kind, previous, kind.summary(*shards[0]))
+        reason = chain_breach(kind, previous, kind.without_row(kind.summary(*shards[0])))
         if reason is not None:
             raise ValueError(
                 f"the store {store.path} cannot follow the store {before} in a view: {reason}"
             )
-        previous, before = kind.summary(*shards[-1]), store.path
+        previous, before = kind.without_row(kind.summary(*shards[-1])), store.path
 
 
 def _joined(stores: list, mode: str, whole: SourceRows | None) -> Joined:

@@ -69,6 +69,8 @@ class SourceRows:
     shard: tuple[int, int]
     first_row: int
 
+    mode = MODE
+
     @property
     def span(self) -> int:
         """How many rows the part holds when it is complete."""
@@ -138,14 +140,25 @@ def _shard(text: Any, file: Path) -> tuple[int, int]:
 # --- what a resuming sink checks of a store (vector and score sinks alike) ------------
 
 
-def check_mode(existing: Any, resume: bool, path: Path) -> None:
-    """A store of the mode source_rows@1 is opened with ``resume=True`` only, and
-    ``resume=True`` opens such a store only. ``existing`` is the info of the store."""
-    if existing.resume is not None and not resume:
-        raise ValueError(f"the store {path} is resumable (mode {MODE}); open it with resume=True")
-    if existing.resume is None and resume:
+def check_mode(existing: Any, resume: bool, path: Path, mode: str | None = None) -> None:
+    """A store of a resume mode is opened with ``resume=True`` only, and ``resume=True`` opens
+    such a store only. ``existing`` is the info of the store. With a ``mode`` (the run that
+    attaches knows it: ``source_rows@1`` for ``encode(texts, shard=)`` and ``predict``,
+    ``source_position@1`` for the ``predict_batches`` and ``encode_batches`` with
+    ``positions=True``) the store must be of that mode."""
+    stored = None if existing.resume is None else existing.resume.mode
+    if stored is not None and not resume:
+        raise ValueError(f"the store {path} is resumable (mode {stored}); open it with resume=True")
+    if stored is None and resume:
         raise ValueError(
             f"the store {path} is not a resumable store; write a new store with resume=True"
+        )
+    if mode is not None and stored != mode:
+        raise ValueError(
+            f"the store {path} is of the mode {stored}, but this call resumes the mode {mode}: "
+            "a finite source (encode and predict with a source that can be read again) and a "
+            "stream (encode_batches and predict_batches with positions=True) write stores of "
+            "their own"
         )
 
 

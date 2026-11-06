@@ -26,8 +26,10 @@ from fse._store import VectorStore
 
 from . import _run
 from ._outputs import PredictedBatch
+from ._positions_run import start as start_stream
+from ._positions_run import stream_batches
 from ._run import RUNTIME, check_backend, finish, refuse_store_lengths, rule
-from ._sink_run import run_batches, start_lone
+from ._sink_run import run_batches, start, start_lone
 
 
 def batches(
@@ -42,20 +44,22 @@ def batches(
     score_sink: Any = None,
     doc_ids: Any = False,
     settings: LengthSettings | None = None,
+    positions: bool = False,
 ) -> Iterator[Any]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
-    the first batch is read."""
+    the first batch is read. With ``positions=True`` the batches are ``(texts, position)``
+    and the sinks resume (``_positions_run``)."""
     method = f"{type(model).__name__}.predict_batches"
     check_workers(workers)
     check_backend(backend)
     check_switch(doc_ids, method)
-    new = vector_sink is not None or score_sink is not None or doc_ids
+    new = vector_sink is not None or score_sink is not None or doc_ids or positions
     if sink is not None and new:
         raise ValueError(
             "sink= keeps its role: the outputs, or with return_vectors=True the vectors. Give "
-            "the vectors as vector_sink=, the scores as score_sink= and the document IDs as "
-            "doc_ids=True, without sink="
+            "the vectors as vector_sink=, the scores as score_sink=, the document IDs as "
+            "doc_ids=True and the positions of a stream as positions=True, without sink="
         )
     if not new:
         return _run.batches(
@@ -74,13 +78,26 @@ def batches(
     if return_vectors and model.standalone:
         raise ValueError("a standalone model has no vectors: its table is folded")
     kinds = (RUNTIME[output],)
-    run = start_lone(model, kinds, return_vectors, vector_sink, score_sink, doc_ids, method)
+    run = start_lone(
+        model,
+        kinds,
+        return_vectors,
+        vector_sink,
+        score_sink,
+        doc_ids,
+        method,
+        start_stream if positions else start,
+    )
     pipeline = model._pipeline(backend, with_vectors=return_vectors).runtime
 
     def make(row: int, n: int, rows: list, vectors: Any, last: int | None, report: Any) -> Any:
         batch = PredictedBatch(row, n, finish(model, rows[0], output), vectors, last)
         return batch if report is None else (batch, report)
 
+    if positions:
+        return stream_batches(
+            pipeline, iter(items), run, workers, method, make, settings, rule(model)
+        )
     return run_batches(
         model._tokenizer,
         pipeline,

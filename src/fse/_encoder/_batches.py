@@ -192,14 +192,30 @@ def durable(sink: Any, done: int, last: int | None) -> int | None:
     return int(rows)
 
 
+def check_positions(positions: Any, method: str = "encode_batches") -> None:
+    """``positions`` of ``method`` is a bool."""
+    if not isinstance(positions, bool):
+        raise TypeError(f"{method}: positions must be a bool, not {type(positions).__name__}")
+
+
 def prepare(
-    sink: Any, dtype: str | None, doc_ids: Any, fingerprint: str, dim: int, workers: Any
+    sink: Any,
+    dtype: str | None,
+    doc_ids: Any,
+    fingerprint: str,
+    dim: int,
+    workers: Any,
+    *,
+    positions: bool = False,
 ) -> str:
     """The dtype of an ``encode_batches`` run; checks the sink, the document-ID mode and the
-    workers when the method is called, before any batch is read."""
+    workers when the method is called, before any batch is read. A sink made with
+    ``resume=True`` takes the batches of a run with ``positions=True`` only."""
     check_switch(doc_ids, "encode_batches")
+    if positions and sink is None:
+        raise ValueError("positions=True needs a sink made with resume=True")
     if sink is not None:
-        dtype = check_sink(sink, dtype, fingerprint, dim)
+        dtype = check_sink(sink, dtype, fingerprint, dim, resumed=positions)
     else:
         dtype = _codes.check_dtype("float32" if dtype is None else dtype)
     check_modes([] if sink is None else [("sink", sink)], doc_ids, "encode_batches")

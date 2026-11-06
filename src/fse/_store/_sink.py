@@ -34,11 +34,14 @@ from fse._partition import partition
 from fse._validation import PositiveInt, validate_arguments
 
 from ._base_sink import ShardSinkBase
-from ._layout import create_store, read_store
+from ._layout import check_root_size, create_store, read_store
+from ._position_format import MODE as SOURCE_POSITION
+from ._position_format import SourcePosition, anchor_of, check_position
 from ._recovery import refuse_unsynced, snapshot
 from ._resume_format import MODE as SOURCE_ROWS
 from ._resume_format import SourceRows, check_mode, check_source, sync_store
 from ._shard import ShardWriter
+from ._stream_state import StreamState
 from ._vectors_format import VECTORS, StoreInfo
 
 # Shards hold whole multiples of this many rows by default, and at most this many bytes
@@ -56,13 +59,24 @@ def default_shard_rows(dim: int, dtype: str) -> int:
     return max(1, rows - rows % _ALIGN_ROWS if rows >= _ALIGN_ROWS else rows)
 
 
+def stream_of(info: Any, shards: list) -> StreamState | None:
+    """The stream state of a store of the mode ``source_position@1`` with the ``shards`` of its
+    snapshot, else None."""
+    anchor = anchor_of(info, shards)
+    if anchor is None:
+        return None
+    chain = tuple((shard.first_row + shard.rows, shard.anchor) for shard, _ in shards)
+    return StreamState(info.resume, anchor, sum(shard.rows for shard, _ in shards), chain)
+
+
 def _open_store(
     path: Path, info: StoreInfo, *, new: bool, resume: bool, synced: bool
-) -> tuple[StoreInfo, int]:
+) -> tuple[StoreInfo, int, StreamState | None]:
     """The info of the store ``path`` (made if it is new, unless it resumes: it is made once
-    a run brings its source) and the rows it holds."""
+    a run brings its source), the rows it holds and, for a store of the mode
+    ``source_position@1``, its stream state."""
     if new and resume:
-        return info, 0
+        return info, 0, None
     if new:
         create_store(path, info)
     existing = read_store(path, VECTORS.name)
@@ -72,7 +86,8 @@ def _open_store(
     try:
         if synced:
             refuse_unsynced(path, checked.shards)
-        return existing, sum(shard.rows for shard, _ in checked.shards)
+        rows = sum(shard.rows for shard, _ in checked.shards)
+        return existing, rows, stream_of(existing, checked.shards)
     finally:
         checked.shards.clear()  # a sink keeps no mappings, also on refusal
 
@@ -120,7 +135,7 @@ class ShardSink(ShardSinkBase):
         )
         new = not path.exists() and not path.is_symlink()
         synced = durability == "full"
-        info, first_row = _open_store(path, info, new=new, resume=resume, synced=synced)
+        info, first_row, stream = _open_store(path, info, new=new, resume=resume, synced=synced)
 
         created_by = _created_by()  # before the threads start
         super().__init__(
@@ -131,6 +146,7 @@ class ShardSink(ShardSinkBase):
         )
         self.has_doc_ids = doc_ids
         self._info = info
+        self._stream = stream
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self._created_by = created_by
         self.resume = resume
@@ -176,7 +192,7 @@ class ShardSink(ShardSinkBase):
         if self._new:
             create_store(self.path, replace(self._info, resume=wanted))
         info = read_store(self.path, VECTORS.name)
-        check_mode(info, True, self.path)
+        check_mode(info, True, self.path, SOURCE_ROWS)
         info.check(self._info, self.path)
         check_source(info, wanted, self.path)
         checked = snapshot(self.path, info, verify=True)
@@ -200,6 +216,47 @@ class ShardSink(ShardSinkBase):
             source_fingerprint=identity.fingerprint,
         )
         return rows
+
+    def _attach_stream(self, position: str | None) -> int:
+        """Bind this sink to a stream (``Encoder.encode_batches(batches, sink=, positions=True)``).
+        An existing store is compared with the sink, verified and made durable under full
+        durability, and its rows are returned. A new store is made now, with the anchor
+        ``(position, 0)`` of the first batch (the size of its root is checked before it is
+        made). A second attach is a RuntimeError."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        if self._new:
+            info = replace(self._info, resume=SourcePosition(check_position(position), 0))
+            check_root_size(info)
+            create_store(self.path, info)
+        info = read_store(self.path, VECTORS.name)
+        check_mode(info, True, self.path, SOURCE_POSITION)
+        info.check(self._info, self.path)
+        checked = snapshot(self.path, info, verify=True)
+        try:
+            if self._synced:
+                refuse_unsynced(self.path, checked.shards)
+            rows = sum(shard_.rows for shard_, _ in checked.shards)
+            stream = stream_of(info, checked.shards)
+        finally:
+            checked.shards.clear()
+        if self._synced:
+            sync_store(self.path)
+        assert stream is not None
+        self._info, self.first_row, self._kept, self._ready = info, rows, rows, True
+        self._stream = stream
+        self._opened_event(self._new, self.durability, resume=SOURCE_POSITION, kept_rows=rows)
+        return rows
+
+    def _check_stream(self) -> None:
+        """The checks of ``encode_batches(positions=True)`` that read nothing: the sink resumes,
+        took no run yet, and an existing store is of the mode ``source_position@1``."""
+        self._check_open()
+        if self._ready:
+            raise RuntimeError("the sink took a source already; make a new sink for another run")
+        if not self._new:
+            check_mode(self._info, True, self.path, SOURCE_POSITION)
 
     # --- what a row of sentence vectors holds ------------------------------------------
 

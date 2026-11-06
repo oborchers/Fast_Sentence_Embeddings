@@ -28,7 +28,7 @@ from fse._runtime import (
     rule_of,
 )
 
-from . import _batches, _resume
+from . import _batches, _positions, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._doc_ids import check_id_mode
 from ._sources import opened
@@ -153,6 +153,7 @@ class _Encoding:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[EncodedBatch]: ...
 
     @overload
@@ -168,6 +169,7 @@ class _Encoding:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[tuple[EncodedBatch, LengthReport]]: ...
 
     def encode_batches(
@@ -182,6 +184,7 @@ class _Encoding:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[Any]:
         """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
         (or token lists), as a queue consumer polls them, and every batch gives one
@@ -203,13 +206,42 @@ class _Encoding:
         ``lengths`` makes every item the pair ``(EncodedBatch, fse.LengthReport)``, the
         report of the rows of that batch (its ``first_row`` is the run's); see
         ``encode`` for ``lengths``, ``count_truncated`` and ``on_truncation``.
+
+        ``positions=True`` resumes an endless stream that can be read again from a position
+        (a Kafka offset, a byte offset): the sink is made with ``resume=True`` and every
+        batch is ``(texts, position)``, or ``(texts, doc_ids, position)`` with
+        ``doc_ids=True``, where ``position`` is a str of 1 to 65,536 UTF-8 bytes that names the
+        first record of the batch (fse stores it and never reads it). Each shard keeps the
+        position of the batch it ends in. After a crash ``sink.source_position`` is
+        ``(P, skip)``: seek the source to ``P`` and give its batches again; the first ``skip``
+        records, which the store holds already, are dropped without being encoded. Every item
+        covers one batch: ``first_row`` is the replay row (counted from the seek) of the first
+        record computed, ``n_rows`` the records computed (0 for a batch the store holds) and
+        ``durable_rows`` the replay rows that are durable, so a consumer commits its input up
+        to there. A stream that ends before it delivered the records the store holds raises a
+        ``ValueError``.
         """
         me: Any = self  # the Encoder
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Encoder.encode_batches"
         )
-        dtype = _batches.prepare(sink, dtype, doc_ids, me.fingerprint, me.output_dim, workers)
+        _batches.check_positions(positions)
+        dtype = _batches.prepare(
+            sink, dtype, doc_ids, me.fingerprint, me.output_dim, workers, positions=positions
+        )
         pipeline = me._pipeline(backend)
+        if positions:
+            _positions.start(sink)
+            return _positions.batches(
+                pipeline,
+                iter(batches),
+                me.tokenizer,
+                sink=sink,
+                workers=workers,
+                doc_ids=doc_ids,
+                lengths=settings,
+                rule=rule_of(me._spec.tokenizer),
+            )
         return _batches.batches(
             pipeline,
             iter(batches),

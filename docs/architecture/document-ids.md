@@ -73,6 +73,53 @@ fingerprint is made of the bytes of the text (and, for strings and token lists, 
 offsets) and the document IDs, so a changed byte, a moved row or another ID changes it.
 No fictitious fingerprints are written for ordinary non-resumable append jobs.
 
+## Resume mode `source_position@1`
+
+`fse.resume=source_position@1`, within version 2 of sentence vectors and version 1 of score
+stores, marks a store written from a stream that can be read again from a position, such as a
+Kafka partition or a log with byte offsets (DR-165, Shards und Resume für große Jobs
+einführen; DR-252, Unendliche Streams an einer wiederlesbaren Position fortsetzen). A stream
+has no end and no identity to hash, so the store keeps *anchors* instead: an anchor `(P, R)`
+says that the stream delivers the record that became store row `R` from the position `P`.
+`P` is an opaque UTF-8 text of 1 to 65,536 bytes that the caller chooses (maintainer decision of
+2026-11-06); fse stores it, compares it for equality between the roots of two stores and
+hands it back, and never reads it. `R` is a canonical decimal number.
+
+| Where | Keys |
+|---|---|
+| `store.json` | `fse.execution_fingerprint`, `fse.source_position` (the anchor `P_0` of the start, taken from the first batch), `fse.source_position_row` (`0`) |
+| every shard | `fse.execution_fingerprint` and its own anchor, `fse.source_position` and `fse.source_position_row` |
+
+For a shard that ends at the store row `E` (its last row is `E - 1`) the rule is `0 <= R < E`, and
+the rows of neighbours do not decrease (`R_k <= R_{k+1}`). Snapshot, `verify`, `repair_store`
+and `refresh` check the same chain; across the members of a view only the thresholds of score
+stores are compared, because every member has a chain of its own. An unknown mode such as
+`source_position@2` is `UnsupportedArtifactError`, also in a later shard or an orphan and in the
+preflight of repair, before anything is changed. The execution fingerprint is the one of
+`source_rows@1`: scheduling (workers, batches, shard size) is not part of it.
+
+Which batch a shard belongs to: a sink keeps the anchors of the batch it writes and of the
+batch before it. A shard that is handed over takes the anchor of the current batch if that
+batch starts at or before the last row of the shard, else that of the batch before. Inside one
+`encode_batches` every batch is committed before the next is read, so the last row of a shard
+lies in the current batch or in the one before it. An example: batch A commits 5 rows, batch B
+fails without a commit, and the sink closes with a shard of 5 rows; B starts at row 5, so the
+shard takes A, with `R = 0 < 5`.
+
+`sink.source_position` is `(P, skip)` of the last published shard (else of the root):
+`skip` is the number of rows in the store after the row `R`. The caller seeks the stream to
+`P` and gives its batches again; the first `skip` records are the rows the store holds, and
+the run drops them without tokenizing or writing them. `VectorStore.source_position` and
+`ScoreStore.source_position` give the same pair for a store that is read; `None` for stores of
+other modes, for a store that is made but not yet written, and for a view, whose
+`members[i]["position"]` holds the pair of each member.
+
+The root of such a store may hold 1 MiB instead of 64 KiB (`json.dumps` writes a character
+outside ASCII as up to 12 bytes). A new store is made with the first non-empty batch, after the
+bytes of its root are counted with the real position; a position that does not fit is a
+`ValueError` before anything is made. A `ScoreSink` made with `resume=True` checks in its
+constructor that its heads and a position of 65,536 ASCII bytes fit.
+
 ## Bounded search, writing and recovery
 
 There is no secondary index, sorted shard copy or search sidecar. Min/max skips

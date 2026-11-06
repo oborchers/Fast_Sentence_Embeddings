@@ -219,6 +219,7 @@ class Regressor(LinearModel):
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -237,6 +238,7 @@ class Regressor(LinearModel):
         lengths: Literal["summary", "per_row"],
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -255,9 +257,10 @@ class Regressor(LinearModel):
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
-        ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids`` and ``lengths``."""
+        ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Regressor.predict_batches"
         )
@@ -273,4 +276,5 @@ class Regressor(LinearModel):
             score_sink,
             doc_ids,
             settings,
+            positions,
         )

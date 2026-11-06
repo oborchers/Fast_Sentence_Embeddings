@@ -19,6 +19,7 @@ A vector is a list of numbers that represents a text.
 | <img src="media/04-kafka-and-qdrant-icon.svg" width="46" alt="Recipe number"> | [**Kafka and Qdrant**](04-kafka-and-qdrant.ipynb). Turn queued news into searchable vectors and replay safely. | 10 min |
 | <img src="media/05-folder-listener-icon.svg" width="46" alt="Recipe number"> | [**Folder listener**](05-folder-listener.ipynb). Pick up completed files and add each one to your search store. | 10 min |
 | <img src="media/06-integrations-icon.svg" width="46" alt="Recipe number"> | [**Integrations**](06-integrations.ipynb). Use one local encoder with LangChain, LlamaIndex, Haystack, and other search, topic, and table libraries. | 15 min |
+| | [**fse behind Kafka**](09-fse-behind-kafka.ipynb). Write vectors for a stream and continue at the right record after a crash. | 10 min |
 | <img src="media/07-local-compute-and-http-icon.svg" width="46" alt="Recipe number"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
 | <img src="media/08-folded-classifier-icon.svg" width="46" alt="Recipe number"> | [**Folded classifier**](08-folded-classifier.ipynb). Fold a trained classifier into word vectors, then save a smaller model for your app. | 15 min |
 

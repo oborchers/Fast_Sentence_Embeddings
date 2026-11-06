@@ -17,9 +17,9 @@ the store layer opens it by.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 from numpy import ndarray
@@ -36,7 +36,8 @@ from fse._contract import UnsupportedArtifactError
 
 from ._id_stats import ID_KEYS, check_removed, parsed_stats, verify_stats
 from ._kind import Shard, shard_name
-from ._resume_format import SOURCE_KEYS
+from ._position_format import POSITION_KEYS, SourcePosition, same_resume
+from ._resume_format import SOURCE_KEYS, SourceRows
 from ._scores_info import (
     FORMAT_VERSION,
     NAME,
@@ -60,9 +61,17 @@ class ScoreShard(Shard):
 
 
 def shard_metadata(
-    info: ScoreInfo, first_row: int, rows: int, created_by: str, *, unsynced: bool = False
+    info: ScoreInfo,
+    first_row: int,
+    rows: int,
+    created_by: str,
+    *,
+    unsynced: bool = False,
+    anchor: SourcePosition | None = None,
 ) -> dict[str, str]:
     metadata = info.metadata()
+    if anchor is not None:  # the shard's own anchor replaces that of the root
+        metadata.update(anchor.anchor_metadata())
     metadata[CREATED_BY_KEY] = created_by
     metadata["fse.first_row"] = str(first_row)
     metadata["fse.rows"] = str(rows)
@@ -71,9 +80,9 @@ def shard_metadata(
     return metadata
 
 
-def _shard_info(metadata: dict, info: ScoreInfo, file: Path) -> bool:
+def _shard_info(metadata: dict, info: ScoreInfo, file: Path) -> tuple[bool, SourcePosition | None]:
     """Check the metadata of a shard against the root; returns whether it is tagged
-    ``fse.durability=none``."""
+    ``fse.durability=none`` and its anchor (``source_position@1``)."""
     content = {
         key: value
         for key, value in metadata.items()
@@ -91,9 +100,11 @@ def _shard_info(metadata: dict, info: ScoreInfo, file: Path) -> bool:
     if required - set(content):
         raise CorruptArtifactError(f"{file}: the shard metadata do not hold the keys of its kind")
     shared = {k: v for k, v in content.items() if k not in required | {"fse.durability"}}
-    if parse_info(shared, file) != info:
+    parsed = parse_info(shared, file)
+    anchor = parsed.resume if isinstance(parsed.resume, SourcePosition) else None
+    if not same_resume(info.resume, parsed.resume) or replace(parsed, resume=info.resume) != info:
         raise CorruptArtifactError(f"{file}: the shard and the store describe different rows")
-    return unsynced
+    return unsynced, anchor
 
 
 def _check_tensors(tensors: dict[str, ndarray], info: ScoreInfo, n: int, file: Path) -> None:
@@ -127,7 +138,7 @@ def open_shard(
     file = directory / "manifest.json"
     check_removed(NpyContainer().metadata(directory), file)
     tensors, metadata = NpyContainer().open(directory, mmap=True)
-    unsynced = _shard_info(metadata, info, file)
+    unsynced, anchor = _shard_info(metadata, info, file)
     rows = metadata.get("fse.rows", "")
     if (
         metadata.get("fse.first_row") != str(first_row)
@@ -136,8 +147,10 @@ def open_shard(
     ):
         raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
     n = int(rows)
-    if info.resume is not None and first_row + n > info.resume.span:
+    if isinstance(info.resume, SourceRows) and first_row + n > info.resume.span:
         raise CorruptArtifactError(f"{file}: the shard holds rows beyond the source")
+    if anchor is not None and anchor.row >= first_row + n:
+        raise CorruptArtifactError(f"{file}: the anchor row lies beyond the rows of the shard")
     _check_tensors(tensors, info, n, file)
     expected = {key: metadata[CHECKSUM_PREFIX + key] for key in tensors}
     stats = parsed_stats(metadata, file) if info.has_doc_ids else None
@@ -152,6 +165,7 @@ def open_shard(
             proba_columns=info.proba_columns,
             thresholds=info.threshold_names,
             fingerprint=metadata[FINGERPRINT_KEY],
+            anchor=anchor,
         ),
         tensors,
     )
@@ -179,6 +193,14 @@ def _scores(shard: ScoreShard, scores: ndarray) -> None:
                     )
 
 
+class Positioned(NamedTuple):
+    """The chain summary of a shard in the mode ``source_position@1``: its thresholds and its
+    anchor row."""
+
+    thresholds: tuple[str, ...]
+    row: int
+
+
 class ScoreKind:
     """``prediction_scores`` as a kind of the shard store."""
 
@@ -189,7 +211,10 @@ class ScoreKind:
             raise CorruptArtifactError(
                 f"{file}: prediction_scores needs store version {STORE_VERSION}, not {version}"
             )
-        return parse_info(metadata, file)
+        info = parse_info(metadata, file)
+        if isinstance(info.resume, SourcePosition) and info.resume.row != 0:
+            raise CorruptArtifactError(f"{file}: the anchor of a root is at row 0")
+        return info
 
     def open_shard(
         self, path: Path, info: ScoreInfo, first_row: int
@@ -215,18 +240,30 @@ class ScoreKind:
             raise UnsupportedArtifactError(f"{file}: unsupported fse.durability {durability!r}")
 
     def summary(self, shard: Shard, tensors: dict[str, ndarray]) -> object:
-        """The checksums of the threshold tensors, from the manifest (no hashing)."""
+        """The checksums of the threshold tensors, from the manifest (no hashing); in the mode
+        ``source_position@1`` with the anchor row of the shard."""
         del tensors
         if not isinstance(shard, ScoreShard):
             raise TypeError("a score shard is opened by the kind prediction_scores")
-        return tuple(shard.checksums[name] for name in shard.thresholds)
+        thresholds = tuple(shard.checksums[name] for name in shard.thresholds)
+        return thresholds if shard.anchor is None else Positioned(thresholds, shard.anchor.row)
 
     def follows(self, previous: object, current: object) -> str | None:
+        if isinstance(previous, Positioned) and isinstance(current, Positioned):
+            if current.row < previous.row:
+                return (
+                    f"its anchor row {current.row} lies before the anchor row {previous.row} "
+                    "before it"
+                )
+            previous, current = previous.thresholds, current.thresholds
         if previous != current:
             return "its thresholds differ from those of the shard before it"
         return None
 
+    def without_row(self, summary: object) -> object:
+        return summary.thresholds if isinstance(summary, Positioned) else summary
 
-_ROOT_KEYS = frozenset((*SHARED, *SOURCE_KEYS))
+
+_ROOT_KEYS = frozenset((*SHARED, *SOURCE_KEYS, *POSITION_KEYS))
 SCORES = ScoreKind()
 __all__ = ["FORMAT_VERSION", "SCORES", "ScoreKind", "ScoreShard", "open_shard", "shard_metadata"]

@@ -406,7 +406,7 @@ name = "Store: the sink and the vector store on shards, the shards on the layout
 type = "layers"
 containers = ["fse._store"]
 exhaustive = true
-layers = ["_sink | _vectorstore | _repair", "_refresh | _view", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind", "_columns | _id_stats", "_resume_format"]
+layers = ["_sink | _vectorstore | _repair", "_refresh | _view", "_unique_search", "_filtered | _unique_docs", "_base_sink | _search | _recovery", "_score_shard", "_shard | _writer", "_selection | _result | _take | _vector_batches", "_layout", "_kinds", "_scores_format | _vectors_format", "_scores_info", "_id_writer | _kind | _stream_state", "_anchors", "_columns | _id_stats", "_position_format", "_resume_format"]
 
 [[tool.importlinter.contracts]]
 name = "Scores: the store on its predictions, those and the batches and sink on the schema"
@@ -427,14 +427,14 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_heads", "_classifier | _regressor", "_predict", "_resume_run", "_heads_run | _lone_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
+layers = ["_heads", "_classifier | _regressor", "_predict", "_resume_run", "_heads_run | _lone_run", "_positions_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder | _model2vec_rules", "_encode", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_resume", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_encode", "_positions", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_resume", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"

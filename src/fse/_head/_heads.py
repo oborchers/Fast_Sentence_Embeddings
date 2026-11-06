@@ -266,6 +266,7 @@ class Heads(Mapping):
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        positions: bool = False,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
@@ -296,6 +297,20 @@ class Heads(Mapping):
         With ``lengths="summary"`` or ``"per_row"`` each batch has a ``HeadsBatch.lengths``,
         the ``fse.LengthReport`` of its rows (see ``Encoder.encode``).
 
+        ``positions=True`` resumes an endless stream that can be read again from a position
+        (a Kafka offset, a byte offset). The sinks are made with ``resume=True`` and every
+        batch is ``(texts, position)``, or ``(texts, doc_ids, position)`` with
+        ``doc_ids=True``; ``position`` is a str of 1 to 65,536 UTF-8 bytes that names the first
+        record of the batch (fse stores it and never reads it). Each shard keeps the position
+        of the batch it ends in. After a crash ``sink.source_position`` is ``(P, skip)``: seek
+        the source to ``P`` and give its batches again; the first ``skip`` records, which the
+        store holds already, are dropped. With two sinks that hold different numbers of rows,
+        seek by the sink that holds fewer. Every batch of the stream gives one result: its
+        ``first_row`` is the replay row (counted from the seek) of the first record computed,
+        ``n_rows`` the records computed (0 for a batch the stores hold), the outputs and
+        vectors are those of the records computed, and ``durable_rows`` the replay rows that
+        are durable in every sink, so a consumer commits its input up to there.
+
         A single head takes the same keywords in its own ``predict_batches``, without a
         group."""
         settings = LengthSettings.of(
@@ -312,6 +327,7 @@ class Heads(Mapping):
             score_sink,
             doc_ids,
             settings,
+            positions,
         )
 
     # --- a value ----------------------------------------------------------------------

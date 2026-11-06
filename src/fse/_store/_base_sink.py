@@ -35,6 +35,7 @@ from fse._encoder._resume import ResumableSinkMarker
 
 from ._layout import failed_cleanup
 from ._shard import ShardBase
+from ._stream_state import StreamState
 from ._writer import WriterFailure, WriterThread, deferred_interrupts
 
 
@@ -54,6 +55,7 @@ class ShardSinkBase(ResumableSinkMarker):
         self._targets: dict[int, tuple[list, tuple | None]] = {}  # run row -> parts, own
         self._closed = self._interrupted = False
         self._ready = True  # False for a resumable sink until a run attached its source
+        self._stream: StreamState | None = None  # the stream state of a source_position@1 store
         self._interrupts: list = []  # those noted while it closes
         self._unnoted: list = []  # failed cleanups for the note of a deferred interrupt
         # Hashing (in order), writing and publishing (syncs, a rename) in three threads, so
@@ -84,6 +86,15 @@ class ShardSinkBase(ResumableSinkMarker):
         raise NotImplementedError
 
     # --- the sink protocol, in the calling thread --------------------------------------
+
+    @property
+    def source_position(self) -> tuple[str, int] | None:
+        """``(P, skip)`` of a store of the mode ``source_position@1``: seek the stream to the
+        position ``P`` and drop the next ``skip`` records, then the next record is the next
+        row of the store. It is the anchor of the last published shard (else of the root), so
+        it moves forward as shards are published; ``durable_rows`` says what is durable. None
+        for a sink of another mode and for a new store, which has no position yet."""
+        return None if self._stream is None else self._stream.position()
 
     @property
     def durability(self) -> Literal["full", "none"]:
@@ -320,7 +331,12 @@ class ShardSinkBase(ResumableSinkMarker):
         """Hand every shard whose rows are all handed over to be published, in order."""
         while self._writers and self._writers[0].queued_all:
             # After its last hash, in order, the shard goes to the publisher.
-            self._hash.submit(self._hand_on, self._writers.popleft())
+            writer = self._writers.popleft()
+            if self._stream is not None:  # the anchor of the batches it holds rows of
+                writer.anchor = self._stream.anchors.take(
+                    writer.first_row + writer.end, self._stream.shared
+                )
+            self._hash.submit(self._hand_on, writer)
 
     def _hand_on(self, writer: ShardBase) -> None:
         """Hand ``writer`` to the publisher (in the hash thread): an error of the publisher
@@ -351,6 +367,8 @@ class ShardSinkBase(ResumableSinkMarker):
 
     def _count_published(self, writer: ShardBase, rows: int, *, durable: bool) -> None:
         self._made.discard(writer)
+        if self._stream is not None and writer.anchor is not None:
+            self._stream.published(writer.anchor, writer.first_row + rows)
         self.published_rows += rows
         if durable:
             self.durable_rows += rows

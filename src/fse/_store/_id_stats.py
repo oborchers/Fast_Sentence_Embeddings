@@ -11,7 +11,7 @@ import numpy as np
 from fse._container import CorruptArtifactError
 from fse._contract import UnsupportedArtifactError, parse_id
 
-from ._resume_format import MODE as SOURCE_ROWS
+from ._position_format import MODES
 
 ID_KEYS = ("fse.doc_ids_min", "fse.doc_ids_max", "fse.doc_ids_sorted")
 MODE_KEYS = ("fse.doc_ids", "fse.resume")
@@ -61,7 +61,7 @@ def check_mode(metadata: dict[str, Any], file: Any) -> None:
     check_removed(metadata, file)
     for key, supported in (
         ("fse.doc_ids", ("none", "int64")),
-        ("fse.resume", ("none", SOURCE_ROWS)),
+        ("fse.resume", MODES),
     ):
         value = metadata.get(key)
         if isinstance(value, str) and value not in supported:

@@ -44,8 +44,14 @@ from ._id_stats import (
     verify_stats,
 )
 from ._kind import Shard, shard_name
-from ._resume_format import MODE as SOURCE_ROWS
-from ._resume_format import SOURCE_KEYS, SourceRows, parse
+from ._position_format import (
+    MODES,
+    SourcePosition,
+    parse_resume,
+    resume_keys,
+    same_resume,
+)
+from ._resume_format import SourceRows
 
 NAME = "sentence_vectors"
 # The format of the sentence vectors; it starts with the xxh3-128 checksums (maintainer
@@ -75,7 +81,9 @@ class StoreInfo:
     dim: int
     has_doc_ids: bool = False
     version: int = 1
-    resume: SourceRows | None = None  # the identity of a store of the mode source_rows@1
+    # The identity of a store of the mode source_rows@1, or the anchor of its start in the mode
+    # source_position@1.
+    resume: SourceRows | SourcePosition | None = None
 
     @property
     def kind(self) -> str:
@@ -95,7 +103,7 @@ class StoreInfo:
             metadata.update(
                 {
                     "fse.doc_ids": "int64" if self.has_doc_ids else "none",
-                    "fse.resume": "none" if self.resume is None else SOURCE_ROWS,
+                    "fse.resume": "none" if self.resume is None else self.resume.mode,
                 }
             )
             if self.resume is not None:
@@ -113,9 +121,17 @@ class StoreInfo:
 
 
 def shard_metadata(
-    info: StoreInfo, first_row: int, rows: int, created_by: str, *, unsynced: bool = False
+    info: StoreInfo,
+    first_row: int,
+    rows: int,
+    created_by: str,
+    *,
+    unsynced: bool = False,
+    anchor: SourcePosition | None = None,
 ) -> dict[str, str]:
     metadata = info.metadata()
+    if anchor is not None:  # the shard's own anchor replaces that of the root
+        metadata.update(anchor.anchor_metadata())
     metadata[CREATED_BY_KEY] = created_by
     if info.dtype != "float32":
         metadata["fse.quantization"] = QUANTIZATION
@@ -135,11 +151,11 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
     check_mode(metadata, file)
     if isinstance(version, str) and version not in ("1", "2"):
         raise UnsupportedArtifactError(f"{file}: unsupported sentence_vectors format {version!r}")
-    resumable = version == "2" and metadata.get("fse.resume") == SOURCE_ROWS
+    mode = metadata.get("fse.resume") if version == "2" else None
     keys = (
         *_SHARED,
         *(MODE_KEYS if version == "2" else ()),
-        *(SOURCE_KEYS if resumable else ()),
+        *resume_keys(mode),
         *extra,
     )
     if not isinstance(metadata, dict) or set(metadata) != set(keys):
@@ -170,7 +186,7 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
         metadata.get(key) not in values
         for key, values in (
             ("fse.doc_ids", ("none", "int64")),
-            ("fse.resume", ("none", SOURCE_ROWS)),
+            ("fse.resume", MODES),
         )
     ):
         raise CorruptArtifactError(f"{file}: invalid document-ID or resume mode")
@@ -181,7 +197,7 @@ def _info(metadata: Any, file: Path, extra: tuple[str, ...]) -> StoreInfo:
         int(dim),
         metadata.get("fse.doc_ids") == "int64",
         int(str(version)),
-        parse(metadata, shared, file) if resumable else None,
+        parse_resume(mode, metadata, shared, file),
     )
 
 
@@ -200,12 +216,12 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         info.check(shard_info, path)
         if info.version != shard_info.version:
             raise ValueError("store and shard format versions differ")
-        if info.resume != shard_info.resume:
+        if not same_resume(info.resume, shard_info.resume):
             raise ValueError("the shard and the store describe different sources")
     except ValueError as error:
         raise CorruptArtifactError(str(error)) from error
     check_quantization(metadata, info, file)
-    rows = _shard_rows(metadata, info, first_row, file)
+    rows = _shard_rows(metadata, info, first_row, file, shard_info.resume)
     want = {"vectors", "inv_norms"} | ({"scales"} if info.dtype == "int8" else set())
     if info.has_doc_ids:
         want.add("doc_ids")
@@ -233,11 +249,15 @@ def open_shard(path: Path, info: StoreInfo, first_row: int) -> tuple[Shard, dict
         expected,
         parsed_stats(metadata, file) if info.has_doc_ids else None,
         fingerprint=metadata[FINGERPRINT_KEY],
+        anchor=shard_info.resume if isinstance(shard_info.resume, SourcePosition) else None,
     ), tensors
 
 
-def _shard_rows(metadata: dict, info: StoreInfo, first_row: int, file: Path) -> int:
-    """The rows of the shard that starts at ``first_row``, which its metadata must name."""
+def _shard_rows(
+    metadata: dict, info: StoreInfo, first_row: int, file: Path, anchor: Any = None
+) -> int:
+    """The rows of the shard that starts at ``first_row``, which its metadata must name; with
+    an ``anchor`` (``source_position@1``) its row lies before the end of the shard."""
     rows = metadata.get("fse.rows", "")
     if (
         metadata.get("fse.first_row") != str(first_row)
@@ -245,8 +265,10 @@ def _shard_rows(metadata: dict, info: StoreInfo, first_row: int, file: Path) -> 
         or rows == "0"
     ):
         raise CorruptArtifactError(f"{file}: the shard must hold rows from {first_row}")
-    if info.resume is not None and first_row + int(rows) > info.resume.span:
+    if isinstance(info.resume, SourceRows) and first_row + int(rows) > info.resume.span:
         raise CorruptArtifactError(f"{file}: the shard holds rows beyond the source")
+    if isinstance(anchor, SourcePosition) and anchor.row >= first_row + int(rows):
+        raise CorruptArtifactError(f"{file}: the anchor row lies beyond the rows of the shard")
     return int(rows)
 
 
@@ -322,6 +344,8 @@ class VectorKind:
         info = _info(metadata, file, ())
         if info.version != version:
             raise CorruptArtifactError(f"{file}: store and sentence_vectors versions differ")
+        if isinstance(info.resume, SourcePosition) and info.resume.row != 0:
+            raise CorruptArtifactError(f"{file}: the anchor of a root is at row 0")
         return info
 
     def open_shard(
@@ -351,11 +375,18 @@ class VectorKind:
             check_quantization(metadata, info, file)
 
     def summary(self, shard: Shard, tensors: dict[str, ndarray]) -> object:
-        del shard, tensors  # nothing of one shard constrains its neighbours
-        return None
+        """The anchor row of a shard in the mode ``source_position@1``; nothing of the vectors
+        of one shard constrains its neighbours."""
+        del tensors
+        return None if shard.anchor is None else shard.anchor.row
 
     def follows(self, previous: object, current: object) -> str | None:
-        del previous, current
+        if isinstance(previous, int) and isinstance(current, int) and current < previous:
+            return f"its anchor row {current} lies before the anchor row {previous} before it"
+        return None
+
+    def without_row(self, summary: object) -> object:
+        del summary
         return None
 
 

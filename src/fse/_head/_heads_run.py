@@ -29,6 +29,8 @@ from fse._runtime import LengthSettings, check_workers, rule_of
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
+from ._positions_run import Stream, stream_batches
+from ._positions_run import start as start_stream
 from ._run import RUNTIME, check_backend, finish
 from ._sink_run import SinkRun, run_batches, start
 
@@ -157,17 +159,20 @@ def batches(
     score_sink: Any = None,
     doc_ids: Any = False,
     settings: LengthSettings | None = None,
+    positions: bool = False,
 ) -> Iterator[HeadsBatch]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
-    the first batch is read: the sink learns the path of each head."""
+    the first batch is read: the sink learns the path of each head. With ``positions=True``
+    the batches are ``(texts, position)`` and the sinks resume (``_positions_run``)."""
     check_group_call(workers, backend, items)
     check_switch(doc_ids, METHOD)
     outputs = resolve_outputs(rules_of(heads), output)
     if return_vectors and heads._standalone:
         raise ValueError("a standalone group has no vectors: its table is folded")
     kinds = tuple(RUNTIME[o] for o in outputs)
-    run = start(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids, METHOD)
+    starter = start_stream if positions else start
+    run = starter(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids, METHOD)
     pipeline = heads._pipeline(backend, with_vectors=return_vectors)
     return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids, settings)
 
@@ -178,7 +183,7 @@ def _batches(
     items: Iterable[Any],
     outputs,
     workers,
-    run: SinkRun | None = None,
+    run: SinkRun | Stream | None = None,
     doc_ids=False,
     settings: LengthSettings | None = None,
 ) -> Iterator[HeadsBatch]:
@@ -194,6 +199,11 @@ def _batches(
             lengths=report,
         )
 
+    if isinstance(run, Stream):
+        yield from stream_batches(
+            pipeline, items, run, workers, METHOD, make, settings, _rule(heads)
+        )
+        return
     yield from run_batches(
         heads._tokenizer,
         pipeline,

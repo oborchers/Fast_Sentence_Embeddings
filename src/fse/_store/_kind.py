@@ -28,6 +28,7 @@ from typing import Any, Protocol
 from numpy import ndarray
 
 from ._id_stats import IdStats
+from ._position_format import SourcePosition
 
 SHARD_PREFIX = "shard-"
 
@@ -49,6 +50,8 @@ class Shard:
     # The fingerprint of its manifest, set when the shard is opened. ``refresh`` compares it
     # to see that the last shard of a snapshot is still the one on disk (not public).
     fingerprint: str = field(default="", kw_only=True, compare=False, repr=False)
+    # Its anchor in a store of the mode ``source_position@1``, else None.
+    anchor: SourcePosition | None = field(default=None, kw_only=True)
 
 
 class Kind(Protocol):
@@ -82,4 +85,9 @@ class Kind(Protocol):
     def follows(self, previous: object, current: object) -> str | None:
         """Why the shard with the summary ``current`` cannot follow the one with
         ``previous``, or None."""
+        ...
+
+    def without_row(self, summary: object) -> object:
+        """``summary`` without the anchor row: what two stores of a view share across their
+        boundary (the rows of two chains are not comparable)."""
         ...
