@@ -207,7 +207,8 @@ def test_the_ids_of_a_task_are_fetched_once_and_shared_by_its_users():
     with ids.batch(texts, 10, [5, 6, 7, 8]):
         first = ids.block(10, 2)
         assert ids.block(10, 2) is first
-        assert first.tolist() == [5, 6] and not first.flags.writeable
+        assert first.tolist() == [5, 6]
+        assert not first.flags.writeable
         second = ids.block(12, 2)
         assert second.tolist() == [7, 8]
         ids.release(10)
@@ -260,4 +261,5 @@ def test_a_score_run_fetches_one_id_block_per_task(tmp_path, monkeypatch):
     with fse.ScoreSink(tmp_path / "s", heads, doc_ids=True, shard_rows=16) as sink:
         list(heads.predict_batches([(texts, ids)], score_sink=sink, doc_ids=True, workers=2))
     assert len(calls) == len(set(calls)) >= 1  # no task asks twice, three heads or not
-    assert sorted(calls)[0][0] == 0 and max(end for _, end in calls) == 30
+    assert sorted(calls)[0][0] == 0
+    assert max(end for _, end in calls) == 30
