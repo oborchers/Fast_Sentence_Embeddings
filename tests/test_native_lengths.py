@@ -249,3 +249,30 @@ def test_a_tokenizer_without_a_rule_cuts_nothing(tokenizer):
     assert sums[3] == 2  # the empty sentence and the one of an unknown word
     assert not cut_tokens.any()
     assert not cut_chars.any()
+
+
+# --- pool_text ---------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("max_tokens", "max_chars", "drop"), RULES[:6])
+def test_pool_text_records_the_same_and_pools_the_same_bits(max_tokens, max_chars, drop):
+    from support import lengths as sup
+
+    kernel = sup.encoder("drop", 5)._pipeline("cpu").prepared.state.kernel
+    encoded = [t.encode() for t in TEXTS]
+    offsets = np.zeros(len(encoded) + 1, np.int64)
+    np.cumsum([len(e) for e in encoded], out=offsets[1:])
+    data = np.frombuffer(b"".join(encoded) + b"\0", np.uint8)[:-1]
+    want = expected(TEXTS, max_tokens, max_chars, drop)
+    for lookup in lookups(max_tokens, max_chars, drop):
+        outs = []
+        for watch in (0, 1, 2):
+            out = np.zeros((len(TEXTS), 8), np.float32)
+            ws = _native.Workspace(watch=watch, store_rows=watch > 0)
+            _native.pool_text(
+                kernel, lookup, ws, (data, offsets), 0, len(TEXTS), len(TEXTS), 0, out, False
+            )
+            outs.append(out.view(np.uint32).tobytes())
+            if watch:
+                check(ws, want, watch == 2)
+        assert outs[0] == outs[1] == outs[2]

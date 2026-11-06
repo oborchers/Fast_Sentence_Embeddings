@@ -201,3 +201,21 @@ def test_a_sink_run_reports_too():
     with opened(TEXTS, "wordpiece@1") as source:
         pipe.infer(source, sink=sink, lengths=settings, collector=collector)
     sup.check_report(collector.report(), sup.expected(TEXTS))
+
+
+@pytest.mark.parametrize(
+    "kind", ["strings", "file", "stream", "arrow", "arrow_view", "arrow_large"]
+)
+def test_every_source_gives_the_same_report(kind, tmp_path):
+    from support.runtime import source
+
+    texts = [t.replace("\n", " ") for t in TEXTS]  # a file holds one sentence per line
+    pipe = pipeline()
+    settings = LengthSettings.of("per_row", True, "keep", "m")
+    collector = LengthCollector(settings, 0, (5, None))
+    rows = pipe.infer(
+        source(kind, texts, tmp_path), workers=2, lengths=settings, collector=collector
+    )
+    plain = pipe.infer(source(kind, texts, tmp_path), workers=2)
+    assert bits(rows) == bits(plain)
+    sup.check_report(collector.report(), sup.expected(texts), count=True)
