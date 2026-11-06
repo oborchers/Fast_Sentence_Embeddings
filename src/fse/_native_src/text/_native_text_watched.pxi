@@ -7,6 +7,74 @@
 # state: a sentence at the token cut is tokenized a second time (_wp_over) in the scratch
 # of the ids.
 
+# Copies of the word functions of _wp_piece: each piece function keeps its own, so the
+# compiler inlines them in both as it did in the one.
+cdef inline Py_ssize_t _wp_word_w(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                uINT_t *ids) noexcept nogil:
+    """Step 5 for the word w[0:n] of the normalized buffer (16 bytes readable after any
+    piece): its ids, greedy from the left, or one unk_id; returns how many."""
+    cdef Py_ssize_t chars = 0, k, start = 0, end, count = 0
+    cdef uINT_t index
+    for k in range(n):
+        chars += (w[k] & 0xC0) != 0x80
+    if chars > st.max_input_chars:
+        ids[0] = st.unk_id
+        return 1
+    while start < n:
+        end = n
+        while True:
+            if start == 0:
+                index = _vocab_lookup(&st.table.view, w, end, True)
+            else:
+                index = _vocab_lookup(&st.continuation.view, w + start, end - start, True)
+                if index != NOT_FOUND:
+                    index = st.cont_ids[index]
+            if index != NOT_FOUND:
+                break
+            end -= 1
+            while end > start and (w[end] & 0xC0) == 0x80:
+                end -= 1
+            if end == start:
+                ids[0] = st.unk_id
+                return 1
+        ids[count] = index
+        count += 1
+        start = end
+    return count
+
+
+cdef inline Py_ssize_t _wp_word_trie_w(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                     uINT_t *ids) noexcept nogil:
+    """_wp_word by the trie: the code points are counted only when the word has more bytes
+    than the limit (n bytes are at most n code points); the whole word is one lookup of the
+    table, and after a miss every piece is the longest token the trie reads from the root
+    or from the node of the prefix, at a code-point boundary: the result of the greedy
+    loop, without a lookup per shorter candidate."""
+    cdef Py_ssize_t chars = 0, k, count = 0
+    cdef int64_t start = 0, end = 0, node = 0
+    cdef uint32_t index
+    if n > st.max_input_chars:
+        for k in range(n):
+            chars += (w[k] & 0xC0) != 0x80
+        if chars > st.max_input_chars:
+            ids[0] = st.unk_id
+            return 1
+    index = _vocab_lookup(&st.table.view, w, n, True)
+    if index != NOT_FOUND:
+        ids[0] = index
+        return 1
+    while start < n:
+        index = fse_trie_longest(&st.trie, node, w, start, n, &end) if node >= 0 else FSE_TRIE_NONE
+        if index == FSE_TRIE_NONE:
+            ids[0] = st.unk_id
+            return 1
+        ids[count] = index
+        count += 1
+        start = end
+        node = st.cont_root
+    return count
+
+
 cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ssize_t n, Workspace ws,
                           uINT_t *ids, Py_ssize_t *count, Py_ssize_t *bad,
                           Py_ssize_t stop_at) noexcept nogil:
@@ -21,12 +89,12 @@ cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ss
         return WP_BAD
     if st.generic:
         while fse_wp_next_word(q, m, &pos, &start, &end):
-            count[0] += _wp_word(st, q + start, end - start, ids + count[0])
+            count[0] += _wp_word_w(st, q + start, end - start, ids + count[0])
             if stop_at and count[0] >= stop_at:
                 return WP_FULL
         return WP_GO_ON
     while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
+        count[0] += _wp_word_trie_w(st, q + start, end - start, ids + count[0])
         if stop_at and count[0] >= stop_at:
             return WP_FULL
     return WP_GO_ON
