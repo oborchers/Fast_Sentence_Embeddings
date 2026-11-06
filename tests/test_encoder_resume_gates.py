@@ -13,7 +13,7 @@ import pytest
 import fse
 from fse import ShardSink
 from fse._container import PublishedNotDurableError, _npy_inplace
-from fse._store import _sink as sink_module
+from fse._store import _resume_format as sync_module
 from fse._store._sink import ShardSink as SinkClass
 from support.resume import ENCODER, SHARD_ROWS, canonical, drop_tail, rows_of, sentences, write
 from support.runtime import small_tasks
@@ -232,7 +232,7 @@ class Events:
 
     def __init__(self, monkeypatch):
         self.log = []
-        real_sync, real_writer = sink_module._sync_directory, SinkClass._new_writer
+        real_sync, real_writer = sync_module._sync_directory, SinkClass._new_writer
 
         def sync(path, **kwargs):
             self.log.append(f"sync {Path(path).name}")
@@ -242,7 +242,7 @@ class Events:
             self.log.append("writer")
             return real_writer(sink, row)
 
-        monkeypatch.setattr(sink_module, "_sync_directory", sync)
+        monkeypatch.setattr(sync_module, "_sync_directory", sync)
         monkeypatch.setattr(SinkClass, "_new_writer", writer)
 
 
@@ -272,7 +272,7 @@ def test_a_failed_sync_stops_the_resume_before_any_reservation(tmp_path, monkeyp
     def failing(*_args, **_kwargs):
         raise OSError(5, "Input/output error")
 
-    monkeypatch.setattr(sink_module, "_sync_directory", failing)
+    monkeypatch.setattr(sync_module, "_sync_directory", failing)
     with pytest.raises(PublishedNotDurableError, match="not confirmed durable"):
         write(tmp_path / "s", SENTENCES)
     assert "writer" not in events.log
@@ -311,7 +311,7 @@ def test_a_resume_syncs_the_parent_of_a_store_an_earlier_run_made(tmp_path, monk
     write(tmp_path / "s", SENTENCES)
     drop_tail(tmp_path / "s", 3)
     seen = []
-    real = sink_module._sync_directory
+    real = sync_module._sync_directory
 
     def failing_parent(path, **kwargs):
         seen.append(Path(path))
@@ -319,7 +319,7 @@ def test_a_resume_syncs_the_parent_of_a_store_an_earlier_run_made(tmp_path, monk
             raise OSError(5, "Input/output error")
         real(path, **kwargs)
 
-    monkeypatch.setattr(sink_module, "_sync_directory", failing_parent)
+    monkeypatch.setattr(sync_module, "_sync_directory", failing_parent)
     with pytest.raises(PublishedNotDurableError, match="not confirmed durable"):
         write(tmp_path / "s", SENTENCES)
     assert seen == [tmp_path / "s", tmp_path]

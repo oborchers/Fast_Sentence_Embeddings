@@ -21,7 +21,7 @@ from numpy import ndarray
 from fse._runtime import LengthReport, LengthSettings
 from fse._validation import PositiveInt, validate_arguments
 
-from . import _lone_run, _run
+from . import _lone_run, _resume_run, _run
 from ._outputs import PredictedBatch
 
 Level = Literal["summary", "per_row"]
@@ -42,6 +42,11 @@ class _Predicting:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> ndarray: ...
 
     @overload
@@ -54,7 +59,46 @@ class _Predicting:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> tuple[ndarray, LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Any = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+    ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
     def predict(
@@ -66,6 +110,11 @@ class _Predicting:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = None,
+        shard: Any = None,
     ) -> Any:
         """The label of each text or VectorStore row. For multilabel heads, a boolean
         (n, k) indicator in classes_ order, true strictly above each stored cutoff.
@@ -73,9 +122,21 @@ class _Predicting:
 
         ``lengths="summary"`` or ``"per_row"`` returns ``(labels, fse.LengthReport)``: what
         the length rule of the encoder cut (texts only; see ``Encoder.encode`` for
-        ``lengths``, ``count_truncated`` and ``on_truncation``)."""
+        ``lengths``, ``count_truncated`` and ``on_truncation``).
+
+        With a ``score_sink`` (``fse.ScoreSink(path, classifier, name=..., resume=True)``) or
+        a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
+        see ``Heads.predict`` for ``vector_sink``, ``score_sink``, ``doc_ids``, ``shard`` and
+        ``return_vectors``."""
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
+        if _resume_run.wanted(
+            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
+        ):
+            return _resume_run.predict_lone(
+                self, texts, return_vectors, workers, backend,
+                vector_sink, score_sink, doc_ids, shard, settings,
+            )  # fmt: skip
         return _run.infer(self, texts, "labels", workers, backend, None, settings, method)
 
     @overload

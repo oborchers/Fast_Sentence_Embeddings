@@ -43,9 +43,9 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
 | `store.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.refresh`, once per call, also when it adds nothing |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
-| `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids | `ScoreSink`, when `predict_batches` of `Heads`, `Classifier` or `Regressor` attaches the run (a new store is created then; `heads` is 1 for a single head) |
+| `scores.sink_opened` | INFO | `fse.store` | mode (`new`, `append`), rows, heads, columns, shard_rows, durability (`full`, `none`), doc_ids; `resume`, `kept_rows`, `source_rows`, `source_bytes`, `source_seconds`, `source_fingerprint` (resume sinks only) | `ScoreSink`, when `predict_batches` of `Heads`, `Classifier` or `Regressor` attaches the run, or `predict` attaches the source of a sink made with `resume=True` (a new store is created then; `heads` is 1 for a single head) |
 | `scores.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ScoreSink` (thread `fse-shard-publish`) |
-| `scores.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds | `ScoreSink.close` (a sink that never attached reports zero rows) |
+| `scores.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds; `skipped_rows` (resume sinks only) | `ScoreSink.close` (a sink that never attached reports zero rows) |
 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 

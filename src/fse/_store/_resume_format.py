@@ -23,10 +23,12 @@ from typing import Any
 from fse._container import (
     INTEGER,
     CorruptArtifactError,
+    PublishedNotDurableError,
     canonical_json,
     fingerprint,
     is_fingerprint,
 )
+from fse._container._common import _sync_directory
 from fse._partition import partition
 
 MODE = "source_rows@1"
@@ -131,3 +133,41 @@ def _shard(text: Any, file: Path) -> tuple[int, int]:
     ):
         raise CorruptArtifactError(f"{file}: fse.source_shard must be the JSON list [i,n]")
     return found[0], found[1]
+
+
+# --- what a resuming sink checks of a store (vector and score sinks alike) ------------
+
+
+def check_mode(existing: Any, resume: bool, path: Path) -> None:
+    """A store of the mode source_rows@1 is opened with ``resume=True`` only, and
+    ``resume=True`` opens such a store only. ``existing`` is the info of the store."""
+    if existing.resume is not None and not resume:
+        raise ValueError(f"the store {path} is resumable (mode {MODE}); open it with resume=True")
+    if existing.resume is None and resume:
+        raise ValueError(
+            f"the store {path} is not a resumable store; write a new store with resume=True"
+        )
+
+
+def check_source(existing: Any, wanted: SourceRows, path: Path) -> None:
+    """The source and part of this run must be those the store was written from."""
+    assert existing.resume is not None
+    what = existing.resume.same_source(wanted)
+    if what is not None:
+        raise ValueError(
+            f"the store {path} was written from another source or partition ({what} differs); "
+            "a store is resumed with the same source and shard, or written anew"
+        )
+
+
+def sync_store(path: Path) -> None:
+    """Make the entries of the store directory durable: a shard published by an earlier run
+    may have been renamed in without its sync (docs/architecture/store.md, "Resume stores")."""
+    try:
+        _sync_directory(path)
+        _sync_directory(path.parent)  # the entry of a store an earlier run made
+    except OSError as error:
+        raise PublishedNotDurableError(
+            f"the shards of {path} are published, but syncing the directory failed ({error}); "
+            "they are not confirmed durable"
+        ) from error

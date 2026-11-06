@@ -176,12 +176,23 @@ def run_batches(
 class SinkRun:
     """The batches of a ``predict_batches`` call into a vector sink, a score sink or both."""
 
-    def __init__(self, kinds: tuple[str, ...], vector_sink: Any, score_sink: Any, doc_ids: bool):
+    def __init__(
+        self,
+        kinds: tuple[str, ...],
+        vector_sink: Any,
+        score_sink: Any,
+        doc_ids: bool,
+        discard: list[Any] | None = None,
+    ):
+        """``discard`` is a sink for the main output of every head, for a run that keeps
+        only the stored scores and vectors (a resumed run)."""
         self.sinks = [s for s in (vector_sink, score_sink) if s is not None]
         self.ids = TaskIds(len(self.sinks))
         self.score = None if score_sink is None else ScoreRun(score_sink, kinds, self.ids)
         self.vectors = vector_sink
         self.arguments: dict[str, Any] = {"tee_bytes": 8 if doc_ids else 0}
+        if discard is not None:
+            self.arguments["sinks"] = discard
         if self.score is not None:
             self.arguments.update(
                 tees=self.score.tees, extras=self.score.extras, tee_bytes=self.score.tee_bytes

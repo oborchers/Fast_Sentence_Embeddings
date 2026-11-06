@@ -28,8 +28,6 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes, _log
-from fse._container import PublishedNotDurableError
-from fse._container._common import _sync_directory
 from fse._encoder import Encoder
 from fse._ids import checked_ids, id_block
 from fse._partition import partition
@@ -39,7 +37,7 @@ from ._base_sink import ShardSinkBase
 from ._layout import create_store, read_store
 from ._recovery import refuse_unsynced, snapshot
 from ._resume_format import MODE as SOURCE_ROWS
-from ._resume_format import SourceRows
+from ._resume_format import SourceRows, check_mode, check_source, sync_store
 from ._shard import ShardWriter
 from ._vectors_format import VECTORS, StoreInfo
 
@@ -58,30 +56,6 @@ def default_shard_rows(dim: int, dtype: str) -> int:
     return max(1, rows - rows % _ALIGN_ROWS if rows >= _ALIGN_ROWS else rows)
 
 
-def _check_mode(existing: StoreInfo, resume: bool, path: Path) -> None:
-    """A store of the mode source_rows@1 is opened with ``resume=True`` only, and ``resume=True``
-    opens such a store only."""
-    if existing.resume is not None and not resume:
-        raise ValueError(
-            f"the store {path} is resumable (mode {SOURCE_ROWS}); open it with resume=True"
-        )
-    if existing.resume is None and resume:
-        raise ValueError(
-            f"the store {path} is not a resumable store; write a new store with resume=True"
-        )
-
-
-def _check_source(existing: StoreInfo, wanted: SourceRows, path: Path) -> None:
-    """The source and part of this run must be those the store was written from."""
-    assert existing.resume is not None
-    what = existing.resume.same_source(wanted)
-    if what is not None:
-        raise ValueError(
-            f"the store {path} was written from another source or partition ({what} differs); "
-            "a store is resumed with the same source and shard, or written anew"
-        )
-
-
 def _open_store(
     path: Path, info: StoreInfo, *, new: bool, resume: bool, synced: bool
 ) -> tuple[StoreInfo, int]:
@@ -92,7 +66,7 @@ def _open_store(
     if new:
         create_store(path, info)
     existing = read_store(path, VECTORS.name)
-    _check_mode(existing, resume, path)
+    check_mode(existing, resume, path)
     existing.check(info, path)
     checked = snapshot(path, existing, verify=False)
     try:
@@ -101,19 +75,6 @@ def _open_store(
         return existing, sum(shard.rows for shard, _ in checked.shards)
     finally:
         checked.shards.clear()  # a sink keeps no mappings, also on refusal
-
-
-def _sync_store(path: Path) -> None:
-    """Make the entries of the store directory durable: a shard published by an earlier run
-    may have been renamed in without its sync (docs/architecture/store.md, "Resume stores")."""
-    try:
-        _sync_directory(path)
-        _sync_directory(path.parent)  # the entry of a store an earlier run made
-    except OSError as error:
-        raise PublishedNotDurableError(
-            f"the shards of {path} are published, but syncing the directory failed ({error}); "
-            "they are not confirmed durable"
-        ) from error
 
 
 def _created_by() -> str:
@@ -215,9 +176,9 @@ class ShardSink(ShardSinkBase):
         if self._new:
             create_store(self.path, replace(self._info, resume=wanted))
         info = read_store(self.path, VECTORS.name)
-        _check_mode(info, True, self.path)
+        check_mode(info, True, self.path)
         info.check(self._info, self.path)
-        _check_source(info, wanted, self.path)
+        check_source(info, wanted, self.path)
         checked = snapshot(self.path, info, verify=True)
         try:
             if self._synced:
@@ -226,7 +187,7 @@ class ShardSink(ShardSinkBase):
         finally:
             checked.shards.clear()
         if self._synced:
-            _sync_store(self.path)
+            sync_store(self.path)
         self._info, self.first_row, self._kept, self._ready = info, rows, rows, True
         self._opened_event(
             self._new,
