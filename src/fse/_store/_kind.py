@@ -46,6 +46,9 @@ class Shard:
     unsynced: bool = False
     checksums: dict[str, str] = field(default_factory=dict)
     id_stats: IdStats | None = None
+    # The fingerprint of its manifest, set when the shard is opened. ``refresh`` compares it
+    # to see that the last shard of a snapshot is still the one on disk (not public).
+    fingerprint: str = field(default="", kw_only=True, compare=False, repr=False)
 
 
 class Kind(Protocol):

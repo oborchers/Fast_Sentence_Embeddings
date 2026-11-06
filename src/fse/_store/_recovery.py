@@ -31,18 +31,26 @@ class Snapshot:
 
 def snapshot(path: Path, info: Any, *, verify: bool) -> Snapshot:
     """Follow the published chain, check gaps, and optionally verify tagged shards."""
+    return extend(path, info, [], verify=verify)
+
+
+def extend(path: Path, info: Any, old: list, *, verify: bool) -> Snapshot:
+    """The shards published after the chain ``old`` (empty: from row 0), checked as
+    ``snapshot`` does, with the summary of the last old shard as the one before them; the
+    result holds the new shards only. Gaps and orphans are checked over old and new."""
     try:
-        return _snapshot(path, info, verify=verify)
+        return _extend(path, info, old, verify=verify)
     except BaseException as error:
         clear_exception_frames(error)
         raise
 
 
-def _snapshot(path: Path, info: Any, *, verify: bool) -> Snapshot:
+def _extend(path: Path, info: Any, old: list, *, verify: bool) -> Snapshot:
     kind = kind_of(info)
-    found = []
-    previous: object = NO_SHARD
-    row = unsynced = verified_bytes = 0
+    found: list = []
+    previous: object = kind.summary(*old[-1]) if old else NO_SHARD
+    row = old[-1][0].first_row + old[-1][0].rows if old else 0
+    unsynced = verified_bytes = 0
     seconds = 0.0
     while _present(path / shard_name(row)):
         try:
@@ -63,8 +71,23 @@ def _snapshot(path: Path, info: Any, *, verify: bool) -> Snapshot:
         previous = current
         found.append((shard, tensors))
         row += shard.rows
-    check_gaps(path, found, row)
+    check_gaps(path, [*old, *found], row)
     return Snapshot(found, unsynced, verified_bytes, seconds)
+
+
+def rows_in(shards: list) -> int:
+    """The rows of the shards of a snapshot."""
+    return sum(shard.rows for shard, _ in shards)
+
+
+def stop_row(shards: list, start: int, stop: int | None) -> int:
+    """The end of the rows ``start`` to ``stop - 1`` of the snapshot ``shards`` (all rows
+    from ``start`` if ``stop`` is None); they must lie within it."""
+    n_rows = rows_in(shards)
+    stop = n_rows if stop is None else stop
+    if not start <= stop <= n_rows:
+        raise ValueError(f"rows {start} to {stop} are not within the {n_rows} rows")
+    return stop
 
 
 def _present(path: Path) -> bool:

@@ -296,10 +296,10 @@ def _store_blocks(model: Any, store: VectorStore, output: str, workers: Any, bac
             first_row=first_row,
         )
 
-    with store._using():
+    with store._using() as shards:  # one snapshot for the whole run, whatever refresh does
         yield from score_blocks(
             host,
-            store._shards,
+            shards,
             head.weight,
             head.bias,
             workers=check_workers(workers) or usable_cpus(),
