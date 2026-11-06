@@ -24,6 +24,7 @@ from typing import Any
 
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._doc_ids import check_modes, split_pair
+from fse._runtime import LengthSettings
 from fse._runtime._sinks import sink_dtype, wants_inverse_norms
 from fse._store._base_sink import ShardSinkBase
 
@@ -131,11 +132,15 @@ def run_batches(
     run: SinkRun | None,
     doc_ids: bool,
     method: str,
-    make: Callable[[int, int, list, Any, int | None], Any],
+    make: Callable[[int, int, list, Any, int | None, Any], Any],
+    lengths: LengthSettings | None = None,
+    rule: tuple[int | None, int | None] = (None, None),
 ) -> Iterator[Any]:
     """The batches of ``items`` through ``pipeline`` (a ``HeadsPipeline``), into the sinks of
-    ``run`` if there is one. ``make(first_row, n_rows, rows, vectors, durable_rows)`` builds
-    each batch from the arrays of the heads. Shared by a group and a single head."""
+    ``run`` if there is one. ``make(first_row, n_rows, rows, vectors, durable_rows, report)``
+    builds each batch from the arrays of the heads and the ``LengthReport`` of its rows
+    (None unless ``lengths`` asks for one under ``rule``, that of the encoder). Shared by a
+    group and a single head."""
     row, last = 0, None
     for k, item in enumerate(items):
         ids = None
@@ -145,14 +150,23 @@ def run_batches(
             _named(k, row, batch_size(k, item)),
             batch_source(item, tokenizer) as (source, n),
         ):
+            collector = None if lengths is None else lengths.collector(row, rule)
             if run is None:
                 rows, vectors = pipeline.infer(
-                    source, outputs=kinds, workers=workers, first_row=row
+                    source,
+                    outputs=kinds,
+                    workers=workers,
+                    first_row=row,
+                    lengths=lengths,
+                    collector=collector,
                 )
             else:
-                rows, vectors = run.infer(pipeline, source, kinds, workers, row, ids)
+                rows, vectors = run.infer(
+                    pipeline, source, kinds, workers, row, ids, lengths, collector
+                )
                 last = run.durable(row + n)
-            batch = make(row, n, rows, vectors, last)
+            report = None if collector is None else collector.report()
+            batch = make(row, n, rows, vectors, last, report)
         yield batch
         row += n
     if run is not None:
@@ -181,16 +195,32 @@ class SinkRun:
         self._last: list[int | None] = [None] * len(self.sinks)
 
     def infer(
-        self, pipeline: Any, source: Any, kinds: tuple[str, ...], workers: Any, row: int, ids: Any
+        self,
+        pipeline: Any,
+        source: Any,
+        kinds: tuple[str, ...],
+        workers: Any,
+        row: int,
+        ids: Any,
+        lengths: Any = None,
+        collector: Any = None,
     ):
         """The batch ``source`` starting at ``row`` of the run (``(arrays, vectors)`` of the
-        pipeline); ``ids`` are its document IDs, given exactly if the sinks store them."""
+        pipeline); ``ids`` are its document IDs, given exactly if the sinks store them.
+        ``lengths`` and ``collector`` are those of ``HeadsPipeline.infer``."""
         if self.score is not None:
             self.score.reset()
         vectors = self.arguments.get("vector_sink")
         if isinstance(vectors, _VectorIds):
             vectors.pending.clear()
-        arguments = {"outputs": kinds, "workers": workers, "first_row": row, **self.arguments}
+        arguments = {
+            "outputs": kinds,
+            "workers": workers,
+            "first_row": row,
+            "lengths": lengths,
+            "collector": collector,
+            **self.arguments,
+        }
         with self.ids.batch(source, row, ids):
             return pipeline.infer(source, **arguments)
 

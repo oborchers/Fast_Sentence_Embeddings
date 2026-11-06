@@ -31,6 +31,7 @@ from ._heads_plan import (
     Member,
     plan_heads,
 )
+from ._lengths import LengthCollector, LengthSettings
 from ._pipeline import Pipeline, check_sink_rows, check_workers
 from ._sinks import Sink, sink_dtype, wants_inverse_norms
 from ._spec import EncodeSpec
@@ -147,6 +148,8 @@ class HeadPipeline:
         vector_dtype: str = "float32",
         chunk_bytes: int | None = None,
         first_row: int = 0,
+        lengths: LengthSettings | None = None,
+        collector: LengthCollector | None = None,
     ) -> tuple[ndarray | None, Any]:
         """The ``output`` of every sentence of ``source`` (and, if the head was made with
         vectors, the vectors), returned or committed to ``sink`` (``vector_sink``), numbered
@@ -165,6 +168,8 @@ class HeadPipeline:
             inverse=inverse,
             chunk_bytes=chunk_bytes,
             first_row=first_row,
+            lengths=lengths,
+            collector=collector,
         )
         return results[0], vectors
 

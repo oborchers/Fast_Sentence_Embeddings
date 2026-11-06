@@ -21,6 +21,7 @@ from typing import Any, NamedTuple
 from numpy import ndarray
 
 from fse._container import fingerprint
+from fse._runtime import LengthReport
 
 # The outputs a sink can take, by the name ``output_identity`` gives them.
 SINK_OUTPUTS = ("decision", "proba", "values")
@@ -61,6 +62,9 @@ class HeadsBatch:
     fewer rows than the run has, as the sink's ``flush`` runs after it; the sink's own
     ``durable_rows`` has the final count.
 
+    ``lengths`` is the ``fse.LengthReport`` of the rows of the batch if the call passed
+    ``lengths="summary"`` or ``"per_row"``, else None.
+
     Read the fields by name: a batch is not iterable and does not unpack, so a field added in
     a later minor release (with a default) breaks no caller."""
 
@@ -69,3 +73,4 @@ class HeadsBatch:
     outputs: Mapping[str, ndarray]
     vectors: ndarray | None
     durable_rows: int | None = None
+    lengths: LengthReport | None = None

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from _development_budget import check
+from _development_lengths import check_against_independent, keywords, split
+from _measurement import atomic
 
 
 class _Target:
@@ -49,13 +53,22 @@ def operation(model, texts, job):
     reference = model.encode(texts, workers=job["workers"], dtype=dtype)
     expected = output_identity(reference)
     del reference
+    mode = job.get("lengths", "none")
+    options = keywords(mode)
+    reports = []
 
     def encode():
         sink = _Target(codes, scales, dtype)
-        model.encode(texts, workers=job["workers"], sink=sink)
+        _, report = split(model.encode(texts, workers=job["workers"], sink=sink, **options))
+        if not reports:  # the first call is checked; later reports are not kept
+            reports.append(report)
         return sink.result()
 
     check(job.get("wall_deadline"))
     if output_identity(encode()) != expected:
         raise ValueError("reused memory Sink differs from regular encode output")
+    proof = check_against_independent(model, texts, mode, reports[0], job["workers"])
+    if proof is not None:  # outside the timer: the digest of the report goes to the receipt
+        atomic(Path(job["work"]) / (job["tag"] + "-lengths.json"), proof)
+    reports.clear()
     return encode

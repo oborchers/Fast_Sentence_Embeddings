@@ -141,6 +141,7 @@ class HeadsPlan:
         inverse: bool,
         extras: tuple[str | None, ...] | None = None,
         tee_bytes: int = 0,
+        report_bytes: int = 0,
     ) -> int:
         """The bytes one row of a task takes at most: the rows the heads read (and their
         step), the logits and output targets of every head and, with the vectors, their
@@ -148,8 +149,10 @@ class HeadsPlan:
         the former single-head pipeline. A head may give one more output (``extras``, one
         entry per head: "logits", "proba" or None) into a target of its own, and a run that
         copies its outputs on (a score sink) holds ``tee_bytes`` more per row (the matrix of
-        the sink and the document IDs); without them the sum is the one above."""
-        total = self._fixed_bytes + tee_bytes
+        the sink and the document IDs); without them the sum is the one above. A length report
+        of ``lengths="per_row"`` holds ``report_bytes`` per row until the commit of its task,
+        counted once whatever the vectors."""
+        total = self._fixed_bytes + tee_bytes + report_bytes
         for member, output in zip(self.members, outputs, strict=True):
             total += _head_bytes(member.head, output)
         for member, extra in zip(self.members, extras or (), strict=False):

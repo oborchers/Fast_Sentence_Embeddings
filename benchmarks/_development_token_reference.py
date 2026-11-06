@@ -46,3 +46,41 @@ def reference_batch(model, texts):
     ]
     offsets = np.array([0, *np.cumsum([len(row) for row in rows])], dtype=np.int64)
     return Batch(0, offsets, np.array([token for row in rows for token in row], dtype=np.uint32))
+
+
+def reference_lengths(model, texts):
+    """What the length rule did to each text, by the independent reference (``encode_lengths``)."""
+    from fse import _reference_unigram, _reference_wordpiece
+
+    spec = model._spec.tokenizer
+    if spec.name not in ("wordpiece@1", "unigram@1"):
+        raise ValueError("a length report needs wordpiece@1 or unigram@1")
+    config = spec.config
+    rules = dict(
+        added={word: index for index, word in config.added_tokens},
+        max_tokens=spec.max_tokens,
+        max_chars=spec.max_chars,
+        drop_unknown=spec.unknown == "drop",
+    )
+    if spec.name == "wordpiece@1":
+        words = model.word_vectors._words()
+        vocab = {word.decode("utf-8"): index for word, index in words.items()}
+        return [
+            _reference_wordpiece.encode_lengths(
+                text,
+                vocab,
+                unk_id=config.unk_id,
+                prefix=config.continuing_subword_prefix,
+                max_input_chars_per_word=config.max_input_chars_per_word,
+                **rules,
+            )
+            for text in texts
+        ]
+    pieces = [model.word_vectors.word(index) for index in range(len(model.word_vectors))]
+    reference = _reference_unigram.Model(pieces, config.scores_array(), config.unk_id)
+    return [
+        _reference_unigram.encode_lengths(
+            text, reference, normalizer=config.steps(), charsmap=config._checked_charsmap, **rules
+        )
+        for text in texts
+    ]

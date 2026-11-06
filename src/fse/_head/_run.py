@@ -35,7 +35,7 @@ from fse._encoder._batches import (
 )
 from fse._encoder._doc_ids import own_id_sink, refuse_score_sink
 from fse._encoder._sources import opened
-from fse._runtime import check_workers
+from fse._runtime import LengthSettings, check_workers, rule_of
 from fse._store import ShardSink, VectorStore
 from fse._store._search import score_blocks
 
@@ -114,14 +114,40 @@ def finish(model: Any, rows: ndarray, output: str) -> ndarray:
     return rows
 
 
-def infer(model: Any, texts: Any, output: str, workers: Any, backend: Any, sink: Any) -> Any:
+def refuse_store_lengths(settings: LengthSettings | None, method: str) -> None:
+    """A ``VectorStore`` holds finished rows and nothing is tokenized: the keywords of the
+    length report apply to texts."""
+    if settings is not None:
+        raise ValueError(
+            f"{method}: a VectorStore holds finished rows and nothing is tokenized; lengths, "
+            "count_truncated and on_truncation apply to texts"
+        )
+
+
+def rule(model: Any) -> tuple[int | None, int | None]:
+    """The length rule ``(max_tokens, max_chars)`` of the encoder of ``model``."""
+    return rule_of(model._encoder._spec.tokenizer)
+
+
+def infer(
+    model: Any,
+    texts: Any,
+    output: str,
+    workers: Any,
+    backend: Any,
+    sink: Any,
+    settings: LengthSettings | None = None,
+    method: str = "predict",
+) -> Any:
     """``output`` of every text of ``texts`` (or row of a store): an array, or None when
-    ``sink`` took them (its ``flush`` runs after the last row)."""
+    ``sink`` took them (its ``flush`` runs after the last row). With a level of ``settings``
+    the pair of it and the ``LengthReport``."""
     check_workers(workers)
     check_backend(backend)
     if sink is not None:
         check_output_sink(model, sink, output)
     if isinstance(texts, VectorStore):
+        refuse_store_lengths(settings, method)
         parts = []
         for first_row, block in _store_blocks(model, texts, output, workers, backend):
             if sink is None:
@@ -130,12 +156,20 @@ def infer(model: Any, texts: Any, output: str, workers: Any, backend: Any, sink:
                 _commit(sink, first_row, block)
         return _joined(model, parts, output, sink)
     head = model._pipeline(backend, with_vectors=False)
+    collector = None if settings is None else settings.collector(0, rule(model))
     with opened(texts, model._tokenizer) as source:
-        rows, _ = head.infer(source, output=RUNTIME[output], workers=workers, sink=sink)
+        rows, _ = head.infer(
+            source,
+            output=RUNTIME[output],
+            workers=workers,
+            sink=sink,
+            lengths=settings,
+            collector=collector,
+        )
     if sink is not None:
         flush(sink)
-        return None
-    return finish(model, rows, output)
+    found = None if sink is not None else finish(model, rows, output)
+    return found if collector is None else (found, collector.report())
 
 
 def _joined(model: Any, parts: list, output: str, sink: Any) -> Any:
@@ -164,8 +198,11 @@ def batches(
     workers: Any,
     backend: Any,
     sink: Any,
-) -> Iterator[PredictedBatch]:
-    """The checks of ``predict_batches`` now, then its batches as a generator."""
+    settings: LengthSettings | None = None,
+    method: str = "predict_batches",
+) -> Iterator[Any]:
+    """The checks of ``predict_batches`` now, then its batches as a generator; with a level
+    of ``settings`` every item is the pair of the batch and its ``LengthReport``."""
     check_workers(workers)
     check_backend(backend)
     if isinstance(items, VectorStore):
@@ -173,6 +210,7 @@ def batches(
             raise ValueError("a store holds the vectors already; read them with get_vectors")
         if sink is not None:
             check_output_sink(model, sink, output)
+        refuse_store_lengths(settings, method)
         _check_store(model, items)
         return _store_batches(model, items, output, workers, backend, sink)
     if return_vectors:
@@ -185,10 +223,12 @@ def batches(
     elif sink is not None:
         check_output_sink(model, sink, output, batches=True)
     head = model._pipeline(backend, with_vectors=return_vectors)
-    return _text_batches(model, head, iter(items), output, return_vectors, workers, sink)
+    return _text_batches(model, head, iter(items), output, return_vectors, workers, sink, settings)
 
 
-def _text_batches(model, head, items: Iterable[Any], output, return_vectors, workers, sink):
+def _text_batches(
+    model, head, items: Iterable[Any], output, return_vectors, workers, sink, settings=None
+):
     row, last = 0, None
     for k, item in enumerate(items):
         with (
@@ -199,13 +239,21 @@ def _text_batches(model, head, items: Iterable[Any], output, return_vectors, wor
             ),
         ):
             sinks = {"vector_sink": sink} if return_vectors else {"sink": sink}
+            collector = None if settings is None else settings.collector(row, rule(model))
             rows, vectors = head.infer(
-                source, output=RUNTIME[output], workers=workers, first_row=row, **sinks
+                source,
+                output=RUNTIME[output],
+                workers=workers,
+                first_row=row,
+                lengths=settings,
+                collector=collector,
+                **sinks,
             )
             if sink is not None:
                 last = durable(sink, row + n, last)
             outputs = None if rows is None else finish(model, rows, output)
-        yield PredictedBatch(row, n, outputs, vectors, last)
+        batch = PredictedBatch(row, n, outputs, vectors, last)
+        yield batch if collector is None else (batch, collector.report())
         row += n
     if sink is not None:
         flush(sink)

@@ -114,6 +114,11 @@ TextLookup = _native.TextLookup
 Workspace = _native.Workspace
 
 
-def new_workspace() -> _native.Workspace:
-    """The buffers one worker thread reuses for every chunk it encodes."""
-    return _native.Workspace()
+def new_workspace(
+    watch: int = 0, raise_cut: bool = False, store_rows: bool = False
+) -> _native.Workspace:
+    """The buffers one worker thread reuses for every chunk it encodes. ``watch`` 1 records
+    which sentences the length rule cut, 2 also how much; ``raise_cut`` raises a
+    ``TruncationError`` at the first sentence it would cut; ``store_rows`` keeps the record
+    of every sentence (``Workspace.take_lengths``), else only its sums."""
+    return _native.Workspace(watch, raise_cut, store_rows)

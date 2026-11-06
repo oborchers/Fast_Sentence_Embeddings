@@ -114,7 +114,18 @@ def tokenize(text: str | bytes, tokenizer: str = "fse_words@1") -> list[str]: ..
 
 class Workspace:
     tokens_seen: int
-    def __init__(self) -> None: ...
+    watch: int
+    raise_cut: bool
+    store_rows: bool
+    def __init__(
+        self, watch: int = 0, raise_cut: bool = False, store_rows: bool = False
+    ) -> None: ...
+    def take_lengths(
+        self,
+    ) -> tuple[
+        tuple[int, int, int, int, int, int, int, int],
+        tuple[ndarray, ndarray, ndarray, ndarray | None, ndarray | None] | None,
+    ]: ...
 
 class WordPieceState:
     table: VocabTable

@@ -22,7 +22,7 @@ from typing import Any
 
 from fse import _unicode_graphemes as ucd
 from fse._charsmap import Charsmap
-from fse._reference_wordpiece import split_added
+from fse._reference_wordpiece import lengths_of, split_added
 
 # tokenizers' K_UNK_PENALTY: an unknown code point scores this below the lowest piece.
 UNK_PENALTY = 10.0
@@ -315,3 +315,23 @@ def encode_ids(
     if max_tokens is not None:
         ids = ids[:max_tokens]
     return [i for i in ids if i != model.unk_id] if drop_unknown else ids
+
+
+def encode_lengths(
+    text: str,
+    model: Model,
+    *,
+    max_tokens: int | None = None,
+    max_chars: int | None = None,
+    drop_unknown: bool = True,
+    **rules: Any,
+) -> dict[str, int | bool]:
+    """What the length rule did to one sentence (``fse._reference_wordpiece.lengths_of``);
+    the keyword arguments are those of ``encode_ids``."""
+    full = encode_ids(
+        text, model, max_chars=max_chars, max_tokens=None, drop_unknown=False, **rules
+    )
+    return lengths_of(
+        text, full, unk_id=model.unk_id, max_tokens=max_tokens, max_chars=max_chars,
+        drop_unknown=drop_unknown,
+    )  # fmt: skip

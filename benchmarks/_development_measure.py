@@ -128,7 +128,7 @@ def measure(job):
     check(job.get("wall_deadline"))
     job["dimensions"] = model.output_dim
     factories = {
-        "tokenizer": lambda: tokenizer(model, texts),
+        "tokenizer": lambda: tokenizer(model, texts, job),
         "pooling": lambda: pooling(model, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),

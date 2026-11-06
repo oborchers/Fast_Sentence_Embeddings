@@ -439,6 +439,9 @@ cdef class ArrowColumn:
         cdef int64_t n = 0
         _reader_hold()
         cdef int status = _start_batch(ws)
+        cdef bint watched = ws.watch != 0  # picked once for the batch
+        if watched:
+            _start_lengths(ws)
         if pos < last:
             _seek(&at, self._chunks, self._starts, self._n, pos)
         while status == ENCODE_OK and pos < last:
@@ -447,7 +450,7 @@ cdef class ArrowColumn:
             if fse_arrow_row(at.chunk, pos - at.base, &p, &n) != 0:
                 status = _ARROW_INVALID
                 break
-            status = lookup._sentence(p, n, ws, &bad)
+            status = _sentence_watched(lookup, p, n, ws, &bad) if watched else lookup._sentence(p, n, ws, &bad)
             if status == ENCODE_OK:
                 sentence += 1
                 pos += 1
@@ -470,7 +473,8 @@ cdef class ArrowColumn:
             _nogil_sections += 1
             with nogil:
                 status = self._encode_rows(lookup, first, last, ws, &row)
-            _arrow_encode_status(status, row.p, row.n, row.bad, row.sentence, first_row + row.sentence)
+            _arrow_encode_status(status, row.p, row.n, row.bad, row.sentence,
+                                 first_row + row.sentence, ws)
             tokens = _to_array(&ws.tokens, np.uint32)
             offsets = _to_array(&ws.offsets, np.int64)
             if not lookup.fasttext:

@@ -195,6 +195,62 @@ def encode_ids(
     return [i for i in ids if i != unk_id] if drop_unknown else ids
 
 
+def lengths_of(
+    text: str,
+    full_ids: Sequence[int],
+    *,
+    unk_id: int,
+    max_tokens: int | None,
+    max_chars: int | None,
+    drop_unknown: bool,
+) -> dict[str, int | bool]:
+    """What the length rule did to one sentence: ``full_ids`` are the ids of steps 2 to 5 of
+    the text cut to ``max_chars`` (before the token cut and before ``drop``). ``tokens`` is
+    the length of the row, ``truncated_tokens`` the ids beyond ``max_tokens`` and
+    ``truncated_chars`` the code points beyond ``max_chars``."""
+    chars = len(text) - max_chars if max_chars is not None and len(text) > max_chars else 0
+    over = (
+        len(full_ids) - max_tokens if max_tokens is not None and len(full_ids) > max_tokens else 0
+    )
+    kept = list(full_ids[: len(full_ids) - over])
+    left = [i for i in kept if i != unk_id] if drop_unknown else kept
+    return {
+        "tokens": len(left),
+        "char_truncated": chars > 0,
+        "token_truncated": over > 0,
+        "truncated_chars": chars,
+        "truncated_tokens": over,
+        "dropped_unknown": len(kept) - len(left),
+    }
+
+
+def encode_lengths(
+    text: str,
+    vocab: Mapping[str, int],
+    *,
+    unk_id: int,
+    max_tokens: int | None = None,
+    max_chars: int | None = None,
+    drop_unknown: bool = True,
+    **rules,
+) -> dict[str, int | bool]:
+    """What the length rule did to one sentence (``lengths_of``); the keyword arguments are
+    those of ``encode_ids``."""
+    full = encode_ids(
+        text,
+        vocab,
+        unk_id=unk_id,
+        max_chars=max_chars,
+        max_tokens=None,
+        drop_unknown=False,
+        **rules,
+    )
+    return lengths_of(
+        text, full, unk_id=unk_id, max_tokens=max_tokens, max_chars=max_chars,
+        drop_unknown=drop_unknown,
+    )  # fmt: skip
+
+
 def encode_texts(
     texts: Sequence[str], vocab: Mapping[str, int], *, first_row: int = 0, **rules
 ) -> Batch:

@@ -203,3 +203,34 @@ def test_a_batch_has_the_ids_as_rows():
 def test_a_lone_surrogate_raises():
     with pytest.raises(UnicodeEncodeError):
         ref.encode_ids("a" + chr(0xD800), VOCAB, unk_id=wp.UNK_ID, added=ADDED)
+
+
+@pytest.mark.parametrize("max_tokens", [None, 1, 5])
+@pytest.mark.parametrize("max_chars", [None, 7, 40])
+def test_the_lengths_are_those_of_the_overflow_of_tokenizers(max_tokens, max_chars):
+    """The ids beyond ``max_tokens`` are what the tokenizer reports as overflowing, and the
+    code points beyond ``max_chars`` are those of Python slicing."""
+    full = wp.hf_tokenizer(TOKENS, ADDED)
+    cut = wp.hf_tokenizer(TOKENS, ADDED, max_length=max_tokens)
+    rules = {"max_tokens": max_tokens, "max_chars": max_chars}
+    for text in CORPUS[:1500]:
+        got = ref.encode_lengths(text, VOCAB, unk_id=wp.UNK_ID, added=ADDED, **rules)
+        head = text if max_chars is None else text[:max_chars]
+        ids = wp.hf_ids(full, [head], unk_id=None)[0]
+        encoding = cut.encode(head, add_special_tokens=False)
+        overflow = sum(len(o.ids) for o in encoding.overflowing)
+        over = 0 if max_tokens is None else max(0, len(ids) - max_tokens)
+        assert got["truncated_tokens"] == over == overflow, text
+        assert got["token_truncated"] is (over > 0)
+        assert got["truncated_chars"] == len(text) - len(head)
+        assert got["char_truncated"] is (len(head) < len(text))
+        kept = ids[: len(ids) - over]
+        assert got["dropped_unknown"] == kept.count(wp.UNK_ID)
+        assert got["tokens"] == len(kept) - got["dropped_unknown"]
+
+
+def test_the_lengths_keep_unknowns_without_drop():
+    got = ref.encode_lengths(
+        "ab zzz ab", VOCAB, unk_id=wp.UNK_ID, added=ADDED, drop_unknown=False, max_tokens=2
+    )
+    assert (got["tokens"], got["dropped_unknown"], got["truncated_tokens"]) == (2, 0, 1)
