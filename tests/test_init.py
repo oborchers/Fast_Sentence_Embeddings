@@ -136,6 +136,7 @@ def test_public_api_is_pinned():
         "FastTextParams",
         "Heads",
         "HeadsBatch",
+        "LengthReport",
         "MemorySink",
         "PredictedBatch",
         "PublishedNotDurableError",

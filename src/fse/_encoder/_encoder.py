@@ -17,13 +17,11 @@ self-contained safetensors file (docs/architecture/formats.md, "encoder 1").
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal
 
 from numpy import ndarray
 
-from fse import _codes
 from fse._backends import BACKEND_NAMES
 from fse._container import (
     CREATED_BY_KEY,
@@ -31,24 +29,22 @@ from fse._container import (
     SafetensorsContainer,
 )
 from fse._contract import Normalize, UnsupportedArtifactError
-from fse._runtime import EncodeSpec, Pipeline, QuantizedRows
+from fse._runtime import EncodeSpec, Pipeline
 from fse._text import Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
 from fse._validation import PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 
-from . import _batches, _folder, _persist, _pretrained
-from ._batches import EncodedBatch, check_sink, flush, run_into
-from ._doc_ids import check_id_mode
+from . import _folder, _persist, _pretrained
+from ._encode import _Encoding
 from ._format import (
     EncoderContent,
     Source,
     fasttext_parts,
 )
-from ._sources import opened
 
 
-class Encoder:
+class Encoder(_Encoding):
     """Turns sentences into vectors with a finished table of word rows.
 
     Make one with ``Encoder.from_word_vectors``, ``Encoder.from_arrays`` or
@@ -267,82 +263,6 @@ class Encoder:
             dtype,
         )
         return Encoder._new(content, table, vocabulary=self._vocabulary)
-
-    # --- encoding ---------------------------------------------------------------------
-
-    def encode(
-        self,
-        texts: Any,
-        *,
-        dtype: str | None = None,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        doc_ids: Any = None,
-    ) -> ndarray | QuantizedRows | None:
-        """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
-        default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
-        whole result is held in memory. With a ``sink`` (``fse.Sink``, such as
-        ``fse.ShardSink``), the rows go there and nothing is returned; ``dtype`` is then
-        the sink's (another one raises) and its ``flush`` runs after the last row.
-
-        ``texts`` is a list, tuple or numpy array of str, or of token lists for the
-        external tokenizer; a ``pathlib.Path`` (or other
-        ``os.PathLike``) of a text file, one sentence per line (a str is one sentence,
-        never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
-        stream read once.
-        """
-        check_id_mode(sink, doc_ids)
-        if sink is not None:
-            check_sink(sink, dtype, self.fingerprint, self.output_dim)
-            pipeline = self._pipeline(backend)
-            with opened(texts, self.tokenizer) as source:
-                run_into(pipeline, source, sink, workers, 0, doc_ids)
-            flush(sink)
-            return None
-        dtype = _codes.check_dtype("float32" if dtype is None else dtype)
-        pipeline = self._pipeline(backend)
-        with opened(texts, self.tokenizer) as source:
-            return pipeline.infer(source, workers=workers, dtype=dtype)
-
-    def encode_batches(
-        self,
-        batches: Any,
-        *,
-        dtype: str | None = None,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        doc_ids: bool = False,
-    ) -> Iterator[EncodedBatch]:
-        """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
-        (or token lists), as a queue consumer polls them, and every batch gives one
-        ``EncodedBatch`` once its rows are finished. With a ``sink`` the rows go there,
-        and ``durable_rows`` says how many rows of the run are durable, so a consumer
-        confirms its input only up to there; without one the batch holds its rows.
-
-        The arguments and the encoder are checked when this is called, before any batch
-        is read; closing the iterator early reads no further batch. After a successful
-        full iteration the sink's ``flush`` (where it has one) has run, and its own
-        ``durable_rows`` then says what is durable; for a ``fse.ShardSink`` that is every
-        row of the run, while the last batch may report fewer. Stopping
-        early (``break``, ``close()``) does not flush: the owner of the sink closes it
-        (``ShardSink.close`` publishes the rows committed so far). Without a sink every
-        batch holds its rows in memory. With ``doc_ids=True`` every batch is a
-        ``(texts, doc_ids)`` tuple; the sink must have document IDs, and the sink and the
-        argument must agree.
-        """
-        dtype = _batches.prepare(sink, dtype, doc_ids, self.fingerprint, self.output_dim, workers)
-        pipeline = self._pipeline(backend)
-        return _batches.batches(
-            pipeline,
-            iter(batches),
-            self.tokenizer,
-            dtype=dtype,
-            workers=workers,
-            sink=sink,
-            doc_ids=doc_ids,
-        )
 
     def _pipeline(self, backend: str) -> Pipeline:
         if not isinstance(backend, str) or backend not in BACKEND_NAMES:

@@ -84,14 +84,7 @@ def check(ws, want, counted):
     assert dropped.tolist() == [w["dropped_unknown"] for w in want]
     assert (cuts & 1 != 0).tolist() == [w["char_truncated"] for w in want]
     assert (cuts & 2 != 0).tolist() == [w["token_truncated"] for w in want]
-    if counted:
-        assert cut_tokens.tolist() == [w["truncated_tokens"] for w in want]
-        assert cut_chars.tolist() == [w["truncated_chars"] for w in want]
-        assert sums[6] == sum(w["truncated_tokens"] for w in want)
-        assert sums[7] == sum(w["truncated_chars"] for w in want)
-    else:
-        assert cut_tokens is None
-        assert cut_chars is None
+    check_counts(sums, cut_tokens, cut_chars, want, counted)
     assert sums[:6] == (
         sum(w["char_truncated"] for w in want),
         sum(w["token_truncated"] for w in want),
@@ -100,6 +93,17 @@ def check(ws, want, counted):
         sum(w["tokens"] for w in want),
         sum(w["dropped_unknown"] for w in want),
     )
+
+
+def check_counts(sums, cut_tokens, cut_chars, want, counted):
+    if not counted:
+        assert cut_tokens is None
+        assert cut_chars is None
+        return
+    assert cut_tokens.tolist() == [w["truncated_tokens"] for w in want]
+    assert cut_chars.tolist() == [w["truncated_chars"] for w in want]
+    assert sums[6] == sum(w["truncated_tokens"] for w in want)
+    assert sums[7] == sum(w["truncated_chars"] for w in want)
 
 
 @pytest.mark.parametrize(("max_tokens", "max_chars", "drop"), RULES)

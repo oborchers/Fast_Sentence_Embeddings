@@ -23,7 +23,7 @@ from fse._wordvectors_format import FastTextParams
 if TYPE_CHECKING:
     from fse._encoder import EncodedBatch, Encoder, QuantizedRows
     from fse._head import Classifier, Heads, HeadsBatch, PredictedBatch, Regressor
-    from fse._runtime import MemorySink, Sink
+    from fse._runtime import LengthReport, MemorySink, Sink
     from fse._scores import ScoreBatch, ScoreSink, ScoreStore
     from fse._static_model import StaticModel
     from fse._store import (
@@ -45,7 +45,7 @@ _LAZY = {
         ("Encoder", "EncodedBatch", "QuantizedRows"),
         "fse._encoder",
     ),
-    **dict.fromkeys(("MemorySink", "Sink"), "fse._runtime"),
+    **dict.fromkeys(("LengthReport", "MemorySink", "Sink"), "fse._runtime"),
     **dict.fromkeys(("ScoreBatch", "ScoreSink", "ScoreStore"), "fse._scores"),
     "StaticModel": "fse._static_model",
     **dict.fromkeys(
@@ -116,6 +116,7 @@ __all__ = [
     "FastTextParams",
     "Heads",
     "HeadsBatch",
+    "LengthReport",
     "MemorySink",
     "PredictedBatch",
     "PublishedNotDurableError",

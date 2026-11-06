@@ -14,6 +14,7 @@ from ._head import OUTPUTS, HeadPipeline, make_head
 from ._head_spec import HeadSpec
 from ._heads import HeadsPipeline
 from ._heads_plan import HeadsPlan, Member, plan_heads
+from ._lengths import LengthCollector, LengthReport, LengthSettings, rule_of
 from ._pipeline import Pipeline, check_sink_rows, check_workers
 from ._sinks import (
     ArrayRows,
@@ -36,6 +37,9 @@ __all__ = [
     "HeadSpec",
     "HeadsPipeline",
     "HeadsPlan",
+    "LengthCollector",
+    "LengthReport",
+    "LengthSettings",
     "Member",
     "MemorySink",
     "Pipeline",
@@ -47,5 +51,6 @@ __all__ = [
     "check_workers",
     "make_head",
     "plan_heads",
+    "rule_of",
     "wants_inverse_norms",
 ]

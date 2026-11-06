@@ -6,7 +6,9 @@
 
 """The encoder of fse 2.0 (docs/architecture/overview.md, "Principle and stages")."""
 
+from fse._runtime import QuantizedRows
+
 from ._batches import EncodedBatch
-from ._encoder import Encoder, QuantizedRows
+from ._encoder import Encoder
 
 __all__ = ["EncodedBatch", "Encoder", "QuantizedRows"]

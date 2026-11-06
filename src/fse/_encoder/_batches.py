@@ -22,7 +22,13 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from fse import _codes
-from fse._runtime import Pipeline, check_workers, wants_inverse_norms
+from fse._runtime import (
+    LengthCollector,
+    LengthSettings,
+    Pipeline,
+    check_workers,
+    wants_inverse_norms,
+)
 from fse._stream import StreamSource
 from fse._text import is_arrow
 
@@ -126,14 +132,29 @@ def _named(k: int, row: int, n: int | None) -> Iterator[None]:
 
 
 def run_into(
-    pipeline: Pipeline, source: Any, sink: Any, workers: Any, first_row: int, doc_ids: Any = None
+    pipeline: Pipeline,
+    source: Any,
+    sink: Any,
+    workers: Any,
+    first_row: int,
+    doc_ids: Any = None,
+    lengths: LengthSettings | None = None,
+    collector: LengthCollector | None = None,
 ) -> None:
-    """Commit the rows of ``source`` to ``sink`` from ``first_row``."""
+    """Commit the rows of ``source`` to ``sink`` from ``first_row``; ``lengths`` and
+    ``collector`` as in ``Pipeline.infer``."""
     check_id_mode(sink, doc_ids)
     if doc_ids is None:
-        pipeline.infer(source, workers=workers, sink=sink, first_row=first_row)
+        pipeline.infer(
+            source,
+            workers=workers,
+            sink=sink,
+            first_row=first_row,
+            lengths=lengths,
+            collector=collector,
+        )
     else:
-        infer_ids(pipeline, source, sink, workers, first_row, doc_ids)
+        infer_ids(pipeline, source, sink, workers, first_row, doc_ids, lengths, collector)
 
 
 def flush(sink: Any) -> None:
@@ -192,23 +213,35 @@ def batches(
     workers: Any,
     sink: Any,
     doc_ids: bool = False,
-) -> Iterator[EncodedBatch]:
+    lengths: LengthSettings | None = None,
+    rule: tuple[int | None, int | None] = (None, None),
+) -> Iterator[Any]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
-    lists) or an Arrow string column each."""
+    lists) or an Arrow string column each; with ``lengths`` of a level, the pair of it and
+    the ``LengthReport`` of its rows (``rule`` is the encoder's)."""
     row, last = 0, None
+    reported = lengths if lengths is not None and lengths.lengths is not None else None
     for k, item in enumerate(items):
         ids = None
         if doc_ids:
             item, ids = split_pair(k, item, "encode_batches")
         with _named(k, row, batch_size(k, item)), batch_source(item, tokenizer) as (source, n):
+            collector = None if reported is None else LengthCollector(reported, row, rule)
             if sink is None:
-                rows = pipeline.infer(source, workers=workers, dtype=dtype, first_row=row)
+                rows = pipeline.infer(
+                    source,
+                    workers=workers,
+                    dtype=dtype,
+                    first_row=row,
+                    lengths=lengths,
+                    collector=collector,
+                )
                 found = EncodedBatch(row, n, rows, None)
             else:
-                run_into(pipeline, source, sink, workers, row, ids)
+                run_into(pipeline, source, sink, workers, row, ids, lengths, collector)
                 last = durable(sink, row + n, last)
                 found = EncodedBatch(row, n, None, last)
-        yield found
+        yield (found, collector.report()) if collector is not None else found
         row += n
     if sink is not None:
         flush(sink)

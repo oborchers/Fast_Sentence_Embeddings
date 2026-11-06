@@ -434,7 +434,7 @@ name = "Encoder: the encoder on its batches and format, those on its inputs"
 type = "layers"
 containers = ["fse._encoder"]
 exhaustive = true
-layers = ["_encoder | _model2vec_rules", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
+layers = ["_encoder | _model2vec_rules", "_encode", "_pretrained | _persist", "_folder", "_card", "_model2vec | _sentence_transformers", "_files", "_batches | _format", "_format_tokenizer", "_doc_ids", "_sources", "_inputs"]
 
 [[tool.importlinter.contracts]]
 name = "Static model: the class on the loading, the encoders, the tokenizer and the saving, those on the profile and the ids, those on the arguments"
@@ -455,7 +455,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_tasks | _sinks | _executor | _spec | _head_spec | _errors"]
+layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
