@@ -35,7 +35,7 @@ def _settled(count=0, timeout=10):
 
 
 @pytest.fixture(autouse=True)
-def _no_threads_left():
+def no_fse_threads_left():
     assert _settled(0), "a test before left fse worker threads"
     yield
     gc.collect()
