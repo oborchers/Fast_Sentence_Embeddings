@@ -35,7 +35,7 @@ def specification(args):
         first = {}
         for index, cell in enumerate(spec["cells"]):
             first.setdefault(task_key(cell), index)
-        spec["cells"].sort(key=lambda c: first[task_key(c)])
+        spec["cells"].sort(key=lambda c: (c["kind"] != "probe", first[task_key(c)]))
     return spec
 
 
@@ -59,10 +59,11 @@ def budget_of(args, started_unix):
 
 class Ledger:
     """The rows of one local run. An emergency abort from the guard thread writes the
-    active task as aborted and the rest as not started, then ends the process."""
+    active task as aborted and the rest as not started, then ends the process, also when
+    writing fails."""
 
-    def __init__(self, results, cells):
-        self.results, self.cells = results, cells
+    def __init__(self, results, cells, environment):
+        self.results, self.cells, self.environment = results, cells, environment
         self.lock = threading.Lock()
         self.written = 0
         self.active = None
@@ -75,19 +76,24 @@ class Ledger:
 
     def abort(self, reason):
         with self.lock:
-            if self.active is not None:
-                append(
-                    self.results / "cells.jsonl",
-                    {**self.active, "status": "aborted", "reason": reason},
-                )
-                self.written += 1
-            for cell in self.cells[self.written :]:
-                append(
-                    self.results / "cells.jsonl",
-                    {**base(cell), "status": "not_started", "reason": reason},
-                )
-            finish_files(self.results, len(self.cells), {"emergency_abort": reason})
-            os._exit(3)
+            try:
+                self.record_abort(reason)
+            finally:
+                os._exit(3)
+
+    def record_abort(self, reason):
+        if self.active is not None:
+            append(
+                self.results / "cells.jsonl",
+                {**self.active, "status": "aborted", "reason": reason},
+            )
+            self.written += 1
+        for cell in self.cells[self.written :]:
+            append(
+                self.results / "cells.jsonl",
+                {**base(cell, self.environment), "status": "not_started", "reason": reason},
+            )
+        finish_files(self.results, len(self.cells), {"emergency_abort": reason})
 
 
 def base(cell, environment=None):
@@ -139,7 +145,7 @@ def run(args):
     )
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
     environment = sha256(args.results / "environment.json")
-    ledger = Ledger(args.results, spec["cells"])
+    ledger = Ledger(args.results, spec["cells"], environment)
     guard = Guard(args.results, [args.results, args.work, *folders.values()], limits, ledger.abort)
     guard.start()
     stopped = passes(spec["cells"], args, ledger, guard, environment, (started_at, budget))
@@ -211,7 +217,7 @@ def attempt(cell, row, context):
 def reason_to_stop(signalled, guard, elapsed, budget):
     if signalled:
         return f"stop signal {signalled[0]}"
-    if guard.stop_reason:
+    if guard.disk_reason():
         return guard.stop_reason
     if elapsed >= budget:
         return "wall-time budget used up"

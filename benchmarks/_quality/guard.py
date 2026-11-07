@@ -22,14 +22,24 @@ INTERVAL_SECONDS = 10
 
 def caches():
     """The Hugging Face cache folders, which a local run requires to be set explicitly: the
-    datasets of a multilingual benchmark take tens of GB and must land where they are watched."""
+    datasets of a multilingual benchmark take tens of GB and must land where they are watched.
+    The effective write targets of the installed libraries join them (HF_HUB_CACHE,
+    HF_XET_CACHE and the datasets download folders can point elsewhere)."""
     paths = {}
     for name in CACHE_VARIABLES:
         value = os.environ.get(name)
         if not value or not Path(value).is_absolute():
             raise ValueError(f"a local run needs an absolute {name}")
         paths[name] = Path(value)
-        paths[name].mkdir(parents=True, exist_ok=True)
+    import datasets.config
+    from huggingface_hub import constants
+
+    paths["hub"] = Path(constants.HF_HUB_CACHE)
+    paths["xet"] = Path(constants.HF_XET_CACHE)
+    paths["datasets"] = Path(datasets.config.HF_DATASETS_CACHE)
+    paths["datasets_downloads"] = Path(datasets.config.DOWNLOADED_DATASETS_PATH)
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
     return paths
 
 
@@ -81,7 +91,21 @@ class Guard:
 
     def watch(self):
         while not self.ended.wait(INTERVAL_SECONDS):
-            self.sample()
+            try:
+                self.sample()
+            except Exception as error:  # a broken guard must not leave the run unwatched
+                self.abort(f"resource guard failed: {error!r}")
+
+    def lowest_free(self):
+        return min(shutil.disk_usage(p).free for p in self.folders)
+
+    def disk_reason(self):
+        """Checked at every task boundary too, not only every ten seconds."""
+        if self.lowest_free() < self.limits["min_free_bytes"]:
+            self.stop_reason = self.stop_reason or (
+                f"free disk below {self.limits['min_free_bytes'] // GIB} GiB"
+            )
+        return self.stop_reason
 
     def sample(self):
         free = {str(p): shutil.disk_usage(p).free for p in self.folders}
@@ -89,6 +113,10 @@ class Guard:
         self.peak_rss = max(self.peak_rss, rss)
         lowest = min(free.values())
         self.min_free = lowest if self.min_free is None else min(self.min_free, lowest)
+        if lowest < self.limits["min_free_bytes"] and self.stop_reason is None:
+            self.stop_reason = f"free disk below {self.limits['min_free_bytes'] // GIB} GiB"
+        if rss > self.limits["rss_limit_bytes"]:
+            self.abort(f"resident set {rss // GIB} GiB above the limit")
         row = {
             "unix": time.time(),
             "free_bytes": free,
@@ -97,10 +125,6 @@ class Guard:
         }
         with (self.results / "telemetry.jsonl").open("a") as stream:  # no console line
             stream.write(json.dumps(row, separators=(",", ":")) + "\n")
-        if lowest < self.limits["min_free_bytes"] and self.stop_reason is None:
-            self.stop_reason = f"free disk below {self.limits['min_free_bytes'] // GIB} GiB"
-        if rss > self.limits["rss_limit_bytes"]:
-            self.abort(f"resident set {rss // GIB} GiB above the limit")
 
     def close(self):
         self.ended.set()
@@ -119,25 +143,50 @@ class RefusedError(ValueError):
 
 
 def admit(task, dim, limit):
-    """The memory estimate of ``task``; a task above ``limit`` is refused before loading."""
+    """The memory estimate of ``task``; a task whose estimate exceeds what is left below
+    ``limit`` (the limit minus the resident set now) is refused before loading."""
     estimate = memory_estimate(task, dim)
-    if limit is not None and estimate is not None and estimate > limit:
-        raise RefusedError(f"memory estimate {estimate // GIB} GiB above the limit")
+    if limit is None or estimate is None:
+        return estimate
+    left = limit - (resident_bytes(os.getpid()) or 0)
+    if estimate > left:
+        raise RefusedError(
+            f"memory estimate {estimate // GIB} GiB above the {left // GIB} GiB left"
+        )
     return estimate
 
 
 def memory_estimate(task, dim):
     """A coarse upper estimate of the bytes one task holds: its texts (four bytes per
     character in the worst Python string case) and one float32 vector per text, both twice
-    (MTEB copies inputs into datasets and results into arrays). Bitext mining counts every
-    pair, so its estimate is far above the unique sentences. Unknown statistics give None."""
+    (MTEB copies inputs into datasets and results into arrays), over the evaluation splits
+    and a training split (classification fits on it). Bitext mining counts every pair, so
+    its estimate is far above the unique sentences. Unknown statistics give None."""
     stats = task.metadata.descriptive_stats or {}
-    parts = [p for split in task.eval_splits for p in evaluated(stats.get(split) or {}, task)]
+    splits = [*task.eval_splits, getattr(task, "train_split", None)]
+    parts = [
+        p
+        for split in dict.fromkeys(splits)
+        if split
+        for p in evaluated(stats.get(split) or {}, task)
+    ]
     samples = sum(int(p.get("num_samples") or 0) for p in parts)
-    characters = sum(int(p.get("number_of_characters") or 0) for p in parts)
+    characters = sum(text_length(p) for p in parts)
     if not samples:
         return None
     return 2 * (4 * characters + 4 * dim * samples)
+
+
+def text_length(part):
+    """Characters of one statistics entry: ``number_of_characters`` where MTEB gives it,
+    else the ``total_text_length`` of its text statistics (classification)."""
+    if part.get("number_of_characters"):
+        return int(part["number_of_characters"])
+    return sum(
+        int(v.get("total_text_length") or 0)
+        for k, v in part.items()
+        if k.endswith("_statistics") and isinstance(v, dict)
+    )
 
 
 def evaluated(entry, task):

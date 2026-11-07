@@ -11,6 +11,21 @@ from _measurement import sha256
 from _measurement_config import MODEL_PINS
 
 UNKNOWN, OVERLAP, ZERO_SHOT = "unknown", "training_overlap", "zero_shot"
+# Registry revisions of MTEB 2.26.25 whose declared training data holds for the pin, with
+# the evidence. Any other difference between registry revision and pin gives "unknown".
+EQUIVALENT = {
+    (
+        "sentence-transformers/static-similarity-mrl-multilingual-v1",
+        "7264ea07c5365a11d7e6d87dbb6195889a13054f",
+        "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+    ): "every file but README.md has the same Hub object id in both revisions (07.11.2026)",
+}
+
+
+def transferable(model, registry_revision):
+    """Whether the training declaration of ``registry_revision`` holds for the pin."""
+    pin = MODEL_PINS[model]
+    return registry_revision == pin or (model, registry_revision, pin) in EQUIVALENT
 
 
 def training_relation(model, task):
@@ -30,6 +45,8 @@ def training_relation(model, task):
     record = {"registry_revision": meta.revision, "pinned_revision": MODEL_PINS[model]}
     if datasets is None:
         return {**record, "state": UNKNOWN, "reason": "no training data declared"}
+    if not transferable(model, meta.revision):
+        return {**record, "state": UNKNOWN, "reason": "registry revision is not the pin"}
     overlap = sorted(datasets & {task})
     return {**record, "state": OVERLAP if overlap else ZERO_SHOT, "overlap": overlap}
 
@@ -93,16 +110,21 @@ def model2vec_pinned(model):
 
 def model_files(cell):
     """sha256 of every file of the pinned snapshot in the local cache (weights, tokenizer and
-    configuration all come from the one pinned revision)."""
+    configuration all come from the one pinned revision). Only the files a loader fetched
+    are there; the snapshot need not hold the whole repository."""
     from pathlib import Path
 
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import constants
 
-    folder = Path(
-        snapshot_download(cell["model"], revision=MODEL_PINS[cell["model"]], local_files_only=True)
+    pin = MODEL_PINS[cell["model"]]
+    folder = (
+        Path(constants.HF_HUB_CACHE)
+        / ("models--" + cell["model"].replace("/", "--"))
+        / "snapshots"
+        / pin
     )
-    if folder.name != MODEL_PINS[cell["model"]]:
-        raise ValueError("cached snapshot is not the pinned revision")
+    if not folder.is_dir():
+        raise ValueError("the pinned snapshot is not in the local cache")
     return {
         str(p.relative_to(folder)): sha256(p)
         for p in sorted(folder.rglob("*"))

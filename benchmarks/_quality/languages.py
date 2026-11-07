@@ -20,17 +20,58 @@ STATUSES = ("valid", "failed", "aborted", "refused", "not_started")
 
 def planned(row):
     filters = row["evaluation_filters"]
-    return (row["task"], tuple(filters["hf_subsets"]), tuple(filters["eval_splits"]))
+    return (
+        row["task"],
+        tuple(sorted(filters["hf_subsets"])),
+        tuple(sorted(filters["eval_splits"])),
+    )
 
 
-def coverage(rows):
+# The setup of a cell as configured: the planned cells of the run contract carry it too.
+SETUP = ("model", "backend", "workers", "dtype", "truncate", "truncate_dim", "trust_remote_code")
+
+
+def setup_key(cell, benchmark=None):
+    return json.dumps(
+        [{k: cell.get(k) for k in SETUP}, benchmark or cell["benchmark"]], sort_keys=True
+    )
+
+
+def contract_plan(folder):
+    """The expanded multilingual MTEB cells of the run contract in ``environment.json`` by
+    setup and benchmark, or None where the folder holds no contract."""
+    path = Path(folder) / "environment.json"
+    contract = json.loads(path.read_text()).get("contract") if path.is_file() else None
+    if not contract:
+        return None
+    plan = {}
+    for cell in contract["cells"]:
+        if cell.get("kind") == "mteb" and cell.get("benchmark") in MULTILINGUAL:
+            plan.setdefault(setup_key(cell), []).append(cell)
+    return plan
+
+
+def coverage(rows, plan_cells):
     """Planned against valid tasks of one configuration and benchmark, as sets of
-    (task, subsets, splits). Failed, aborted, refused and not started stay apart."""
-    plan = {planned(r) for r in rows}
+    (task, subsets, splits), with the plan from the run contract where there is one. Failed,
+    aborted, refused, not started and missing rows stay apart."""
+    plan = {planned(c) for c in plan_cells} if plan_cells else {planned(r) for r in rows}
     valid = {planned(r) for r in rows if r["status"] == "valid"}
     counts = {s: sum(1 for r in rows if r["status"] == s) for s in STATUSES}
-    complete = valid == plan and counts["valid"] == len(plan)
-    return {"planned": len(plan), **counts, "complete_selection": complete}
+    return {
+        "plan_source": "contract" if plan_cells else "rows",
+        "planned": len(plan),
+        **counts,
+        "missing": len(plan - {planned(r) for r in rows}),
+        "unplanned": len({planned(r) for r in rows} - plan),
+        "complete_selection": valid == plan and counts["valid"] == len(plan),
+    }
+
+
+def whole_benchmark(rows, plan_cells, benchmark):
+    """Whether the cells asked for the entire benchmark, not a selection of its tasks."""
+    cells = plan_cells or rows
+    return all(benchmark in c["tasks"] for c in cells) and len(cells) == FULL.get(benchmark)
 
 
 def language_scores(folder, row):
@@ -67,12 +108,12 @@ def language_table(folder, rows):
     return {"languages": table(same), "cross_lingual": table(pairs)}
 
 
-def benchmark_summary(folder, rows):
-    cover = coverage(rows)
-    valid = [r for r in rows if r["status"] == "valid"]
+def benchmark_summary(folder, rows, plan_cells=None):
     benchmark = rows[0]["benchmark"]
-    cover["full_benchmark"] = cover["complete_selection"] and cover["planned"] == FULL.get(
-        benchmark
+    cover = coverage(rows, plan_cells)
+    valid = [r for r in rows if r["status"] == "valid"]
+    cover["full_benchmark"] = cover["complete_selection"] and whole_benchmark(
+        rows, plan_cells, benchmark
     )
     scores = {r["task"]: r["main_score"] for r in valid}
     summary = {"benchmark": benchmark, "coverage": cover, "scores": scores}
@@ -91,8 +132,20 @@ def benchmark_summary(folder, rows):
         },
         "benchmark_mean": mean if cover["full_benchmark"] else None,
         **language_table(folder, valid),
-        "training_relation": {r["task"]: r["training_relation"]["state"] for r in valid},
+        "training_relation": {r["task"]: relation(r) for r in valid},
     }
+
+
+def relation(row):
+    """The training relation of a row; a registry revision that is not the pin and has no
+    recorded equivalence gives ``unknown``."""
+    from _quality.identity import transferable
+
+    found = row["training_relation"]
+    revision = found.get("registry_revision")
+    if found["state"] != "unknown" and not transferable(row["model"], revision):
+        return "unknown"
+    return found["state"]
 
 
 def zero_shot(configurations):
@@ -218,6 +271,7 @@ def grouped(rows):
 def multilingual(folder, rows):
     """Configurations with multilingual rows; rows of every status count toward coverage."""
     groups = grouped(rows)
+    plan = contract_plan(folder) or {}
     configurations = []
     for key, by in sorted(groups.items()):
         members = [r for v in by.values() for r in v]
@@ -225,7 +279,10 @@ def multilingual(folder, rows):
             {
                 **json.loads(key),
                 "identity": identity([r for r in members if r["status"] == "valid"]),
-                "benchmarks": [benchmark_summary(folder, r) for _, r in sorted(by.items())],
+                "benchmarks": [
+                    benchmark_summary(folder, r, plan.get(setup_key(r[0], b)))
+                    for b, r in sorted(by.items())
+                ],
             }
         )
     every = [r for by in groups.values() for v in by.values() for r in v]

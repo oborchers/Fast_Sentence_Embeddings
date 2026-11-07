@@ -149,19 +149,17 @@ def evaluate(cell, context):
     task = task_of(cell["benchmark"], cell["task"])
     if filters_for(task) != cell["evaluation_filters"]:
         raise ValueError("configured task filters changed after expansion")
-    estimate = admit(
-        task, context["identity"]["execution"]["output_dim"], context.get("rss_limit_bytes")
-    )
     kept = False
     try:
+        estimate = admit(
+            task, context["identity"]["execution"]["output_dim"], context.get("rss_limit_bytes")
+        )
         record = scored(cell, context, model, task)
         # A local run in task order keeps the data for the next cell of the same task.
         kept = context.get("next_task") == (cell["benchmark"], cell["task"])
     finally:
-        # MTEB unloads only data it loaded itself; this task was preloaded. The benchmark
-        # instance is cached by MTEB, so without this every task's data stays in memory.
-        if task.data_loaded and not kept:
-            task.unload_data()
+        if not kept:
+            release(task)
     if package_identity(package) != before:
         raise ValueError("executing quality backend changed")
     return {
@@ -181,6 +179,17 @@ def evaluate(cell, context):
         "training_relation": training_relation(cell["model"], task.metadata.name),
         "memory_estimate_bytes": estimate,
     }
+
+
+def release(task):
+    """Free the data of ``task``, also after a refusal or a partly failed load. MTEB unloads
+    only data it loaded itself, and the benchmark instance is cached by MTEB, so without this
+    every task's data stays in memory."""
+    if task.data_loaded:
+        task.unload_data()
+    elif getattr(task, "dataset", None) is not None:
+        task.dataset = None
+        task.__dict__.pop("metadata", None)  # as unload_data: back to the published metadata
 
 
 def scored(cell, context, model, task):

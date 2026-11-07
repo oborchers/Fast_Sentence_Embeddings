@@ -32,6 +32,8 @@ TEXTS = (
     "Ünïcödé çhäräctérs ñ ß ø å",
 )
 REFERENCES = ("st", "st-float32", "model2vec")
+# The library comparison bounds of fse for float32 tables.
+RTOL, ATOL = 3e-5, 3e-6
 
 
 def reference_vectors(cell, texts):
@@ -55,6 +57,20 @@ def reference_vectors(cell, texts):
     return np.asarray(vectors, dtype=np.float32), str(next(model.parameters()).dtype)
 
 
+def agree(ours, theirs):
+    """Refuse a probe whose vectors are not finite, whose zero rows differ or whose values
+    leave the library bound: a failed probe stops the run."""
+    import numpy as np
+
+    if not (np.isfinite(ours).all() and np.isfinite(theirs).all()):
+        raise ValueError("probe vectors are not finite")
+    zero = np.linalg.norm(ours, axis=1) == 0
+    if not np.array_equal(zero, np.linalg.norm(theirs, axis=1) == 0):
+        raise ValueError("probe zero vectors differ")
+    if not np.allclose(ours, theirs, rtol=RTOL, atol=ATOL):
+        raise ValueError("probe vectors leave the library bound")
+
+
 def probe(cell, _context=None):
     import numpy as np
 
@@ -66,6 +82,7 @@ def probe(cell, _context=None):
     theirs, weights = reference_vectors(cell, TEXTS)
     if ours.shape != theirs.shape:
         raise ValueError(f"probe shapes differ: fse {ours.shape}, reference {theirs.shape}")
+    agree(ours, theirs)
     norms = np.linalg.norm(ours, axis=1) * np.linalg.norm(theirs, axis=1)
     nonzero = norms > 0
     cosine = (ours * theirs).sum(axis=1)[nonzero] / norms[nonzero]
@@ -80,5 +97,6 @@ def probe(cell, _context=None):
         "max_abs_difference": float(np.abs(ours - theirs).max()),
         "min_cosine": float(cosine.min()) if cosine.size else None,
         "model_revision": MODEL_PINS[cell["model"]],
+        "bound": {"rtol": RTOL, "atol": ATOL},
         "scope": "functional output probe, class K; no score and no speed value",
     }
