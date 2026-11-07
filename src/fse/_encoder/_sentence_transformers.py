@@ -36,9 +36,9 @@ from fse._wordvectors import WordVectors
 
 from ._files import (
     DENSE,
+    MODEL_RULE,
     NORMALIZE,
     STATIC_EMBEDDING,
-    MODEL_RULE,
     Converted,
     Files,
     cut_table,
