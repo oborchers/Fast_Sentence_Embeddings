@@ -37,19 +37,34 @@ CHANGELOG = """# Changelog
 """
 
 
-@pytest.mark.parametrize("tag, version", [("v2.0.0", "2.0.0"), ("v2.1.0rc1", "2.1.0rc1")])
+@pytest.mark.parametrize(("tag", "version"), [("v2.0.0", "2.0.0"), ("v2.1.0rc1", "2.1.0rc1")])
 def test_version_of_accepts_release_tags(tag, version):
     assert version_of(tag) == version
 
 
-@pytest.mark.parametrize("tag", ["2.0.0", "v2.0", "v2.0.0.post1", "v2.0.0-rc1", "fse-v2.0.0", "v2.0.0 ", "v02.1.0", "v2.01.0", "v2.1.0rc01"])
+@pytest.mark.parametrize(
+    "tag",
+    [
+        "2.0.0",
+        "v2.0",
+        "v2.0.0.post1",
+        "v2.0.0-rc1",
+        "fse-v2.0.0",
+        "v2.0.0 ",
+        "v02.1.0",
+        "v2.01.0",
+        "v2.1.0rc01",
+    ],
+)
 def test_version_of_rejects_other_tags(tag):
     with pytest.raises(ValueError, match="not of the form"):
         version_of(tag)
 
 
 def test_prerelease_only_for_suffixed_versions():
-    assert is_prerelease("2.1.0rc1") and is_prerelease("3.0.0a2") and is_prerelease("3.0.0b1")
+    assert is_prerelease("2.1.0rc1")
+    assert is_prerelease("3.0.0a2")
+    assert is_prerelease("3.0.0b1")
     assert not is_prerelease("2.0.0")
 
 
@@ -95,7 +110,7 @@ def test_check_files_refuses_another_version_or_no_files(tmp_path):
         check_files(tmp_path, "2.0.0")
     (tmp_path / "fse-2.0.0.tar.gz").write_bytes(b"")
     (tmp_path / "fse-2.0.1-py3-none-any.whl").write_bytes(b"")
-    with pytest.raises(ValueError, match="fse-2.0.1-py3-none-any.whl"):
+    with pytest.raises(ValueError, match=r"fse-2\.0\.1-py3-none-any\.whl"):
         check_files(tmp_path, "2.0.0")
 
 

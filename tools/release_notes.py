@@ -8,7 +8,9 @@ import re
 import sys
 from pathlib import Path
 
-TAG = re.compile(r"v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?)")
+TAG = re.compile(
+    r"v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?)"
+)
 PRERELEASE = re.compile(r".*(?:a|b|rc)[0-9]+")
 HEADING = re.compile(r"## \[(?P<name>[^\]]+)\]")
 FENCE = re.compile(r" {0,3}(?P<fence>`{3,}|~{3,})")
