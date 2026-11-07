@@ -101,3 +101,11 @@ def same(a, b):
     same_ids = np.array_equal(a.ids, b.ids) and np.array_equal(bits(a.scores), bits(b.scores))
     labels = getattr(a, "doc_ids", None)
     return same_ids and (labels is None or np.array_equal(labels, b.doc_ids))
+
+
+def both(monkeypatch, store, qs, k, **arguments):
+    """The outcome with the prefilter, the outcome without, and the records of the first."""
+    got, records = run(store, qs, k, **arguments)
+    with without_prefilter(monkeypatch):
+        want, _ = run(store, qs, k, **arguments)
+    return got, want, records

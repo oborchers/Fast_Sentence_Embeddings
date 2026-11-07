@@ -47,6 +47,7 @@ MAX_K = 100
 MIN_DIM, MAX_DIM = 256, 1024
 MIN_ROWS = 65_536
 _BUDGET_MIN = 65_536  # survivors per query the main thread holds: max(64 * k, this)
+_FRAGMENTS = 256  # pieces of a query's survivors kept before they are joined and cut
 _BLOCK_BYTES = 16 << 20  # the rows of one block of a selection
 
 
@@ -77,6 +78,15 @@ def applies(
     return backend.prefilter_variant() is not None
 
 
+def _default_environment() -> bool:
+    """Whether this thread computes float64 by the IEEE default: round to nearest, subnormals
+    kept (no flush to zero, no denormals-are-zero). The passes run in their own environment;
+    the cut of the survivors runs here, so under another environment it keeps every row
+    collected instead (a superset is always safe, and it only costs rescoring)."""
+    one, eps, tiny = np.float64(1.0), np.float64(2.0**-60), np.float64(5e-324)
+    return bool(one + eps == one and one - eps == one and tiny + tiny != 0)
+
+
 class _Queries:
     """The queries as the exact path takes them and their int8 form with the slack."""
 
@@ -97,6 +107,7 @@ class _Survivors:
 
     def __init__(self, width: int, k: int, slack: ndarray):
         self.k, self.slack, self.read = k, slack, 0
+        self.default = _default_environment()
         self.budget = max(64 * k, _BUDGET_MIN)
         self.heap = np.full((width, k), -np.inf)
         self.threshold = np.full(width, -np.inf)
@@ -112,10 +123,12 @@ class _Survivors:
         self.heap = _reference_prefilter.merge_heaps([self.heap, got.heap], self.k)
         self.threshold = _reference_prefilter.kth_estimate(self.heap)  # a new array
         for j, (rows, upper) in enumerate(zip(got.rows, got.upper, strict=True)):
-            self.rows[j].append(base[rows] if isinstance(base, ndarray) else rows + base)
-            self.upper[j].append(upper)
-            self.count[j] += len(rows)
-            if self.count[j] > self.budget and self._compact(j) > self.budget:
+            if len(rows):
+                self.rows[j].append(base[rows] if isinstance(base, ndarray) else rows + base)
+                self.upper[j].append(upper)
+                self.count[j] += len(rows)
+            crowded = self.count[j] > self.budget or len(self.rows[j]) > _FRAGMENTS
+            if crowded and self._compact(j) > self.budget:
                 return "budget"
         return None
 
@@ -130,11 +143,10 @@ class _Survivors:
     def final(self, j: int) -> tuple[ndarray, ndarray]:
         rows = np.concatenate(self.rows[j] or [np.empty(0, np.int64)])
         upper = np.concatenate(self.upper[j] or [np.empty(0, np.float64)])
-        keep = np.asarray(
-            _reference_prefilter.keeps(
-                upper, _reference_prefilter.floor_of(self.threshold[j], self.slack[j])
-            )
-        )
+        if not self.default:
+            return rows, upper
+        floor = _reference_prefilter.floor_of(self.threshold[j], self.slack[j])
+        keep = np.asarray(_reference_prefilter.keeps(upper, floor))
         return rows[keep], upper[keep]
 
     def csr(self) -> tuple[ndarray, ndarray]:

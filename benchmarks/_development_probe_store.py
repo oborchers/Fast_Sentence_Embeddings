@@ -35,7 +35,8 @@ def probe_store(model, texts, job, verify_payload):
                 operation.labels,
                 one_per_doc=job["max_per_doc"] is not None,
             )
-            check_search(result.found, reference)
+            if job["search_mode"] == "exact":  # BLAS is bit-checked between the two builds
+                check_search(result.found, reference)
         elif not np.array_equal(result, np.array([len(texts), model.output_dim], dtype="int64")):
             raise ValueError("preflight store-open count or dimensions differ")
         return output_identity(result)
