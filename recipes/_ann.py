@@ -66,7 +66,11 @@ def view_candidates(view, path, keys, valid):
 def recall_at_k(found, exact, k):
     """The mean share of the exact top ``k`` ids that ``found`` holds in its first ``k``."""
     found, exact = np.atleast_2d(found)[:, :k], np.atleast_2d(exact)[:, :k]
-    return float(np.mean([len(set(f.tolist()) & set(e.tolist())) / k for f, e in zip(found, exact)]))
+    return float(
+        np.mean(
+            [len(set(f.tolist()) & set(e.tolist())) / k for f, e in zip(found, exact, strict=True)]
+        )
+    )
 
 
 def bits(a):
