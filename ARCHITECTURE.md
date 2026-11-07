@@ -73,6 +73,7 @@ Old fragment links land here. Follow the section link to its current location.
 | <a id="persistence-names-replace-class-paths"></a>Persistence names replace class paths | [Persistence names replace class paths](docs/architecture/persistence.md#persistence-names-replace-class-paths) |
 | <a id="migration"></a>Migration | [Migration](docs/architecture/persistence.md#migration) |
 | <a id="sentence_vectors-1"></a>sentence_vectors 1 | [sentence_vectors 1](docs/architecture/store.md#sentence_vectors-1) |
+| <a id="concurrency"></a>Concurrency | [Concurrency](docs/architecture/store.md#concurrency) |
 | <a id="layout"></a>Layout | [Layout](docs/architecture/process.md#layout) |
 | <a id="defaults"></a>Defaults | [Defaults](docs/architecture/runtime.md#defaults) |
 | <a id="baseline"></a>Baseline | [Baseline](docs/architecture/process.md#baseline) |
