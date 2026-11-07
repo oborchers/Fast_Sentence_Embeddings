@@ -12,7 +12,7 @@ from _measurement import sha256
 def summarize(folder):
     path = folder / "cells.jsonl"
     rows = [json.loads(line) for line in path.read_text().splitlines()]
-    groups = {}
+    groups, kinds = {}, {}
     for row in rows:
         if row["kind"] != "mteb" or row["status"] != "valid" or row.get("functional_only"):
             continue
@@ -26,6 +26,7 @@ def summarize(folder):
             "truncate_dim",
             "publishable",
             "class",
+            "trust_remote_code",
             "mteb_version",
             "machine_environment_sha256",
             "backend",
@@ -38,7 +39,10 @@ def summarize(folder):
         if task_key in groups.setdefault(key, {}):
             raise ValueError("duplicate task results in one quality configuration")
         groups[key][task_key] = row["main_score"]
-    result = [configuration_summary(key, tasks) for key, tasks in sorted(groups.items())]
+        kinds.setdefault(key, {})[row["task"]] = row["task_metadata"]["type"]
+    result = [
+        configuration_summary(key, tasks, kinds[key]) for key, tasks in sorted(groups.items())
+    ]
     return {
         "source": str(Path(folder).resolve()),
         "cells_sha256": sha256(path),
@@ -49,13 +53,32 @@ def summarize(folder):
     }
 
 
-def configuration_summary(key, tasks):
+def categories(tasks, types):
+    """Task count and mean per MTEB task type of MTEB(eng, v2). Without all 40 computed
+    tasks no category has a mean (missing coverage has no mean), only its count."""
+    by_type = {}
+    for (suite, task), value in tasks.items():
+        if suite == "MTEB(eng, v2)":
+            by_type.setdefault(types[task], []).append(value)
+    complete = sum(len(v) for v in by_type.values()) == 40
+    return {
+        name: {"tasks": len(values), "mean": statistics.mean(values) if complete else None}
+        for name, values in sorted(by_type.items())
+    }
+
+
+def configuration_summary(key, tasks, types):
     eng = [v for (suite, _), v in tasks.items() if suite == "MTEB(eng, v2)"]
+    by_type = categories(tasks, types)
     nano = [v for (suite, _), v in tasks.items() if suite == "NanoBEIR"]
     return {
         **json.loads(key),
         "mteb_coverage": f"{len(eng)}/41",
         "mteb_mean_40_of_41": statistics.mean(eng) if len(eng) == 40 else None,
+        "mteb_categories": by_type,
+        "mteb_mean_type_40_of_41": (
+            statistics.mean(v["mean"] for v in by_type.values()) if len(eng) == 40 else None
+        ),
         "nano_coverage": f"{len(nano)}/13",
         "nanobeir_mean": statistics.mean(nano) if len(nano) == 13 else None,
         "stsbenchmark_spearman": next(

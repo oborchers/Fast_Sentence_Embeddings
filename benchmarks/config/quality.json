@@ -539,6 +539,69 @@
       "dtype": "int8",
       "workers": 2,
       "estimated_seconds": 60
+    },
+    {
+      "id": "eval-potion-base-4M",
+      "kind": "mteb",
+      "model": "minishlab/potion-base-4M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-retrieval-mrl-en-v1-512",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "truncate_dim": 512,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-static-similarity-mrl-multilingual-v1-512",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "truncate_dim": 512,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-amgix-static-retrieval-multilingual-69m-v1",
+      "kind": "mteb",
+      "model": "amgix/static-retrieval-multilingual-69m-v1",
+      "backend": "st",
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-sse-retrieval-mrl-en-v2-native",
+      "kind": "mteb",
+      "model": "RikkaBotan/stable-static-embedding-fast-retrieval-mrl-en-v2",
+      "backend": "st",
+      "trust_remote_code": true,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
     }
   ]
 }

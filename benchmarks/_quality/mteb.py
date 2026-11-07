@@ -79,6 +79,7 @@ def loader(cell, context):
             "dtype": cell.get("dtype", "float32"),
             "truncate": cell.get("truncate", False),
             "truncate_dim": cell.get("truncate_dim", "model"),
+            "trust_remote_code": cell.get("trust_remote_code", False),
         },
         sort_keys=True,
     )
@@ -126,12 +127,31 @@ def native_model(cell, fit):
     elif backend == "st":
         from sentence_transformers import SentenceTransformer
 
-        model = SentenceTransformer(cell["model"], revision=MODEL_PINS[cell["model"]], device="cpu")
+        model = SentenceTransformer(
+            source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
+        )
     else:
         raise ValueError(f"unknown quality backend: {backend}")
     if backend == "fse" and cell.get("dtype", "float32") != "float32":
         model = model.quantize(cell["dtype"])
     return model
+
+
+def remote(cell):
+    """``trust_remote_code`` only where the cell says so (a real boolean, checked by
+    ``validate_cell``)."""
+    return {"trust_remote_code": True} if cell.get("trust_remote_code") else {}
+
+
+def source(cell):
+    """What Sentence Transformers loads: the model name, or for a model with its own code the
+    local folder of the pinned snapshot. The code of such a model (SSE.py) reads its tokenizer
+    and weights without the revision, so only a folder holds every file at the pin."""
+    if not cell.get("trust_remote_code"):
+        return cell["model"]
+    from huggingface_hub import snapshot_download
+
+    return snapshot_download(cell["model"], revision=MODEL_PINS[cell["model"]])
 
 
 def make_adapter(cell, model):

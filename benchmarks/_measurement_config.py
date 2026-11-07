@@ -33,6 +33,9 @@ def validate_cell(cell):
     for key in ("texts", "workers", "estimated_seconds"):
         if key in cell and (not math.isfinite(cell[key]) or cell[key] <= 0):
             raise ValueError(f"positive finite {key} required")
+    for key in ("truncate", "trust_remote_code"):
+        if key in cell and not isinstance(cell[key], bool):
+            raise ValueError(f"{key} must be true or false")
     if cell.get("model") and cell["model"] not in MODEL_PINS:
         raise ValueError(f"model is not pinned: {cell['model']}")
 
