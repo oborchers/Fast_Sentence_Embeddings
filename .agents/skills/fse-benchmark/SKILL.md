@@ -208,6 +208,10 @@ A controller-only allocation profile is not an encoder memory profile. See the r
 Keep MTEB pinned and unmodified. Preserve actual language subsets, splits, seed and complete task rows.
 Do not sample evaluation data. Current English coverage is 40 of 41 tasks, excluding MindSmallReranking.
 NanoBEIR is separate. Never impute missing tasks or report a partial mean as a full benchmark.
+Multilingual tasks keep their benchmark: name a task of several benchmarks as "Benchmark/Task".
+Language columns count their tasks; a selection mean is no benchmark mean.
+Compare zero-shot only over the common set MTEB confirms for every model.
+Set HF_HOME and HF_DATASETS_CACHE explicitly; local runs watch disk and resident set.
 
 Fit SIF only on the declared training corpus. Record frequencies, revision, seed, components and artifact hashes.
 Historical WikiText fits and published FineWeb fits are different configurations.
