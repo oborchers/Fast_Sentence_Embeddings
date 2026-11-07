@@ -216,3 +216,34 @@ def test_a_suspended_generator_without_views_keeps_the_file_until_it_is_closed(t
         pass
     gc.collect()
     file.unlink()
+
+
+def test_inv_norms_are_read_only_views_that_outlive_close(case):
+    store, _, _, _ = case
+    batches = list(store.iter_batches(block_rows=4))
+    for batch in batches:
+        assert batch.inv_norms.dtype == np.float32
+        assert batch.inv_norms.shape == (batch.n_rows,)
+        assert not batch.inv_norms.flags.writeable
+        assert np.isfinite(batch.inv_norms).all()
+    kept = np.concatenate([b.inv_norms for b in batches])
+    store.close()
+    assert kept.shape == (N,)
+    np.testing.assert_array_equal(np.concatenate([b.inv_norms for b in batches]), kept)
+
+
+def test_normalized_blocks_do_not_depend_on_the_block_size(case):
+    store, _, _, _ = case
+    whole = np.concatenate([b.normalized() for b in store.iter_batches(block_rows=N)])
+    parts = np.concatenate([b.normalized() for b in store.iter_batches(block_rows=3)])
+    np.testing.assert_array_equal(bits(whole), bits(parts))
+    inverse = np.concatenate([b.inv_norms for b in store.iter_batches()])
+    assert (inverse == np.float32(0.25)).all()  # what ``write_rows`` stores
+    stored = np.concatenate(
+        [
+            b.vectors.codes if isinstance(b.vectors, QuantizedRows) else b.vectors
+            for b in store.iter_batches()
+        ]
+    )
+    want = stored.astype(np.float32) * inverse[:, None]
+    np.testing.assert_array_equal(bits(whole), bits(want))

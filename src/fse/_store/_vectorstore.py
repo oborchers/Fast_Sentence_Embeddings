@@ -292,7 +292,7 @@ class VectorStore(MemberReaders):
     ) -> Iterator[VectorBatch]:
         """The stored rows ``start`` to ``stop - 1`` (all by default) in blocks of at most
         ``block_rows`` rows, never over the end of a shard: ``VectorBatch`` objects whose
-        ``vectors`` (and ``doc_ids``) are read-only views of the mapped shards, in the stored
+        ``vectors`` (and ``doc_ids`` and ``inv_norms``) are read-only views of the mapped shards, in the stored
         dtype (int8 as ``QuantizedRows``). No row is copied or decoded.
 
         The views and a suspended generator keep the mapped files open, which on Windows
