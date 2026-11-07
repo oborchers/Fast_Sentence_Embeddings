@@ -98,7 +98,9 @@ class _Run:
         self.lock = threading.Lock()
         self.failed_at: float = float("inf")  # sequence of the first failed task so far
         self.pending: deque[tuple[int, Any, Future]] = deque()
-        self.futures: list[Future] = []  # every task this call submitted (to wait for them)
+        self.futures: set[Future] = (
+            set()
+        )  # the tasks this call submitted and that have not finished
         self.unfinished = 0  # submitted and not yet finished
         self.limit = window  # of them at most: ``workers`` on a pool of more threads
         self.changed = threading.Event()  # a task finished
@@ -106,32 +108,50 @@ class _Run:
         self.source_error: BaseException | None = None
         self.exhausted = False
         self.sequence = 0  # of the next task
+        self.pool_of_call: Pool
 
     def execute(self, pool: Pool):
         pool.check_open()
+        self.pool_of_call = pool
         if self.workers < pool.workers:  # this call may use no more threads than it asked for
             self.limit = self.workers
-        try:
-            self._loop(pool)
-        except BaseException:
-            self._stop()
-            for future in self.futures:
-                future.cancel()
-            self._wait_for_own()
-            raise
-        finally:
-            for _ in range(self.held):
-                pool.release()
-            self.held = 0
+        with pool.inside():
+            try:
+                self._loop(pool)
+            except BaseException:
+                self._stop()
+                for future in self._running():
+                    future.cancel()
+                self._wait_for_own()
+                raise
+            finally:
+                self._give_back_all(pool)
+
+    def _running(self) -> list[Future]:
+        with self.lock:
+            return list(self.futures)
 
     def _wait_for_own(self):
         """Running tasks finish, as when an executor is left: nothing of this call outlives
-        it, and the tasks of other calls on the pool are not waited for."""
+        it, and the tasks of other calls on the pool are not waited for. A second interrupt
+        stops the wait, but not the accounting: see ``_give_back_all``."""
         while True:
-            running = [f for f in self.futures if not f.done()]
+            running = [f for f in self._running() if not f.done()]
             if not running:
                 return
             wait(running, timeout=_POLL_SECONDS)
+
+    def _give_back_all(self, pool: Pool):
+        """The places of this call: those of tasks that ended now, those of tasks that still
+        run when their task ends, so the pool never holds more tasks than its limit."""
+        # By ``done()``, not by the set: the callback that drops a future runs a moment after it
+        # is done, and a task that is done and committed gave its place back already.
+        running = [f for f in self._running() if not f.done()]
+        for future in running:
+            future.add_done_callback(lambda _f: pool.release())
+        for _ in range(self.held - len(running)):
+            pool.release()
+        self.held = 0
 
     def _loop(self, pool: Pool):
         self.sequence = 0
@@ -170,8 +190,8 @@ class _Run:
             future = pool.submit(self._work, self.sequence, item)
             with self.lock:
                 self.unfinished += 1
+                self.futures.add(future)  # before the callback: it may run at once
             future.add_done_callback(self._finished)
-            self.futures.append(future)
             self.pending.append((self.sequence, item, future))
             self.sequence += 1
 
@@ -196,9 +216,10 @@ class _Run:
         with self.lock:
             return self.unfinished
 
-    def _finished(self, _future: Future):
+    def _finished(self, future: Future):
         with self.lock:
             self.unfinished -= 1
+            self.futures.discard(future)  # a finished future holds its rows: drop it
         self.changed.set()
 
     def _next(self) -> Any:
@@ -215,7 +236,8 @@ class _Run:
         if sequence > self.failed_at:
             return _SKIPPED
         try:
-            return self.work(task)
+            with self.pool_of_call.inside():
+                return self.work(task)
         except BaseException:
             with self.lock:
                 self.failed_at = min(self.failed_at, sequence)

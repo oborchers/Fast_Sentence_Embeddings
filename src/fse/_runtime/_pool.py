@@ -31,6 +31,7 @@ from fse._cpus import usable_cpus
 # Waits wake up this often, so an interrupt reaches the calling thread (also on Windows).
 _POLL_SECONDS = 0.25
 _POOLS: weakref.WeakSet[Pool] = weakref.WeakSet()
+_ACTIVE = threading.local()  # the pools whose call or task the thread is in
 
 
 class Pool:
@@ -81,12 +82,16 @@ class Pool:
         return self._closed
 
     def close(self) -> None:
-        """Wait for the running tasks and end the threads; later calls of the pool raise."""
+        """Wait for the running tasks and end the threads; later calls of the pool raise.
+        Every caller of ``close`` waits until the threads have ended."""
         with self._lock:
             self._closed = True
-            executor, self._executor = self._executor, None
+            executor = self._executor
         if executor is not None:
-            executor.shutdown(wait=True)
+            executor.shutdown(wait=True)  # idempotent: each caller joins the threads
+            with self._lock:
+                if self._executor is executor:
+                    self._executor = None
 
     def __enter__(self) -> Pool:
         return self
@@ -130,6 +135,23 @@ class Pool:
     def check_open(self) -> None:
         if self._closed:
             raise RuntimeError("the pool is closed")
+
+    @contextmanager
+    def inside(self) -> Iterator[None]:
+        """Mark the calling thread as inside a call or a task of this pool. A call of the pool
+        from there (a sink that encodes on the same pool, a task that runs a call) would wait
+        for places that its own call holds, so it is refused instead of left to hang."""
+        active = _ACTIVE.__dict__.setdefault("pools", set())
+        if id(self) in active:
+            raise RuntimeError(
+                "a call on this pool was made inside a call or a task of the same pool; "
+                "give the inner call its own pool or run it with workers=1"
+            )
+        active.add(id(self))
+        try:
+            yield
+        finally:
+            active.discard(id(self))
 
     # --- threads -------------------------------------------------------------------------
 

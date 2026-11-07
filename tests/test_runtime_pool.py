@@ -1,5 +1,5 @@
-"""fse.Pool: the threads a run of tasks executes on, and what the public methods do with
-one (docs/architecture/runtime.md, "Runtime", Pool)."""
+"""fse.Pool: the threads a run of tasks executes on (docs/architecture/runtime.md, "Runtime",
+Pool): the object, runs on a pool, and its life (close, collection, fork)."""
 
 import gc
 import os
@@ -7,55 +7,11 @@ import sys
 import threading
 import warnings
 
-import numpy as np
 import pytest
 
-import fse
-from fse import Classifier, Encoder, Heads
 from fse._runtime import Pool, Workers, _pool, workers_of
 from fse._runtime._executor import run
-from support.runtime import small_tasks, texts, word_vectors
-
-F32 = np.float32
-
-
-def _fse_threads():
-    return [t for t in threading.enumerate() if t.name.startswith("fse-worker")]
-
-
-def _settled(count=0, timeout=10):
-    """Whether the number of fse worker threads is ``count`` (idle threads end a moment
-    after their executor does)."""
-    deadline = threading.Event()
-    for _ in range(int(timeout / 0.01)):
-        if len(_fse_threads()) == count:
-            return True
-        deadline.wait(0.01)
-    return len(_fse_threads()) == count
-
-
-@pytest.fixture(autouse=True)
-def no_fse_threads_left():
-    assert _settled(0), "a test before left fse worker threads"
-    yield
-    gc.collect()
-    assert _settled(0), "this test left fse worker threads"
-
-
-def _encoder():
-    return Encoder.from_word_vectors(word_vectors(dim=12), normalize=False)
-
-
-def _head(encoder, index=0):
-    rng = np.random.default_rng(17 + index)
-    return Classifier.from_arrays(
-        encoder,
-        rng.standard_normal((4, 12)).astype(F32),
-        rng.standard_normal(4).astype(F32),
-        labels=list("abcd"),
-        link="softmax",
-    )
-
+from support.pool import fse_threads, make_encoder, no_fse_threads_left, settled  # noqa: F401
 
 # --- the object -------------------------------------------------------------------------
 
@@ -84,12 +40,12 @@ def test_the_arguments_of_a_pool_are_checked():
 
 def test_a_pool_starts_no_thread_before_a_task_and_all_at_once_with_start():
     with Pool(3) as lazy:
-        assert _fse_threads() == []
+        assert fse_threads() == []
         assert lazy.max_tasks == 6
     with Pool(3, start=True):
-        assert len(_fse_threads()) == 3
+        assert len(fse_threads()) == 3
     with Pool(1, start=True):
-        assert len(_fse_threads()) == 1
+        assert len(fse_threads()) == 1
 
 
 def test_a_closed_pool_refuses_a_call_and_close_twice_is_fine():
@@ -99,7 +55,7 @@ def test_a_closed_pool_refuses_a_call_and_close_twice_is_fine():
     with pytest.raises(RuntimeError, match="the pool is closed"):
         run(range(3), lambda i: i, lambda *_: None, workers=2, pool=pool)
     with pytest.raises(RuntimeError, match="the pool is closed"):
-        _encoder().encode(["w1 w2"], pool=pool)
+        make_encoder().encode(["w1 w2"], pool=pool)
 
 
 def test_workers_of_a_call_may_not_exceed_the_pool():
@@ -131,13 +87,13 @@ def test_a_pool_serves_one_call_after_another_and_keeps_its_threads():
                 pool=pool,
             )
             assert done == [(i, i * i) for i in range(50)]
-        assert 1 <= len(_fse_threads()) <= 3  # the threads of the pool outlive the calls
-    assert _settled(0)
+        assert 1 <= len(fse_threads()) <= 3  # the threads of the pool outlive the calls
+    assert settled(0)
 
 
 def test_a_call_without_a_pool_leaves_no_thread():
     run(range(50), lambda i: i, lambda *_: None, workers=4)
-    assert _settled(0)
+    assert settled(0)
 
 
 def test_a_call_runs_at_most_workers_tasks_at_once_on_a_larger_pool():
@@ -183,19 +139,17 @@ def test_the_task_limit_of_the_pool_holds_over_calls_and_does_not_deadlock():
 
     def tasks(n):
         for i in range(n):
-            with lock:
+            with lock:  # the call has its place before it reads the next task
                 state["held"] += 1
                 state["most"] = max(state["most"], state["held"])
             yield i
 
+    def committed(*_):
+        with lock:
+            state["held"] -= 1
+
     def call():
-        run(
-            tasks(40),
-            lambda i: i,
-            lambda *_: state.__setitem__("held", state["held"] - 1),
-            workers=3,
-            pool=pool,
-        )
+        run(tasks(40), lambda i: i, committed, workers=3, pool=pool)
 
     with Pool(3, max_tasks=3) as pool:
         threads = [threading.Thread(target=call) for _ in range(3)]
@@ -204,7 +158,7 @@ def test_the_task_limit_of_the_pool_holds_over_calls_and_does_not_deadlock():
         for t in threads:
             t.join(60)
         assert all(not t.is_alive() for t in threads), "the calls deadlocked"
-    assert state["most"] <= 3 + 3  # three places, and each call took one before the limit read
+        assert state["most"] <= pool.max_tasks
 
 
 def test_a_failure_in_one_call_does_not_stop_the_call_beside_it():
@@ -237,24 +191,29 @@ def test_a_failure_in_one_call_does_not_stop_the_call_beside_it():
 
 def test_an_error_of_commit_cancels_the_calls_tasks_and_waits_for_the_running_ones():
     seen = {"started": 0, "finished": 0}
-    lock = threading.Lock()
+    lock, running, release = threading.Lock(), threading.Event(), threading.Event()
 
     def work(i):
         with lock:
             seen["started"] += 1
-        threading.Event().wait(0.01)
+        if i >= 2:
+            running.set()
+            assert release.wait(10)
         with lock:
             seen["finished"] += 1
         return i
 
     def commit(task, _result):
-        if task == 3:
+        if task == 1:
+            assert running.wait(10)  # a task is running now
+            release.set()
             raise RuntimeError("commit failed")
 
     with Pool(2) as pool:
         with pytest.raises(RuntimeError, match="commit failed"):
             run(range(100), work, commit, workers=2, pool=pool)
         assert seen["started"] == seen["finished"]  # nothing of the call runs on
+        assert seen["started"] < 100  # the tasks that had not started were cancelled
         assert pool.try_acquire()  # every place the call held is back
         pool.release()
         done = []
@@ -291,13 +250,36 @@ def test_places_are_given_back_after_a_failed_task():
 
 def test_a_pool_that_is_dropped_ends_its_threads():
     pool = Pool(3, start=True)
-    assert len(_fse_threads()) == 3
+    assert len(fse_threads()) == 3
     del pool
     gc.collect()
-    assert _settled(0)
+    assert settled(0)
 
 
-def test_close_waits_for_a_running_task():
+def _watch_shutdown(monkeypatch):
+    """An event that is set when a thread enters ``shutdown`` of an executor of a pool, and
+    a counter of those entries."""
+    entered, count = threading.Event(), []
+    real = _pool.Pool._new_executor
+
+    def new(self):
+        executor = real(self)
+        shutdown = executor.shutdown
+
+        def watched(*args, **kwargs):
+            count.append(1)
+            entered.set()
+            return shutdown(*args, **kwargs)
+
+        executor.shutdown = watched  # type: ignore[method-assign]
+        return executor
+
+    monkeypatch.setattr(_pool.Pool, "_new_executor", new)
+    return entered, count
+
+
+def test_every_close_waits_for_a_running_task(monkeypatch):
+    entered, count = _watch_shutdown(monkeypatch)
     started, release, finished = threading.Event(), threading.Event(), []
 
     def work(i):
@@ -311,60 +293,20 @@ def test_close_waits_for_a_running_task():
     )
     caller.start()
     assert started.wait(10)
-    closer = threading.Thread(target=pool.close)
-    closer.start()
-    closer.join(0.2)
-    assert closer.is_alive()  # close waits
-    release.set()
-    closer.join(10)
-    caller.join(10)
+    closers = [threading.Thread(target=pool.close) for _ in range(2)]
+    try:
+        closers[0].start()
+        assert entered.wait(10)  # the first close is in shutdown, which waits for the task
+        closers[1].start()
+        while len(count) < 2 and closers[1].is_alive():  # the second reached shutdown, or is
+            threading.Event().wait(0.001)  # blocked on the lock of the pool for a moment
+        assert all(c.is_alive() for c in closers)  # neither returned: the task still runs
+    finally:
+        release.set()
+        for t in (*closers, caller):
+            t.join(10)
     assert finished == [0]
-
-
-def _batches(n=8, size=2000):
-    data = texts(n * size)
-    return [data[k * size : (k + 1) * size] for k in range(n)]
-
-
-def test_a_stream_runs_every_batch_on_one_pool_and_closes_it(monkeypatch):
-    small_tasks(monkeypatch)
-    made = []
-    real = _pool.Pool._new_executor
-    monkeypatch.setattr(_pool.Pool, "_new_executor", lambda self: made.append(1) or real(self))
-    out = list(_encoder().encode_batches(_batches(), workers=3))
-    assert len(out) == 8
-    assert len(made) == 1  # one executor for the whole iteration, not one per batch
-    assert _settled(0)
-
-
-@pytest.mark.parametrize("how", ["break", "close", "collect", "error"])
-def test_a_stream_ends_its_threads_when_it_stops_early(monkeypatch, how):
-    small_tasks(monkeypatch)
-    encoder = _encoder()
-    items = _batches()
-    if how == "error":
-        items[2] = ["w1", 7]  # type: ignore[list-item]
-        with pytest.raises((TypeError, ValueError)):
-            list(encoder.encode_batches(items, workers=3))
-    else:
-        stream = encoder.encode_batches(items, workers=3)
-        next(stream)
-        if how == "close":
-            stream.close()
-        elif how == "collect":
-            del stream
-        else:
-            stream = None
-    gc.collect()
-    assert _settled(0)
-
-
-def test_a_stream_on_the_callers_pool_leaves_it_open():
-    with Pool(2) as pool:
-        out = list(_encoder().encode_batches(_batches(2, 300), pool=pool))
-        assert len(out) == 2
-        assert not pool.closed
-        _encoder().encode(["w1 w2"], pool=pool)
+    assert pool.closed
 
 
 @pytest.mark.skipif(not hasattr(os, "fork") or sys.platform == "win32", reason="needs fork")
@@ -397,57 +339,88 @@ def test_the_fork_hook_forgets_the_threads_and_the_places():
     run(range(5), lambda i: i, lambda _t, r: done.append(r), workers=2, pool=pool)
     assert done == list(range(5))
     pool._executor = None
-    _settled(0)
+    settled(0)
 
 
-# --- the public methods -----------------------------------------------------------------
+def _raised(call):
+    try:
+        call()
+    except BaseException as error:
+        return error
+    return None
 
 
-def test_encode_on_a_pool_has_the_bits_of_encode_without_one():
-    encoder, data = _encoder(), texts(3000)
-    want = encoder.encode(data, workers=3)
-    with Pool(3) as pool:
-        assert np.array_equal(encoder.encode(data, pool=pool), want)
-        assert np.array_equal(encoder.encode(data, workers=2, pool=pool), want)
-        got = encoder.encode(data, pool=pool, dtype="int8")
-        assert np.array_equal(got.codes, encoder.encode(data, dtype="int8").codes)
+def test_a_call_inside_a_sink_or_a_task_of_the_same_pool_is_refused_not_left_to_hang():
+    with Pool(2, max_tasks=1) as pool:
 
+        def inner(*_):
+            run(range(3), lambda i: i, lambda *_: None, workers=2, pool=pool)
 
-def test_encode_batches_on_a_pool_has_the_bits_of_encode_batches_without_one():
-    encoder, items = _encoder(), _batches(4, 500)
-    want = [b.rows for b in encoder.encode_batches(items, workers=3)]
-    with Pool(3) as pool:
-        got = [b.rows for b in encoder.encode_batches(items, pool=pool)]
-    assert all(np.array_equal(a, b) for a, b in zip(got, want, strict=True))
-
-
-def test_heads_and_classifier_on_a_pool_have_the_bits_of_the_calls_without_one():
-    encoder, data = _encoder(), texts(3000)
-    heads = Heads(a=_head(encoder, 0), b=_head(encoder, 1))
-    one = _head(encoder, 2)
-    want_group = heads.predict(data, output="proba", workers=3)
-    want_one = one.predict_proba(data, workers=3)
-    with Pool(3) as pool:
-        got = heads.predict(data, output="proba", pool=pool)
-        for name in want_group:
-            assert np.array_equal(got[name], want_group[name])
-        assert np.array_equal(one.predict_proba(data, pool=pool), want_one)
-        assert np.array_equal(one.predict(data, pool=pool), one.predict(data, workers=3))
-        batches = list(one.predict_batches([data[:1500], data[1500:]], pool=pool))
-        assert np.array_equal(
-            np.concatenate([b.outputs for b in batches]), one.predict(data, workers=3)
+        calls = (
+            lambda: run(range(4), lambda i: i, inner, workers=2, pool=pool),
+            lambda: run(range(4), inner, lambda *_: None, workers=2, pool=pool),
         )
+        for call in calls:
+            outcome: list = []
+            thread = threading.Thread(target=lambda c=call, o=outcome: o.append(_raised(c)))
+            thread.start()
+            thread.join(30)
+            assert not thread.is_alive(), "the nested call hung"
+            assert isinstance(outcome[0], RuntimeError)
+            assert "inside a call or a task of the same pool" in str(outcome[0])
+        done = []
+        run(range(3), lambda i: i, lambda _t, r: done.append(r), workers=2, pool=pool)
+        assert done == [0, 1, 2]  # the pool is intact afterwards
 
 
-def test_every_text_method_takes_pool_after_workers_and_checks_it_before_reading():
-    encoder = _encoder()
-    head = _head(encoder)
-    for call in (
-        lambda p: encoder.encode(["w1"], pool=p),
-        lambda p: encoder.encode_batches([["w1"]], pool=p),
-        lambda p: head.predict_proba(["w1"], pool=p),
-        lambda p: Heads(a=head).predict(["w1"], output="proba", pool=p),
-    ):
-        with pytest.raises((TypeError, ValueError), match="pool"):
-            call("not a pool")
-    assert fse.Pool is Pool
+def test_a_finished_task_is_dropped_with_its_rows_and_not_kept_until_the_call_ends(monkeypatch):
+    from fse._runtime import _executor
+
+    runs, most = [], [0]
+    real = _executor._Run.execute
+
+    def execute(self, pool):
+        runs.append(self)
+        return real(self, pool)
+
+    monkeypatch.setattr(_executor._Run, "execute", execute)
+
+    def commit(_task, _result):
+        most[0] = max(most[0], len(runs[0].futures))
+
+    with Pool(3) as own:
+        run(range(500), lambda i: [i] * 10, commit, workers=3, pool=own)
+    assert runs[0].futures == set()
+    assert most[0] <= 2 * 3  # at most the window, never the 500 tasks of the call
+
+
+def test_the_places_of_tasks_that_still_run_return_when_those_tasks_end(monkeypatch):
+    from fse._runtime import _executor
+
+    started, release = threading.Event(), threading.Event()
+
+    def work(i):
+        if i == 0:
+            return i
+        started.set()
+        assert release.wait(10)
+        return i
+
+    def interrupted(_self):  # a second interrupt that ends the wait for the running tasks
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(_executor._Run, "_wait_for_own", interrupted)
+
+    def commit(*_):
+        assert started.wait(10)  # a task runs: it holds a place of the pool
+        raise RuntimeError("stop")
+
+    with Pool(2, max_tasks=2) as pool:
+        with pytest.raises(KeyboardInterrupt):
+            run(range(10), work, commit, workers=2, pool=pool)
+        assert pool.try_acquire()  # the place of the committed task is free
+        assert not pool.try_acquire()  # the place of the running task is not
+        pool.release()
+        release.set()
+        pool.acquire()  # it returns when that task ends
+        pool.release()
