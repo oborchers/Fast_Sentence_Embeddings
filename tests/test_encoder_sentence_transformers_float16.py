@@ -135,5 +135,7 @@ def test_the_rows_are_those_of_sentence_transformers_with_float32_weights(
     worst = cv.assert_close(encoder.encode(TEXTS), want, encoder, TEXTS, False)
     assert worst <= 1
     gap = np.abs(native.astype(np.float64) - want).max()
-    print(f"kept {kept}: worst {worst:.2e} of the bound, float16 mean of sentence-transformers "
-          f"differs by at most {gap:.2e}")
+    print(
+        f"kept {kept}: worst {worst:.2e} of the bound, float16 mean of sentence-transformers "
+        f"differs by at most {gap:.2e}"
+    )
