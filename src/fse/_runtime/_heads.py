@@ -24,7 +24,6 @@ import numpy as np
 from numpy import ndarray
 
 from fse._contract import Normalize
-from fse._cpus import usable_cpus
 
 from ._errors import earliest, first_rows
 from ._executor import run
@@ -40,7 +39,8 @@ from ._heads_plan import (
 )
 from ._heads_targets import Slots, Targets
 from ._lengths import LengthCollector, LengthSettings
-from ._pipeline import WorkerLocal, check_workers, collect, recorded
+from ._pipeline import WorkerLocal, collect, recorded
+from ._pool import resolve_workers
 from ._sinks import Sink, split_target
 from ._tasks import Task
 
@@ -73,7 +73,7 @@ class HeadsPipeline:
         source: object,
         *,
         outputs: tuple[str, ...],
-        workers: int | None = None,
+        workers: Any = None,
         sinks: list[Sink | None] | None = None,
         vector_sink: Sink | None = None,
         vector_dtype: str = "float32",
@@ -99,7 +99,7 @@ class HeadsPipeline:
         and ``tee_bytes`` is what the tees hold per row (see ``HeadsPlan.row_bytes``). The
         arrays returned are those of the main outputs."""
         plan = self.plan
-        workers = check_workers(workers) or usable_cpus()
+        workers, pool = resolve_workers(workers)
         count = len(plan.members)
         sinks = sinks or [None] * count
         heads = [m.head for m in plan.members]
@@ -161,6 +161,7 @@ class HeadsPipeline:
             window=window,
             reserve=lambda task: (task, targets.reserve(task)),
             stop=stop,
+            pool=pool,
         )
         arrays, vectors = targets.results()
         return arrays[:count], vectors

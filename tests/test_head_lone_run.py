@@ -263,6 +263,7 @@ def test_the_new_keywords_are_keyword_only_with_defaults_after_those_of_2_0(whic
         "count_truncated",
         "on_truncation",
         "positions",
+        "pool",  # DR-241, after the keywords of 2.1
     ]
     assert names[6:] == new
     for name in names[1:]:
@@ -275,6 +276,7 @@ def test_the_new_keywords_are_keyword_only_with_defaults_after_those_of_2_0(whic
         False,
         "keep",
         False,
+        None,
     ]
 
 

@@ -27,6 +27,7 @@ from fse._runtime import (
     LengthSettings,
     Pipeline,
     check_workers,
+    streaming,
     wants_inverse_norms,
 )
 from fse._stream import StreamSource
@@ -232,6 +233,7 @@ def _call(sink: Any, name: str) -> None:
     method()
 
 
+@streaming
 def batches(
     pipeline: Pipeline,
     items: Iterable[Any],

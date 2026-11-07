@@ -16,6 +16,7 @@ from ._heads import HeadsPipeline
 from ._heads_plan import HeadsPlan, Member, plan_heads
 from ._lengths import LengthCollector, LengthReport, LengthSettings, rule_of
 from ._pipeline import Pipeline, check_sink_rows, check_workers
+from ._pool import Pool, Workers, iteration, resolve_workers, streaming, workers_of
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -43,14 +44,20 @@ __all__ = [
     "Member",
     "MemorySink",
     "Pipeline",
+    "Pool",
     "QuantizedRows",
     "Rows",
     "Sink",
     "Stored",
+    "Workers",
     "check_sink_rows",
     "check_workers",
+    "iteration",
     "make_head",
     "plan_heads",
+    "resolve_workers",
     "rule_of",
+    "streaming",
     "wants_inverse_norms",
+    "workers_of",
 ]

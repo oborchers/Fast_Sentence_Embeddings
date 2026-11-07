@@ -22,7 +22,15 @@ from typing import Any, Literal, NoReturn, overload
 
 from numpy import ndarray
 
-from fse._runtime import HeadsPipeline, LengthReport, LengthSettings, Member, plan_heads
+from fse._runtime import (
+    HeadsPipeline,
+    LengthReport,
+    LengthSettings,
+    Member,
+    Pool,
+    plan_heads,
+    workers_of,
+)
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _heads_run, _resume_run
@@ -143,6 +151,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Mapping[str, ndarray]: ...
 
     @overload
@@ -161,6 +170,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
 
     @overload
@@ -179,6 +189,7 @@ class Heads(Mapping):
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -197,6 +208,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -215,6 +227,7 @@ class Heads(Mapping):
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The outputs of every head for every text, by name, in head order. By default each
         head gives what its own ``predict`` gives (labels, or the values of a regressor).
@@ -241,15 +254,16 @@ class Heads(Mapping):
         ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
         source. The outputs are not returned, so the memory of the call does not grow with the
         rows of the source; ``output`` is checked and changes nothing the stores hold."""
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
         if _resume_run.wanted(
             vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
         ):
             return _resume_run.predict_heads(
-                self, texts, output, return_vectors, workers, backend,
+                self, texts, output, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _heads_run.infer(self, texts, output, workers, backend, settings)
+        return _heads_run.infer(self, texts, output, threads, backend, settings)
 
     @validate_arguments
     def predict_batches(
@@ -267,6 +281,7 @@ class Heads(Mapping):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
@@ -313,6 +328,7 @@ class Heads(Mapping):
 
         A single head takes the same keywords in its own ``predict_batches``, without a
         group."""
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Heads.predict_batches"
         )
@@ -321,7 +337,7 @@ class Heads(Mapping):
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             vector_sink,
             score_sink,

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor
+from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor, _pool
 from fse._stream import StreamSource
 from fse._text import StringSource
 from support.runtime import expected, texts, word_vectors
@@ -75,7 +75,7 @@ def test_a_small_stream_starts_no_thread(monkeypatch):
     def no_threads(**_kwargs):
         raise AssertionError("a thread pool was created")
 
-    monkeypatch.setattr(_executor, "ThreadPoolExecutor", no_threads)
+    monkeypatch.setattr(_pool, "ThreadPoolExecutor", no_threads)
     got = Pipeline(SPEC).infer(StreamSource(iter(SENTENCES[:30])), workers=8)
     assert got.tobytes() == WANT[:30].tobytes()
 
@@ -168,7 +168,6 @@ def test_a_failed_task_stops_the_stream_between_two_sentences(monkeypatch):
     """A worker fails while a collection is read: no further sentence is read after it."""
     import threading
 
-    from fse._runtime import _executor
     from fse._wordvectors import WordVectors
 
     failed = threading.Event()

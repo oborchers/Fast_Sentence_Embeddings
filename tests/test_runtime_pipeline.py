@@ -6,7 +6,7 @@ import pytest
 from fse._backends import NumpyBackend, UnsupportedByBackendError
 from fse._backends._base import Capabilities
 from fse._contract import Aggregation, Normalize
-from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline
+from fse._runtime import ArrayRows, EncodeSpec, GrowingRows, Pipeline, _pipeline, _pool
 from fse._text import StringSource, TokenListSource, make_vocabulary
 from fse._text_file import FileSource
 from fse._wordvectors import WordVectors
@@ -36,7 +36,7 @@ def test_small_inputs_start_no_thread(monkeypatch):
     def no_threads(**_kwargs):
         raise AssertionError("a thread pool was created")
 
-    monkeypatch.setattr(_executor, "ThreadPoolExecutor", no_threads)
+    monkeypatch.setattr(_pool, "ThreadPoolExecutor", no_threads)
     from fse import _text
 
     monkeypatch.setattr(_text._scan, "ThreadPoolExecutor", no_threads)
