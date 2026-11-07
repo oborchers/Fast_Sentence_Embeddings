@@ -28,10 +28,8 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _codes, _log
-from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import NpyContainer
 from fse._cpus import usable_cpus
-from fse._encoder import Encoder
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _filtered, _search, _selection, _take, _unique_search, _vector_batches
@@ -39,12 +37,13 @@ from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
-from ._recovery import check_chain, clear_exception_frames, rows_in, snapshot, stop_row
+from ._recovery import check_chain, rows_in, stop_row
 from ._refresh import refreshed
 from ._result import DocumentSearchResult, SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
-from ._view import Joined, MemberReaders, open_view, verify_members
+from ._vectorstore_open import open_store, open_store_view
+from ._view import Joined, MemberReaders, verify_members
 
 F32 = np.float32
 DEFAULT_BLOCK_ROWS = 65_536
@@ -70,7 +69,7 @@ class VectorStore(MemberReaders):
     @classmethod
     def open(cls, path: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
         """Open the store ``path``; with an ``encoder``, the store must hold its rows."""
-        return _open(cls, path, encoder=encoder, backend=backend)
+        return open_store(cls, path, encoder=encoder, backend=backend)
 
     @classmethod
     def open_view(cls, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
@@ -82,7 +81,7 @@ class VectorStore(MemberReaders):
         mode; stores written by ``Encoder.encode(shard=)`` must be parts of one source and are
         read in the order of the parts (all finished: positions are source rows). A view has no ``refresh`` and no ``path``,
         and ``close`` closes its stores."""
-        return _opened_view(cls, paths, encoder=encoder, backend=backend)
+        return open_store_view(cls, paths, encoder=encoder, backend=backend)
 
     def __init__(self, *_args: Any, **_kwargs: Any):
         raise TypeError("open a store with VectorStore.open(path)")
@@ -435,61 +434,3 @@ class _Use:
     def __exit__(self, *_exc: object) -> None:
         with self.store._lock:
             self.store._active -= 1
-
-
-@validate_arguments
-def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
-    try:
-        return _opened(cls, path, encoder=encoder, backend=backend)
-    except BaseException as error:
-        clear_exception_frames(error)
-        raise
-
-
-def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
-    if backend not in BACKEND_NAMES:
-        raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
-    path = Path(path)
-    info = read_store(path, VECTORS.name)
-    if encoder is not None:
-        if not isinstance(encoder, Encoder):
-            raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
-        if encoder.fingerprint != info.encoder:
-            raise ValueError(
-                f"the store {path} holds the rows of encoder {info.encoder}, not of {encoder.fingerprint}"
-            )
-    out = cls.__new__(cls)
-    out.path, out._info, out._view = path, info, None
-    checked = snapshot(path, info, verify=True)
-    out._shards = checked.shards
-    out._backend = get_backend(backend)
-    out._lock = threading.Lock()
-    out._refreshing = threading.Lock()
-    out._active = 0
-    out._closed = False
-    _log.emit(
-        "store.opened",
-        "fse store: opened %d rows in %d shards: %d dimensions, %s, %s backend",
-        len(out),
-        len(out._shards),
-        info.dim,
-        info.dtype,
-        backend,
-        rows=len(out),
-        shards=len(out._shards),
-        dim=info.dim,
-        dtype=info.dtype,
-        backend=backend,
-        unsynced_shards=checked.unsynced_shards,
-        verified_bytes=checked.verified_bytes,
-        verify_seconds=checked.verify_seconds,
-    )
-    return out
-
-
-@validate_arguments
-def _opened_view(cls: Any, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
-    def member(path: Path) -> Any:
-        return cls.open(path, encoder=encoder, backend=backend)
-
-    return open_view(cls, paths, member, {"_active": 0})

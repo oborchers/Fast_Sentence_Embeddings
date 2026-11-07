@@ -11,7 +11,7 @@ import pytest
 
 from fse import ShardSink, UnsupportedArtifactError, VectorStore
 from fse._container import CorruptArtifactError, NpyContainer, _npy
-from fse._store import _recovery, _vectors_format, _vectorstore
+from fse._store import _recovery, _vectors_format, _vectorstore_open
 from fse._store._layout import Shard, shard_name
 from support.store import ENCODER, add_shard, make_store, tag_shard
 
@@ -69,7 +69,7 @@ def test_a_retained_exception_does_not_keep_mappings_open(tmp_path, monkeypatch,
         def unavailable(_name):
             raise RuntimeError("backend unavailable")
 
-        monkeypatch.setattr(_vectorstore, "get_backend", unavailable)
+        monkeypatch.setattr(_vectorstore_open, "get_backend", unavailable)
     refs = _track_maps(monkeypatch)
     factory = (
         (lambda: ShardSink(path, ENCODER)) if failure == "sink" else lambda: VectorStore.open(path)
