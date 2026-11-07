@@ -6,12 +6,20 @@ an index so that a restart knows which rows the index holds.
 """
 
 import json
+import os
 import uuid
 from pathlib import Path
 
 import numpy as np
 
 INT64_LIMIT = 2**63
+
+
+def _whole_numbers(a, what):
+    a = np.asarray(a)
+    if isinstance(a, np.ma.MaskedArray) or a.dtype.kind not in "ui":
+        raise TypeError(f"{what} must be an unmasked integer array, not {a.dtype}")
+    return a
 
 
 def candidates_from_unsigned(keys, counts, n_rows):
@@ -22,10 +30,12 @@ def candidates_from_unsigned(keys, counts, n_rows):
     Everything after the valid hits becomes -1, whatever filler the library used. A valid key
     outside ``0 <= key < n_rows`` raises ``ValueError``; it would otherwise name another row.
     """
-    keys = np.asarray(keys)
-    counts = np.broadcast_to(np.asarray(counts), keys.shape[:1])
-    if keys.dtype.kind not in "ui":
-        raise TypeError(f"keys must be integers, not {keys.dtype}")
+    keys = _whole_numbers(keys, "keys")
+    if keys.ndim != 2:
+        raise ValueError(f"keys must have the shape (queries, k), not {keys.shape}")
+    counts = np.broadcast_to(_whole_numbers(counts, "counts"), keys.shape[:1])
+    if counts.size and (counts.min() < 0 or counts.max() > keys.shape[1]):
+        raise ValueError(f"counts must lie between 0 and {keys.shape[1]}")
     valid = np.arange(keys.shape[1])[None, :] < counts[:, None]
     wide = keys.astype(np.uint64, copy=False)
     bad = valid & ((wide >= INT64_LIMIT) | (wide >= np.uint64(n_rows)))
@@ -51,7 +61,9 @@ def view_candidates(view, path, keys, valid):
     if path not in paths:
         raise ValueError(f"{path} is not a member of the view")
     member = view.members[paths.index(path)]
-    keys, valid = np.asarray(keys), np.asarray(valid, dtype=bool)
+    keys, valid = _whole_numbers(keys, "keys"), np.asarray(valid)
+    if valid.dtype != np.bool_ or isinstance(valid, np.ma.MaskedArray):
+        raise TypeError("valid must be an unmasked boolean array")
     if keys.shape != valid.shape:
         raise ValueError("keys and valid must have the same shape")
     wide = keys.astype(np.uint64, copy=False) if keys.dtype.kind == "u" else keys
@@ -64,13 +76,21 @@ def view_candidates(view, path, keys, valid):
 
 
 def recall_at_k(found, exact, k):
-    """The mean share of the exact top ``k`` ids that ``found`` holds in its first ``k``."""
+    """The mean share of the exact top ``k`` ids that ``found`` holds in its first ``k``.
+
+    Gaps (-1) never count as hits. A query whose exact list holds fewer than ``k`` ids is
+    measured against the ids it has, and a query with none raises ``ValueError``.
+    """
+    if k <= 0:
+        raise ValueError("k must be positive")
     found, exact = np.atleast_2d(found)[:, :k], np.atleast_2d(exact)[:, :k]
-    return float(
-        np.mean(
-            [len(set(f.tolist()) & set(e.tolist())) / k for f, e in zip(found, exact, strict=True)]
-        )
-    )
+    shares = []
+    for f, e in zip(found, exact, strict=True):
+        wanted = {int(x) for x in e if x >= 0}
+        if not wanted:
+            raise ValueError("a query has no exact result to measure against")
+        shares.append(len(wanted & {int(x) for x in f if x >= 0}) / len(wanted))
+    return float(np.mean(shares))
 
 
 def bits(a):
@@ -104,7 +124,13 @@ def write_sidecar(path, store, indexed_rows, *, block_rows=16_384, generation=No
         "sample_positions": positions,
         "sample_bits": [bits(row).tobytes().hex() for row in rows],
     }
-    Path(path).write_text(json.dumps(sidecar, indent=1), encoding="utf-8")
+    path = Path(path)
+    temporary = path.with_name(path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        stream.write(json.dumps(sidecar, indent=1))
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)  # a stop leaves the old file or the new one, never half
     return sidecar
 
 

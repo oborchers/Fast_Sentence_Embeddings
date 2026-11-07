@@ -36,9 +36,9 @@ An `i8` USearch index also quantizes the query to int8 (`cast_to_i8_gt` in `inde
 
 In a single store the position is the key. It is stable, because shards are immutable and a store only grows. Document IDs are not unique, so they make no key; read them with `take_doc_ids` or from a `DocumentSearchResult`.
 
-USearch and hnswlib return unsigned keys and fill missing hits with a library value. `rescore` refuses unsigned arrays, because a key such as `2**64 - 1` would turn into `-1` and vanish as a gap. Convert them yourself, as the recipe does (`candidates_from_unsigned`):
+USearch and hnswlib return unsigned keys. USearch fills missing hits with a library value and reports the number of valid hits in `counts`; hnswlib returns exactly `k` hits or raises an exception. `rescore` refuses unsigned arrays, because a key such as `2**64 - 1` would turn into `-1` and vanish as a gap. Convert them yourself, as the recipe does (`candidates_from_unsigned`):
 
-1. Find the valid hits (USearch: `counts`; hnswlib: all `k` of them).
+1. Find the valid hits (USearch: `counts`; hnswlib: all `k` of them, or the call raised).
 2. Check that every valid key is below `2**63` and below `len(store)`; raise otherwise.
 3. Convert to int64.
 4. Set every other place to `-1` explicitly. Never rely on the library's filler.
@@ -55,20 +55,20 @@ Concatenate the candidates of all member indexes for each query and call `rescor
 
 ## Replace FAISS `IndexRefine`
 
-FAISS refines hits with `IndexRefine` and `k_factor`, which needs a second index with the full vectors in memory. With fse, search the approximate index for `k_factor * k` hits, then call `store.rescore(queries, ids, k)`. The vectors stay in the store, on disk, and the final scores and order are the exact ones. `rescore` reads each candidate row once by position, so unsorted candidates cause random reads on the mapped shards. Bound the candidates per query.
+FAISS refines hits with `IndexRefine` and `k_factor`, whose usual form, `IndexRefineFlat`, needs a second flat index with the full vectors in memory. With fse, search the approximate index for `k_factor * k` hits, then call `store.rescore(queries, ids, k)`. The vectors stay in the store, on disk, and the final scores and order are the exact ones. `rescore` sorts and de-duplicates the candidates of each query and reads each row once, ordered by shard and position. Candidates scattered over a huge store can still touch many pages of the mapped shards, so bound the candidates per query.
 
 ## Add rows, continue, repair
 
 Keep a small **sidecar file** next to every index. It holds the path of the store, a generation (a counter or UUID, new for every rebuild), `indexed_rows` (the last prefix that was indexed *and saved*), the dtype and dimension, and the bits of `take_vectors` at a few fixed positions (the first and last indexed row and the first row of every block). Write `indexed_rows` only after the index is saved.
 
-- **Append.** `store.refresh()`, then `iter_batches(start=indexed_rows, block_rows=...)`. The key of a row is `batch.store_row + arange(batch.n_rows)`. hnswlib needs `resize_index` first. With USearch, each range may get an index of its own, searched together through `Indexes(paths, view=True)`.
+- **Append.** `store.refresh()`, then `iter_batches(start=indexed_rows, block_rows=...)`. The key of a row is `batch.store_row + arange(batch.n_rows)`. hnswlib needs `resize_index` first. With USearch, each range may get an index of its own, searched together through `Indexes(paths=paths, view=True)`.
 - **Continue after a stop.** Remove the keys from `indexed_rows` on, then continue from there: FAISS IVF and flat indexes (also behind `IndexIDMap`) with `remove_ids`, USearch with `remove`, hnswlib with `mark_deleted`. FAISS HNSW has no `remove_ids` (`Index::remove_ids` raises), so rebuild it, or drop the unsaved state and continue from the last saved index.
 - **Repair.** After `repair_store(path)` returns `P`, the index is invalid as soon as `P < indexed_rows`. Remove the keys from `P` on (a rebuild for FAISS HNSW) and rebuild from `P`. Without that, a later append gives the same positions to other rows.
 - **Binding.** fse promises no binding of an index to the content of a store. The generation and the sampled bits catch gross mix-ups, such as another store of the same length or a store that was refilled after a repair. They prove nothing about the other rows.
 
 ## Recipes for 100 million rows and more
 
-These are plans, not executed code. The recipe notebook runs the same steps on 7,200 rows.
+These are plans, not executed code. The recipe notebook runs the same steps on a small store: 6,000 rows are indexed first, 1,000 are appended later, and 200 more articles serve as queries.
 
 - **FAISS.** `IVF…_HNSW32,SQ8` or `IVF…,PQ` with a cell count `K` for your size (the FAISS guidelines list `IVF262144_HNSW32` for 10M to 100M and `IVF1048576_HNSW32` for 100M to 1B rows). Train on 30 to 256 rows per cell, read with `take_vectors` at sorted random positions and normalized. Add with `add_with_ids` from `batch.normalized()` in blocks of 16,384 rows, so no full normalized copy ever exists. Search for 50 to 200 candidates and call `rescore`.
 - **USearch.** An `i8` index with `copy=False` on `batch.vectors.codes`: the graph lives in memory, the vectors in the page cache of the shards. Keep every batch alive as long as the index. A freed array leaves the index with a dangling pointer, and the program can crash instead of raising an error. On Windows the held mappings lock the files. `refresh` does not invalidate old mappings. USearch `save` writes the vectors again, so they are twice on disk (shard and index file).

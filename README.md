@@ -191,7 +191,7 @@ Start with the job you want to do:
 | Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
 | Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
 | Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
-| External indexes | [Put FAISS, USearch, or hnswlib on your vectors, then let fse give the exact answer.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/10-external-ann-indexes.ipynb) |
+| External indexes | [Put FAISS, USearch, or hnswlib on your vectors, then let fse give the hits exact scores.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/10-external-ann-indexes.ipynb) |
 
 The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
 The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
