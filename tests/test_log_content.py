@@ -14,6 +14,7 @@ import fse
 import fse._hub as hub
 from fse import _log
 from support import model2vec as mv
+from support import prefilter_search as ps
 from support.encoder import finished
 from support.hub import FakeHub
 from support.logs import captured
@@ -230,3 +231,25 @@ def test_broken_logging_changes_no_error(tmp_path):
     assert raised.value is error
     assert not getattr(error, "__notes__", None)
     assert sink.durable_rows == 40
+
+
+def test_the_prefilter_record_holds_no_path_and_no_text(tmp_path, monkeypatch):
+    ps.enable(monkeypatch)
+    root = tmp_path / "SECRET-PATH-7f3a"
+    root.mkdir()
+    ps.write(root / "store", ps.codes_like(1500, 32, seed=1), shard_rows=400)
+    qs = ps.queries(2, 32)
+    with captured() as records, fse.VectorStore.open(root / "store") as store:
+        store.search(qs, 5, mode="exact")
+    record = ps.prefilter_record(records)
+    assert record.fse_fallback == "none"
+    assert record.fse_pairs > 0
+    assert not _leaks(records)
+    assert {k for k in vars(record) if k.startswith("fse_")} >= {
+        "fse_queries",
+        "fse_k",
+        "fse_rows",
+        "fse_pairs",
+        "fse_fallback",
+        "fse_workers",
+    }

@@ -9,6 +9,9 @@ CONTRACT = "repeated-prepared-input@1"
 
 def repeat(operation, iterations):
     output, first_index, read_seconds, open_seconds = None, None, 0.0, 0.0
+    restart = getattr(operation, "restart", None)
+    if restart is not None:
+        restart()  # a group of calls starts at the same place of a rotating input
     started = time.perf_counter()
     for _ in range(iterations):
         # Release the previous tokenizer batch before allocating another one.

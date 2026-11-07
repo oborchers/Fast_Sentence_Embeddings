@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 PROFILE = "int8-prefilter@1"
+SEARCH_PROFILE = "int8-prefilter-search@1"  # the speed cells of DR-278 (benchmarks/_development_prefilter_search.py)
 STAGE = "prefilter-count"
 TRAIN = "wikitext-train"
 QUERY_CORPORA = ("stsb", "wikitext")
@@ -14,8 +15,15 @@ def enabled(cell):
     return cell.get("profile") == PROFILE
 
 
+def search_enabled(cell):
+    return cell.get("profile") == SEARCH_PROFILE
+
+
 def corpus_names(cell):
-    """The prepared corpora a cell reads: its own plus the stand-in query corpora."""
+    """The prepared corpora a cell reads: its own plus the stand-in query corpora (the
+    search cells of DR-278 read STS-B only)."""
+    if search_enabled(cell):
+        return (cell["corpus"], "stsb")
     return (cell["corpus"], *QUERY_CORPORA) if enabled(cell) else (cell["corpus"],)
 
 
@@ -31,7 +39,9 @@ def _positive_list(cell, name):
 
 
 def validate(cell):
-    if not enabled(cell) and (cell["stage"] == STAGE or cell["corpus"] == TRAIN):
+    if not enabled(cell) and (
+        cell["stage"] == STAGE or (cell["corpus"] == TRAIN and not search_enabled(cell))
+    ):
         raise ValueError(f"the stage {STAGE} and the corpus {TRAIN} belong to {PROFILE}")
     if not enabled(cell):
         return

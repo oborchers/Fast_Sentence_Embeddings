@@ -10,6 +10,7 @@ from _development_budget import check
 from _development_encode import _sync, _sync_directory, output_identity
 from _development_ids import check_store, values
 from _development_search import enabled as search_cost
+from _quality.prefilter_inputs import search_enabled
 
 
 @dataclass
@@ -67,6 +68,7 @@ class StoreOperation:
         self.path = Path(job["work"]) / (job["tag"] + "-source-store")
         self.store = None
         self.reference = None
+        self.rotation = None
 
     def __enter__(self):
         import numpy as np
@@ -89,7 +91,7 @@ class StoreOperation:
         self.shape = np.asarray([len(self.texts), self.model.output_dim], dtype="int64")
         check(job.get("wall_deadline"))
         if job["stage"] == "store-search":
-            self.query = np.ones((job["queries"], self.model.output_dim), dtype="float32")
+            self.query = self._queries(job)
             self.store = VectorStore.open(self.path)
             try:
                 self._prepare_search(job)
@@ -98,8 +100,27 @@ class StoreOperation:
                 raise
         return self
 
+    def _queries(self, job):
+        import hashlib
+
+        import numpy as np
+
+        if not search_enabled(job):
+            return np.ones((job["queries"], self.model.output_dim), dtype="float32")
+        from _development_prefilter_search import Rotation, pool
+
+        store_set = set(self.texts)
+        queries, job["query_receipt"] = pool(self.model, job, store_set)
+        job["query_digest"] = hashlib.sha256(queries.tobytes()).hexdigest()
+        job["duplicate_text_share"] = 1 - len(store_set) / len(self.texts)
+        self.rotation = Rotation(queries, job["queries"])
+        return self.rotation.block()
+
     def _prepare_search(self, job):
-        if search_cost(job):
+        if search_enabled(job):  # base and candidate are compared by their output bits
+            self.filters, self.allowed = _filter(job, len(self.texts), self.labels)
+            self.rotation.restart()
+        elif search_cost(job):
             from _development_search_filters import prepare
 
             self.query.flags.writeable = False
@@ -122,10 +143,11 @@ class StoreOperation:
 
         if self.store is not None:
             unique = {"max_per_doc": 1} if self.job["max_per_doc"] is not None else {}
+            query = self.query if self.rotation is None else self.rotation.block()
             found = self.store.search(
-                self.query,
+                query,
                 self.job["k"],
-                mode="exact",
+                mode=self.job["search_mode"],
                 workers=self.job["workers"],
                 **self.filters,
                 **unique,
@@ -135,6 +157,11 @@ class StoreOperation:
             if len(store) != int(self.shape[0]) or store.dim != int(self.shape[1]):
                 raise ValueError("opened store shape differs")
         return self.shape
+
+    def restart(self):
+        """A group of calls begins at the first block of queries."""
+        if self.rotation is not None:
+            self.rotation.restart()
 
     def __exit__(self, kind, value, traceback):
         if self.store is not None:
