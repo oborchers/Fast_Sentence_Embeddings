@@ -9,6 +9,7 @@ import pytest
 import fse
 from fse import VectorStore
 from fse._store import _vectorstore_search
+from fse._validation import PositiveInt, validate_arguments
 from support.encoder import finished
 from support.runtime import texts
 
@@ -120,11 +121,32 @@ def test_a_closed_store_raises_in_both(tmp_path):
         )
 
 
+def _reference_title(name):
+    """The title pydantic gives a method named ``VectorStore.<name>`` decorated like the real one.
+
+    pydantic before 2.6 titles from ``__name__`` ("search"), later versions from
+    ``__qualname__`` ("VectorStore.search"), so the rule is read off a stand-in instead of
+    spelled out.
+    """
+
+    def method(self, queries, k: PositiveInt = 10):
+        raise AssertionError("not reached")
+
+    method.__name__ = name
+    method.__qualname__ = f"VectorStore.{name}"
+    stand_in = type("StandIn", (), {name: validate_arguments(method)})
+    with pytest.raises(pydantic.ValidationError) as caught:
+        getattr(stand_in(), name)(None, 0)
+    return caught.value.title
+
+
 @pytest.mark.parametrize("name", ["search", "rescore"])
 def test_validation_errors_are_titled_with_the_method(tmp_path, name):
+    expected = _reference_title(name)
+    assert expected.endswith(name)
     path = _write(tmp_path / "a", texts(20))
     with VectorStore.open(path, encoder=ENCODER) as store:
         call = store.search if name == "search" else lambda q, k: store.rescore(q, [[1]], k)
         with pytest.raises(pydantic.ValidationError) as caught:
             call(_queries(1), 0)
-        assert caught.value.title == f"VectorStore.{name}"
+        assert caught.value.title == expected
