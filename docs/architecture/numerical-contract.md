@@ -132,3 +132,52 @@ The new conformance cases cover all available instruction sets and the NumPy
 backend, quantized tables, FastText, folded/normalized/vector/standalone paths,
 k=1 and lane tails, threshold ties, saturation, subnormals and float-environment
 restoration. Existing conformance cases and numerical bounds remain in force.
+
+## int8 prefilter (no new arithmetic)
+
+An exact search of an int8 store scores every selected row with `dot16(codes, u) * inv` (see "Reading stored rows"). The prefilter drops the rows that a bound from integer sums proves to lie outside the top k, so only the rest is scored by that rule. It adds no rounding rule, identifier or `transform_version`, and a search that uses it returns what one without it returns: the same ids and the same score bits. The reference is `fse._reference_prefilter` (`bounds`, `estimates`, `int8_pass`, `merge_heaps`, `survivors`); a native kernel and the search that use the rule follow and must match the reference bit for bit. The constants 1.003 and 2^-14, and the limits below, are fixed; only the maintainer changes them. Only int8 stores are covered.
+
+**Quantities.** A stored row has int8 codes `x` (each in [-128, 127]), `S = sum x_i^2` (exact) and the stored float32 inverse norm `inv`, the same array the exact path reads. A query is `u = normalize@1(q)` (float32), stored by `quantize_rows@1` as codes `qi` (int8, in [-127, 127]) with the float32 scale `s`. `v = s * qi` is exact (24 + 7 bits), `e = u - v`, `eps = ||e||`, and `d <= 1024`. `c = fl32(dot16(x, u) * inv)` is the cosine of the contract. Sums such as `||e||` without `fl` are real numbers.
+
+**Rule.** Every operation in float64, in this grouping, in the IEEE standard environment (round to nearest even, no flush to zero, no contraction):
+
+1. Per query: `n2` is the sum of the `u_i^2` and `eps_hat` the square root of the sum of the `(u_i - s * qi_i)^2`, both in index order. `E = 1.003 * eps_hat + 2^-14`. The query is *in the domain* if `n2` is finite and `n2 <= 1.002`.
+2. Per row: `D = sum x_i * qi_i` and `S` are integers, exact. The row is *safe* if `inv` is finite, `inv >= 0` and `(inv * inv) * S <= 1 + 2^-20` (a NaN fails the comparison). `a = (s * D) * inv`.
+3. `T` is the k-th largest `a` over all selected rows, `-inf` if there are fewer than k. The survivors are `C = { r : fl(a_r + E) >= fl(T - E) }`, with an inclusive comparison.
+4. The exact rule scores the rows of `C`, at their global positions, and takes the top k.
+
+If any query is outside the domain or any selected row is not safe, the rule does not run: the whole call takes the exact path over all rows, with the bits and errors of that path. The rule claims nothing for `d > 1024`.
+
+**Theorem.** If every query is in the domain and every selected row is safe, `C` contains every row with `c >= K`, where K is the k-th largest exact score (ties at K included). The top k over `C` therefore have the ids and the score bits of the top k over all selected rows.
+
+**Proof.**
+
+*Zero rows.* If `S = 0` then `x = 0`, every product in `dot16` is a signed zero, so `c = +-0`, and `a = +-0` (inv is finite): `c = a` as numbers. From here on `S >= 1`.
+
+*Identity.* In real numbers `p = x . u = x . v + x . e`. With `a*` the value of `a` before rounding, `a* = inv * (x . v)`, so `inv * p - a* = inv * (x . e)`, and by Cauchy-Schwarz `|inv * p - a*| <= inv * ||x|| * eps = nu * eps` with `nu = inv * sqrt(S)`.
+
+*(a) Row norm.* `inv * inv` is exact in float64 (48 bits) and its product with `S` rounds once, so the test gives `inv^2 * S <= (1 + 2^-20) / (1 - 2^-53) < 1 + 2^-19`; hence `nu <= 1 + 2^-19` and, as `S >= 1`, `inv <= nu`. Only an upper bound on `nu` is needed: a small `inv` shrinks every error below. Every finite `inv` that passes is covered, whether or not it is `float32(1 / sqrt(S))`, so the proof does not depend on where the store came from. The sign condition makes `nu >= 0`, as the Cauchy-Schwarz step above uses it, and keeps corrupt stores out.
+
+*(b) Query quantization.* `eps_hat` has one subtraction and one square per term, at most `d - 1` additions and one square root. A nonzero `e_i` is a multiple of 2^-149 (so are `u_i` and `s`), so no square underflows in float64. Hence `eps_hat = eps * (1 + theta)` with `|theta| < 2^-40`, and `nu * eps <= (1 + 2^-19)(1 + 2^-39) * eps_hat < 1.000003 * eps_hat` (both sides are 0 if `eps_hat = 0`, which a query that the int8 grid holds exactly reaches: then `E = 2^-14`).
+
+*(c) Kernel rounding.* `dot16` passes each product through one fused multiply-add of its lane (at most `ceil(d/16)` per lane) and 4 additions, so every term meets at most `m = ceil(d/16) + 4 <= 68` roundings of relative error at most 2^-24. With `t` the float32 result, `|t - p| <= gamma_m * sum |x_i u_i| <= gamma_m * ||x|| * ||u||` (Cauchy-Schwarz); `c = fl32(t * inv)` adds one rounding. So `|c - inv * p| <= nu * ||u|| * (gamma_m (1 + 2^-24) + 2^-24)` plus the terms of (d). The test `n2 <= 1.002` (a sum of at most 1024 exact squares, relative error below 2^-43) gives `||u|| <= 1.001`, and with `gamma_68 < 4.0532 * 10^-6` the bound is below `1.0010019 * 4.1128 * 10^-6 < 4.2 * 10^-6 < 2^-17`. This is the only step that uses `||u||`. A query whose `n2` is outside the limit is outside the proven domain even where the slack would still cover it: `[2^-74, 2^-75]` has a squared norm of 2^-148, which `normalize@1` accepts but computes as subnormal, and its unit vector has `||u||^2 = 1.25`.
+
+*(d) Underflow.* A rounding is `fl(z) = z (1 + delta) + eta` with `|delta| <= 2^-24`, `|eta| <= 2^-150`. At most `d + 15` operations of `dot16` and the last multiplication carry an `eta`; an `eta` is amplified by less than 1.0001 on its way through the other operations and multiplied by `inv <= 1 + 2^-19`. Together they stay below `1042 * 2^-150 < 2^-139`.
+
+*(e) float64 evaluation.* `s * D` is exact (24 + 25 bits). The product with `inv`, `fl(a + E)` and `fl(T - E)` each round once. With `h = 2^-53`, `|a| <= (1 + h) * nu * (||u|| + eps) <= 1.002 + 1.001 * eps_hat` and `E <= (1 + h)((1 + h) * 1.003 * eps_hat + 2^-14) <= 1.0031 * eps_hat + (1 + h) * 2^-14`, the three roundings are below `2^-53 (3 max|a| + 2 E) < rho = 2^-50 (1 + eps_hat)`.
+
+*Total.* Let `B = nu * eps + (c) + (d) < 1.000003 * eps_hat + 4.2 * 10^-6 + 2^-139`. Then `B + rho < 1.00001 * eps_hat + 4.3 * 10^-6`, while `E >= 1.0029 * eps_hat + 2^-14 * (1 - 2^-52)` (one rounding of `1.003 * eps_hat` and one of the sum). So `B + rho <= E`, with a margin of `0.0028 * eps_hat + 5.6 * 10^-5`; the absolute term is more than 14 times what is needed. For a safe row `|c - a*| <= B`. The roundings of (e) move `a` by `2^-53 |a|`, `fl(a + E)` by `2^-53 |a + E|` and `fl(T - E)` by `2^-53 |T - E|`, together below `rho` (`T` is the `a` of some row, so `|T| <= max |a|`). Hence for every safe row r:
+
+    c_r <= fl(a_r + E)        and        fl(T - E) <= c_r   if   a_r >= T.
+
+The first follows from `c_r <= a* + B <= a + B + 2^-53 |a|` and `fl(a + E) >= a + E - 2^-53 |a + E|`; the second from `c_r >= a* - B` and `fl(T - E) <= T - E + 2^-53 |T - E|` with `T <= a_r`.
+
+*Completeness.* If there are fewer than k selected rows, `T = -inf`, `fl(T - E) = -inf`, and every row stays. Otherwise let R be k rows with the largest `a` (any tie-break), so `a_r >= T` for each. By the second inequality, `fl(T - E) <= c_r` for the k rows of R: at least k rows have `c >= fl(T - E)`, so `K >= fl(T - E)`. For every row with `c_r >= K` (ties at K included) `fl(a_r + E) >= c_r >= K >= fl(T - E)`, so `r` is in `C`. No k-th value per block is needed, so this holds for blocks of any size, also smaller than k.
+
+*Monotonicity.* A pass may use a running threshold `max(T_in, k-th largest a of the rows seen so far)`, with `T_in` at most the k-th largest `a` of all rows (the k-th largest of a subset never exceeds that of the whole set), so it is at most `T`. As `y -> fl(y - E)` does not decrease, the floor of a running threshold is at most `fl(T - E)`: the rows kept under it contain `C`. Cutting them once more with the final `T` leaves exactly `C`, which depends on the store, the selection and the query, not on the order of the blocks or the threads. A row that is not safe never enters a heap or a list: the call ends and takes the exact path.
+
+*Bits.* The score of a row is a function of the row, its inverse norm and the query alone, not of the other rows scored, the shards, the workers or a row selection (see the table above). The exact order is total: larger score first, then smaller position, `-0.0` equal to `+0.0`. The top k are the first k in that order, each with `c >= K`, so each lies in `C`; the first k of any set that holds them are the same rows with the same score bits. QED.
+
+**Not covered.** `d > 1024`; float32 and float16 stores; a native kernel (it must pass the conformance suite against this reference); `max_per_doc`, whose floor is a document score and not a row score; and every call that falls back, which gets the exact path as before.
+
+**Tests.** `tests/test_reference_prefilter.py` checks the reference against exact fractions, the grouping of the rule and the domain rules (queries and rows outside it), `fl(a - E) <= c <= fl(a + E)` for every pair of random, extreme and adversarial stores of small size, where an adversarial row reaches `|c - a| = 0.99999 * eps_hat`, and the whole search against the exact path for ids and score bits, with ties, equal and zero rows and other block orders. `tests/test_reference_prefilter_meta.py` runs fixed witnesses on the rule and on the rule with one mistake, and the mistake must lose the top row (other ids), lose the fallback, or change the set of survivors: a bound of `0.9 * eps_hat` or zero; the threshold `T` instead of `fl(T - E)`; an exclusive comparison on an exact tie; no row test, and an unsafe row in a heap; no query test; a cut against the running threshold instead of the final one. The tests sample; the guarantee rests on the derivation above.
