@@ -40,7 +40,7 @@ def store_rows(rows, codes, scales=None, first_row=0, *, isa=None):
         _store_target(scales, np.float32, (rows.shape[0],), "scales")
     elif scales is not None:
         raise ValueError("float16 codes have no scales")
-    if any(np.may_share_memory(a, b) for a, b in ((rows, codes), (rows, scales), (codes, scales)) if b is not None):
+    if any(_overlaps(a, b) for a, b in ((rows, codes), (rows, scales), (codes, scales)) if b is not None):
         raise ValueError("rows, codes and scales must not share memory")
     cdef int64_t n = rows.shape[0]
     cdef int dim = _check_dim(rows.shape[1])

@@ -21,12 +21,9 @@ F32 = np.float32
 # np.frombuffer of a buffered source's bytes makes a view (no loop, no GIL release).
 VIEW = Counter({"frombuffer in _array": 1})
 # Storage (stage 5): check_store_input, then store_rows itself, compare every pair of
-# rows, codes and scales with np.may_share_memory, which releases the GIL.
-STORE = {
-    "float32": Counter(),
-    "float16": Counter({"may_share_memory in <genexpr>": 1, "may_share_memory in store": 1}),
-    "int8": Counter({"may_share_memory in <genexpr>": 3, "may_share_memory in store": 3}),
-}
+# rows, codes and scales by their byte bounds (a pointer compare, no numpy call that would
+# release the GIL: np.may_share_memory did, DR-241).
+STORE = {"float32": Counter(), "float16": Counter(), "int8": Counter()}
 # The sections of a task: pool_text, and store_rows for a compact target.
 SECTIONS = {"float32": 1, "float16": 2, "int8": 2}
 KINDS = ["strings", "tokens", "file", "stream", "arrow"]
@@ -96,7 +93,7 @@ def test_the_batch_route_exceeds_the_budget(monkeypatch, tmp_path):
     """The meta-test: the route of today's other backends, on the cpu backend, fails it."""
     for w in _windows(monkeypatch, tmp_path, "strings", fused=False):
         assert w.sections == 3  # encode, pool, normalize
-        assert w.numpy["may_share_memory in check_out"] == 4
+        assert w.numpy["count_nonzero in __post_init__"] == 1  # the Batch checks its tokens
         assert w.profiled["ndarray.any"] >= 1
 
 

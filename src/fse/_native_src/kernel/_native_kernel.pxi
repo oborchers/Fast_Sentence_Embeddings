@@ -250,10 +250,10 @@ cdef class WeightedMean:
         ):
             raise ValueError(f"out must be a writable C-contiguous float32 array of shape {(n, self.dim)}")
         for kept in self._keep[:5]:
-            if kept is not None and np.may_share_memory(out, kept):
+            if kept is not None and _overlaps(out, kept):
                 raise ValueError("out must not share memory with the vectors or weights")
         for kept in (batch.offsets, batch.tokens, batch.ngram_offsets, batch.ngrams):
-            if kept is not None and np.may_share_memory(out, kept):
+            if kept is not None and _overlaps(out, kept):
                 raise ValueError("out must not share memory with the batch")
         return out
 

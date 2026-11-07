@@ -32,7 +32,7 @@ import numpy as np
 
 import fse
 from fse import _native
-from fse._runtime import _pipeline
+from fse._runtime import _heads, _pipeline
 
 # Blocking calls a profile function sees as c_call: their modules or names.
 _BLOCKING_MODULES = {"posix", "nt", "time", "_thread", "select"}
@@ -57,22 +57,26 @@ class Budget:
         self._lock = threading.Lock()
         self._local = threading.local()
         self._wrap_numpy(monkeypatch)
-        real = _pipeline.Pipeline._work
         budget = self
 
-        def work(pipeline, local, task, target, base):
-            with budget._lock:
-                window = Window()
-                budget._local.window = window
-                before = _native._test_nogil_sections()
-                try:
-                    return real(pipeline, local, task, target, base)
-                finally:
-                    window.sections = _native._test_nogil_sections() - before
-                    budget._local.window = None
-                    budget.windows.append(window)
+        def windowed(real):
+            def work(owner, *args):
+                with budget._lock:
+                    window = Window()
+                    budget._local.window = window
+                    before = _native._test_nogil_sections()
+                    try:
+                        return real(owner, *args)
+                    finally:
+                        window.sections = _native._test_nogil_sections() - before
+                        budget._local.window = None
+                        budget.windows.append(window)
 
-        monkeypatch.setattr(_pipeline.Pipeline, "_work", work)
+            return work
+
+        # The task of an encoder and the task of the heads.
+        monkeypatch.setattr(_pipeline.Pipeline, "_work", windowed(_pipeline.Pipeline._work))
+        monkeypatch.setattr(_heads.HeadsPipeline, "_work", windowed(_heads.HeadsPipeline._work))
 
     def _window(self) -> Window | None:
         return getattr(self._local, "window", None)
@@ -222,7 +226,9 @@ _FORBIDDEN = [
     (re.compile(r"\bwith gil\b"), "with gil"),
     (re.compile(r"\bexcept \*"), "except *"),
     (
-        re.compile(r"\bnp\.(?!PyArray_DATA\b|PyArray_NBYTES\b|ndarray\b|float32\b|integer\b)\w+"),
+        re.compile(
+            r"\bnp\.(?!PyArray_(?:DATA|NBYTES|SIZE|NDIM|DIMS|STRIDES|ITEMSIZE)\b|ndarray\b|float32\b|integer\b)\w+"
+        ),
         "a numpy call",
     ),
     (re.compile(r"\.(any|all|max|min|sum|copy|view|astype|nonzero)\("), "an array method"),
