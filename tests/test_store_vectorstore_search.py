@@ -130,7 +130,7 @@ def _reference_title(name):
     """
 
     def method(self, queries, k: PositiveInt = 10):
-        raise AssertionError("not reached")
+        raise AssertionError(("not reached", self, queries, k))
 
     method.__name__ = name
     method.__qualname__ = f"VectorStore.{name}"
