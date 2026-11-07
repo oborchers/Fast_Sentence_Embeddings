@@ -93,7 +93,7 @@ test-network: ## Run the tests that download from the Hugging Face Hub
 	$(UV) run pytest tests -m network
 
 test-st: ## Run the comparisons with sentence-transformers (group st), required to run
-	FSE_REQUIRE_ST=1 $(UV) run --group st pytest tests/test_encoder_sentence_transformers_parity.py tests/test_encoder_sentence_transformers.py tests/test_head_model2vec_objects_trained.py -m "not network"
+	FSE_REQUIRE_ST=1 $(UV) run --group st pytest tests/test_encoder_sentence_transformers_parity.py tests/test_encoder_sentence_transformers.py tests/test_encoder_sentence_transformers_float16.py tests/test_head_model2vec_objects_trained.py -m "not network"
 
 test-cov: ## Run tests with coverage
 	$(UV) run pytest tests -m "not network" $(XDIST) --cov=$(PACKAGE) --cov-report=term-missing --cov-fail-under=0

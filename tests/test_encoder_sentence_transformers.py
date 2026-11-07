@@ -370,7 +370,7 @@ def test_the_table_is_checked(tmp_path):
         ({"embedding.weight": rows, "x": rows}, CorruptArtifactError, "exactly one tensor"),
         ({"weight": rows}, CorruptArtifactError, "exactly one tensor"),
         ({"embeddings": rows, "mapping": rows[:, 0]}, UnsupportedArtifactError, "quantization"),
-        ({"embedding.weight": rows.astype(np.float16)}, UnsupportedArtifactError, "float16"),
+        ({"embedding.weight": rows.astype(np.float64)}, UnsupportedArtifactError, "float64"),
         ({"embedding.weight": rows[0]}, CorruptArtifactError, "must be a matrix"),
     ]
     for k, (tensors, error, match) in enumerate(cases):

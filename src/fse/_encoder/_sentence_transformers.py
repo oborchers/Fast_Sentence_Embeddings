@@ -223,7 +223,7 @@ def _table(files: Files, prefix: str, n_tokens: int) -> np.ndarray:
                 "reads the table only from model.safetensors"
             )
         raise CorruptArtifactError(f"the model has no file {name}")
-    return read_table(files, name, _TABLE_NAMES, n_tokens)
+    return read_table(files, name, _TABLE_NAMES, n_tokens, dtypes=("float32", "float16"))
 
 
 def _length(truncate: bool, max_length: Any, limit: int | None) -> int | None:

@@ -228,7 +228,15 @@ def _source(metadata: dict[str, str], license: Any) -> list[str]:
             out.append(f"Its table of {width} dimensions was cut to the first {kept}.")
         out += _differences(source["format"])
         out.append("")
-    if "fse.quantization" in metadata:
+    if "fse.quantization" in metadata and "fse.quantized_from" not in metadata:
+        out += [  # a table that the source model stores so (no float32 table of fse's)
+            "The table is stored as it is in the source model (float16 or int8). The vectors "
+            "fse computes are those of this table: on the cpu backend bit for bit as its "
+            "reference computes them. How close they come to the library of the source model "
+            "is measured, not promised by this file.",
+            "",
+        ]
+    elif "fse.quantization" in metadata:
         out += [
             "The vectors fse computes are those of the quantized table: on the cpu backend bit "
             "for bit as its reference computes them, "
