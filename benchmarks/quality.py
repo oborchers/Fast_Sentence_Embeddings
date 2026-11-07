@@ -196,6 +196,14 @@ def main():
         "--fixture-repo", type=Path, help="clone containing the pinned historical STS Git object"
     )
     parser.add_argument("--allocated-at", type=float)
+    parser.add_argument(
+        "--local-run",
+        action="store_true",
+        help="with --run: MTEB cells on a Unix machine, class K, publishable false, no speed value",
+    )
+    parser.add_argument(
+        "--local-budget-seconds", type=float, default=3600, help="wall-time budget of --local-run"
+    )
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
     add_arguments(parser, mode, quality=True)
@@ -217,6 +225,14 @@ def main():
         return 0
     if utility(args, "quality"):
         return 0
+    if args.local_run:
+        if not args.run:
+            parser.error("--local-run goes with --run")
+        for path in (args.results, args.work, args.cache):
+            outside_checkout(path)
+        from _quality.local import run as local_run
+
+        return local_run(args)
     spec = contract(args.input)
     if sys.platform != "linux" or sys.version.split()[0] != spec["machine"]["python_patch"]:
         raise RuntimeError("pinned Linux Python required")

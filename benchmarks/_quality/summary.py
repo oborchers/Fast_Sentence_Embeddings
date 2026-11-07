@@ -21,6 +21,8 @@ def summarize(folder):
             "model_revision",
             "workers",
             "table_dtype",
+            "output_dim",
+            "truncate",
             "mteb_version",
             "machine_environment_sha256",
             "backend",
