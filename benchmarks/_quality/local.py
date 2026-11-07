@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import signal
 import time
 from pathlib import Path
 
@@ -32,6 +33,7 @@ def run(args):
     the wall-time budget is used up or a task fails; the rest is recorded as not started,
     nothing is repeated or extended."""
     require_unix()
+    started_at = time.monotonic()  # the budget covers preparation too
     from _quality.mteb import MIND_REASON, evaluate
 
     spec = specification(args)
@@ -40,7 +42,6 @@ def run(args):
         raise ValueError("positive --local-budget-seconds required")
     args.results.mkdir(parents=True, exist_ok=False)
     args.work.mkdir(parents=True, exist_ok=False)
-    started_at = time.monotonic()
     atomic(
         args.results / "environment.json",
         {
@@ -55,10 +56,16 @@ def run(args):
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
     environment = sha256(args.results / "environment.json")
     context = {"results": args.results, "work": args.work, "fits": {}}
-    stopped = None
+    stopped, signalled = None, []
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, lambda number, _frame: signalled.append(signal.Signals(number).name))
     for cell in spec["cells"]:
         began = time.monotonic()
-        row = {**LABEL, **cell, "cell_id": cell["id"], "machine_environment_sha256": environment}
+        # The local labels come last: no field of a cell can claim to be publishable.
+        row = {**cell, **LABEL, "class": "K", "cell_id": cell["id"]}
+        row["machine_environment_sha256"] = environment
+        if stopped is None and signalled:
+            stopped = f"stop signal {signalled[0]}"
         if stopped is None and began - started_at >= budget:
             stopped = "wall-time budget used up"
         if stopped is not None:
@@ -81,6 +88,6 @@ def finish(results: Path, planned: int) -> int:
     code = int(len(rows) != planned or any(r["status"] != "valid" for r in rows))
     atomic(
         results / "DONE",
-        {**LABEL, "exit_status": code, "cells": len(rows), "planned": planned},
+        {**LABEL, "class": "K", "exit_status": code, "cells": len(rows), "planned": planned},
     )
     return code
