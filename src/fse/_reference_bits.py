@@ -31,6 +31,7 @@ from numpy import ndarray
 BLOCK_BYTES = 1 << 22
 INT4_MAX = 7
 _VIEWS = {np.dtype(np.float32): np.int32, np.dtype(np.float16): np.int16, np.dtype(np.int8): None}
+_INT32 = np.dtype(np.int32)
 _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.int32)
 
 
@@ -48,7 +49,7 @@ def _positive(values: ndarray) -> ndarray:
     """The bool matrix ``values > 0`` from the integer bit pattern of ``values``."""
     view = _VIEWS[values.dtype]
     patterns = values if view is None else np.ascontiguousarray(values).view(view)
-    return patterns > 0
+    return np.greater(patterns, 0)
 
 
 def _pack(flags: ndarray) -> ndarray:
@@ -89,7 +90,7 @@ def query_bits(queries: ndarray) -> ndarray:
 
 def hamming(bits: ndarray, query: ndarray) -> ndarray:
     """The Hamming distances, shape ``(rows, queries)``, int32: the popcount of
-    ``bits[r] XOR query[q]``, from a table of 256 entries and summed in int32, in blocks of
+    ``bits[r] XOR query[q]``, from a table of 256 entries and summed in int32 (``ndarray.sum``, which is ``np.add.reduce``), in blocks of
     rows, queries and bytes. Needs no ``np.bitwise_count`` (NumPy 1.26 has none)."""
     _check_packed(bits, "bits")
     _check_packed(query, "query")
@@ -105,9 +106,8 @@ def hamming(bits: ndarray, query: ndarray) -> ndarray:
             for b in range(0, width, step_bytes):
                 rows = bits[r : r + step_rows, None, b : b + step_bytes]
                 cols = query[None, q : q + step_queries, b : b + step_bytes]
-                out[r : r + step_rows, q : q + step_queries] += np.add.reduce(
-                    _POPCOUNT[rows ^ cols], axis=2, dtype=np.int32
-                )
+                counts = _POPCOUNT[rows ^ cols]
+                out[r : r + step_rows, q : q + step_queries] += counts.sum(axis=2, dtype=_INT32)
     return out
 
 
