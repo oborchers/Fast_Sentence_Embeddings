@@ -30,7 +30,17 @@ def specification(args):
     from _quality.suites import expand
 
     spec["cells"] = expand(spec["cells"])
+    if args.local_order == "task":
+        # Every model of one task in a row: its data is loaded once. Probes come first.
+        first = {}
+        for index, cell in enumerate(spec["cells"]):
+            first.setdefault(task_key(cell), index)
+        spec["cells"].sort(key=lambda c: first[task_key(c)])
     return spec
+
+
+def task_key(cell):
+    return (cell["benchmark"], cell["task"]) if cell["kind"] == "mteb" else ("", cell["id"])
 
 
 def budget_of(args, started_unix):
@@ -118,6 +128,7 @@ def run(args):
             "class": "K",
             "contract": spec,
             "budget_seconds": budget,
+            "order": args.local_order,
             "deadline_unix": args.local_deadline_unix,
             "started_unix": started_unix,
             "limits": limits,
@@ -154,12 +165,7 @@ def size_of(path):
 
 
 def passes(cells, args, ledger, guard, environment, clock):
-    from _quality.mteb import evaluate
-    from _quality.probe import probe
-
     started_at, budget = clock
-    from _quality.guard import RefusedError
-
     context = {
         "results": args.results,
         "work": args.work,
@@ -169,7 +175,9 @@ def passes(cells, args, ledger, guard, environment, clock):
     stopped, signalled = None, []
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda number, _frame: signalled.append(signal.Signals(number).name))
-    for cell in cells:
+    for index, cell in enumerate(cells):
+        following = cells[index + 1] if index + 1 < len(cells) else None
+        context["next_task"] = task_key(following) if following else None
         began = time.monotonic()
         row = base(cell, environment)
         stopped = stopped or reason_to_stop(signalled, guard, began - started_at, budget)
@@ -177,17 +185,27 @@ def passes(cells, args, ledger, guard, environment, clock):
             row.update(status="not_started", reason=stopped)
         else:
             ledger.active = {**row, "started_unix": time.time()}
-            try:
-                action = probe if cell["kind"] == "probe" else evaluate
-                row.update(action(cell, context))
-            except RefusedError as error:
-                row.update(status="refused", reason=str(error))
-            except Exception as error:
-                row.update(status="failed", reason=repr(error))
-                stopped = f"task {cell['id']} failed"
+            stopped = attempt(cell, row, context)
         row.update(duration_seconds=time.monotonic() - began, completed_at_unix=time.time())
         ledger.write(row)
     return stopped
+
+
+def attempt(cell, row, context):
+    """Run one cell into ``row``; the stop reason after a failure, else None. A refused task
+    is no failure: it never started."""
+    from _quality.guard import RefusedError
+    from _quality.mteb import evaluate
+    from _quality.probe import probe
+
+    try:
+        row.update((probe if cell["kind"] == "probe" else evaluate)(cell, context))
+    except RefusedError as error:
+        row.update(status="refused", reason=str(error))
+    except Exception as error:
+        row.update(status="failed", reason=repr(error))
+        return f"task {cell['id']} failed"
+    return None
 
 
 def reason_to_stop(signalled, guard, elapsed, budget):

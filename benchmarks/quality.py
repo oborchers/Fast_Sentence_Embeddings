@@ -208,6 +208,12 @@ def _parser():
         "--local-budget-seconds", type=float, default=3600, help="wall-time budget of --local-run"
     )
     parser.add_argument(
+        "--local-order",
+        choices=("cells", "task"),
+        default="cells",
+        help="--local-run order: as configured, or all cells of one task in a row (loads once)",
+    )
+    parser.add_argument(
         "--local-deadline-unix",
         type=float,
         help="shared end of a staged study; cuts the budget of this --local-run to what is left",

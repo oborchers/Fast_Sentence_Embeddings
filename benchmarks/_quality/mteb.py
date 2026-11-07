@@ -152,12 +152,15 @@ def evaluate(cell, context):
     estimate = admit(
         task, context["identity"]["execution"]["output_dim"], context.get("rss_limit_bytes")
     )
+    kept = False
     try:
         record = scored(cell, context, model, task)
+        # A local run in task order keeps the data for the next cell of the same task.
+        kept = context.get("next_task") == (cell["benchmark"], cell["task"])
     finally:
         # MTEB unloads only data it loaded itself; this task was preloaded. The benchmark
         # instance is cached by MTEB, so without this every task's data stays in memory.
-        if task.data_loaded:
+        if task.data_loaded and not kept:
             task.unload_data()
     if package_identity(package) != before:
         raise ValueError("executing quality backend changed")
@@ -186,7 +189,9 @@ def scored(cell, context, model, task):
     import mteb
 
     load_started = time.perf_counter()
-    task.load_data()
+    reused = task.data_loaded
+    if not reused:
+        task.load_data()
     load_seconds = time.perf_counter() - load_started
     started = time.perf_counter()
     result = mteb.evaluate(
@@ -213,6 +218,7 @@ def scored(cell, context, model, task):
         "evaluation_filters": filters_for(task),
         "raw_result_sha256": sha256(raw),
         "load_seconds": load_seconds,
+        "data_reused": reused,
         "evaluation_seconds": time.perf_counter() - started,
     }
 
