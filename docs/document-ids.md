@@ -54,6 +54,12 @@ An empty selection gives empty arrays of the usual types. `doc_ids=[...]` and `r
 work as before and apply first: the rows are selected, then grouped by the IDs of the selected
 rows. Several queries group independently and give a rectangular result.
 
+`store.rescore(queries, candidates, k, max_per_doc=1)` groups the same way among the candidate
+positions of each query (the hits of an external index) and gives, per query, the result
+of `search(query, k, mode="exact", rows=sorted(candidates without -1), max_per_doc=1)` bit for bit. A
+matrix result is filled up on the right with ids `-1`, scores `-inf` and document IDs `-1`,
+so a gap is recognized by `ids == -1`, because `-1` can also be a real document ID.
+
 fse does not fetch extra rows and cut them down. It keeps the best row per document in
 every block of the scan, so the result is exact and the memory stays bounded. Sorted IDs
 group by neighbouring values. Unordered IDs need one stable sort of the IDs of each

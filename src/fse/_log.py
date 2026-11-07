@@ -59,6 +59,7 @@ EVENTS: dict[str, tuple[str, int]] = {
     "store.view_opened": ("fse.store", INFO),
     "store.repaired": ("fse.store", INFO),
     "store.search": ("fse.store", DEBUG),
+    "store.rescore": ("fse.store", DEBUG),
     "scores.sink_opened": ("fse.store", INFO),
     "scores.shard_published": ("fse.store", DEBUG),
     "scores.sink_closed": ("fse.store", INFO),

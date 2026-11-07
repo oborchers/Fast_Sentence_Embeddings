@@ -32,7 +32,7 @@ from fse._container import NpyContainer
 from fse._cpus import usable_cpus
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
-from . import _filtered, _search, _selection, _take, _unique_search, _vector_batches
+from . import _filtered, _rescore, _search, _selection, _take, _unique_search, _vector_batches
 from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
@@ -184,6 +184,56 @@ class VectorStore(MemberReaders):
             if self._info.has_doc_ids:
                 return DocumentSearchResult(ids, scores, _filtered.document_ids(shards, ids))
             return SearchResult(ids, scores)
+
+    @validate_arguments
+    def rescore(
+        self,
+        queries: Any,
+        candidates: Any,
+        /,
+        k: PositiveInt = 10,
+        *,
+        workers: PositiveInt | None = None,
+        max_per_doc: PositiveInt | None = None,
+    ) -> SearchResult:
+        """The ``k`` best rows of every query among its own ``candidates``, scored exactly:
+        the result of ``search(query, k, mode="exact", rows=sorted(set(candidates) - {-1}))``,
+        bit for bit (also with ``max_per_doc=1``), for the hits of an external index.
+
+        ``candidates`` are int64 positions of the store, an array of shape (m,) for one
+        query vector or (queries, m) for a matrix, or a flat list; ``-1`` marks a gap.
+        Lists may be unsorted, hold duplicates, be empty or shorter than ``k``. A hit list
+        holds ``min(k, candidates)`` rows (``max_per_doc=1``: ``min(k, documents)``). A
+        matrix result is as wide as the longest list, filled up on the right with ids
+        ``-1``, scores ``-inf`` and document IDs ``-1``; a single query is not filled up.
+        Keep ``candidates`` unchanged until the call returns."""
+        self._check_open()
+        matrix, single = _search.queries(self._backend, self.dim, queries, "queries")
+        array = _rescore.candidates(candidates, len(matrix), single)
+        _rescore.check_grouping(self._info.has_doc_ids, max_per_doc)
+        with self._using() as shards:
+            _rescore.check_values(array, rows_in(shards))
+            positions, offsets = _rescore.csr(array)
+            workers = workers or usable_cpus()
+            found, read = _rescore.exact_sets(
+                self._backend,
+                shards,
+                matrix,
+                offsets,
+                positions,
+                k,
+                one_per_doc=max_per_doc is not None,
+                with_doc_ids=self._info.has_doc_ids,
+                workers=workers,
+            )
+        _rescore.log(len(matrix), k, read, read, workers, max_per_doc is not None)
+        if single:
+            ids, scores, labels = found[0]
+        else:
+            ids, scores, labels = _rescore.pad(found, self._info.has_doc_ids)
+        if labels is not None:  # the store has document IDs
+            return DocumentSearchResult(ids, scores, labels)
+        return SearchResult(ids, scores)
 
     @validate_arguments
     def score(

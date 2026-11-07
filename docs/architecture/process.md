@@ -13,6 +13,7 @@ src/fse/
   _tokenizer_unigram.py  # UnigramConfig: the parameters of unigram@1, its scores and charsmap
   _reference.py          # the reference: numpy code that defines every result
   _reference_head.py     # the reference of linear heads: linear@1, exp@1 and the links
+  _reference_prefilter.py # the reference of the int8 prefilter of exact search: its bound and its rule of survivors
   _codes.py              # float16 and int8 storage arithmetic in blocks
   _container/            # the containers of artifacts, a package of its own:
     __init__.py          #   their names and CONTAINERS,
@@ -303,7 +304,7 @@ The modules form layers, and a module imports only from layers below it. The imp
 8. `_wordvectors`
 9. `_wordvectors_format`, `_tokenizer_json`
 10. `_reference_head` (the reference of linear heads, on the reference of the encoder) and `_log_config` (`enable_logging`, on `_validation`)
-11. `_container`, `_codes`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
+11. `_container`, `_codes`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_reference_prefilter`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
 12. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`
 13. `_log` (the records of fse, which every module may emit)
 
