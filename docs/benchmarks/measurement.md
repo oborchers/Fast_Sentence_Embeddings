@@ -741,4 +741,3 @@ The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbiete
 - Outputs: `binary.jsonl` (mean recall@10 with a 95 % bootstrap interval of 1,000 resamples over the queries, and the recall of the Hamming order alone), `checks.jsonl`, `memory.jsonl`, `decision.json`.
 - Decision (fixed before the run, at 40-fold oversampling, mean recall): at least 0.95 for both models speaks for a symmetric 1-bit draft. Below 0.90 for POTION, asymmetric or centered variants come first. In between there is no decision.
 - The cell takes the heavy lock itself and starts its children with `nice -n 10`; do not wrap it in `--local-heavy`.
-

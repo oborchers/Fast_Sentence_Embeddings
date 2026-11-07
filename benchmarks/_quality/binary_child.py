@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from _development_budget import check
 from _development_process import checked
-from _measurement import document
+from _measurement import append, document
 
 from _quality.binary_inputs import BOOTSTRAP, CORPUS_ROWS, OVERSAMPLES, QUERIES, STAGE, K
 
@@ -80,7 +80,6 @@ def _bit_check(store, queries, order, rescored):
 
 
 def _records(model, store, queries, order, truth, job):
-    words = _words(store.get_vectors())
     records, started = [], time.monotonic()
     hamming = _recall(order[:, :K], truth)
     for oversample in OVERSAMPLES:
@@ -94,21 +93,22 @@ def _records(model, store, queries, order, truth, job):
         _bit_check(store, queries, candidates, got)
         recall = _recall(got.ids, truth)
         low, high = _interval(recall)
-        records.append(
-            {
-                "model": job["model"],
-                "dim": int(model.output_dim),
-                "oversample": oversample,
-                "candidates": oversample * K,
-                "queries": len(queries),
-                "corpus_rows": len(store),
-                "recall_at_10": float(recall.mean()),
-                "ci_low": low,
-                "ci_high": high,
-                "hamming_only_recall_at_10": float(hamming.mean()),
-            }
-        )
-    return records, words.shape, time.monotonic() - started
+        record = {
+            "model": job["model"],
+            "dim": int(model.output_dim),
+            "oversample": oversample,
+            "candidates": oversample * K,
+            "queries": len(queries),
+            "corpus_rows": len(store),
+            "recall_at_10": float(recall.mean()),
+            "ci_low": low,
+            "ci_high": high,
+            "hamming_only_recall_at_10": float(hamming.mean()),
+        }
+        records.append(record)
+        # kept at once, so a budget that ends the next step cannot lose a finished record
+        append(Path(job["receipt"]).with_suffix(".partial.jsonl"), record)
+    return records, time.monotonic() - started
 
 
 def count_job(job):
@@ -132,9 +132,11 @@ def count_job(job):
             store.verify()
             check(deadline)
             truth = store.search(queries, K, workers=job["workers"], mode="exact").ids
+            check(deadline)
             words = _words(store.get_vectors())
+            check(deadline)
             order = _candidates(words, _words(queries), deadline)
-            records, shape, seconds = _records(model, store, queries, order, truth, job)
+            records, seconds = _records(model, store, queries, order, truth, job)
     return {
         "stage": STAGE,
         "model": job["model"],
@@ -144,7 +146,7 @@ def count_job(job):
             "queries": len(queries),
             "invalid_queries_excluded": invalid,
             "bit_check_queries": SAMPLE,
-            "hamming_words": list(shape),
+            "hamming_words": list(words.shape),
             "rescore_seconds": seconds,
         },
         "input_identity": {"encoder_fingerprint": model.fingerprint, "corpus": corpus["sha256"]},

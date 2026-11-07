@@ -76,6 +76,18 @@ def count_cell(args, cell, prepared, ledger):
     return receipt
 
 
+def _preflight(args):
+    """A conservative check before the preparation downloads and exports anything."""
+    limit = memory_limit()
+    if args.memory_limit_bytes is not None:
+        limit = min(limit, args.memory_limit_bytes) if limit else args.memory_limit_bytes
+    if not limit:
+        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    free = shutil.disk_usage(args.work.parent).free
+    if limit * 0.85 < 4 * 1024**3 or free * 0.85 < 4 * 1024**3:
+        raise MemoryError("less than 4 GiB RAM or 4 GiB disk for the preparation and the probe")
+
+
 def selected(cells):
     """Whether the cells are of the profile; it runs alone."""
     profiles = {cell["profile"] for cell in cells}
@@ -87,6 +99,7 @@ def selected(cells):
 def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
+        _preflight(args)
         prepared = prepare(args, cells, ledger)
         check_args(args)
         for cell in cells:
