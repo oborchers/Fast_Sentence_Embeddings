@@ -293,3 +293,24 @@ def test_the_environment_of_the_caller_changes_no_bit_and_is_restored(variant, e
     assert_pass_equal(got_ok, want_ok)
     assert got_unsafe.status == "unsafe"
     assert got_overflow.status == "overflow"
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_estimates_of_zero_have_the_sign_plus_whatever_their_order(backend):
+    """-0.0 (a negative sum times a scale or inverse norm of 0) and +0.0 tie: both come out
+    as +0.0, so no heap layout shows in the bits."""
+    stored = np.array([[-1], [1], [-1], [1]], np.int8)
+    args = (stored, np.zeros(4, F32), np.ones((1, 1), np.int8), np.ones(1, F32))
+    args = (*args, np.full(1, 2.0**-14), np.full(1, -np.inf))
+    for k in (1, 2, 3, 4):
+        got = backend.int8_pass(*args, k)
+        assert_pass_equal(got, REFERENCE.int8_pass(*args, k), k)
+        assert not np.signbit(got.heap).any()
+
+
+@pytest.mark.parametrize("backend", BACKENDS, ids=lambda b: b.name)
+def test_a_heap_larger_than_a_block_is_the_reference(backend):
+    blk = block(5, 8, 2, seed=3)
+    got = backend.int8_pass(*blk.args(), 40)
+    assert_pass_equal(got, REFERENCE.int8_pass(*blk.args(), 40))
+    assert np.isneginf(got.heap[:, 5:]).all()

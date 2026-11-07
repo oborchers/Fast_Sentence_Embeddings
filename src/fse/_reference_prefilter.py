@@ -150,7 +150,9 @@ def estimates(
     inv = inverse.astype(np.float64)
     with np.errstate(over="ignore", invalid="ignore"):
         scaled = qscales.astype(np.float64)[None, :] * products
-        estimate = scaled * inv[:, None]
+        # + 0.0 turns -0.0 into +0.0: the sign of a zero estimate carries nothing, and equal
+        # estimates then have equal bits, whatever layout a heap gives them.
+        estimate = scaled * inv[:, None] + 0.0
     return estimate, row_safe(inv, squares)
 
 

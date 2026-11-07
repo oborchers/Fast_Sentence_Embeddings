@@ -142,7 +142,7 @@ An exact search of an int8 store scores every selected row with `dot16(codes, u)
 **Rule.** Every operation in float64, in this grouping, in the IEEE standard environment (round to nearest even, no flush to zero, no contraction):
 
 1. Per query: `n2` is the sum of the `u_i^2` and `eps_hat` the square root of the sum of the `(u_i - s * qi_i)^2`, both in index order. `E = 1.003 * eps_hat + 2^-14`. The query is *in the domain* if `n2` is finite and `n2 <= 1.002`.
-2. Per row: `D = sum x_i * qi_i` and `S` are integers, exact. The row is *safe* if `inv` is finite, `inv >= 0` and `(inv * inv) * S <= 1 + 2^-20` (a NaN fails the comparison). `a = (s * D) * inv`.
+2. Per row: `D = sum x_i * qi_i` and `S` are integers, exact. The row is *safe* if `inv` is finite, `inv >= 0` and `(inv * inv) * S <= 1 + 2^-20` (a NaN fails the comparison). `a = (s * D) * inv + 0.0`; the sum with `+0.0` only turns `-0.0` into `+0.0`, so equal estimates have equal bits.
 3. `T` is the k-th largest `a` over all selected rows, `-inf` if there are fewer than k. The survivors are `C = { r : fl(a_r + E) >= fl(T - E) }`, with an inclusive comparison.
 4. The exact rule scores the rows of `C`, at their global positions, and takes the top k.
 

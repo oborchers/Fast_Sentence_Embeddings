@@ -220,6 +220,7 @@ def check_pooled_input(rows: object, steps: object, first_row: object) -> None:
 
 PREFILTER_MAX_DIM = 1024  # the bound is proven for at most this many dimensions
 _PREFILTER_INT_MAX = 2**31 - 1
+_PREFILTER_MAX_QUERIES = 2**20  # the kernel indexes queries with int, two at a time
 
 
 def _vector(value: object, dtype: type, length: int, name: str) -> ndarray:
@@ -246,6 +247,8 @@ def _check_prefilter_queries(qcodes: object, qscales: object) -> tuple[int, int]
         or not qcodes.flags.c_contiguous
     ):
         raise ValueError("qcodes must be a nonempty C-contiguous int8 matrix")
+    if qcodes.shape[0] > _PREFILTER_MAX_QUERIES:
+        raise ValueError(f"the prefilter takes at most {_PREFILTER_MAX_QUERIES} queries")
     if qcodes.shape[1] > PREFILTER_MAX_DIM:
         raise ValueError(f"the bound is proven for at most {PREFILTER_MAX_DIM} dimensions")
     if qcodes.min() < -127:
@@ -307,3 +310,5 @@ def check_int8_pass_input(
     _check_count(k, "k")
     if capacity is not None:
         _check_count(capacity, "capacity")
+    elif 4 * int(k) > _PREFILTER_INT_MAX:  # type: ignore[call-overload]
+        raise ValueError(f"k is too large: its default capacity 4 * k exceeds {_PREFILTER_INT_MAX}")

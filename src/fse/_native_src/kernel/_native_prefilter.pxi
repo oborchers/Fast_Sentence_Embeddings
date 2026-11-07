@@ -23,6 +23,7 @@ _PREFILTER_STATUS = ("ok", "overflow", "unsafe")
 # The bound is proven for at most 1024 dimensions (the integer sums stay below 2^24).
 _PREFILTER_MAX_DIM = 1024
 _PREFILTER_INT_MAX = 2**31 - 1
+_PREFILTER_MAX_QUERIES = 2**20  # the kernel indexes queries with int, two at a time
 
 
 def prefilter_variants():
@@ -70,9 +71,15 @@ def _prefilter_queries(qcodes, qscales):
         or not qcodes.flags.c_contiguous
     ):
         raise ValueError("qcodes must be a nonempty C-contiguous int8 matrix")
+    if qcodes.shape[0] > _PREFILTER_MAX_QUERIES:
+        raise ValueError(f"the prefilter takes at most {_PREFILTER_MAX_QUERIES} queries")
     if qcodes.shape[1] > _PREFILTER_MAX_DIM:
         raise ValueError(f"the bound is proven for at most {_PREFILTER_MAX_DIM} dimensions")
+    if qcodes.min() < -127:
+        raise ValueError("the codes of a query lie in [-127, 127]")
     _prefilter_array(qscales, np.float32, (qcodes.shape[0],), "qscales")
+    if not (np.isfinite(qscales).all() and (qscales >= 0).all()):
+        raise ValueError("the scales of the queries must be finite and not negative")
     return qcodes.shape
 
 
@@ -124,6 +131,10 @@ def _int8_pass(stored, inverse, qcodes, qscales, slack, threshold, k, capacity, 
     _prefilter_array(inverse, np.float32, (n,), "inverse")
     _prefilter_array(slack, np.float64, (width,), "slack")
     _prefilter_array(threshold, np.float64, (width,), "threshold")
+    if not (np.isfinite(slack).all() and (slack >= 0).all()):
+        raise ValueError("the slack of every query must be finite and not negative")
+    if np.isnan(threshold).any():
+        raise ValueError("a threshold must not be NaN")
     if isinstance(k, bool) or not isinstance(k, int | np.integer) or not 1 <= k <= _PREFILTER_INT_MAX:
         raise ValueError(f"k must be an integer from 1 to {_PREFILTER_INT_MAX}")
     k = int(k)

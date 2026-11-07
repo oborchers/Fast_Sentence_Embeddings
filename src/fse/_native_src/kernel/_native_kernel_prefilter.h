@@ -73,8 +73,9 @@ static inline int fse_pf_row_safe(float inverse, int32_t squares) {
 
 static inline void fse_pf_sift_down(double *h, int n, int i, double a) {
     for (;;) {
-        int c = 2 * i + 1;
-        if (c >= n) break;
+        const int64_t c0 = 2 * (int64_t)i + 1; /* wide: k may exceed 2^30 */
+        if (c0 >= n) break;
+        int c = (int)c0;
         if (c + 1 < n && h[c + 1] < h[c]) c++;
         if (h[c] >= a) break;
         h[i] = h[c];
@@ -144,8 +145,11 @@ static void fse_pf_finish(fse_pf *st) {
     }
 }
 
+/* a = (s * D) * inv. The sum with +0.0 turns -0.0 into +0.0 (D negative with a scale or an
+   inverse norm of 0): the sign of a zero estimate carries nothing, and with it every tie of
+   equal values has equal bits, so no heap layout can show in the output. */
 static inline double fse_pf_estimate(int32_t d, float qscale, float inverse) {
-    return ((double)d * (double)qscale) * (double)inverse;
+    return ((double)d * (double)qscale) * (double)inverse + 0.0;
 }
 
 /* The pass over rows [0, n) of one variant. The first query tile of a group of four rows

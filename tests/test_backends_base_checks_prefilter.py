@@ -106,3 +106,14 @@ def test_a_block_of_no_rows_keeps_nothing_and_a_heap_of_minus_infinity(name):
     assert got.status == "ok"
     assert np.isneginf(got.heap).all()
     assert [len(rows) for rows in got.rows] == [0, 0]
+
+
+@pytest.mark.parametrize("name", BACKENDS)
+def test_the_limits_of_k_and_of_the_number_of_queries_are_the_same_for_every_backend(name):
+    backend, b = get_backend(name), block(1, 8, 1, seed=1)
+    with pytest.raises(ValueError, match="default capacity 4 \\* k exceeds"):
+        backend.int8_pass(*b.args(), 2**29)
+    n = 2**20 + 1
+    many = (np.ones((n, 1), F32), np.ones((n, 1), np.int8), np.ones(n, F32))
+    with pytest.raises(ValueError, match="at most 1048576 queries"):
+        backend.int8_bounds(*many)

@@ -96,3 +96,27 @@ def test_the_dimension_limit_of_the_proof_is_1024(variant):
     )
     with pytest.raises(ValueError, match="at most 1024 dimensions"):
         pass_of(variant)(*wide, np.ones(1), np.full(1, -np.inf), 1)
+
+
+def test_the_kernel_checks_the_content_of_its_arrays_too():
+    b = block(5, 32, 2, seed=1)
+    stored, inverse, qcodes, qscales, slack, threshold = b.args()
+    with pytest.raises(ValueError, match=r"\[-127, 127\]"):
+        _native.int8_bounds(b.units, np.full_like(qcodes, -128), qscales)
+    for bad in (np.nan, np.inf, -1.0):
+        scales = np.array([1.0, bad], F32)
+        with pytest.raises(ValueError, match="finite and not negative"):
+            _native.int8_bounds(b.units, qcodes, scales)
+        with pytest.raises(ValueError, match="finite and not negative"):
+            _native.int8_pass(stored, inverse, qcodes, scales, slack, threshold, 2)
+    for bad in (np.nan, np.inf, -1.0):
+        with pytest.raises(ValueError, match="slack of every query"):
+            _native.int8_pass(stored, inverse, qcodes, qscales, np.array([0.5, bad]), threshold, 2)
+    with pytest.raises(ValueError, match="must not be NaN"):
+        _native.int8_pass(stored, inverse, qcodes, qscales, slack, np.array([0.0, np.nan]), 2)
+    n = 2**20 + 1
+    many = (np.ones((n, 1), F32), np.ones((n, 1), np.int8), np.ones(n, F32))
+    with pytest.raises(ValueError, match="at most 1048576 queries"):
+        _native.int8_bounds(*many)
+    with pytest.raises(ValueError, match="capacity must be an integer from 1"):
+        _native.int8_pass(stored, inverse, qcodes, qscales, slack, threshold, 2**29)
