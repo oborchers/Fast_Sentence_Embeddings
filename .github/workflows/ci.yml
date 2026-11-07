@@ -3,7 +3,9 @@ name: CI
 on:
   push:
     branches: [master]
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+    # The suffix lets pre-releases (v2.1.0rc1) start the workflow; tools/release_notes.py
+    # refuses every tag that is not vX.Y.Z or vX.Y.Z{a,b,rc}N before anything is published.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -601,6 +603,12 @@ jobs:
           VERSION: ${{ steps.notes.outputs.version }}
           PRERELEASE: ${{ steps.notes.outputs.prerelease }}
         run: |
+          # A rerun of the job after the release exists must not fail. Check the release
+          # afterwards as the release skill says.
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "::notice::The GitHub release $RELEASE_TAG already exists; nothing to create."
+            exit 0
+          fi
           flags=(--verify-tag --title "fse $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md")
-          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
           gh release create "$RELEASE_TAG" "${flags[@]}" dist/*

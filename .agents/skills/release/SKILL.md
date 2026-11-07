@@ -26,10 +26,10 @@ A pushed `v*` tag on `master` runs the release job in `.github/workflows/ci.yml`
 9. **Approve the environment.** The job waits in the `release` environment. The maintainer approves it. Watch the run in a background monitor, never in the foreground.
 10. **Verify afterwards**, and report each result:
     - PyPI: `https://pypi.org/project/fse/X.Y.Z/` lists the sdist and the wheels for every platform.
-    - GitHub release: `gh release view vX.Y.Z --json name,tagName,isPrerelease,isLatest,assets`. Name is `fse X.Y.Z`, the body is the CHANGELOG section, the assets are the sdist and the wheels, and a pre-release is marked as one and is not "Latest".
+    - GitHub release: `gh release view vX.Y.Z --json name,tagName,isPrerelease,body,assets`. Name is `fse X.Y.Z`, the body is the CHANGELOG section, the assets are the sdist and the wheels, and a pre-release is marked as one. `gh api repos/oborchers/Fast_Sentence_Embeddings/releases/latest --jq .tag_name` names `vX.Y.Z` for a final release and still the older one for a pre-release.
     - A clean install of `fse==X.Y.Z` imports.
 
 ## If a job fails
 
 - **Before the PyPI upload** (CHANGELOG, tag or file names): nothing is published. Fix on `master` through a pull request. A tag already pushed points at the old commit; ask the maintainer how to proceed, never move or delete a tag yourself.
-- **After the PyPI upload, in `github-release`**: PyPI is final. Re-run the failed job. Only if that cannot work, and only with approval, create the release by hand with the same title, the extracted notes and the files of the run: `gh release create vX.Y.Z --verify-tag --title "fse X.Y.Z" --notes-file <notes> dist/*`.
+- **After the PyPI upload, in `github-release`**: PyPI is final. Re-run the failed job. Only if that cannot work, and only with approval, create the release by hand with the flags of the job: `gh release create vX.Y.Z --verify-tag --title "fse X.Y.Z" --notes-file <notes> dist/*`, plus `--latest` for a final version or `--prerelease --latest=false` for a pre-release. The notes come from `tools/release_notes.py`, the files from the artifacts of the run.

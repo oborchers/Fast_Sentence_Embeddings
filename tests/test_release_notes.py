@@ -42,7 +42,7 @@ def test_version_of_accepts_release_tags(tag, version):
     assert version_of(tag) == version
 
 
-@pytest.mark.parametrize("tag", ["2.0.0", "v2.0", "v2.0.0.post1", "v2.0.0-rc1", "fse-v2.0.0", "v2.0.0 "])
+@pytest.mark.parametrize("tag", ["2.0.0", "v2.0", "v2.0.0.post1", "v2.0.0-rc1", "fse-v2.0.0", "v2.0.0 ", "v02.1.0", "v2.01.0", "v2.1.0rc01"])
 def test_version_of_rejects_other_tags(tag):
     with pytest.raises(ValueError, match="not of the form"):
         version_of(tag)
@@ -148,3 +148,16 @@ def test_main_checks_the_built_files_before_writing(tmp_path, monkeypatch):
     args = ["--tag", "v2.0.0", "--changelog", str(changelog), "--output", str(notes)]
     assert main([*args, "--dist", str(dist)]) == 1
     assert not notes.exists()
+
+
+def test_section_ignores_headings_in_code_blocks():
+    text = (
+        "## [2.0.0]\n\n- Example:\n\n```markdown\n## [2.0.0]\n## [9.9.9]\n```\n\n"
+        "~~~~\n## [1.0.0]\n~~~\n## [1.0.0]\n~~~~\n\n- tail\n\n## [1.1.0]\n\n- x\n"
+    )
+    assert section(text, "2.0.0").endswith("- tail")
+    assert "## [9.9.9]" in section(text, "2.0.0")
+    with pytest.raises(ValueError, match="no section"):
+        section(text, "9.9.9")
+    with pytest.raises(ValueError, match="no section"):
+        section(text, "1.0.0")

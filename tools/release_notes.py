@@ -8,9 +8,10 @@ import re
 import sys
 from pathlib import Path
 
-TAG = re.compile(r"v(?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?)")
-PRERELEASE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:a|b|rc)[0-9]+")
-HEADING = re.compile(r"^## \[(?P<name>[^\]]+)\]", re.MULTILINE)
+TAG = re.compile(r"v(?P<version>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?)")
+PRERELEASE = re.compile(r".*(?:a|b|rc)[0-9]+")
+HEADING = re.compile(r"## \[(?P<name>[^\]]+)\]")
+FENCE = re.compile(r" {0,3}(?P<fence>`{3,}|~{3,})")
 
 
 def version_of(tag):
@@ -25,17 +26,37 @@ def is_prerelease(version):
     return PRERELEASE.fullmatch(version) is not None
 
 
+def headings_outside_code(changelog):
+    """Return the section headings that are not inside a fenced code block."""
+    found = []
+    fence = None
+    position = 0
+    for line in changelog.splitlines(keepends=True):
+        marker = FENCE.match(line)
+        if marker is not None:
+            if fence is None:
+                fence = marker["fence"]
+            elif marker["fence"][0] == fence[0] and len(marker["fence"]) >= len(fence):
+                fence = None
+        elif fence is None:
+            heading = HEADING.match(line)
+            if heading is not None:
+                found.append((heading["name"], position, position + len(heading[0])))
+        position += len(line)
+    return found
+
+
 def section(changelog, version):
     """Return the body of the section `## [version]`, without its heading and outer blank lines."""
-    headings = list(HEADING.finditer(changelog))
-    matches = [i for i, found in enumerate(headings) if found["name"] == version]
+    headings = headings_outside_code(changelog)
+    matches = [i for i, found in enumerate(headings) if found[0] == version]
     if not matches:
         raise ValueError(f"CHANGELOG.md has no section '## [{version}]'")
     if len(matches) > 1:
         raise ValueError(f"CHANGELOG.md has more than one section '## [{version}]'")
     index = matches[0]
-    end = headings[index + 1].start() if index + 1 < len(headings) else len(changelog)
-    body = changelog[headings[index].end() : end]
+    end = headings[index + 1][1] if index + 1 < len(headings) else len(changelog)
+    body = changelog[headings[index][2] : end]
     body = body.partition("\n")[2].strip()
     if not body:
         raise ValueError(f"the CHANGELOG.md section '## [{version}]' is empty")
