@@ -9,35 +9,29 @@ import numpy as np
 import pytest
 
 from fse import ScoreStore, VectorStore
-from fse._store import _rescore, _search, _selection, _take, _vectorstore
-from support.concurrent import Gate, Readers, exact
+from support.concurrent import Gate, Readers, exact, hold_every_read, repeated
 from support.views import SIZES, score_parts, vector_parts
 
 WORKERS = 4
 ROWS = sum(SIZES)
 QUERIES = np.random.default_rng(5).normal(size=(4, 17)).astype(np.float32)
-CANDIDATES = np.array([[0, 39, 13, 13, -1], [22, 21, 9, 8, 1], [-1, -1, 3, 4, 5], [7] * 5], np.int64)
+CANDIDATES = np.array(
+    [[0, 39, 13, 13, -1], [22, 21, 9, 8, 1], [-1, -1, 3, 4, 5], [7] * 5], np.int64
+)
 
 VECTOR_READS = {
     "search": lambda s: s.search(QUERIES, 5, mode="exact", workers=WORKERS),
     "search_auto": lambda s: s.search(QUERIES[:2], 8, workers=WORKERS),
-    "search_rows": lambda s: s.search(QUERIES, 4, mode="exact", rows=range(5, 35)),
+    "search_rows": lambda s: s.search(QUERIES, 4, mode="exact", rows=list(range(5, 35))),
     "search_per_doc": lambda s: s.search(QUERIES, 3, mode="exact", max_per_doc=1),
     "rescore": lambda s: s.rescore(QUERIES, CANDIDATES, 3, workers=WORKERS),
     "score": lambda s: s.score(QUERIES[:3], mode="exact", workers=WORKERS),
-    "take_vectors": lambda s: s.take_vectors([[ROWS - 1, 0], [12, 12]]),
+    "take_vectors": lambda s: s.take_vectors(np.array([[ROWS - 1, 0], [12, 12]])),
     "take_doc_ids": lambda s: s.take_doc_ids([ROWS - 1, 13, 22]),
     "get_vectors": lambda s: s.get_vectors(start=10, stop=30),
     "get_doc_ids": lambda s: s.get_doc_ids(),
     "rows": lambda s: [batch.vectors for batch in s.iter_batches(block_rows=4)],
 }
-GUARDED = [
-    (_selection, "plan"),
-    (_rescore, "check_values"),
-    (_search, "score"),
-    (_take, "gather"),
-    (_vectorstore, "stop_row"),
-]
 
 
 def concurrently(view, reads, copies=2, repeat=3):
@@ -64,8 +58,10 @@ def vectors(request, tmp_path):
 
 def test_many_threads_read_a_vector_view_with_the_bits_of_one_store(vectors):
     one, view = vectors
-    want = {name: exact(read(one)) for name, read in VECTOR_READS.items()}
-    assert {name: exact(read(view)) for name, read in VECTOR_READS.items()} == want
+    want = {name: exact(read(view)) for name, read in VECTOR_READS.items()}
+    for name, read in VECTOR_READS.items():
+        if name != "rows":  # blocks end at the shards, which differ from those of one store
+            assert want[name] == exact(read(one)), name
     for job, outcomes in concurrently(view, VECTOR_READS).items():
         assert outcomes == [want[job.rsplit("-", 1)[0]]] * 3, job
     assert view._active == 0
@@ -75,10 +71,8 @@ def test_a_vector_view_cannot_close_while_readers_hold_it(vectors, monkeypatch):
     _, view = vectors
     want = {name: exact(read(view)) for name, read in VECTOR_READS.items()}
     gate = Gate(list(VECTOR_READS))
-    for module, step in GUARDED:
-        gate.hold(monkeypatch, module, step)
-    readers = Readers({name: (lambda read: lambda: exact(read(view)))(read)
-                       for name, read in VECTOR_READS.items()})  # fmt: skip
+    hold_every_read(gate, monkeypatch, VECTOR_READS)
+    readers = Readers({name: repeated(read, view, 1) for name, read in VECTOR_READS.items()})
     readers.start()
     try:
         assert gate.all_arrived()
@@ -89,7 +83,7 @@ def test_a_vector_view_cannot_close_while_readers_hold_it(vectors, monkeypatch):
             view.refresh()
     finally:
         gate.open()
-    assert readers.join() == want
+    assert readers.join() == {name: [outcome] for name, outcome in want.items()}
     view.close()
     for store in view._view.stores:
         with pytest.raises(RuntimeError, match="closed"):

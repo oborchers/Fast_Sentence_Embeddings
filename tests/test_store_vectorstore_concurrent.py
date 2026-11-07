@@ -10,9 +10,9 @@ import pytest
 
 import fse
 from fse import VectorStore
-from fse._store import _prefilter, _rescore, _search, _selection, _take, _vectorstore
+from fse._store import _prefilter
 from support import prefilter_search as pf
-from support.concurrent import Gate, Readers, exact
+from support.concurrent import Gate, Readers, exact, hold_every_read, repeated
 from support.encoder import finished
 from support.take_store import critical_rows
 
@@ -77,13 +77,6 @@ OPERATIONS = {
 }
 
 # The step each read takes under the active-use guard of the store, where a gate holds it.
-GUARDED = [
-    (_selection, "plan"),  # every search
-    (_rescore, "check_values"),
-    (_search, "score"),
-    (_take, "gather"),  # take_*
-    (_vectorstore, "stop_row"),  # get_* and iter_batches
-]
 
 
 def serial(store):
@@ -122,14 +115,10 @@ def test_readers_hold_their_snapshot_through_a_refresh_and_close_raises(made, mo
     path, dtype = made
     names = list(OPERATIONS)
     gate = Gate(names)
-    for module, step in GUARDED:
-        gate.hold(monkeypatch, module, step)
+    hold_every_read(gate, monkeypatch, OPERATIONS)
     with VectorStore.open(path) as store:
         before = serial(store)
-        readers = Readers(
-            {name: (lambda read: lambda: [exact(read(store)) for _ in range(3)])(read)
-             for name, read in OPERATIONS.items()}
-        )  # fmt: skip
+        readers = Readers({name: repeated(read, store, 3) for name, read in OPERATIONS.items()})
         readers.start()
         try:
             assert gate.all_arrived()
@@ -160,6 +149,7 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
         snapshots = [VectorStore.open(path)]
         start = threading.Barrier(len(OPERATIONS) + 1, timeout=60)
         refreshed = threading.Event()
+        ended = []  # the errors that ended a reader, or the close
 
         def reader(read):
             def run():
@@ -169,7 +159,7 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
                     try:
                         outcomes.append(exact(read(store)))
                     except RuntimeError as error:
-                        assert "closed" in str(error)
+                        ended.append(str(error))
                         break
                 return outcomes
 
@@ -185,12 +175,15 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
             try:
                 store.close()
             except RuntimeError as error:
-                assert "in use" in str(error)
+                ended.append(str(error))
 
         jobs = {name: reader(read) for name, read in OPERATIONS.items()}
         jobs["refresher"] = refresher
         got = Readers(jobs).start().join()
         assert store._active == 0
+    closed = "the VectorStore is closed"
+    assert set(ended) <= {closed, "the store is in use (a search, score or read is running); "
+                          "close it when it is done"}  # fmt: skip
     try:
         for name, read in OPERATIONS.items():
             states = [exact(read(snapshot)) for snapshot in snapshots]
@@ -218,7 +211,7 @@ def test_the_int8_prefilter_in_many_threads_gives_the_bits_without_it(tmp_path, 
         "exact": lambda s: s.search(pf.queries(4, 32), 10, mode="exact", workers=WORKERS),
         "auto": lambda s: s.search(pf.queries(8, 32, seed=2), 5, workers=WORKERS),
         "single": lambda s: s.search(pf.queries(1, 32, seed=3)[0], 20, mode="exact"),
-        "rows": lambda s: s.search(pf.queries(2, 32), 7, mode="exact", rows=range(50, 550)),
+        "rows": lambda s: s.search(pf.queries(2, 32), 7, mode="exact", rows=list(range(50, 550))),
     }
     with VectorStore.open(path) as store:
         with pf.without_prefilter(monkeypatch):

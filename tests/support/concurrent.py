@@ -17,6 +17,7 @@ from collections.abc import Callable, Mapping
 
 import numpy as np
 
+from fse._store import _rescore, _search, _selection, _take, _vectorstore
 from support.waiting import arrived, blocked_in_wait
 
 TIMEOUT = 60
@@ -32,12 +33,15 @@ class Gate:
         self.held: set[str] = set()
         self.reached = {name: blocked_in_wait(self.condition, name) for name in names}
 
-    def hold(self, monkeypatch, module, name: str) -> None:
-        """Make ``module.name`` stop in an armed thread before it runs."""
+    def hold(self, monkeypatch, module, name: str, threads=None) -> None:
+        """Make ``module.name`` stop in an armed thread (of ``threads``, default all) before
+        it runs."""
         real = getattr(module, name)
+        chosen = set(self.reached if threads is None else threads)
 
         def held(*args, **kwargs):
-            self.pause()
+            if threading.current_thread().name in chosen:
+                self.pause()
             return real(*args, **kwargs)
 
         monkeypatch.setattr(module, name, held)
@@ -93,6 +97,18 @@ class Readers:
         return self.outcomes
 
 
+def repeated(read, target, times, start=None):
+    """A job that calls ``read(target)`` ``times`` times (after the barrier ``start``, if
+    given) and returns the exact outcomes."""
+
+    def run():
+        if start is not None:
+            start.wait()
+        return [exact(read(target)) for _ in range(times)]
+
+    return run
+
+
 def exact(value):
     """The dtypes, shapes and bytes of an outcome (arrays, named tuples, dataclasses,
     mappings and lists of them), comparable with ``==`` bit for bit."""
@@ -102,9 +118,35 @@ def exact(value):
         return ("array", str(value.dtype), value.shape, np.ascontiguousarray(value).tobytes())
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         fields = dataclasses.fields(value)
-        return (type(value).__name__, tuple((f.name, exact(getattr(value, f.name))) for f in fields))
+        return (
+            type(value).__name__,
+            tuple((f.name, exact(getattr(value, f.name))) for f in fields),
+        )
     if isinstance(value, Mapping):
         return ("mapping", tuple((key, exact(item)) for key, item in sorted(value.items())))
     if isinstance(value, (tuple, list)):
         return (type(value).__name__, tuple(exact(item) for item in value))
     return value
+
+
+def step_of(name):
+    """The step a read takes under the active-use guard of the store, where a gate holds it
+    (``rescore`` also calls ``_selection.plan``, before the guard)."""
+    if name.startswith("search"):
+        return _selection, "plan"
+    if name.startswith("take"):
+        return _take, "gather"
+    if name.startswith("score"):
+        return _search, "score"
+    if name == "rescore":
+        return _rescore, "check_values"
+    return _vectorstore, "stop_row"  # get_* and iter_batches
+
+
+def hold_every_read(gate, monkeypatch, reads):
+    """Hold each read of ``reads`` (named as ``step_of`` expects) at its guarded step."""
+    steps = {}
+    for name in reads:
+        steps.setdefault(step_of(name), []).append(name)
+    for (module, step), names in steps.items():
+        gate.hold(monkeypatch, module, step, threads=names)
