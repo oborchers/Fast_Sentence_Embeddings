@@ -91,3 +91,7 @@ def test_postprocess_pooled_names_the_row_that_cannot_be_normalized():
     rows[1] = np.float32(3e38)
     with pytest.raises(ValueError, match="row 11 "):
         get_backend("numpy").postprocess_pooled(rows, (Normalize(),), 10)
+
+
+def test_the_numpy_backend_never_enables_the_prefilter():
+    assert NumpyBackend().prefilter_variant() is None

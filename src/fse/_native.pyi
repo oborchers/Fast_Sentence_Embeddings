@@ -230,6 +230,23 @@ def inverse_norms(stored: ndarray, first_row: int = 0) -> ndarray: ...
 def cosines(
     stored: ndarray, inverse: ndarray, queries: ndarray, *, isa: str | None = None
 ) -> ndarray: ...
+def prefilter_variants() -> tuple[str, ...]: ...
+def prefilter_can_run(variant: object) -> bool: ...
+def int8_bounds(units: ndarray, qcodes: ndarray, qscales: ndarray) -> tuple[ndarray, ndarray]: ...
+def int8_pass(
+    stored: ndarray,
+    inverse: ndarray,
+    qcodes: ndarray,
+    qscales: ndarray,
+    slack: ndarray,
+    threshold: ndarray,
+    k: int,
+    capacity: int | None = None,
+    *,
+    variant: str | None = None,
+) -> tuple[
+    str, int | None, ndarray | None, tuple[ndarray, ...] | None, tuple[ndarray, ...] | None
+]: ...
 def scores(
     stored: ndarray,
     scales: ndarray | None,

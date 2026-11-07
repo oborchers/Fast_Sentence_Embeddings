@@ -23,6 +23,7 @@ import numpy as np
 from numpy import ndarray
 
 from fse._contract import Aggregation, Batch, Link, Op, Step, check_steps
+from fse._reference_prefilter import Pass
 
 from ._base_checks import (
     DTYPES,
@@ -169,6 +170,38 @@ class Backend(Protocol):
         """The linear score of every stored row with every weight vector, a (rows,
         vectors) array, as ``fse._reference.scores``; ``bias`` one number or one per
         vector."""
+        ...
+
+    def int8_bounds(
+        self, units: ndarray, qcodes: ndarray, qscales: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        """The slack ``E`` (float64) and whether the query is inside the proven domain (bool),
+        per query, as ``fse._reference_prefilter.bounds`` (docs/architecture/numerical-contract.md,
+        "int8 prefilter (no new arithmetic)"); ``units`` are the normalized float32 queries,
+        ``qcodes`` and ``qscales`` their int8 storage."""
+        ...
+
+    def int8_pass(
+        self,
+        stored: ndarray,
+        inverse: ndarray,
+        qcodes: ndarray,
+        qscales: ndarray,
+        slack: ndarray,
+        threshold: ndarray,
+        k: int,
+        capacity: int | None = None,
+    ) -> Pass:
+        """One pass of the prefilter over a block of stored int8 rows for every query, as
+        ``fse._reference_prefilter.int8_pass``: status ``"ok"``, ``"overflow"`` or
+        ``"unsafe"``, the heaps of the k largest estimates and the rows kept with their
+        upper bounds. Bit for bit the reference."""
+        ...
+
+    def prefilter_variant(self) -> str | None:
+        """The prefilter variant a search may use on this backend, or ``None`` when the
+        search stays on the exact path. A variant is built, runnable and enabled: three
+        separate facts, and ``int8_bounds`` and ``int8_pass`` work whatever this says."""
         ...
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:

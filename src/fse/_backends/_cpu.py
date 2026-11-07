@@ -21,6 +21,7 @@ from numpy import ndarray
 
 from fse import _native
 from fse._contract import Aggregation, Batch, Link, Op, Step
+from fse._reference_prefilter import Pass
 
 from ._base import (
     Capabilities,
@@ -34,6 +35,8 @@ from ._base import (
     dims,
 )
 from ._base_checks import (
+    check_int8_bounds_input,
+    check_int8_pass_input,
     check_pooled_input,
     check_score_input,
     check_scores_input,
@@ -51,6 +54,13 @@ _CAPABILITIES = Capabilities(
     max_dim=_native.MAX_DIM,
     text_rows=True,
 )
+
+
+# The prefilter variant of each instruction set, and the variants a search may use. A variant
+# is built (the compiler could), runnable (the CPU has the instructions) and enabled (a
+# measurement showed it pays) as three separate facts; none is enabled yet.
+_PREFILTER_VARIANT = {"neon": "neon-sdot", "avx2": "avx2"}
+_PREFILTER_ENABLED: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, eq=False)
@@ -165,6 +175,51 @@ class CpuBackend:
     ) -> ndarray:
         check_scores_input(stored, scales, weights, bias)
         return _native.scores(stored, scales, weights, bias, isa=self.isa)
+
+    def _prefilter_runnable(self) -> str:
+        """The integer kernel of the prefilter on this CPU for this backend's isa."""
+        variant = _PREFILTER_VARIANT.get(self.isa, "portable")
+        return variant if _native.prefilter_can_run(variant) else "portable"
+
+    def prefilter_variant(self) -> str | None:
+        """The variant a search may use, or ``None`` for the exact path: built into this
+        binary, runnable on this CPU and enabled (``_PREFILTER_ENABLED``)."""
+        variant = _PREFILTER_VARIANT.get(self.isa)
+        if variant in _PREFILTER_ENABLED and _native.prefilter_can_run(variant):
+            return variant
+        return None
+
+    def int8_bounds(
+        self, units: ndarray, qcodes: ndarray, qscales: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        check_int8_bounds_input(units, qcodes, qscales)
+        return _native.int8_bounds(units, qcodes, qscales)
+
+    def int8_pass(
+        self,
+        stored: ndarray,
+        inverse: ndarray,
+        qcodes: ndarray,
+        qscales: ndarray,
+        slack: ndarray,
+        threshold: ndarray,
+        k: int,
+        capacity: int | None = None,
+    ) -> Pass:
+        check_int8_pass_input(stored, inverse, qcodes, qscales, slack, threshold, k, capacity)
+        return Pass(
+            *_native.int8_pass(
+                stored,
+                inverse,
+                qcodes,
+                qscales,
+                slack,
+                threshold,
+                k,
+                capacity,
+                variant=self._prefilter_runnable(),
+            )
+        )
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         check_store_input(rows, codes, scales, first_row)

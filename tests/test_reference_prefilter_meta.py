@@ -164,7 +164,11 @@ def test_an_unsafe_row_in_the_heap_loses_the_top_row():
         estimate, safe = prefilter.estimates(stored, inverse, qcodes, qscales)
         heap = np.full((1, k), -np.inf)
         top, kept, tops = prefilter._scan(
-            estimate[:, 0].tolist(), float(slack[0]), float(threshold[0]), k
+            estimate[:, 0].tolist(),
+            float(slack[0]),
+            float(threshold[0]),
+            k,
+            prefilter.default_capacity(k),
         )
         heap[0, : len(top)] = top
         keep = [(r, t) for r, t in zip(kept, tops, strict=True) if safe[r]]

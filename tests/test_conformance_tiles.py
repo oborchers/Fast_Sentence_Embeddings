@@ -10,9 +10,7 @@ and when the last row of a table ends at a page that cannot be read.
 
 from __future__ import annotations
 
-import ctypes
 import functools
-import mmap
 import sys
 
 import numpy as np
@@ -21,6 +19,7 @@ import pytest
 from fse import _native, _reference
 from fse._contract import OOV_TOKEN
 from support.conformance import BACKENDS, BIG, F32, Case, Contract, Native, _rng, assert_bits_equal
+from support.guarded import Guarded
 from support.tiles import dirty, model_pool, tile_cases
 
 CASES = tile_cases()
@@ -116,30 +115,6 @@ def test_a_late_overflow_writes_its_row_and_stops(isa, column):
 GUARD_DIMS = (1, 2, 3, 4, 5, 7, 8, 12, 15, 16, 17, 31, 33, 47, 63, 65, 301)
 
 
-class _Guarded:
-    """Memory of nbytes between two pages without access, at the end or at the start."""
-
-    def __init__(self, nbytes: int, at_end: bool):
-        page = mmap.PAGESIZE
-        pages = max(1, -(-nbytes // page))
-        self.map = mmap.mmap(-1, (pages + 2) * page)
-        char = ctypes.c_char.from_buffer(self.map)
-        base = ctypes.addressof(char)
-        del char
-        libc = ctypes.CDLL(None, use_errno=True)
-        libc.mprotect.argtypes = (ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int)
-        for index in (0, pages + 1):
-            assert libc.mprotect(base + index * page, page, 0) == 0, ctypes.get_errno()
-        self.offset = page + (pages * page - nbytes if at_end else 0)
-        self.nbytes = nbytes
-
-    def array(self, values: np.ndarray) -> np.ndarray:
-        view = np.frombuffer(self.map, np.uint8, self.nbytes, self.offset)
-        view = view.view(values.dtype).reshape(values.shape)
-        view[...] = values
-        return view
-
-
 def _guard_case(dtype, dim):
     rng = _rng(dim)
     base = rng.standard_normal((3, dim)).astype(F32)
@@ -161,9 +136,9 @@ def test_no_read_or_write_beyond_a_row(isa, dtype, dim, at_end):
     case = _guard_case(dtype, dim)
     a = case.arrays
     rows, ngram_rows = a["rows"], a["ngram_rows"]
-    guards = [_Guarded(x.nbytes, at_end) for x in (rows, ngram_rows)]
+    guards = [Guarded(x.nbytes, at_end) for x in (rows, ngram_rows)]
     kernel = _kernel(case, isa, rows=guards[0].array(rows), ngram_rows=guards[1].array(ngram_rows))
-    out_guard = _Guarded(3 * dim * 4, at_end)
+    out_guard = Guarded(3 * dim * 4, at_end)
     out = out_guard.array(np.zeros((3, dim), F32))
     kernel.pool(case.batch, out)
     assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()))

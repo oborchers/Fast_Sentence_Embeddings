@@ -101,6 +101,7 @@ src/fse/
       _native_steps.pxi      #   dot16, normalize@1 and score,
       _native_store.pxi      #   storage of finished rows (quantize_rows@1),
       _native_search.pxi     #   inverse norms, cosines and scores of many vectors,
+      _native_prefilter.pxi  #   the int8 prefilter: slack of a query and one pass over a block,
       _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
       _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
       _native_kernel_base.h  #   build checks, macros and shared types,
@@ -109,6 +110,8 @@ src/fse/
       _native_kernel_steps.h #   FP environment, dot16, normalize@1 and score,
       _native_kernel_store.h #   the storage of rows per ISA,
       _native_kernel_search.h #  inverse norms, cosines and scores,
+      _native_kernel_int8.h  #   the exact int32 sums of the prefilter: portable, NEON SDOT, AVX2,
+      _native_kernel_prefilter.h # the slack of a query and a pass over a block of int8 rows,
       _native_kernel_head.h  #   the bias of folded logits, exp@1, the links and the labels
     text/
       _native_hash.pxi       # its parts: FastText ngram hashing and chunk limits,

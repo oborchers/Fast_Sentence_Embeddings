@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
-from fse import _native, _reference
+from fse import _native, _reference, _reference_prefilter
 from fse._backends import PoolInput, get_backend
 from fse._contract import Batch
 
@@ -72,8 +72,24 @@ def _rng(seed):
     return np.random.default_rng(seed)
 
 
+# The int8 prefilter variant that runs with an instruction set (the portable one if the CPU
+# lacks the instructions of the vector variant).
+PREFILTER_OF_ISA = {"neon": "neon-sdot", "avx2": "avx2"}
+
+
+def prefilter_variant_of(isa):
+    variant = PREFILTER_OF_ISA.get(isa, "portable")
+    return variant if _native.prefilter_can_run(variant) else "portable"
+
+
 class Reference:
     name = "reference"
+
+    def int8_bounds(self, units, qcodes, qscales):
+        return _reference_prefilter.bounds(units, qcodes, qscales)
+
+    def int8_pass(self, *args):
+        return _reference_prefilter.int8_pass(*args)
 
     def postprocess(self, rows, steps, first_row=0):
         return _reference.postprocess(rows, steps, first_row)
@@ -135,6 +151,13 @@ class Native:
     def dot16(self, rows, other):
         return _native.dot16(rows, other, isa=self.isa)
 
+    def int8_bounds(self, units, qcodes, qscales):
+        return _native.int8_bounds(units, qcodes, qscales)
+
+    def int8_pass(self, *args):
+        got = _native.int8_pass(*args, variant=prefilter_variant_of(self.isa))
+        return _reference_prefilter.Pass(*got)
+
 
 class Contract:
     """A backend of fse._backends through its contract: prepare once, then ``rows``.
@@ -183,6 +206,12 @@ class Contract:
 
     def scores(self, stored, scales, weights, bias):
         return self.backend.scores(stored, scales, weights, bias)
+
+    def int8_bounds(self, units, qcodes, qscales):
+        return self.backend.int8_bounds(units, qcodes, qscales)
+
+    def int8_pass(self, *args):
+        return self.backend.int8_pass(*args)
 
     def accumulate(self, *_case):
         pytest.skip(f"{self.name}: accumulate is no contract operation")

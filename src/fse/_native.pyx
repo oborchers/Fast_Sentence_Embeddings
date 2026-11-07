@@ -10,7 +10,8 @@
 # Copyright (C) Oliver Borchers
 
 """Native routines of fse 2.0 without the GIL: ngram hashing, vocabulary table, UTF-8 scan,
-token lists joined, the weighted mean kernel, dot16, steps, score and storage, the search, linear
+token lists joined, the weighted mean kernel, dot16, steps, score and storage, the search, the int8
+prefilter, linear
 heads, the tokenizers (wordpiece@1 and unigram@1 among them), the text lookup, Arrow string
 columns, and stages 1 to 4 of a task in one call (pool_text)."""
 
@@ -37,6 +38,7 @@ include "_native_src/kernel/_native_kernel.pxi"
 include "_native_src/kernel/_native_steps.pxi"
 include "_native_src/kernel/_native_store.pxi"
 include "_native_src/kernel/_native_search.pxi"
+include "_native_src/kernel/_native_prefilter.pxi"
 include "_native_src/kernel/_native_head.pxi"
 include "_native_src/text/_native_workspace.pxi"
 include "_native_src/text/_native_text.pxi"

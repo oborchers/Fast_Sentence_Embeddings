@@ -17,8 +17,9 @@ the top k, so only the rows that remain are scored exactly. The bound holds for 
 stored codes in [-128, 127], query codes in [-127, 127], a query with ``||u||**2 <= 1.002`` and
 rows whose inverse norm passes ``row_safe``; the proof is in the contract. The rule adds no
 arithmetic to the contract and never changes a result bit: the survivors go through the exact
-path. Anything outside the domain (``bounds`` says ``ok`` false, ``int8_pass`` says ``unsafe``)
-is for the caller to send to the exact path as a whole.
+path. A pass keeps at most ``capacity`` rows per query (the native kernel's buffer) and says
+``"overflow"`` when that does not suffice. Anything outside the domain (``bounds`` says ``ok``
+false, ``int8_pass`` says ``unsafe``) is for the caller to send to the exact path as a whole.
 
 Everything here is plain float64 and int64 arithmetic in the IEEE standard environment (round
 to nearest even, no flush to zero, no contraction), with the grouping written out below, which
@@ -39,14 +40,20 @@ ABSOLUTE = 2.0**-14
 QUERY_NORM2_MAX = 1.002
 ROW_NORM2_MAX = 1.0 + 2.0**-20
 MAX_DIM = 1024
+CAPACITY_MIN = 4096
 _QUERY_CODE_MAX = 127
+
+
+def default_capacity(k: int) -> int:
+    """How many rows a pass keeps per query before it gives up: ``max(4 * k, 4096)``."""
+    return max(4 * k, CAPACITY_MIN)
 
 
 class Pass(NamedTuple):
     """The result of ``int8_pass`` for one block.
 
-    ``status`` is ``"ok"`` or ``"unsafe"``; for ``"unsafe"`` only ``row`` (the first unsafe
-    row of the block) is set. ``heap`` holds the k largest estimates per query, descending, padded
+    ``status`` is ``"ok"``, ``"overflow"`` or ``"unsafe"``; for ``"unsafe"`` only ``row`` (the
+    first unsafe row of the block) is set, for ``"overflow"`` nothing is (see ``int8_pass``). ``heap`` holds the k largest estimates per query, descending, padded
     with ``-inf``; ``rows[j]`` and ``upper[j]`` are the rows (ascending, local to the block) kept
     for query j under the running threshold, and their upper bounds ``fl(a + E)``.
     """
@@ -143,13 +150,21 @@ def estimates(
     inv = inverse.astype(np.float64)
     with np.errstate(over="ignore", invalid="ignore"):
         scaled = qscales.astype(np.float64)[None, :] * products
-        estimate = scaled * inv[:, None]
+        # + 0.0 turns -0.0 into +0.0: the sign of a zero estimate carries nothing, and equal
+        # estimates then have equal bits, whatever layout a heap gives them.
+        estimate = scaled * inv[:, None] + 0.0
     return estimate, row_safe(inv, squares)
 
 
-def _check_pass(slack: ndarray, threshold: ndarray, width: int, k: int) -> None:
+def _check_pass(
+    slack: ndarray, threshold: ndarray, width: int, k: int, capacity: int | None
+) -> None:
     if not isinstance(k, int | np.integer) or isinstance(k, bool) or k < 1:
         raise ValueError("k must be a positive integer")
+    if capacity is not None and (
+        not isinstance(capacity, int | np.integer) or isinstance(capacity, bool) or capacity < 1
+    ):
+        raise ValueError("capacity must be a positive integer")
     for name, value in (("slack", slack), ("threshold", threshold)):
         if value.dtype != np.float64 or value.shape != (width,):
             raise ValueError(f"{name} must be one float64 value per query")
@@ -159,21 +174,37 @@ def _check_pass(slack: ndarray, threshold: ndarray, width: int, k: int) -> None:
         raise ValueError("a threshold must not be NaN")
 
 
-def _scan(estimate: list[float], bound: float, threshold: float, k: int):
+def _compact(kept: list[int], upper: list[float], floor: float) -> tuple[list[int], list[float]]:
+    """The rows (and bounds) of a full list that still reach the floor, in order."""
+    stay = [i for i, top in enumerate(upper) if keeps(top, floor)]
+    return [kept[i] for i in stay], [upper[i] for i in stay]
+
+
+def _scan(estimate: list[float], bound: float, threshold: float, k: int, capacity: int):
     """One query over a block, row by row: the k largest estimates and the rows kept under
-    the running threshold ``max(T_in, k-th largest so far)`` (``-inf`` before k rows)."""
+    the running threshold ``max(T_in, k-th largest so far)`` (``-inf`` before k rows).
+
+    A row that reaches the floor while ``capacity`` rows are kept first drops those the floor
+    now cuts; if the list is still full the scan gives up and returns ``None``."""
     heap: list[float] = []
-    kept, upper = [], []
+    kept: list[int] = []
+    upper: list[float] = []
     for row, value in enumerate(estimate):
         if len(heap) < k:
             heapq.heappush(heap, value)
         elif value > heap[0]:
             heapq.heapreplace(heap, value)
         running = max(threshold, heap[0]) if len(heap) == k else threshold
+        floor = floor_of(running, bound)
         top = value + bound
-        if keeps(top, floor_of(running, bound)):
-            kept.append(row)
-            upper.append(top)
+        if not keeps(top, floor):
+            continue
+        if len(kept) == capacity:
+            kept, upper = _compact(kept, upper, floor)
+            if len(kept) == capacity:
+                return None
+        kept.append(row)
+        upper.append(top)
     return sorted(heap, reverse=True), kept, upper
 
 
@@ -185,6 +216,7 @@ def int8_pass(
     slack: ndarray,
     threshold: ndarray,
     k: int,
+    capacity: int | None = None,
 ) -> Pass:
     """One pass over a block of stored rows for every query.
 
@@ -195,15 +227,24 @@ def int8_pass(
     and the row is kept if ``fl(a + E) >= fl(max(T_in, k-th largest so far) - E)``. As the
     running value never exceeds the final k-th largest estimate, the kept rows contain those
     ``survivors`` keeps at the end.
+
+    At most ``capacity`` rows (default ``default_capacity(k)``) are kept per query: when a row
+    reaches the floor and the list is full, the rows the floor now cuts are dropped, and if
+    it is still full the pass is ``"overflow"``. An unsafe row of the block wins over an
+    overflow, whatever their order; both leave only the status (and the row) set.
     """
     estimate, safe = estimates(stored, inverse, qcodes, qscales)
-    _check_pass(slack, threshold, len(qcodes), k)
+    _check_pass(slack, threshold, len(qcodes), k, capacity)
     if not safe.all():
         return Pass("unsafe", int(np.flatnonzero(~safe)[0]), None, None, None)
+    capacity = default_capacity(k) if capacity is None else int(capacity)
     heap = np.full((len(qcodes), k), -np.inf)
     rows, upper = [], []
     for j in range(len(qcodes)):
-        top, kept, tops = _scan(estimate[:, j].tolist(), float(slack[j]), float(threshold[j]), k)
+        scanned = _scan(estimate[:, j].tolist(), float(slack[j]), float(threshold[j]), k, capacity)
+        if scanned is None:
+            return Pass("overflow", None, None, None, None)
+        top, kept, tops = scanned
         heap[j, : len(top)] = top
         rows.append(np.array(kept, dtype=np.int64))
         upper.append(np.array(tops, dtype=np.float64))
