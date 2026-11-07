@@ -16,6 +16,7 @@ from support.prefilter import exact, prepared, same_result, search
 from support.prefilter_witnesses import (
     TILT,
     Geometry,
+    exact_tie_store,
     pair_store,
     random_store,
     small_norm_query,
@@ -90,6 +91,31 @@ def test_control_a_tie_at_the_threshold_stays(monkeypatch):
     threshold = prefilter.kth_estimate(got.heap)
     kept = prefilter.survivors(got.rows[0], got.upper[0], float(threshold[0]), float(slack[0]))
     assert kept.tolist() == [0, 1]  # position 0 wins the tie of the scores
+
+
+def survivors_of_exact_tie():
+    stored, inverse, query = exact_tie_store()
+    _, qcodes, qscales, slack, ok = prepared(query)
+    assert ok[0]
+    assert slack[0] == 2.0**-14  # eps_hat = 0
+    a, _ = prefilter.estimates(stored, inverse, qcodes, qscales)
+    assert a[:, 0].tolist() == [63 / 8192, 1 / 128]
+    assert a[0, 0] + slack[0] == 127 / 16384  # the tie at the floor
+    assert a[1, 0] - slack[0] == 127 / 16384
+    got = prefilter.int8_pass(stored, inverse, qcodes, qscales, slack, np.full(1, -np.inf), 1)
+    threshold = float(prefilter.kth_estimate(got.heap)[0])
+    return prefilter.survivors(got.rows[0], got.upper[0], threshold, float(slack[0]))
+
+
+def test_control_a_tie_at_the_floor_stays_under_the_fixed_constants():
+    assert survivors_of_exact_tie().tolist() == [0, 1]
+
+
+def test_an_exclusive_comparison_changes_the_survivors_at_a_tie_under_the_fixed_constants(
+    monkeypatch,
+):
+    monkeypatch.setattr(prefilter, "keeps", lambda upper, floor: upper > floor)
+    assert survivors_of_exact_tie().tolist() == [1]
 
 
 def test_an_exclusive_comparison_loses_a_tie_at_the_threshold(monkeypatch):
@@ -188,8 +214,10 @@ def test_a_cut_against_the_running_threshold_instead_of_the_final_one_depends_on
     assert all(same_result(run, ids, scores) for run in runs)
 
 
-def test_a_random_store_is_not_the_witness_of_any_of_these():
-    """A weakened bound loses nothing on random rows: only the fixed witnesses show it."""
+def test_a_weakened_bound_loses_nothing_on_random_rows(monkeypatch):
+    """Control of the witnesses: only the fixed ones show a bound of 0.9 eps."""
+    monkeypatch.setattr(prefilter, "SLACK", 0.9)
+    monkeypatch.setattr(prefilter, "ABSOLUTE", 0.0)
     stored, inverse = random_store(300, 31)
     query = Geometry(31).query
     ids, scores = exact(stored, inverse, query, 5)

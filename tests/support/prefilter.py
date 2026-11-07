@@ -82,8 +82,10 @@ def search(stored, inverse, queries, k, *, block=4096, order=None, compact="fina
 def _candidates(parts, threshold, slack, width, compact):
     out = []
     for j in range(width):
-        rows = np.concatenate([first + got.rows[j] for first, got in parts])
-        upper = np.concatenate([got.upper[j] for _, got in parts])
+        rows = np.concatenate([first + got.rows[j] for first, got in parts] or [[]]).astype(
+            np.int64
+        )
+        upper = np.concatenate([got.upper[j] for _, got in parts] or [[]])
         if compact == "final":
             rows = prefilter.survivors(rows, upper, float(threshold[j]), float(slack[j]))
         out.append(np.sort(rows))

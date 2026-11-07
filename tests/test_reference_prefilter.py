@@ -291,6 +291,17 @@ def test_the_search_gives_the_bits_of_the_exact_path(dim, k):
         assert all(len(i) == min(k, 130) for i in got.ids)
 
 
+@pytest.mark.parametrize("rows", [0, 1, 3])
+def test_fewer_rows_than_k_all_stay(rows):
+    stored, inverse = random_store(rows, 14)
+    queries = np.random.default_rng(15).standard_normal((2, 256)).astype(F32)
+    ids, scores = exact(stored, inverse, queries, 5)
+    got = search(stored, inverse, queries, 5)
+    assert got.fallback is None
+    assert same_result(got, ids, scores)
+    assert all(len(kept) == rows for kept in got.rows)
+
+
 def test_the_survivors_do_not_depend_on_the_blocks_or_their_order():
     stored, inverse = random_store(512, 11)
     queries = np.random.default_rng(12).standard_normal((2, 256)).astype(F32)

@@ -69,6 +69,17 @@ def tie_store():
     return stored, inverse, units, qcodes, qscales
 
 
+def exact_tie_store():
+    """A tie at the floor under the fixed constants. The query ``[127, 15, 5, 2, 1]`` is stored
+    exactly (``u = q / 128``, ``s = 1 / 128``), so ``eps_hat = 0`` and ``E = 2^-14``. Two rows
+    ``[0, 0, 0, 0, 1]`` with the inverse norms 63/64 (safe, a little small) and 1 have the
+    estimates 63/8192 and 1/128, and ``a_A + E == a_B - E == 127/16384``. k = 1, B wins."""
+    query = np.array([[127, 15, 5, 2, 1]], F32)
+    stored = np.array([[0, 0, 0, 0, 1], [0, 0, 0, 0, 1]], np.int8)
+    inverse = np.array([63 / 64, 1.0], F32)
+    return stored, inverse, query
+
+
 def unsafe_store(seed=1):
     """30 random rows around the top row (position 10) and a row U (position 21) whose
     inverse norm is 1000 times too large, whose direction is orthogonal to the query and
