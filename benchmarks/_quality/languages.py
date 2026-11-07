@@ -96,25 +96,38 @@ def benchmark_summary(folder, rows):
 
 
 def zero_shot(configurations):
-    """The tasks every configuration evaluated validly and MTEB confirms as zero-shot for
-    every model, and each configuration's mean over exactly that common set."""
-    sets = [confirmed(b) for c in configurations for b in c["benchmarks"]]
-    common = sorted(set.intersection(*sets)) if sets else []
+    """Per benchmark: the tasks that every configuration holding that benchmark evaluated
+    validly and MTEB confirms as zero-shot for its model, and each configuration's mean over
+    exactly that common set. A configuration with an incomplete selection empties it."""
+    result = {}
+    for benchmark in MULTILINGUAL:
+        held = holders(configurations, benchmark)
+        if held:
+            result[benchmark] = common_set(held)
+    return result
+
+
+def holders(configurations, benchmark):
+    return [
+        (index, b)
+        for index, c in enumerate(configurations)
+        for b in c["benchmarks"]
+        if b["benchmark"] == benchmark
+    ]
+
+
+def common_set(held):
+    common = sorted(set.intersection(*(confirmed(b) for _, b in held)))
+    means = [statistics.mean(b["scores"][t] for t in common) for _, b in held] if common else []
     return {
+        "configurations": [index for index, _ in held],
         "common_zero_shot_tasks": common,
-        "means": [mean_over(c, common) for c in configurations],
+        "means": means or [None] * len(held),
     }
 
 
 def confirmed(benchmark):
     return {t for t, s in benchmark.get("training_relation", {}).items() if s == "zero_shot"}
-
-
-def mean_over(configuration, tasks):
-    if not tasks:
-        return None
-    scores = {t: v for b in configuration["benchmarks"] for t, v in b["scores"].items()}
-    return statistics.mean(scores[t] for t in tasks)
 
 
 def reproduction(folder, rows):
@@ -221,4 +234,11 @@ def multilingual(folder, rows):
         "configurations": configurations,
         "zero_shot": zero_shot(configurations),
         "reproduction": reproduction(folder, every),
+        "probes": probes(rows),
     }
+
+
+def probes(rows):
+    keys = ("cell_id", "model", "status", "reason", "reference", "reference_weight_dtype")
+    keys += ("output_dim", "max_abs_difference", "min_cosine", "zero_vectors_fse")
+    return [{k: r.get(k) for k in keys} for r in rows if r["kind"] == "probe"]
