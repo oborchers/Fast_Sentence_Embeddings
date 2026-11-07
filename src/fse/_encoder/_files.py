@@ -31,6 +31,7 @@ MAX_CONFIG_BYTES = 2**20
 # The rule of a model itself, which an argument of from_pretrained (max_length, truncate_dim,
 # normalize) keeps.
 MODEL_RULE = "model"
+_BLOCK_ROWS = 1 << 16
 # The tensors of vocabulary quantization (model2vec), which no reader of fse reads.
 QUANTIZED = frozenset({"weights", "mapping"})
 _DTYPE_OF_CODE = {"F32": "float32", "F16": "float16", "I8": "int8", "U8": "uint8"}
@@ -100,9 +101,19 @@ def kept_dims(truncate_dim: Any, stored: int | None, width: int, where: Any) -> 
 
 
 def cut_table(table: ndarray, kept: int | None) -> ndarray:
-    """The first ``kept`` columns of the table as a read-only copy; the table itself for None."""
+    """The first ``kept`` columns of the table as a read-only copy; the table itself for
+    None. The columns that are dropped must be finite too, as the whole table is when it is
+    not cut, so a corrupt table is never accepted by a cut."""
     if kept is None:
         return table
+    for begin in range(0, len(table), _BLOCK_ROWS):
+        dropped = table[begin : begin + _BLOCK_ROWS, kept:]
+        bad = np.flatnonzero(~np.isfinite(dropped).all(axis=1))
+        if len(bad):
+            raise ValueError(
+                f"row {begin + int(bad[0])} of vectors contains NaN or infinite values "
+                f"(in the columns that truncate_dim {kept} drops)"
+            )
     table = np.ascontiguousarray(table[:, :kept])
     table.setflags(write=False)
     return table

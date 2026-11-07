@@ -91,11 +91,27 @@ def test_a_cut_model_round_trips_through_save_and_load(plain, tmp_path):
 
 def test_the_cut_works_with_the_length_rule_and_a_unigram_model(tmp_path):
     folder = mv.save_unigram_model(tmp_path / "uni")
-    full = Encoder.from_pretrained(folder, normalize=False)
-    cut = Encoder.from_pretrained(folder, truncate_dim=5, normalize=False, max_length=3)
+    long = " ".join(["hello world the cat sat on the mat"] * 6)
+    texts = [long, "hello world"]
     short = Encoder.from_pretrained(folder, normalize=False, max_length=3)
-    assert _bits(cut) == np.ascontiguousarray(short.encode(TEXTS)[:, :5]).tobytes()
-    assert full.output_dim == mv.DIM
+    whole = Encoder.from_pretrained(folder, normalize=False, max_length=None)
+    assert short.encode(texts)[0].tobytes() != whole.encode(texts)[0].tobytes()
+    cut = Encoder.from_pretrained(folder, truncate_dim=5, normalize=False, max_length=3)
+    assert cut.encode(texts).tobytes() == np.ascontiguousarray(short.encode(texts)[:, :5]).tobytes()
+    assert cut._content.source == Source("model2vec", None, None, (mv.DIM, 5))
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize("column", [3, 9])
+def test_a_corrupt_table_is_refused_whatever_the_cut_drops(tmp_path, table, bad, column):
+    """A non-finite value is refused in a kept column and in a dropped one alike."""
+    broken = table.copy()
+    broken[7, column] = bad
+    folder = mv.save_model(tmp_path / "broken", broken, normalize=False)
+    with pytest.raises(ValueError, match="row 7 of vectors contains NaN or infinite"):
+        Encoder.from_pretrained(folder)
+    with pytest.raises(ValueError, match="row 7 of vectors contains NaN or infinite"):
+        Encoder.from_pretrained(folder, truncate_dim=5)
 
 
 def test_an_fse_encoder_cannot_be_cut(plain, tmp_path):
