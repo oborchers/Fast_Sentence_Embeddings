@@ -79,6 +79,7 @@ def loader(cell, context):
             "dtype": cell.get("dtype", "float32"),
             "truncate": cell.get("truncate", False),
             "truncate_dim": cell.get("truncate_dim", "model"),
+            "trust_remote_code": cell.get("trust_remote_code", False),
         },
         sort_keys=True,
     )
@@ -126,7 +127,12 @@ def native_model(cell, fit):
     elif backend == "st":
         from sentence_transformers import SentenceTransformer
 
-        model = SentenceTransformer(cell["model"], revision=MODEL_PINS[cell["model"]], device="cpu")
+        model = SentenceTransformer(
+            cell["model"],
+            revision=MODEL_PINS[cell["model"]],
+            device="cpu",
+            trust_remote_code=cell.get("trust_remote_code", False),
+        )
     else:
         raise ValueError(f"unknown quality backend: {backend}")
     if backend == "fse" and cell.get("dtype", "float32") != "float32":
