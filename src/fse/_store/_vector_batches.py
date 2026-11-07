@@ -93,10 +93,12 @@ def make(tensors: dict[str, ndarray], store_row: int, first: int, end: int) -> V
 
 def _stored_rows(vectors: Any, n_rows: int) -> ndarray:
     """The 2-D array ``normalized`` multiplies: the rows, or the int8 codes."""
-    if isinstance(vectors, QuantizedRows):
-        rows, allowed = vectors.codes, (np.dtype(np.int8),)
-    else:
-        rows, allowed = vectors, (np.dtype(np.float32), np.dtype(np.float16))
+    rows: Any = vectors.codes if isinstance(vectors, QuantizedRows) else vectors
+    allowed = (
+        {np.dtype(np.int8)}
+        if isinstance(vectors, QuantizedRows)
+        else {np.dtype(np.float32), np.dtype(np.float16)}
+    )
     if not isinstance(rows, ndarray) or rows.dtype not in allowed:
         raise TypeError(
             "vectors must be a float32 or float16 array or QuantizedRows of int8 codes, "
