@@ -28,7 +28,7 @@ from ._view import open_view
 
 
 @validate_arguments
-def open_store(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
     try:
         return _opened(cls, path, encoder=encoder, backend=backend)
     except BaseException as error:
@@ -78,8 +78,13 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
 
 
 @validate_arguments
-def open_store_view(cls: Any, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+def _opened_view(cls: Any, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
     def member(path: Path) -> Any:
         return cls.open(path, encoder=encoder, backend=backend)
 
     return open_view(cls, paths, member, {"_active": 0})
+
+
+# The decorated functions keep their names: pydantic titles a validation error with them.
+open_store = _open
+open_store_view = _opened_view

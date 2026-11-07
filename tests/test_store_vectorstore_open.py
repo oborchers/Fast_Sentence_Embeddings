@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pydantic
 import pytest
 
 import fse
@@ -55,3 +56,12 @@ def test_open_store_rejects_an_encoder_of_another_kind(tmp_path):
     path = _write(tmp_path / "a", texts(5))
     with pytest.raises(TypeError, match="encoder must be an Encoder"):
         _vectorstore_open.open_store(VectorStore, path, encoder=object())
+
+
+def test_validation_errors_keep_their_titles(tmp_path):
+    with pytest.raises(pydantic.ValidationError) as opened:
+        VectorStore.open(tmp_path, backend=123)
+    assert opened.value.title == "_open"
+    with pytest.raises(pydantic.ValidationError) as viewed:
+        VectorStore.open_view([tmp_path], backend=123)
+    assert viewed.value.title == "_opened_view"
