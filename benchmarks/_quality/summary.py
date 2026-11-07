@@ -12,7 +12,7 @@ from _measurement import sha256
 def summarize(folder):
     path = folder / "cells.jsonl"
     rows = [json.loads(line) for line in path.read_text().splitlines()]
-    groups, types = {}, {}
+    groups, kinds = {}, {}
     for row in rows:
         if row["kind"] != "mteb" or row["status"] != "valid" or row.get("functional_only"):
             continue
@@ -26,6 +26,7 @@ def summarize(folder):
             "truncate_dim",
             "publishable",
             "class",
+            "trust_remote_code",
             "mteb_version",
             "machine_environment_sha256",
             "backend",
@@ -38,8 +39,10 @@ def summarize(folder):
         if task_key in groups.setdefault(key, {}):
             raise ValueError("duplicate task results in one quality configuration")
         groups[key][task_key] = row["main_score"]
-        types[row["task"]] = row["task_metadata"]["type"]
-    result = [configuration_summary(key, tasks, types) for key, tasks in sorted(groups.items())]
+        kinds.setdefault(key, {})[row["task"]] = row["task_metadata"]["type"]
+    result = [
+        configuration_summary(key, tasks, kinds[key]) for key, tasks in sorted(groups.items())
+    ]
     return {
         "source": str(Path(folder).resolve()),
         "cells_sha256": sha256(path),
@@ -51,14 +54,15 @@ def summarize(folder):
 
 
 def categories(tasks, types):
-    """Mean and task count per MTEB task type of MTEB(eng, v2); the mean over the type
-    means (MTEB's Mean(Type)) only for the 40 tasks that are computed."""
+    """Task count and mean per MTEB task type of MTEB(eng, v2). Without all 40 computed
+    tasks no category has a mean (missing coverage has no mean), only its count."""
     by_type = {}
     for (suite, task), value in tasks.items():
         if suite == "MTEB(eng, v2)":
             by_type.setdefault(types[task], []).append(value)
+    complete = sum(len(v) for v in by_type.values()) == 40
     return {
-        name: {"tasks": len(values), "mean": statistics.mean(values)}
+        name: {"tasks": len(values), "mean": statistics.mean(values) if complete else None}
         for name, values in sorted(by_type.items())
     }
 
