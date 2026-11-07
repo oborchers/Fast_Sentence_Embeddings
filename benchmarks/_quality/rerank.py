@@ -69,12 +69,16 @@ def _stage(name, stages, data, context, rankings):
     else:
         from _quality.mteb import loader
 
-        rankings[name], _ = rerank_stages.dense(loader(stage, context), data)
+        rankings[name], scores = rerank_stages.dense(loader(stage, context), data)
+        context.setdefault("rerank_raw", {})[(data.name, name)] = scores
     return rankings[name]
 
 
 def _mteb_check(cell, stages, data, context, arms):
-    """Unmodified MTEB on the same task and encoder: its NDCG@10 must match the study's."""
+    """Unmodified MTEB on the same task and encoder. The study's raw cosine scores, handed to
+    pytrec_eval as MTEB hands them, must give MTEB's NDCG@10: same data, texts and vectors.
+    The study ranking breaks exact ties by position, pytrec_eval by document ID, so its value
+    is recorded beside it (it differs only where documents tie, as duplicates in ArguAna)."""
     from _quality.mteb import evaluate, filters_for, tasks_for
 
     task = next(t for t in tasks_for("NanoBEIR") if t.metadata.name == data.name)
@@ -90,8 +94,12 @@ def _mteb_check(cell, stages, data, context, arms):
             },
             context,
         )
-        study = arms[name]["ndcg_cut_10"]
-        checks[name] = {"mteb": row["main_score"], "study": study}
+        study = rerank_scores.scored_ndcg(data, context["rerank_raw"][(data.name, name)])
+        checks[name] = {
+            "mteb": row["main_score"],
+            "study_scores": study,
+            "study_ranking": arms[name]["ndcg_cut_10"],
+        }
         if abs(row["main_score"] - study) > MTEB_TOLERANCE:
             raise ValueError(f"{name} on {data.name}: study NDCG@10 differs from MTEB")
     return checks

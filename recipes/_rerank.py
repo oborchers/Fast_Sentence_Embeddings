@@ -3,6 +3,8 @@
 import math
 
 import pyarrow.parquet as pq
+from huggingface_hub import snapshot_download
+from huggingface_hub.errors import LocalEntryNotFoundError
 
 SCIFACT = ("mteb/NanoSciFactRetrieval", "8c5f7bbe90bb865f46c67710221afa7d9096251b")
 
@@ -56,3 +58,14 @@ def rrf(*lists, k=60):
         for rank, doc in enumerate(ranked, start=1):
             score[doc] = score.get(doc, 0.0) + 1.0 / (k + rank)
     return sorted(score, key=lambda d: -score[d])
+
+
+def snapshot(recipe, repo, revision):
+    """The folder of a model at a pinned revision: an existing Hub snapshot as it is, or a
+    new download into the recipe's temporary folder."""
+    try:
+        return snapshot_download(repo, revision=revision, local_files_only=True)
+    except LocalEntryNotFoundError:  # not cached: download without touching the shared cache
+        return snapshot_download(
+            repo, revision=revision, cache_dir=recipe.work / "hub", token=False
+        )

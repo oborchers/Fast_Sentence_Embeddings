@@ -73,3 +73,16 @@ def metrics(data, ranking):
     if not all(math.isfinite(v) for v in result.values()):
         raise ValueError("nonfinite retrieval metric")
     return result
+
+
+def scored_ndcg(data, scores, depth=1000):
+    """NDCG@10 of raw first-stage scores as MTEB evaluates them: the top ``depth`` documents
+    with their scores, ordered and tie-broken by pytrec_eval itself."""
+    import pytrec_eval
+
+    run = {}
+    for q, row in enumerate(scores):
+        top = np.argsort(-row, kind="stable")[:depth]
+        run[data.query_ids[q]] = {data.doc_ids[p]: float(row[p]) for p in top}
+    values = pytrec_eval.RelevanceEvaluator(data.qrels, {"ndcg_cut.10"}).evaluate(run)
+    return float(np.mean([values[q]["ndcg_cut_10"] for q in data.query_ids]))
