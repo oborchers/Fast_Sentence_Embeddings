@@ -1,10 +1,11 @@
 """The guard of GIL hand-overs per task of a head (docs/architecture/runtime.md, "Runtime",
 Tasks): a task whose heads read only the folded table pools in one section without the GIL
-and makes no numpy call that could release it; the checks of the Batch path (the heads on
-normalized means, the vectors) no longer call np.may_share_memory, which released it up to
-20 times per task (DR-241). The budgets are exact: a change either way fails until the test
-is changed on purpose. How the counts are made, and what they cannot see:
-support/gil_budget.py."""
+and makes no numpy call that could release it; the budgets of that path are exact, so a
+change either way fails until the test is changed on purpose. The checks of the Batch path
+(the heads on normalized means, the vectors) no longer call np.may_share_memory, which
+released the GIL up to 20 times per task (DR-241); only that call is guarded there, the rest
+of that path still makes numpy passes over its tokens. How the counts are made, and what they
+cannot see: support/gil_budget.py."""
 
 from collections import Counter
 
