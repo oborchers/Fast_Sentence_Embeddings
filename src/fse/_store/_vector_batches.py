@@ -49,6 +49,12 @@ class VectorBatch:
         the stored inverse norm is already rounded to float32; a zero row stays zero. This is
         not the ``normalize@1`` of the numerical contract. Raises ``ValueError`` or
         ``TypeError`` for a batch that has no ``inv_norms`` or whose fields do not fit."""
+        if isinstance(self.n_rows, bool | np.bool_) or not isinstance(
+            self.n_rows, int | np.integer
+        ):
+            raise TypeError(f"n_rows must be an int, not {type(self.n_rows).__name__}")
+        if self.n_rows < 0:
+            raise ValueError(f"n_rows must not be negative, not {self.n_rows}")
         rows = _stored_rows(self.vectors, self.n_rows)
         inverse = _checked_inv_norms(self.inv_norms, self.n_rows)
         out = np.empty(rows.shape, dtype=np.float32)
