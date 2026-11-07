@@ -163,6 +163,40 @@ def test_ties_zero_rows_and_extreme_codes(tmp_path, monkeypatch):
             assert ps.same(got, want)
 
 
+def test_extreme_codes_at_the_widest_row(tmp_path, monkeypatch):
+    """d = 1024 with rows of only -128 (the largest sum of squares), only 127, a mixture of
+    both and a row along the query: the integer sums reach their bounds."""
+    ps.enable(monkeypatch, rows=1, dim=None)
+    rng = np.random.default_rng(13)
+    codes = ps.codes_like(1500, 1024, seed=5)
+    codes[10:20] = -128
+    codes[20:30] = 127
+    codes[30:40] = rng.choice(np.array([-128, 127], np.int8), (10, 1024))
+    ps.write(tmp_path / "s", codes, shard_rows=400)
+    qs = np.concatenate([ps.queries(3, 1024), codes[35:36].astype(np.float32)])
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        for k in (1, 10, 40):
+            got, want, records = _both(monkeypatch, store, qs, k, workers=2)
+            assert ps.prefilter_record(records).fse_fallback == "none"
+            assert ps.same(got, want)
+
+
+def test_equal_rows_across_the_block_edge_keep_their_order(tmp_path, monkeypatch):
+    """Rows 65,535 and 65,536 are equal and the best rows: the first is the end of a block
+    and the second the start of the next, so their order comes from the positions."""
+    ps.enable(monkeypatch, rows=None, dim=None)
+    codes = ps.codes_like(70_000, 256, seed=3, duplicates=False)
+    codes[65_535] = codes[65_536] = codes[7]
+    ps.write(tmp_path / "s", codes, shard_rows=30_000)
+    qs = codes[7:8].astype(np.float32)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        for workers in (1, 3):
+            got, want, records = _both(monkeypatch, store, qs, 4, workers=workers)
+            assert ps.prefilter_record(records).fse_fallback == "none"
+            assert ps.same(got, want)
+            assert got.ids[0, :3].tolist() == [7, 65_535, 65_536]
+
+
 @pytest.mark.parametrize("with_docs", [False, True])
 def test_a_store_with_document_ids_labels_its_hits_as_before(tmp_path, monkeypatch, with_docs):
     ps.enable(monkeypatch)
