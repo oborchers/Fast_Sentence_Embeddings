@@ -72,9 +72,14 @@ def test_the_float16_table_is_kept_through_save_and_load(pair, tmp_path):
         half.quantize("float16")
 
 
-def test_the_card_of_a_saved_float16_encoder_names_its_dtype(pair, tmp_path):
+def test_the_card_of_a_saved_float16_encoder_names_its_table(pair, tmp_path):
     folder = Encoder.from_pretrained(pair[0]).save_pretrained(tmp_path / "out")
     assert Encoder.from_pretrained(folder).word_vectors.dtype == "float16"
+    card = (folder / "README.md").read_text(encoding="utf-8")
+    assert "table stored by `quantize_rows@1`" in card
+    assert "from the float32 table" not in card
+    assert "stored as it is in the source model" in card
+    assert "before quantization" not in card
 
 
 def test_other_dtypes_are_still_refused(tmp_path):
