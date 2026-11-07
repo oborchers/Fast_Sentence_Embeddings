@@ -54,7 +54,7 @@ def search_store(
             )
             ids, scores, labels = (a[0] if single else a for a in found)
             return DocumentSearchResult(ids, scores, labels)
-        found = _prefilter.search(
+        fast = _prefilter.search(
             store._backend,
             shards,
             matrix,
@@ -65,8 +65,8 @@ def search_store(
             exact=exact,
             grouped=False,
         )
-        if found is not None:
-            ids, scores = found
+        if fast is not None:
+            ids, scores = fast
         elif values is None:
             ids, scores = _search.search(
                 store._backend, shards, matrix, k, workers=workers, exact=exact
