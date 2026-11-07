@@ -16,7 +16,8 @@ the first failing task in order, after every task before it was committed, as wi
 worker. Tasks after a failing one are skipped where they have not started. An error of
 the task iterator ends the run after the tasks taken before it were committed. An error
 of ``commit`` (or an interrupt) stops the run at once: tasks that have not started are
-cancelled, running ones finish, then it is raised. No thread outlives a call.
+cancelled, running ones finish, then it is raised. No thread outlives a call that made
+its own pool; a pool the caller passes is the caller's to close.
 """
 
 from __future__ import annotations
@@ -24,10 +25,12 @@ from __future__ import annotations
 import threading
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import Future, wait
 from typing import Any, TypeVar
 
 import numpy as np
+
+from ._pool import Pool
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -47,6 +50,7 @@ def run(
     window: int | None = None,
     reserve: Callable[[T], Any] | None = None,
     stop: threading.Event | None = None,
+    pool: Pool | None = None,
 ) -> None:
     """Run ``work`` on every task and ``commit`` each result in task order.
 
@@ -54,6 +58,10 @@ def run(
     the calling thread before the task is submitted (a sink reserving its rows); an error
     of it stops the run like an error of ``commit``. ``stop``, if given, is set as soon as
     a task fails, so a source can stop reading (a stream between two sentences).
+
+    ``pool`` is the threads to run on, which the caller owns and which may run other calls
+    at once: at most ``workers`` tasks of this call run at once, and the pool's own limit
+    on tasks is shared. Without a pool the call makes one and closes it before it returns.
     """
     workers = _positive(workers, "workers")
     window = 2 * workers if window is None else _positive(window, "window")
@@ -63,7 +71,11 @@ def run(
             item = reserve(task)
             commit(item, work(item))
         return
-    _Run(iter(tasks), work, commit, window, reserve, stop).threads(workers)
+    if pool is not None:
+        _Run(iter(tasks), work, commit, window, reserve, stop, workers).execute(pool)
+        return
+    with Pool(workers, max_tasks=window) as own:  # all the window this call needs
+        _Run(iter(tasks), work, commit, window, reserve, stop, workers).execute(own)
 
 
 def _same(task: Any) -> Any:
@@ -79,41 +91,136 @@ class _Run:
         window: int,
         reserve: Callable,
         stop: threading.Event | None,
+        workers: int,
     ):
         self.tasks, self.work, self.commit, self.window = tasks, work, commit, window
-        self.reserve, self.stop = reserve, stop
+        self.reserve, self.stop, self.workers = reserve, stop, workers
         self.lock = threading.Lock()
         self.failed_at: float = float("inf")  # sequence of the first failed task so far
         self.pending: deque[tuple[int, Any, Future]] = deque()
+        self.futures: set[Future] = (
+            set()
+        )  # the tasks this call submitted and that have not finished
+        self.unfinished = 0  # submitted and not yet finished
+        self.limit = window  # of them at most: ``workers`` on a pool of more threads
+        self.changed = threading.Event()  # a task finished
+        self.held = 0  # places of the pool this call holds
         self.source_error: BaseException | None = None
         self.exhausted = False
+        self.sequence = 0  # of the next task
+        self.pool_of_call: Pool
 
-    def threads(self, workers: int):
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-worker") as pool:
+    def execute(self, pool: Pool):
+        pool.check_open()
+        self.pool_of_call = pool
+        if self.workers < pool.workers:  # this call may use no more threads than it asked for
+            self.limit = self.workers
+        with pool.inside():
             try:
                 self._loop(pool)
             except BaseException:
                 self._stop()
-                for _, _, future in self.pending:
+                for future in self._running():
                     future.cancel()
+                self._wait_for_own()
                 raise
+            finally:
+                self._give_back_all(pool)
 
-    def _loop(self, pool: ThreadPoolExecutor):
-        sequence = 0
+    def _running(self) -> list[Future]:
+        with self.lock:
+            return list(self.futures)
+
+    def _wait_for_own(self):
+        """Running tasks finish, as when an executor is left: nothing of this call outlives
+        it, and the tasks of other calls on the pool are not waited for. A second interrupt
+        stops the wait, but not the accounting: see ``_give_back_all``."""
         while True:
-            # After a worker failed, nothing more is read: only the tasks before it remain.
-            while not self.exhausted and len(self.pending) < self.window and not self._failed():
-                task = self._next()
-                if task is _SKIPPED:
-                    break
-                item = self.reserve(task)  # an error stops the run at once
-                self.pending.append((sequence, item, pool.submit(self._work, sequence, item)))
-                sequence += 1
+            running = [f for f in self._running() if not f.done()]
+            if not running:
+                return
+            wait(running, timeout=_POLL_SECONDS)
+
+    def _give_back_all(self, pool: Pool):
+        """The places of this call: those of tasks that ended now, those of tasks that still
+        run when their task ends, so the pool never holds more tasks than its limit."""
+        # By ``done()``, not by the set: the callback that drops a future runs a moment after it
+        # is done, and a task that is done and committed gave its place back already.
+        running = [f for f in self._running() if not f.done()]
+        for future in running:
+            future.add_done_callback(lambda _f: pool.release())
+        for _ in range(self.held - len(running)):
+            pool.release()
+        self.held = 0
+
+    def _loop(self, pool: Pool):
+        self.sequence = 0
+        while True:
+            self.changed.clear()
+            self._fill(pool)
             if not self.pending:
                 if self.source_error is not None:
                     raise self.source_error
+                if self.exhausted:
+                    return
+                continue  # a place was refused with nothing to commit: try again
+            if self.pending[0][2].done():
+                self._commit_oldest(pool)
+            else:
+                # Not the oldest yet: a finished task of this call may free a slot for the
+                # next one, so do not sit on the oldest alone.
+                self.changed.wait(timeout=_POLL_SECONDS)
+
+    def _fill(self, pool: Pool):
+        """Submit tasks until the window, the slots of this call or the places of the pool are
+        used. After a worker failed, nothing more is read: only the tasks before it remain."""
+        while (
+            not self.exhausted
+            and len(self.pending) < self.window
+            and not self._failed()
+            and self._unfinished() < self.limit
+        ):
+            if not self._place(pool):
                 return
-            self._commit_oldest()
+            task = self._next()
+            if task is _SKIPPED:
+                self._give_back(pool)
+                return
+            item = self.reserve(task)  # an error stops the run at once
+            future = pool.submit(self._work, self.sequence, item)
+            with self.lock:
+                self.unfinished += 1
+                self.futures.add(future)  # before the callback: it may run at once
+            future.add_done_callback(self._finished)
+            self.pending.append((self.sequence, item, future))
+            self.sequence += 1
+
+    def _place(self, pool: Pool) -> bool:
+        """A place of the pool for one more task. If none is free and this call has tasks to
+        commit, False: committing releases a place. A call with no task waits for one, so the
+        calls that hold places are the ones that release them."""
+        if pool.try_acquire():
+            self.held += 1
+            return True
+        if self.pending:
+            return False
+        pool.acquire()
+        self.held += 1
+        return True
+
+    def _give_back(self, pool: Pool):
+        self.held -= 1
+        pool.release()
+
+    def _unfinished(self) -> int:
+        with self.lock:
+            return self.unfinished
+
+    def _finished(self, future: Future):
+        with self.lock:
+            self.unfinished -= 1
+            self.futures.discard(future)  # a finished future holds its rows: drop it
+        self.changed.set()
 
     def _next(self) -> Any:
         try:
@@ -129,7 +236,8 @@ class _Run:
         if sequence > self.failed_at:
             return _SKIPPED
         try:
-            return self.work(task)
+            with self.pool_of_call.inside():
+                return self.work(task)
         except BaseException:
             with self.lock:
                 self.failed_at = min(self.failed_at, sequence)
@@ -137,13 +245,12 @@ class _Run:
                 self.stop.set()
             raise
 
-    def _commit_oldest(self):
+    def _commit_oldest(self, pool: Pool):
         _, task, future = self.pending.popleft()
-        while not future.done():
-            wait([future], timeout=_POLL_SECONDS, return_when=FIRST_COMPLETED)
         result = future.result()  # raises the error of the first failing task in order
         assert result is not _SKIPPED  # only tasks after a failed one are skipped
         self.commit(task, result)
+        self._give_back(pool)  # a task that failed or was never committed is given back by execute
 
     def _failed(self) -> bool:
         with self.lock:

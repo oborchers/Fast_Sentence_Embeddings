@@ -14,7 +14,7 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse._encoder import _pretrained
-from fse._runtime import LengthReport, LengthSettings
+from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
 from . import _lone_run, _model2vec_files, _resume_run, _run, _sklearn
@@ -105,6 +105,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -123,6 +124,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @overload
@@ -141,6 +143,7 @@ class Regressor(LinearModel):
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -159,6 +162,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -177,6 +181,7 @@ class Regressor(LinearModel):
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
         target, else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
@@ -187,6 +192,7 @@ class Regressor(LinearModel):
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         ``sink=`` is then not given. See ``Heads.predict`` for ``vector_sink``,
         ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``."""
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
@@ -198,10 +204,10 @@ class Regressor(LinearModel):
                     "scores as score_sink=, without sink="
                 )
             return _resume_run.predict_lone(
-                self, texts, return_vectors, workers, backend,
+                self, texts, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _run.infer(self, texts, "values", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "values", threads, backend, sink, settings, method)
 
     @overload
     def predict_batches(
@@ -220,6 +226,7 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -239,6 +246,7 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -258,9 +266,11 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
         ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Regressor.predict_batches"
         )
@@ -269,7 +279,7 @@ class Regressor(LinearModel):
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             sink,
             vector_sink,

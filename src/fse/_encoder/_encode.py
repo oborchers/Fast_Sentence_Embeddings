@@ -23,9 +23,11 @@ from fse._runtime import (
     LengthCollector,
     LengthReport,
     LengthSettings,
+    Pool,
     QuantizedRows,
     check_workers,
     rule_of,
+    workers_of,
 )
 
 from . import _batches, _positions, _resume
@@ -55,6 +57,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> ndarray | QuantizedRows | None: ...
 
     @overload
@@ -71,6 +74,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray | QuantizedRows | None, LengthReport]: ...
 
     def encode(
@@ -86,6 +90,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
         default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
@@ -116,19 +121,20 @@ class _Encoding:
         source, each writing a store of its own. A report of ``lengths`` covers the rows run
         by this call, and its ``first_row`` is their row in the source.
         """
+        threads = workers_of(workers, pool)  # before anything is read
         me: Any = self  # the Encoder
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Encoder.encode")
         check_id_mode(sink, doc_ids)
         if _resume.wanted(sink, shard):
             return _encode_resumed(
-                me, texts, dtype, workers, backend, sink, doc_ids, settings, shard
+                me, texts, dtype, threads, backend, sink, doc_ids, settings, shard
             )
         collector = _collector(settings, 0, me)
         if sink is not None:
             check_sink(sink, dtype, me.fingerprint, me.output_dim)
             pipeline = me._pipeline(backend)
             with opened(texts, me.tokenizer) as source:
-                run_into(pipeline, source, sink, workers, 0, doc_ids, settings, collector)
+                run_into(pipeline, source, sink, threads, 0, doc_ids, settings, collector)
             flush(sink)
             result = None
         else:
@@ -136,7 +142,7 @@ class _Encoding:
             pipeline = me._pipeline(backend)
             with opened(texts, me.tokenizer) as source:
                 result = pipeline.infer(
-                    source, workers=workers, dtype=dtype, lengths=settings, collector=collector
+                    source, workers=threads, dtype=dtype, lengths=settings, collector=collector
                 )
         return result if collector is None else (result, collector.report())
 
@@ -154,6 +160,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[EncodedBatch]: ...
 
     @overload
@@ -170,6 +177,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[EncodedBatch, LengthReport]]: ...
 
     def encode_batches(
@@ -185,6 +193,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
         (or token lists), as a queue consumer polls them, and every batch gives one
@@ -221,13 +230,14 @@ class _Encoding:
         to there. A stream that ends before it delivered the records the store holds raises a
         ``ValueError``.
         """
+        threads = workers_of(workers, pool)  # before anything is read
         me: Any = self  # the Encoder
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Encoder.encode_batches"
         )
         _batches.check_positions(positions)
         dtype = _batches.prepare(
-            sink, dtype, doc_ids, me.fingerprint, me.output_dim, workers, positions=positions
+            sink, dtype, doc_ids, me.fingerprint, me.output_dim, threads, positions=positions
         )
         pipeline = me._pipeline(backend)
         if positions:
@@ -237,7 +247,7 @@ class _Encoding:
                 iter(batches),
                 me.tokenizer,
                 sink=sink,
-                workers=workers,
+                workers=threads,
                 doc_ids=doc_ids,
                 lengths=settings,
                 rule=rule_of(me._spec.tokenizer),
@@ -247,7 +257,7 @@ class _Encoding:
             iter(batches),
             me.tokenizer,
             dtype=dtype,
-            workers=workers,
+            workers=threads,
             sink=sink,
             doc_ids=doc_ids,
             lengths=settings,

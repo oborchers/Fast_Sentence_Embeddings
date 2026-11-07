@@ -9,7 +9,7 @@ import pytest
 
 from fse import _native, _reference
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _executor, _pipeline, _tasks
+from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _pipeline, _pool, _tasks
 from fse._stream import StreamSource
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
@@ -106,8 +106,8 @@ def test_a_row_that_cannot_be_stored_is_raised_after_the_rows_before_it(monkeypa
 
 def test_threads_are_used(monkeypatch):
     pools = []
-    real = _executor.ThreadPoolExecutor
-    monkeypatch.setattr(_executor, "ThreadPoolExecutor", lambda **kw: pools.append(1) or real(**kw))
+    real = _pool.ThreadPoolExecutor
+    monkeypatch.setattr(_pool, "ThreadPoolExecutor", lambda **kw: pools.append(1) or real(**kw))
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     spec = _spec(False, "none", "fse_words@1")
     Pipeline(spec).infer(StringSource(texts(500)), workers=3, chunk_bytes=1024, dtype="int8")

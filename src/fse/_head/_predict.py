@@ -18,7 +18,7 @@ from typing import Any, Literal, overload
 
 from numpy import ndarray
 
-from fse._runtime import LengthReport, LengthSettings
+from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _lone_run, _resume_run, _run
@@ -47,6 +47,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> ndarray: ...
 
     @overload
@@ -64,6 +65,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray, LengthReport]: ...
 
     @overload
@@ -81,6 +83,7 @@ class _Predicting:
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -98,6 +101,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -115,6 +119,7 @@ class _Predicting:
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The label of each text or VectorStore row. For multilabel heads, a boolean
         (n, k) indicator in classes_ order, true strictly above each stored cutoff.
@@ -128,16 +133,17 @@ class _Predicting:
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         see ``Heads.predict`` for ``vector_sink``, ``score_sink``, ``doc_ids``, ``shard`` and
         ``return_vectors``."""
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
             vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
         ):
             return _resume_run.predict_lone(
-                self, texts, return_vectors, workers, backend,
+                self, texts, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _run.infer(self, texts, "labels", workers, backend, None, settings, method)
+        return _run.infer(self, texts, "labels", threads, backend, None, settings, method)
 
     @overload
     def predict_proba(
@@ -150,6 +156,7 @@ class _Predicting:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -163,6 +170,7 @@ class _Predicting:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @validate_arguments
@@ -176,14 +184,16 @@ class _Predicting:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> Any:
         """The probability of every label for every text, float32 (n, classes); with a
         ``sink`` the rows go there and nothing is returned. With ``lengths`` the pair
         ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_proba"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         self._check_proba()  # type: ignore[attr-defined]
-        return _run.infer(self, texts, "proba", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "proba", threads, backend, sink, settings, method)
 
     @overload
     def decision_function(
@@ -196,6 +206,7 @@ class _Predicting:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -209,6 +220,7 @@ class _Predicting:
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @validate_arguments
@@ -222,13 +234,15 @@ class _Predicting:
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> Any:
         """The logits of every text as float32. Multilabel always returns (n, k),
         including k = 1. Single-label heads return (n,) for one output, else (n, k). With
         ``lengths`` the pair ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.decision_function"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        return _run.infer(self, texts, "decision", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "decision", threads, backend, sink, settings, method)
 
     @overload
     def predict_batches(
@@ -247,6 +261,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -266,6 +281,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -285,6 +301,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
@@ -318,6 +335,7 @@ class _Predicting:
         ``positions=True`` resumes an endless stream that can be read again from a position,
         into sinks made with ``resume=True`` (see ``fse.Heads.predict_batches``); it excludes
         ``sink``."""
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_batches"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if output == "proba":
@@ -327,7 +345,7 @@ class _Predicting:
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             sink,
             vector_sink,

@@ -25,7 +25,7 @@ from numpy import ndarray
 
 from fse._encoder._doc_ids import check_switch
 from fse._encoder._sources import opened
-from fse._runtime import LengthSettings, check_workers, rule_of
+from fse._runtime import LengthSettings, check_workers, rule_of, streaming
 from fse._store import VectorStore
 
 from ._outputs import HeadsBatch
@@ -177,6 +177,7 @@ def batches(
     return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids, settings)
 
 
+@streaming
 def _batches(
     heads,
     pipeline,

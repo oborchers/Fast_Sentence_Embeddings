@@ -6,7 +6,7 @@ import time
 import numpy as np
 import pytest
 
-from fse._runtime import _executor
+from fse._runtime import _executor, _pool
 from fse._runtime._executor import run
 
 
@@ -59,7 +59,7 @@ def test_inline_runs_in_the_calling_thread(monkeypatch):
     def no_pool(**_kwargs):
         raise AssertionError("a thread pool was created")
 
-    monkeypatch.setattr(_executor, "ThreadPoolExecutor", no_pool)
+    monkeypatch.setattr(_pool, "ThreadPoolExecutor", no_pool)
     me = threading.get_ident()
     seen = set()
     run(

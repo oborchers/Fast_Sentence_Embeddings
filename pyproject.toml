@@ -451,11 +451,11 @@ exhaustive = true
 layers = ["_arrow | _ids | _strings | _lookup | _window", "_scan", "_plan"]
 
 [[tool.importlinter.contracts]]
-name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor"
+name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the executor, the executor on the pool"
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths"]
+layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths", "_pool"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
@@ -481,6 +481,7 @@ ignore_names = [
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "broken_logging",    # a fixture used through pytest.mark.usefixtures
+    "no_fse_threads_left", # an autouse fixture of tests/test_runtime_pool.py
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",

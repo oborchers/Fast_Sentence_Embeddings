@@ -138,6 +138,7 @@ def test_public_api_is_pinned():
         "HeadsBatch",
         "LengthReport",
         "MemorySink",
+        "Pool",
         "PredictedBatch",
         "PublishedNotDurableError",
         "QuantizedRows",

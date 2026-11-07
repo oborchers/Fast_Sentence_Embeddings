@@ -12,7 +12,7 @@ import pytest
 
 from fse import _native
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, Pipeline, _executor, _pipeline, _tasks
+from fse._runtime import EncodeSpec, Pipeline, _pipeline, _pool, _tasks
 from fse._text import StringSource
 from support.runtime import expected, source, texts, word_vectors
 
@@ -55,10 +55,8 @@ def test_runtime_gives_the_reference_bits(
     pools = []
     if workers > 1:  # threads, also for inputs small enough to run inline
         monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
-        real = _executor.ThreadPoolExecutor
-        monkeypatch.setattr(
-            _executor, "ThreadPoolExecutor", lambda **kw: pools.append(1) or real(**kw)
-        )
+        real = _pool.ThreadPoolExecutor
+        monkeypatch.setattr(_pool, "ThreadPoolExecutor", lambda **kw: pools.append(1) or real(**kw))
     got = Pipeline(spec, backend).infer(src, workers=workers, chunk_bytes=2048)
     assert pools == ([1] if workers > 1 else [])
     assert got.shape == want.shape

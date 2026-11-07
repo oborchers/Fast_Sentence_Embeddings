@@ -19,7 +19,6 @@ from typing import Any
 from numpy import ndarray
 
 from fse import _codes
-from fse._cpus import usable_cpus
 
 from ._head_spec import HeadSpec
 from ._heads import HeadsPipeline
@@ -32,7 +31,8 @@ from ._heads_plan import (
     plan_heads,
 )
 from ._lengths import LengthCollector, LengthSettings
-from ._pipeline import Pipeline, check_sink_rows, check_workers
+from ._pipeline import Pipeline, check_sink_rows
+from ._pool import workers_of
 from ._sinks import Sink, sink_dtype, wants_inverse_norms
 from ._spec import EncodeSpec
 
@@ -142,7 +142,7 @@ class HeadPipeline:
         source: object,
         *,
         output: str,
-        workers: int | None = None,
+        workers: Any = None,
         sink: Sink | None = None,
         vector_sink: Sink | None = None,
         vector_dtype: str = "float32",
@@ -155,7 +155,7 @@ class HeadPipeline:
         vectors, the vectors), returned or committed to ``sink`` (``vector_sink``), numbered
         from ``first_row`` there; errors name the rows from ``first_row``. Every argument
         is checked before the source is read."""
-        workers = check_workers(workers) or usable_cpus()
+        workers = workers_of(workers)
         self._check_outputs(output, sink)
         vector_dtype, inverse = self._check_vectors(vector_sink, vector_dtype)
         results, vectors = self._runtime.infer(
