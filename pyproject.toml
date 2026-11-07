@@ -386,7 +386,7 @@ layers = [
     # that of unigram@1 on the added tokens of wordpiece@1.
     "_reference_head | _reference_unigram | _log_config",
     # Independent of each other: the references never share code with what they check.
-    "_ids | _container | _codes | _partition | _reference | _reference_text | _reference_wordpiece | _reference_prefilter | _tokenizer_spec | _validation",
+    "_ids | _container | _codes | _partition | _reference | _reference_text | _reference_wordpiece | _reference_prefilter | _reference_bits | _tokenizer_spec | _validation",
     # The parameters of unigram@1, which TokenizerSpec holds.
     "_tokenizer_unigram",
     "_contract | _cpus | _unicode | _unicode_bert | _unicode_graphemes | _charsmap",
