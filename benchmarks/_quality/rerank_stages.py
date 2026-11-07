@@ -1,8 +1,9 @@
 """First stages of the reranker study: dense search, BM25, Reciprocal Rank Fusion, reranking.
 
 A ranking is an int64 matrix of document positions, one row per query, best first, ``-1``
-after the end. Ties always break by the position in the corpus, so a ranking is a function of
-the scores alone.
+after the end. Exact ties break by corpus position in dense and BM25 stages, by the best rank
+in any list and then position in RRF, and by the first-stage rank in a reranked list, so a
+ranking is a function of its scores alone.
 """
 
 from __future__ import annotations

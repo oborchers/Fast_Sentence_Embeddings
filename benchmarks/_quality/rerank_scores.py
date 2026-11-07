@@ -56,33 +56,53 @@ def score_pairs(model, spec, data, pairs):
     return dict(zip(ordered, values.tolist(), strict=True)), seconds
 
 
-def metrics(data, ranking):
-    """Mean NDCG@10, Recall@10 and Recall@100 by pytrec_eval, as MTEB computes them. The
-    ranking enters as descending scores, so pytrec_eval keeps its order exactly."""
+def check_ranking(data, ranking):
+    """A ranking is an int64 matrix of one row per query, unique positions of the corpus,
+    ``-1`` only after the last one. Anything else is refused, never repaired."""
+    ranking = np.asarray(ranking)
+    if ranking.ndim != 2 or len(ranking) != len(data.queries) or ranking.dtype.kind != "i":
+        raise ValueError("a ranking is an integer matrix with one row per query")
+    for row in ranking:
+        kept = row[row != -1]
+        if len(kept) and (kept.min() < 0 or kept.max() >= len(data.docs)):
+            raise ValueError("a ranking names a position outside the corpus")
+        if (row[: len(kept)] == -1).any() or len(set(kept.tolist())) != len(kept):
+            raise ValueError("a ranking has a gap before its end or a repeated document")
+
+
+def _evaluate(data, run, measures):
     import pytrec_eval
 
+    scores = pytrec_eval.RelevanceEvaluator(data.qrels, measures).evaluate(run)
+    if set(scores) != set(data.query_ids):
+        raise ValueError("pytrec_eval dropped queries")
+    return scores
+
+
+def metrics(data, ranking):
+    """Mean NDCG@10, Recall@10 and Recall@100 by pytrec_eval, as MTEB computes them, without
+    MTEB's rounding to five places. The ranking enters as descending scores, so pytrec_eval
+    keeps its order exactly."""
+    check_ranking(data, ranking)
     run = {}
     for q, row in enumerate(ranking):
         kept = row[row >= 0].tolist()
         run[data.query_ids[q]] = {data.doc_ids[p]: float(len(kept) - r) for r, p in enumerate(kept)}
-    evaluator = pytrec_eval.RelevanceEvaluator(data.qrels, {"ndcg_cut.10", "recall.10,100"})
-    scores = evaluator.evaluate(run)
-    if set(scores) != set(data.query_ids):
-        raise ValueError("pytrec_eval dropped queries")
+    scores = _evaluate(data, run, {"ndcg_cut.10", "recall.10,100"})
     result = {m: float(np.mean([scores[q][m] for q in data.query_ids])) for m in METRICS}
     if not all(math.isfinite(v) for v in result.values()):
         raise ValueError("nonfinite retrieval metric")
     return result
 
 
-def scored_ndcg(data, scores, depth=1000):
-    """NDCG@10 of raw first-stage scores as MTEB evaluates them: the top ``depth`` documents
-    with their scores, ordered and tie-broken by pytrec_eval itself."""
-    import pytrec_eval
-
+def scored_metrics(data, scores, depth=1000):
+    """The three metrics of raw first-stage scores as MTEB evaluates them: the top ``depth``
+    documents with their scores, ordered and tie-broken by pytrec_eval itself, each task
+    mean rounded to five places as MTEB rounds it."""
     run = {}
     for q, row in enumerate(scores):
         top = np.argsort(-row, kind="stable")[:depth]
         run[data.query_ids[q]] = {data.doc_ids[p]: float(row[p]) for p in top}
-    values = pytrec_eval.RelevanceEvaluator(data.qrels, {"ndcg_cut.10"}).evaluate(run)
-    return float(np.mean([values[q]["ndcg_cut_10"] for q in data.query_ids]))
+    values = _evaluate(data, run, {"ndcg_cut.10", "recall.10,100"})
+    # MTEB sums in the order pytrec_eval returns the queries, then rounds.
+    return {m: round(sum(v[m] for v in values.values()) / len(values), 5) for m in METRICS}

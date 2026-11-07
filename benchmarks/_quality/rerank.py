@@ -18,8 +18,18 @@ from _measurement_config import MODEL_PINS
 from _quality import rerank_scores, rerank_stages
 from _quality.rerank_data import task_data
 
-MTEB_TOLERANCE = 1e-5  # fse alone against unmodified MTEB, which rounds NDCG@10 to five places
 KINDS = ("dense", "bm25", "rrf")
+PACKAGES = ("mteb", "bm25s", "PyStemmer", "pytrec_eval-terrier", "transformers", "torch", "numpy")
+
+
+def _sources():
+    """SHA-256 of the study modules that computed the row."""
+    from pathlib import Path
+
+    from _measurement import sha256
+
+    here = Path(__file__).parent
+    return {p.name: sha256(p) for p in [*sorted(here.glob("rerank*.py")), here / "mteb.py"]}
 
 
 def expand(cells):
@@ -74,34 +84,41 @@ def _stage(name, stages, data, context, rankings):
     return rankings[name]
 
 
+MTEB_KEYS = {
+    "ndcg_cut_10": "ndcg_at_10",
+    "recall_10": "recall_at_10",
+    "recall_100": "recall_at_100",
+}
+
+
 def _mteb_check(cell, stages, data, context, arms):
     """Unmodified MTEB on the same task and encoder. The study's raw cosine scores, handed to
-    pytrec_eval as MTEB hands them, must give MTEB's NDCG@10: same data, texts and vectors.
-    The study ranking breaks exact ties by position, pytrec_eval by document ID, so its value
-    is recorded beside it (it differs only where documents tie, as duplicates in ArguAna)."""
+    pytrec_eval as MTEB hands them and rounded as MTEB rounds, must give exactly MTEB's
+    NDCG@10, Recall@10 and Recall@100: same data, texts and vectors. The study ranking
+    breaks exact ties by position, pytrec_eval by document ID, so its values are recorded
+    beside them (they differ only where documents tie exactly, as duplicates in ArguAna)."""
+    import json
+
     from _quality.mteb import evaluate, filters_for, tasks_for
 
     task = next(t for t in tasks_for("NanoBEIR") if t.metadata.name == data.name)
     checks = {}
     for name in cell.get("mteb_check", []):
-        row = evaluate(
-            {
-                **stages[name],
-                "id": f"{cell['id']}-mteb-{name}",
-                "task": data.name,
-                "benchmark": "NanoBEIR",
-                "evaluation_filters": filters_for(task),
-            },
-            context,
-        )
-        study = rerank_scores.scored_ndcg(data, context["rerank_raw"][(data.name, name)])
-        checks[name] = {
-            "mteb": row["main_score"],
-            "study_scores": study,
-            "study_ranking": arms[name]["ndcg_cut_10"],
+        mteb_cell = {
+            **stages[name],
+            "id": f"{cell['id']}-mteb-{name}",
+            "task": data.name,
+            "benchmark": "NanoBEIR",
+            "evaluation_filters": filters_for(task),
         }
-        if abs(row["main_score"] - study) > MTEB_TOLERANCE:
-            raise ValueError(f"{name} on {data.name}: study NDCG@10 differs from MTEB")
+        evaluate(mteb_cell, context)
+        raw = json.loads((context["results"] / (mteb_cell["id"] + "-mteb.json")).read_text())
+        (split,) = raw["scores"]["train"]
+        mteb = {m: split[key] for m, key in MTEB_KEYS.items()}
+        study = rerank_scores.scored_metrics(data, context["rerank_raw"][(data.name, name)])
+        checks[name] = {"mteb": mteb, "study_scores": study, "study_ranking": arms[name]}
+        if study != mteb:
+            raise ValueError(f"{name} on {data.name}: study metrics differ from MTEB")
     return checks
 
 
@@ -128,8 +145,6 @@ def _reranked(cell, data, context, rankings, results):
     return arms, {
         "reranker": {**spec, "revision": MODEL_PINS[spec["model"]]},
         "pairs": len(keys),
-        "sentence_transformers": package_identity("sentence-transformers"),
-        "torch_version": version("torch"),
         "diagnostic_seconds_per_query": seconds / len(data.queries),
         "timing_scope": "local diagnostic of the reranker only, never a speed result",
     }
@@ -165,7 +180,8 @@ def evaluate(cell, context):
         "first_stages": {name: stages[name] for name in cell["stages"]},
         "rrf_k": rerank_stages.RRF_K,
         "fse": package_identity("fse"),
-        "mteb_version": version("mteb"),
-        "bm25s_version": version("bm25s"),
+        "sentence_transformers": package_identity("sentence-transformers"),
+        "versions": {p: version(p) for p in PACKAGES},
+        "study_sources": _sources(),
         "evaluation_seconds": time.perf_counter() - started,
     }
