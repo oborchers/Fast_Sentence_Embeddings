@@ -191,8 +191,10 @@ class Encoder(_Encoding):
         is loaded (``mmap`` as for ``load``); a Model2Vec model is converted, with its
         length rule unless ``truncate=False`` (``max_length`` sets another token limit,
         None none, as in model2vec); a sentence-transformers model of one StaticEmbedding
-        is converted with the rules of its encode and its first ``truncate_dim`` dimensions
-        (``"model"``: the model's, None: all).
+        is converted with the rules of its encode. ``truncate_dim`` keeps the first dimensions
+        of a Model2Vec or sentence-transformers model (``"model"``: the model's own setting,
+        which Model2Vec has none of, None: all); larger than the table it raises, and an fse
+        encoder cannot be cut.
 
         ``normalize`` works for every model: ``"model"`` keeps its rule, False drops a final
         ``normalize@1`` (the table is unchanged, so a linear head folds into it), True ends

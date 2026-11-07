@@ -36,15 +36,17 @@ from fse._wordvectors import WordVectors
 
 from ._files import (
     DENSE,
+    MODEL_RULE,
     NORMALIZE,
     STATIC_EMBEDDING,
     Converted,
     Files,
+    cut_table,
+    kept_dims,
     read_config,
     read_table,
 )
 
-MODEL_RULE = "model"
 CONFIG = "config_sentence_transformers.json"
 _MODULE_KEYS = {"idx", "name", "path", "type"}
 _FOLDER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
@@ -73,10 +75,8 @@ def read_sentence_transformers(
     )
     table = _table(files, prefix, len(tokens))
     width = table.shape[1]
-    kept = _kept(truncate_dim, stored_dim, width, files.where(CONFIG))
-    if kept is not None:
-        table = np.ascontiguousarray(table[:, :kept])
-        table.setflags(write=False)
+    kept = kept_dims(truncate_dim, stored_dim, width, files.where(CONFIG))
+    table = cut_table(table, kept)
     # The table is a read-only view of the bytes that were read once and checked (or its
     # own copy of their first columns), which nothing else holds.
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
@@ -224,17 +224,6 @@ def _table(files: Files, prefix: str, n_tokens: int) -> np.ndarray:
             )
         raise CorruptArtifactError(f"the model has no file {name}")
     return read_table(files, name, _TABLE_NAMES, n_tokens)
-
-
-def _kept(truncate_dim: Any, stored: int | None, width: int, where: Any) -> int | None:
-    """The dimensions kept, or None for all of them."""
-    kept = stored if truncate_dim == MODEL_RULE else truncate_dim
-    if kept is None or kept == width:
-        return None
-    if kept > width:
-        source = f"{where} states" if truncate_dim == MODEL_RULE else "the argument is"
-        raise ValueError(f"truncate_dim {kept}: {source} more than the {width} dimensions")
-    return kept
 
 
 def _length(truncate: bool, max_length: Any, limit: int | None) -> int | None:

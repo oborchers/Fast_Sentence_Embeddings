@@ -417,12 +417,6 @@ def test_the_arguments_are_checked(model, tmp_path):
     encoder.save(tmp_path / "e.safetensors")
     with pytest.raises(ValueError, match="holds its own rules"):
         Encoder.from_pretrained(tmp_path / "e.safetensors", truncate_dim=4)
-    pytest.importorskip("model2vec")
-    import support.model2vec as mv
-
-    model2vec = mv.save_model(tmp_path / "m2v")
-    with pytest.raises(ValueError, match="holds its own rules"):
-        Encoder.from_pretrained(model2vec, truncate_dim=4)
 
 
 @pytest.mark.parametrize(
