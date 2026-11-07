@@ -56,7 +56,7 @@ rows. Several queries group independently and give a rectangular result.
 
 `store.rescore(queries, candidates, k, max_per_doc=1)` groups the same way among the candidate
 positions of each query (the hits of an external index) and gives, per query, the result
-of `search(query, k, mode="exact", rows=sorted(candidates), max_per_doc=1)` bit for bit. A
+of `search(query, k, mode="exact", rows=sorted(candidates without -1), max_per_doc=1)` bit for bit. A
 matrix result is filled up on the right with ids `-1`, scores `-inf` and document IDs `-1`,
 so a gap is recognized by `ids == -1`, because `-1` can also be a real document ID.
 

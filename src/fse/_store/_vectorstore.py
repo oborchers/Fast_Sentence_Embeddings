@@ -197,7 +197,7 @@ class VectorStore(MemberReaders):
         max_per_doc: PositiveInt | None = None,
     ) -> SearchResult:
         """The ``k`` best rows of every query among its own ``candidates``, scored exactly:
-        the result of ``search(query, k, mode="exact", rows=sorted(set(candidates)))``,
+        the result of ``search(query, k, mode="exact", rows=sorted(set(candidates) - {-1}))``,
         bit for bit (also with ``max_per_doc=1``), for the hits of an external index.
 
         ``candidates`` are int64 positions of the store, an array of shape (m,) for one

@@ -57,10 +57,13 @@ def test_one_row_per_document(tmp_path, dtype, workers):
 def test_a_set_larger_than_a_task_is_cut_exactly(tmp_path, monkeypatch, dtype, grouped):
     docs = np.random.default_rng(6).integers(0, 9, N).astype(np.int64)
     codes = rs.make(tmp_path / "s", dtype, N, docs=docs, shard_rows=9)
-    monkeypatch.setattr(_rescore, "_TASK_BYTES", 5 * (rs.DIM + 20))  # parts of 5 rows
+    itemsize = np.dtype(dtype).itemsize
+    # parts of 12 rows: more than k = 6, so a part cuts its own rows before the merge
+    monkeypatch.setattr(_rescore, "_TASK_BYTES", 12 * (rs.DIM * itemsize + 20))
     qs, cands = rs.queries(4), np.tile(np.arange(N, dtype=np.int64)[::-1], (4, 1))
     cands[1, ::3] = -1
     cands[2, :10] = cands[2, 10:20]  # duplicates over part borders
+    cands[3, :] = np.repeat(np.arange(N // 2, dtype=np.int64), 2)[::-1]  # repeated rows
     with fse.VectorStore.open(tmp_path / "s") as store:
         for workers in (1, 4):
             got = store.rescore(qs, cands, 6, workers=workers, max_per_doc=1 if grouped else None)

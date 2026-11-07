@@ -1,5 +1,7 @@
 """``VectorStore.rescore``: arguments, errors, the snapshot and the logged event."""
 
+import threading
+
 import numpy as np
 import pydantic
 import pytest
@@ -134,13 +136,56 @@ def test_the_event_has_the_fixed_fields(docs_store):
     assert records[0].fse_workers == 2
 
 
-def test_a_running_call_keeps_the_rows_it_started_with(tmp_path):
+def test_a_running_call_keeps_its_snapshot_and_its_guard(tmp_path):
+    path = tmp_path / "store"
+    make_store(path, sizes=(4, 4))
+    qs = np.ones((1, 4), np.float32)
+    reached, release, out = threading.Event(), threading.Event(), {}
+    with fse.VectorStore.open(path) as opened:
+        real = opened._backend
+
+        class Held:
+            def __getattr__(self, name):
+                return getattr(real, name)
+
+            def cosines(self, stored, inverse, queries):
+                if len(stored):
+                    reached.set()
+                    assert release.wait(10)
+                return real.cosines(stored, inverse, queries)
+
+        opened._backend = Held()
+
+        def call():
+            try:
+                out["got"] = opened.rescore(qs, np.array([[0, 7]], np.int64), 2, workers=1)
+            except BaseException as error:  # reported to the test thread below
+                out["error"] = error
+
+        thread = threading.Thread(target=call)
+        thread.start()
+        assert reached.wait(10)  # the call took its snapshot and sits in the kernel
+        append_rows(path, value=7, rows=3)
+        assert opened.refresh() == 3  # a refresh meanwhile does not reach the call
+        with pytest.raises(RuntimeError, match="in use"):
+            opened.close()
+        release.set()
+        thread.join(10)
+        assert "error" not in out
+        assert sorted(out["got"].ids[0].tolist()) == [0, 7]
+        with pytest.raises(ValueError, match=r"candidates\[0, 0\] is 11.*refresh\(\)"):
+            opened.rescore(qs, np.array([[11]], np.int64))
+        opened._backend = real
+        later = opened.rescore(qs, np.array([[9, 0]], np.int64), 2)  # the new rows are seen
+        assert sorted(later.ids[0].tolist()) == [0, 9]
+    assert opened._active == 0
+
+
+def test_a_position_published_later_needs_a_refresh(tmp_path):
     path = tmp_path / "store"
     make_store(path, sizes=(4, 4))
     qs = np.ones((1, 4), np.float32)
     with fse.VectorStore.open(path) as opened:
-        with pytest.raises(ValueError, match=r"candidates\[0, 0\] is 9.*refresh\(\)"):
-            opened.rescore(qs, np.array([[9]], np.int64))
         append_rows(path, value=7, rows=3)
         with pytest.raises(ValueError, match="refresh"):
             opened.rescore(qs, np.array([[9]], np.int64))
