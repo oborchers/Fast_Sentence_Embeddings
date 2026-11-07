@@ -32,17 +32,18 @@ from fse._container import NpyContainer
 from fse._cpus import usable_cpus
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
-from . import _filtered, _rescore, _search, _selection, _take, _unique_search, _vector_batches
+from . import _search, _take, _vector_batches
 from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, rows_in, stop_row
 from ._refresh import refreshed
-from ._result import DocumentSearchResult, SearchResult
+from ._result import SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
 from ._vectorstore_open import open_store, open_store_view
+from ._vectorstore_search import rescore_store, search_store
 from ._view import Joined, MemberReaders, verify_members
 
 F32 = np.float32
@@ -143,47 +144,16 @@ class VectorStore(MemberReaders):
         larger values may be added later. It combines with ``doc_ids`` and ``rows``: the
         rows are selected first, then grouped.
         """
-        self._check_open()
-        matrix, single = _search.queries(self._backend, self.dim, queries, "queries")
-        with self._using() as shards:
-            values, kind = _selection.plan(
-                self._info.has_doc_ids, doc_ids, rows, max_per_doc, rows_in(shards)
-            )
-            workers = workers or usable_cpus()
-            exact = _search.is_exact(mode, len(matrix))
-            if max_per_doc is not None:
-                found = _unique_search.search(
-                    self._backend,
-                    shards,
-                    matrix,
-                    k,
-                    values,
-                    kind,
-                    workers=workers,
-                    exact=exact,
-                )
-                ids, scores, labels = (a[0] if single else a for a in found)
-                return DocumentSearchResult(ids, scores, labels)
-            if values is None:
-                ids, scores = _search.search(
-                    self._backend, shards, matrix, k, workers=workers, exact=exact
-                )
-            else:
-                ids, scores = _filtered.search(
-                    self._backend,
-                    shards,
-                    matrix,
-                    k,
-                    values,
-                    kind,
-                    workers=workers,
-                    exact=exact,
-                )
-            if single:
-                ids, scores = ids[0], scores[0]
-            if self._info.has_doc_ids:
-                return DocumentSearchResult(ids, scores, _filtered.document_ids(shards, ids))
-            return SearchResult(ids, scores)
+        return search_store(
+            self,
+            queries,
+            k,
+            workers=workers,
+            mode=mode,
+            doc_ids=doc_ids,
+            rows=rows,
+            max_per_doc=max_per_doc,
+        )
 
     @validate_arguments
     def rescore(
@@ -207,33 +177,7 @@ class VectorStore(MemberReaders):
         matrix result is as wide as the longest list, filled up on the right with ids
         ``-1``, scores ``-inf`` and document IDs ``-1``; a single query is not filled up.
         Keep ``candidates`` unchanged until the call returns."""
-        self._check_open()
-        matrix, single = _search.queries(self._backend, self.dim, queries, "queries")
-        array = _rescore.candidates(candidates, len(matrix), single)
-        _rescore.check_grouping(self._info.has_doc_ids, max_per_doc)
-        with self._using() as shards:
-            _rescore.check_values(array, rows_in(shards))
-            positions, offsets = _rescore.csr(array)
-            workers = workers or usable_cpus()
-            found, read = _rescore.exact_sets(
-                self._backend,
-                shards,
-                matrix,
-                offsets,
-                positions,
-                k,
-                one_per_doc=max_per_doc is not None,
-                with_doc_ids=self._info.has_doc_ids,
-                workers=workers,
-            )
-        _rescore.log(len(matrix), k, read, read, workers, max_per_doc is not None)
-        if single:
-            ids, scores, labels = found[0]
-        else:
-            ids, scores, labels = _rescore.pad(found, self._info.has_doc_ids)
-        if labels is not None:  # the store has document IDs
-            return DocumentSearchResult(ids, scores, labels)
-        return SearchResult(ids, scores)
+        return rescore_store(self, queries, candidates, k, workers=workers, max_per_doc=max_per_doc)
 
     @validate_arguments
     def score(
