@@ -741,3 +741,11 @@ The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbiete
 - Outputs: `binary.jsonl` (mean recall@10 with a 95 % bootstrap interval of 1,000 resamples over the queries, and the recall of the Hamming order alone), `checks.jsonl`, `memory.jsonl`, `decision.json`.
 - Decision (fixed before the run, at 40-fold oversampling, mean recall): at least 0.95 for both models speaks for a symmetric 1-bit draft. Below 0.90 for POTION, asymmetric or centered variants come first. In between there is no decision.
 - The cell takes the heavy lock itself and starts its children with `nice -n 10`; do not wrap it in `--local-heavy`.
+
+## Cost of rescoring candidates: `rescore-cost@1`
+
+Class D, one arm, no comparison: `benchmarks/speed.py --diagnose --local-phase descriptive --development-input benchmarks/config/rescore-cost-local.json` times public `VectorStore.rescore` calls (k = 10) on synthetic stores of 1,048,576 rows with 256 dimensions (PCG64; int8 and float32, written with `ShardSink`). Eight cells: int8 with (queries, candidates) of (1, 1000), (100, 1000) and (10,000, 100), each with disjoint uniform lists and with one shared list, float32 with (10,000, 100) disjoint, and int8 (1, 1000) with `workers=1`. Each cell runs two warmups and seven timed calls and reports the absolute median and IQR; before timing, 16 queries are checked bit for bit against the filtered exact search. One call of the cell (10,000, 100) runs under `cProfile` with `workers=1` (the profile sees only the calling thread) and under `tracemalloc`; the process peak RSS is recorded. It is a signal for a follow-up ticket (a pair kernel or a dense path), never the proof of an optimization.
+
+- The study takes the timing lock itself and starts only when the one-minute load is below 4; after 15 minutes of waiting it ends as inconclusive. The controller must run at nice 0 and the study is not wrapped in `--local-heavy`. The wall-time budget is 15 minutes including preparation and waiting, with no extension and no automatic retry.
+- Outputs: `rescore.jsonl` (raw seconds, median, quartiles per cell), `profile.json`, `load.jsonl`, `coordination.jsonl`, `decision.json`. The seconds are local development indications and are never published.
+

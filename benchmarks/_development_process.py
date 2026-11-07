@@ -159,6 +159,10 @@ def _other_action(job):
         return measure(job)
     if action == "profile-head":
         return _head_profile(job)
+    if action == "rescore-cost":
+        from _development_rescore import cost_job
+
+        return cost_job(job)
     if action == "binary-recall":
         from _quality.binary_child import count_job as binary_job
 

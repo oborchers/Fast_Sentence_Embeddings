@@ -31,6 +31,7 @@ STAGES = (
     "head-group-score-sink",
     "prefilter-count",
     "binary-recall",
+    "store-rescore",
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
@@ -169,6 +170,9 @@ def validate_cell(raw, defaults):
     from _quality.binary_inputs import validate as validate_binary
 
     validate_binary(cell)
+    from _development_rescore import validate as validate_rescore
+
+    validate_rescore(cell)
     return cell
 
 

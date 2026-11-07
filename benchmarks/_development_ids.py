@@ -63,6 +63,7 @@ def validate(cell):
         "linear-heads-scores@1",
         "int8-prefilter@1",
         "binary-recall@1",
+        "rescore-cost@1",
         "length-report@1",
         "source-identity@1",
         *DOCUMENT_PROFILES,

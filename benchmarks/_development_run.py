@@ -135,6 +135,10 @@ def run(args):
     _arguments(args)
     require_timing_priority(args)
     spec["functional_only"] = args.diagnostic_rehearsal
+    from _development_rescore_run import run_cells, selected
+
+    if selected(spec["cells"]):
+        return run_cells(args, spec)
     with session(args, spec) as ledger:
         prepared = prepare(args, spec["cells"], ledger)
         check_args(args)
