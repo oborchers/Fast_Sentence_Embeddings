@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 from numpy import ndarray
 
 from fse._runtime import QuantizedRows
@@ -21,19 +22,44 @@ from fse._runtime import QuantizedRows
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class VectorBatch:
     """One block of a vector store: its rows ``store_row`` to ``store_row + n_rows - 1``
-    (positions in the store), their ``vectors`` and the ``doc_ids`` of the rows (None if the
-    store has none).
+    (positions in the store), their ``vectors``, the ``doc_ids`` of the rows (None if the
+    store has none) and their ``inv_norms`` (None for a batch built without them).
 
     ``VectorStore.iter_batches`` gives the stored values as read-only views of the mapped
     shards: float32 or float16 rows as an array, int8 rows as ``QuantizedRows(codes,
     scales)``, whose float32 rows are ``codes.astype(np.float32) * scales[:, None]`` (the
-    rows ``get_vectors`` returns). Read the fields by name: a batch is not iterable and does
+    rows ``get_vectors`` returns); ``inv_norms`` is the read-only float32 view of the stored
+    inverse norms of the rows, which stays readable after ``close``. A batch is a new type of
+    2.1 and its pickles are not promised across versions. Read the fields by name: a batch is not iterable and does
     not unpack, so a field added in a later minor release (with a default) breaks no caller."""
 
     store_row: int
     n_rows: int
     vectors: ndarray | QuantizedRows
     doc_ids: ndarray | None = None
+    inv_norms: ndarray | None = None
+
+    def normalized(self) -> ndarray:
+        """The rows as a new, writable, C-contiguous float32 array ``(n_rows, dim)`` with
+        every element ``float32(stored) * inv_norm``, for an index that takes float32 rows
+        (FAISS, hnswlib). An int8 row uses its codes without the scale, which cancels out of
+        the inverse norm. In the default IEEE environment (round to nearest even, subnormals
+        kept) the bits do not depend on the block; under another rounding mode or flush to
+        zero the result is only approximate. The rows are approximately unit length, because
+        the stored inverse norm is already rounded to float32; a zero row stays zero. This is
+        not the ``normalize@1`` of the numerical contract. Raises ``ValueError`` or
+        ``TypeError`` for a batch that has no ``inv_norms`` or whose fields do not fit."""
+        if isinstance(self.n_rows, bool | np.bool_) or not isinstance(
+            self.n_rows, int | np.integer
+        ):
+            raise TypeError(f"n_rows must be an int, not {type(self.n_rows).__name__}")
+        if self.n_rows < 0:
+            raise ValueError(f"n_rows must not be negative, not {self.n_rows}")
+        rows = _stored_rows(self.vectors, self.n_rows)
+        inverse = _checked_inv_norms(self.inv_norms, self.n_rows)
+        out = np.empty(rows.shape, dtype=np.float32)
+        np.multiply(rows, inverse[:, None], out=out, dtype=np.float32)
+        return out
 
 
 def blocks(
@@ -57,8 +83,45 @@ def make(tensors: dict[str, ndarray], store_row: int, first: int, end: int) -> V
     )
     ids = _frozen(tensors["doc_ids"][first:end]) if "doc_ids" in tensors else None
     return VectorBatch(
-        store_row=store_row + first, n_rows=end - first, vectors=vectors, doc_ids=ids
+        store_row=store_row + first,
+        n_rows=end - first,
+        vectors=vectors,
+        doc_ids=ids,
+        inv_norms=_frozen(tensors["inv_norms"][first:end]),
     )
+
+
+def _stored_rows(vectors: Any, n_rows: int) -> ndarray:
+    """The 2-D array ``normalized`` multiplies: the rows, or the int8 codes."""
+    rows: Any = vectors.codes if isinstance(vectors, QuantizedRows) else vectors
+    allowed = (
+        {np.dtype(np.int8)}
+        if isinstance(vectors, QuantizedRows)
+        else {np.dtype(np.float32), np.dtype(np.float16)}
+    )
+    if not isinstance(rows, ndarray) or rows.dtype not in allowed:
+        raise TypeError(
+            "vectors must be a float32 or float16 array or QuantizedRows of int8 codes, "
+            f"not {getattr(rows, 'dtype', type(rows).__name__)}"
+        )
+    if rows.ndim != 2 or rows.shape[0] != n_rows:
+        raise ValueError(f"vectors must have the shape ({n_rows}, dim), not {rows.shape}")
+    return rows
+
+
+def _checked_inv_norms(inv_norms: Any, n_rows: int) -> ndarray:
+    if inv_norms is None:
+        raise ValueError("the batch has no inv_norms; normalized() needs them")
+    if not isinstance(inv_norms, ndarray) or inv_norms.dtype != np.float32:
+        raise TypeError(
+            "inv_norms must be a float32 array, "
+            f"not {getattr(inv_norms, 'dtype', type(inv_norms).__name__)}"
+        )
+    if inv_norms.shape != (n_rows,):
+        raise ValueError(f"inv_norms must have the shape ({n_rows},), not {inv_norms.shape}")
+    if not (np.isfinite(inv_norms).all() and (inv_norms >= 0).all()):
+        raise ValueError("inv_norms must be finite and not negative")
+    return inv_norms
 
 
 def _frozen(a: ndarray) -> ndarray:
