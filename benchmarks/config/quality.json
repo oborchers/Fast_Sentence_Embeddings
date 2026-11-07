@@ -72,6 +72,34 @@
       "estimated_seconds": 90
     },
     {
+      "id": "eval-bekko-1024",
+      "kind": "mteb",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "backend": "fse",
+      "truncate": true,
+      "truncate_dim": 1024,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "eval-bekko-512",
+      "kind": "mteb",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "backend": "fse",
+      "truncate": true,
+      "truncate_dim": 512,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
       "id": "eval-potion-multilingual-128M",
       "kind": "mteb",
       "model": "minishlab/potion-multilingual-128M",

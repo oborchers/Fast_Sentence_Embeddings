@@ -77,6 +77,8 @@ def loader(cell, context):
             "fit": fit,
             "workers": cell["workers"],
             "dtype": cell.get("dtype", "float32"),
+            "truncate": cell.get("truncate", False),
+            "truncate_dim": cell.get("truncate_dim", "model"),
         },
         sort_keys=True,
     )
@@ -109,7 +111,11 @@ def native_model(cell, fit):
             ).encoder
         else:
             model = fse.Encoder.from_pretrained(
-                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True, truncate=False
+                cell["model"],
+                revision=MODEL_PINS[cell["model"]],
+                normalize=True,
+                truncate=cell.get("truncate", False),
+                truncate_dim=cell.get("truncate_dim", "model"),
             )
     elif backend == "model2vec":
         from model2vec import StaticModel
@@ -137,6 +143,7 @@ def make_adapter(cell, model):
 
     class Adapter(AbsEncoder):
         def __init__(self):
+            self.native = model
             self.mteb_model_meta = ModelMeta.create_empty().model_copy(
                 update={
                     "name": cell["model"],
@@ -204,7 +211,8 @@ def evaluate(cell, context):
         "model_revision": MODEL_PINS[cell["model"]],
         "backend_identity": before,
         "mteb_version": version("mteb"),
-        "table_dtype": cell.get("dtype", "float32"),
+        "table_dtype": stored_dtype(cell, model.native),
+        "output_dim": getattr(model.native, "output_dim", None),
         "normalization": True,
         "load_seconds": load_seconds,
         "evaluation_seconds": time.perf_counter() - started,
@@ -212,6 +220,12 @@ def evaluate(cell, context):
         "fit_id": cell.get("fit"),
         "fit": context["fits"].get(cell.get("fit")),
     }
+
+
+def stored_dtype(cell, model):
+    """The dtype the table is stored in: a model that stores float16 (bekko) says so."""
+    table = getattr(model, "word_vectors", None)
+    return table.dtype if table is not None else cell.get("dtype", "float32")
 
 
 def filters_for(task):

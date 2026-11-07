@@ -33,6 +33,7 @@
     "minishlab/potion-retrieval-32M": "6fc8051fab2a1e0ee76689cf08c853792ac285e7",
     "minishlab/potion-multilingual-128M": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
     "sentence-transformers/all-MiniLM-L6-v2": "8b3219a92973c328a8e22fadcfa821b5dc75636a",
+    "hotchpotch/bekko-static-embedding-v1": "c18167b8f244c1bc6de21ce9b710bac8a29c4615",
     "fse/paranmt-300": "a08e15771891207a22f840a3091a00a1657d888b",
     "fse/glove-wiki-gigaword-300": "4e5ad402664236b85be45a0d107b95259ba8a909",
     "fse/word2vec-google-news-300": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",
