@@ -491,6 +491,7 @@ ignore_names = [
     "prompt_type",
     "_fields_",          # the layout of a ctypes struct, read by ctypes (tests/support/arrow_c.py)
     "n_children",        # fields of the Arrow C structs there, read by the extension
+    "__qualname__",      # set on a stand-in method that pydantic titles errors from (tests/test_store_vectorstore_search.py)
 ]
 
 [tool.deptry]
