@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy import ndarray
 
@@ -20,6 +22,32 @@ DTYPES = {
     np.dtype(np.float16): "float16",
     np.dtype(np.int8): "int8",
 }
+
+
+def overlaps(a: Any, b: Any) -> bool:
+    """``overlaps(a, b)`` (the bounds test, empty arrays share nothing) without the
+    numpy call, which releases the GIL and takes it back: a task of a head ran it up to 20
+    times (docs/architecture/runtime.md, "Runtime", Tasks)."""
+    if a.size == 0 or b.size == 0:
+        return False
+    low_a, high_a = _extent(a)
+    low_b, high_b = _extent(b)
+    return low_a < high_b and low_b < high_a
+
+
+def _extent(a: Any) -> tuple[int, int]:
+    """The first and one past the last byte of a non-empty array (strides and offset)."""
+    interface = a.__array_interface__
+    low = high = interface["data"][0]
+    strides = interface["strides"]
+    if strides is None:  # C-contiguous
+        return low, low + a.nbytes
+    for length, stride in zip(interface["shape"], strides, strict=True):
+        if stride < 0:
+            low += (length - 1) * stride
+        else:
+            high += (length - 1) * stride
+    return low, high + a.itemsize
 
 
 def check_score_input(stored: object, scales: object, weights: object, bias: object) -> None:
@@ -102,7 +130,7 @@ def check_store_input(rows: object, codes: object, scales: object, first_row: ob
         )
     _check_store_scales(scales, codes.dtype == np.int8, len(rows))
     arrays = [a for a in (rows, codes, scales) if a is not None]
-    if any(np.may_share_memory(a, b) for i, a in enumerate(arrays) for b in arrays[i + 1 :]):
+    if any(overlaps(a, b) for i, a in enumerate(arrays) for b in arrays[i + 1 :]):
         raise ValueError("rows, codes and scales must not share memory")
     if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
         raise ValueError(f"first_row must be an int of at least 0, not {first_row!r}")

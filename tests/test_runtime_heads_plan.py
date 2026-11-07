@@ -58,12 +58,12 @@ def test_a_group_of_standalone_and_complete_heads_is_refused():
 
 
 class _Counting:
-    """The calls of the cpu backend of a plan that pool and normalize."""
+    """The calls of the cpu backend of a plan that pool (on a Batch or on text) and normalize."""
 
     def __init__(self, monkeypatch):
         self.calls = []
         cls = type(get_backend("cpu"))
-        for name in ("rows", "postprocess_pooled"):
+        for name in ("rows", "text_rows", "postprocess_pooled"):
             monkeypatch.setattr(cls, name, self._counted(name, getattr(cls, name)))
 
     def _counted(self, name, original):
@@ -102,7 +102,8 @@ def test_a_task_pools_the_full_table_at_most_once_per_kind_of_rows(
     pipeline.infer(StringSource(["w1 w2", "w3"]), outputs=outputs, workers=1)
     # A pipeline with a step normalizes inside rows; a copy goes through postprocess_pooled.
     # (Calls of rows inside the cpu backend to its own postprocess_pooled are not counted.)
-    assert counting.calls.count("rows") == poolings
+    # A task whose heads read only the folded table pools in one section (text_rows).
+    assert counting.calls.count("rows") + counting.calls.count("text_rows") == poolings
     assert counting.calls.count("postprocess_pooled") == normalizations
 
 
