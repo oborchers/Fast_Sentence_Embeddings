@@ -19,8 +19,11 @@ denormals-are-zero state of the thread: a positive subnormal gives 1 where a flo
 under DAZ would give 0. An int8 code is compared as it is. The rule has no floating point
 operation, so it has no ``transform_version``.
 
-Everything works in bounded blocks of rows, queries and bytes, so no step holds an array of
-``rows * queries * bytes`` or a bool matrix of more than ``BLOCK_BYTES`` entries.
+The dimension is at most ``MAX_DIM = 2**24 // 7``, so a sum of int4 codes (at most 7 per
+dimension) is exact in int32 and in float32, and so is a Hamming distance. The loops over rows,
+queries and bytes run in blocks, so no step holds an array of ``rows * queries * bytes`` or a
+bool matrix of more than ``BLOCK_BYTES`` entries; the number of queries of one call is small and
+is not blocked in the derivation of the bits or of the int4 codes.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from numpy import ndarray
 
 BLOCK_BYTES = 1 << 22
 INT4_MAX = 7
+MAX_DIM = (1 << 24) // INT4_MAX
 _VIEWS = {np.dtype(np.float32): np.int32, np.dtype(np.float16): np.int16, np.dtype(np.int8): None}
 _INT32 = np.dtype(np.int32)
 _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.int32)
@@ -38,11 +42,15 @@ _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.int32)
 def _check_matrix(values: ndarray, name: str) -> None:
     if not isinstance(values, ndarray) or values.ndim != 2 or values.shape[1] < 1:
         raise ValueError(f"{name} must be a two dimensional array with at least one column")
+    if values.shape[1] > MAX_DIM:
+        raise ValueError(f"{name} has more than {MAX_DIM} columns")
 
 
 def _check_packed(bits: ndarray, name: str) -> None:
     if not isinstance(bits, ndarray) or bits.dtype != np.uint8 or bits.ndim != 2:
         raise ValueError(f"{name} must be a uint8 matrix of packed bits")
+    if not 1 <= bits.shape[1] <= -(-MAX_DIM // 8):
+        raise ValueError(f"{name} must have between 1 and {-(-MAX_DIM // 8)} bytes per row")
 
 
 def _positive(values: ndarray) -> ndarray:
@@ -128,8 +136,13 @@ def _select(rank: ndarray, m: int, rows: ndarray | None) -> list[ndarray]:
     if not isinstance(m, int | np.integer) or isinstance(m, bool) or m < 1:
         raise ValueError("m must be a positive integer")
     rows = np.arange(len(rank), dtype=np.int64) if rows is None else rows
-    if rows.shape != (len(rank),) or (len(rows) > 1 and not (np.diff(rows) > 0).all()):
-        raise ValueError("rows must be one ascending position per row of bits")
+    if (
+        rows.shape != (len(rank),)
+        or rows.dtype.kind not in "iu"
+        or (len(rows) > 0 and rows.min() < 0)
+        or not (rows[1:] > rows[:-1]).all()
+    ):
+        raise ValueError("rows must be one ascending nonnegative integer position per row of bits")
     return [_order(rank[:, q], rows, int(m)) for q in range(rank.shape[1])]
 
 

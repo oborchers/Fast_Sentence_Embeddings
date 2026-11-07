@@ -154,17 +154,23 @@ def test_candidates_of_a_selection_are_global_positions():
     assert bits.candidates(rows, query, 3, selected)[0].tolist() == [20, 50, 40]
 
 
-def test_candidates_are_stable_under_block_permutations():
+def oracle_candidates(rows, query, m):
+    """The order from a Python count of the differing bits, with no block in sight."""
+    out = []
+    for q in query:
+        distance = [bin(int.from_bytes((r ^ q).tobytes(), "big")).count("1") for r in rows]
+        out.append(sorted(range(len(rows)), key=lambda i: (distance[i], i))[:m])
+    return out
+
+
+@pytest.mark.parametrize("block", [1 << 22, 40, 1])
+def test_candidates_do_not_depend_on_the_blocks(block, monkeypatch):
     rng = np.random.default_rng(5)
-    rows = rng.integers(0, 4, (60, 2), dtype=np.uint8)
-    query = rng.integers(0, 4, (3, 2), dtype=np.uint8)
-    want = bits.candidates(rows, query, 17)
-    order = rng.permutation(60)
-    positions = np.arange(60)
-    for q in range(3):
-        d = bits.hamming(rows, query)[:, q]
-        got = positions[order][np.lexsort((positions[order], d[order]))][:17]
-        np.testing.assert_array_equal(got, want[q])
+    rows = rng.integers(0, 4, (60, 70), dtype=np.uint8)
+    query = rng.integers(0, 4, (3, 70), dtype=np.uint8)
+    monkeypatch.setattr(bits, "BLOCK_BYTES", block)
+    got = bits.candidates(rows, query, 17)
+    assert [g.tolist() for g in got] == oracle_candidates(rows, query, 17)
 
 
 def test_candidates_check_m_and_rows():
@@ -172,8 +178,23 @@ def test_candidates_check_m_and_rows():
     for m in (0, True, 1.5):
         with pytest.raises(ValueError, match="m must"):
             bits.candidates(rows, query, m)
-    with pytest.raises(ValueError, match="ascending"):
-        bits.candidates(rows, query, 1, np.array([3, 2, 5]))
+    for bad in ([3, 2, 5], [-1, 2, 3], [0, 1, 1]):
+        with pytest.raises(ValueError, match="ascending nonnegative integer"):
+            bits.candidates(rows, query, 1, np.array(bad))
+    for bad in (np.array([0.5, 1.5, 2.5]), np.array([0, 1])):
+        with pytest.raises(ValueError, match="ascending nonnegative integer"):
+            bits.candidates(rows, query, 1, bad)
+
+
+def test_the_dimension_is_bounded_so_that_the_sums_are_exact():
+    assert bits.MAX_DIM * 7 <= 1 << 24
+    with pytest.raises(ValueError, match="more than"):
+        bits.sign_bits(np.zeros((1, bits.MAX_DIM + 1), np.int8))
+    with pytest.raises(ValueError, match="bytes per row"):
+        bits.hamming(np.zeros((1, 0), np.uint8), np.zeros((1, 0), np.uint8))
+    wide = np.zeros((1, -(-bits.MAX_DIM // 8) + 1), np.uint8)
+    with pytest.raises(ValueError, match="bytes per row"):
+        bits.hamming(wide, wide)
 
 
 def test_pad_uses_the_widest_list_of_the_whole_call():

@@ -93,12 +93,24 @@ def test_the_first_row_plus_a_local_number_is_detected(monkeypatch):
     assert bits.candidates(rows, query, 3, selected)[0].tolist() != [10, 30, 50]
 
 
-def test_padding_per_block_instead_of_once_is_detected():
-    found = [np.array([4, 5, 6]), np.array([7]), np.array([8])]
-    want = [[4, 5, 6], [7, -1, -1], [8, -1, -1]]
-    assert bits.pad(found).tolist() == want
-    blocks = [bits.pad(found[:2]), bits.pad(found[2:])]
-    assert [b.shape for b in blocks] == [(2, 3), (1, 1)]  # per block, the matrices do not stack
+FOUND = [np.array([4]), np.array([5]), np.array([6, 7, 8])]
+WANT_PADDED = [[4, -1, -1], [5, -1, -1], [6, 7, 8]]
+
+
+def test_control_padding_once_gives_the_widest_list_of_the_call():
+    assert bits.pad(FOUND).tolist() == WANT_PADDED
+
+
+def test_padding_per_block_of_queries_instead_of_once_is_detected(monkeypatch):
+    real = bits.pad
+
+    def per_block(found):
+        """The width of the first block of two queries, not of the whole call."""
+        width = real(found[:2]).shape[1]
+        return real([item[:width] for item in found])
+
+    monkeypatch.setattr(bits, "pad", per_block)
+    assert bits.pad(FOUND).tolist() != WANT_PADDED
 
 
 def test_a_rounding_half_up_in_the_int4_codes_is_detected(monkeypatch):
