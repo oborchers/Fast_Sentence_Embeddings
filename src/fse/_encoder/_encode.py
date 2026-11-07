@@ -50,7 +50,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -58,6 +57,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> ndarray | QuantizedRows | None: ...
 
     @overload
@@ -67,7 +67,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -75,6 +74,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray | QuantizedRows | None, LengthReport]: ...
 
     def encode(
@@ -83,7 +83,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -91,6 +90,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The vectors of ``texts``, one row per sentence, as ``dtype`` (float32 by
         default): float32 or float16 rows, or int8 ``QuantizedRows``. Without a sink the
@@ -153,7 +153,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -161,6 +160,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[EncodedBatch]: ...
 
     @overload
@@ -170,7 +170,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -178,6 +177,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[EncodedBatch, LengthReport]]: ...
 
     def encode_batches(
@@ -186,7 +186,6 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -194,6 +193,7 @@ class _Encoding:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
         (or token lists), as a queue consumer polls them, and every batch gives one

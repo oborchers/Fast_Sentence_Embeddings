@@ -38,7 +38,6 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: Any = False,
@@ -48,6 +47,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> ndarray: ...
 
     @overload
@@ -56,7 +56,6 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Level,
         count_truncated: Any = False,
@@ -66,6 +65,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray, LengthReport]: ...
 
     @overload
@@ -74,7 +74,6 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -84,6 +83,7 @@ class _Predicting:
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -92,7 +92,6 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -102,6 +101,7 @@ class _Predicting:
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -110,7 +110,6 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -120,6 +119,7 @@ class _Predicting:
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The label of each text or VectorStore row. For multilabel heads, a boolean
         (n, k) indicator in classes_ order, true strictly above each stored cutoff.
@@ -151,12 +151,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -165,12 +165,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @validate_arguments
@@ -179,12 +179,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> Any:
         """The probability of every label for every text, float32 (n, classes); with a
         ``sink`` the rows go there and nothing is returned. With ``lengths`` the pair
@@ -201,12 +201,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -215,12 +215,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Level,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @validate_arguments
@@ -229,12 +229,12 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
+        pool: Pool | None = None,
     ) -> Any:
         """The logits of every text as float32. Multilabel always returns (n, k),
         including k = 1. Single-label heads return (n,) for one output, else (n, k). With
@@ -252,7 +252,6 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -262,6 +261,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -272,7 +272,6 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -282,6 +281,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -292,7 +292,6 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -302,6 +301,7 @@ class _Predicting:
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of

@@ -95,7 +95,6 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -106,6 +105,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> ndarray | None: ...
 
     @overload
@@ -114,7 +114,6 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Literal["summary", "per_row"],
@@ -125,6 +124,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[ndarray | None, LengthReport]: ...
 
     @overload
@@ -133,7 +133,6 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: Any = None,
@@ -144,6 +143,7 @@ class Regressor(LinearModel):
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -152,7 +152,6 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: Any = None,
@@ -163,6 +162,7 @@ class Regressor(LinearModel):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -171,7 +171,6 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -182,6 +181,7 @@ class Regressor(LinearModel):
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
         target, else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
@@ -217,7 +217,6 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -227,6 +226,7 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[PredictedBatch]: ...
 
     @overload
@@ -237,7 +237,6 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -247,6 +246,7 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
 
     @validate_arguments
@@ -257,7 +257,6 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -267,6 +266,7 @@ class Regressor(LinearModel):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
         ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""

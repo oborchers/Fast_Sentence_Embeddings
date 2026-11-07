@@ -142,7 +142,6 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: Any = False,
@@ -152,6 +151,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Mapping[str, ndarray]: ...
 
     @overload
@@ -161,7 +161,6 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Literal["summary", "per_row"],
         count_truncated: Any = False,
@@ -171,6 +170,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
 
     @overload
@@ -180,7 +180,6 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -190,6 +189,7 @@ class Heads(Mapping):
         score_sink: Any,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @overload
@@ -199,7 +199,6 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -209,6 +208,7 @@ class Heads(Mapping):
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
     ) -> tuple[None, LengthReport] | None: ...
 
     @validate_arguments
@@ -218,7 +218,6 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -228,6 +227,7 @@ class Heads(Mapping):
         score_sink: Any = None,
         doc_ids: Any = None,
         shard: Any = None,
+        pool: Pool | None = None,
     ) -> Any:
         """The outputs of every head for every text, by name, in head order. By default each
         head gives what its own ``predict`` gives (labels, or the values of a regressor).
@@ -273,7 +273,6 @@ class Heads(Mapping):
         output: Any = None,
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
-        pool: Pool | None = None,
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
@@ -282,6 +281,7 @@ class Heads(Mapping):
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,
+        pool: Pool | None = None,
     ) -> Iterator[HeadsBatch]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
