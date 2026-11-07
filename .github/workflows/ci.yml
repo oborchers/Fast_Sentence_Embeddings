@@ -3,7 +3,9 @@ name: CI
 on:
   push:
     branches: [master]
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+    # The suffix lets pre-releases (v2.1.0rc1) start the workflow; tools/release_notes.py
+    # refuses every tag that is not vX.Y.Z or vX.Y.Z{a,b,rc}N before anything is published.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -546,12 +548,21 @@ jobs:
             exit 1
           fi
           echo "Verified full master CI: $(jq -r '.html_url' <<< "$run")"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - name: Download sdist and wheels
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           pattern: dist-*
           path: dist
           merge-multiple: true
+      # Before anything is published: the tag must name a CHANGELOG.md section, and
+      # every built file must carry the version of the tag.
+      - name: Check the tag against CHANGELOG.md and the built files
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tools/release_notes.py --tag "$RELEASE_TAG" --output "$RUNNER_TEMP/release-notes.md" --dist dist
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
@@ -560,3 +571,44 @@ jobs:
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
         with:
           skip-existing: true
+
+  # The GitHub release belongs to the release. It runs only after PyPI has the files, and
+  # only here the token may write contents.
+  github-release:
+    needs: release
+    if: success() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download sdist and wheels
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - name: Extract the release notes
+        id: notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tools/release_notes.py --tag "$RELEASE_TAG" --output "$RUNNER_TEMP/release-notes.md" --dist dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.notes.outputs.version }}
+          PRERELEASE: ${{ steps.notes.outputs.prerelease }}
+        run: |
+          # A rerun of the job after the release exists must not fail. Check the release
+          # afterwards as the release skill says.
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "::notice::The GitHub release $RELEASE_TAG already exists; nothing to create."
+            exit 0
+          fi
+          flags=(--verify-tag --title "fse $VERSION" --notes-file "$RUNNER_TEMP/release-notes.md")
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
+          gh release create "$RELEASE_TAG" "${flags[@]}" dist/*
