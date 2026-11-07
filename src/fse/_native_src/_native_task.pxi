@@ -214,15 +214,44 @@ cdef void _pool_stages(WeightedMean kernel, Workspace ws, _Stages *s,
         result.not_finite = fse_normalize(s.isa, s.out, s.rows, kernel.dim, &result.unnormalizable)
 
 
-cdef bint _overlaps(out, kept):
-    """Whether the bytes of two C-contiguous arrays overlap: the bounds test of
-    np.may_share_memory, by pointer compares (no numpy call)."""
-    cdef char *a = <char *>np.PyArray_DATA(out)
-    cdef char *b = <char *>np.PyArray_DATA(kept)
-    cdef Py_ssize_t na = np.PyArray_NBYTES(out), nb = np.PyArray_NBYTES(kept)
-    if na == 0 or nb == 0:
-        return False  # an empty array shares no memory, as np.may_share_memory says
-    return a < b + nb and b < a + na
+cdef bint _extent(arr, char **low, char **high):
+    """The first and one past the last byte an array can touch (strides and offset
+    included), by pointer arithmetic; False for an empty array."""
+    cdef np.ndarray x = arr
+    cdef char *p = <char *>np.PyArray_DATA(x)
+    cdef char *lo = p
+    cdef char *hi = p
+    cdef Py_ssize_t extent
+    cdef int i
+    if np.PyArray_SIZE(x) == 0:
+        return False
+    for i in range(np.PyArray_NDIM(x)):
+        extent = (np.PyArray_DIMS(x)[i] - 1) * np.PyArray_STRIDES(x)[i]
+        if extent < 0:
+            lo += extent
+        else:
+            hi += extent
+    low[0] = lo
+    high[0] = hi + np.PyArray_ITEMSIZE(x)
+    return True
+
+
+cdef bint _overlaps(a, b):
+    """Whether the byte ranges of two arrays overlap: the bounds test of np.may_share_memory
+    (empty arrays share nothing), by pointer compares and without a numpy call, which would
+    release the GIL and take it back."""
+    cdef char *alo
+    cdef char *ahi
+    cdef char *blo
+    cdef char *bhi
+    if not _extent(a, &alo, &ahi) or not _extent(b, &blo, &bhi):
+        return False
+    return alo < bhi and blo < ahi
+
+
+def _test_overlaps(a, b):
+    """For the tests: the bounds test of _overlaps, as the arrays of a check are compared."""
+    return bool(_overlaps(a, b))
 
 
 cdef object _out_error(WeightedMean kernel, out, Py_ssize_t rows):

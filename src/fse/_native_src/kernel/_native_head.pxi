@@ -114,7 +114,7 @@ def head_decisions(probabilities, thresholds, out):
         if (k < 1 or not isinstance(out, np.ndarray) or out.dtype != np.bool_
                 or out.shape != (n, k) or not out.flags.c_contiguous or not out.flags.writeable):
             raise ValueError("out must be a writable C-contiguous bool matrix matching probabilities")
-        if any(np.may_share_memory(out, kept) for kept in (probabilities, thresholds)):
+        if any(_overlaps(out, kept) for kept in (probabilities, thresholds)):
             raise ValueError("out must not share memory with probabilities or thresholds")
         for name, values in (("probabilities", probabilities), ("thresholds", thresholds)):
             if not np.isfinite(values).all() or np.any((values < 0) | (values > 1)):

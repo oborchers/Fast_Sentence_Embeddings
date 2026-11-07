@@ -171,17 +171,39 @@ class HeadsPipeline:
         """One task in its worker: the rows the heads read (and the vectors), then each
         head's logits and outputs into its targets (and the vectors into ``vrows``)."""
         plan = self.plan
-        batch = plan.primary.batch(local, task, base)
         first = base + task.first_row
         direct = self._direct(rows, slots)
         vsplit = split_target(vrows, vdtype, inverse) if plan.with_vectors else None
-        read = self._read(local, batch, task.n_rows, first, direct, vsplit)
+        read = self._fused(local, task, base, direct)
+        if read is None:
+            batch = plan.primary.batch(local, task, base)
+            read = self._read(local, batch, task.n_rows, first, direct, vsplit)
         for i, own in enumerate(slots.of_member):
             self._head(local, i, read, [(slots.outputs[s], rows[s]) for s in own], first)
         if vsplit is not None:
             # The vectors are stored (stage 5) after the heads (4b): for one row the heads'
             # error comes first.
             plan.own.stored(read.vectors, vsplit, first)
+
+    def _fused(self, local, task: Task, base: int, direct) -> Rows | None:
+        """The rows of a task whose heads read only the folded table, pooled in one section
+        without the GIL (stages 1 to 4, as ``Pipeline.pooled_task``), or None where a head
+        reads other rows or the task failed. A failed task is run again on the path with a
+        Batch, which raises the error of its row with the names of the heads: every row is
+        a pure function of its sentence, so both paths fail alike. The Batch path checks and
+        pools in many calls that each give the GIL up and take it back."""
+        plan = self.plan
+        if plan.table is None or plan.normed is not None or plan.vector_mode != NO_VECTORS:
+            return None
+        n = task.n_rows
+        folded = (
+            direct if direct is not None else buffer(local, "head_table", n, plan.table.output_dim)
+        )
+        try:
+            plan.table.pooled_task(local, task, (folded, None, None), base)
+        except ValueError:
+            return None
+        return Rows(folded, None)
 
     def _direct(self, rows: list, slots: Slots) -> ndarray | None:
         """The target of the logits of a lone folded head: pooled in place, the bias added
