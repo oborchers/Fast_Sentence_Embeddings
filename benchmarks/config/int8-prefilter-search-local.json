@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-278 class O (kernel plan v2 of DR-168, section 7): public store.search of int8 stores with and without the int8 prefilter, base against candidate, on the 859,346 WikiText-103 training paragraphs (wikitext-train, int8 rows, 2 workers, k 10). The queries are 256 fixed STS-B test texts outside the store (PCG64 seed 0, digest in every record), encoded outside the timer; every call searches the next block of queries and a group starts at the first block, so both builds run the same calls and their outputs must be bit-identical. Cells O1 to O3 carry the decision gate; the practical limit of a 10 percent saving (and a confirmation of at least half of it) is fixed before the measurement and read from the report by hand, because the tool applies only the noise rule. N1 and N2 assess non-regression explicitly from the paired factor (median at least 0.98, confirmation not below it), not from the descriptive_only tool label. R1 to R5 are the preliminary regression screen (5 percent limit) for the paths that must stay unchanged; run them with --local-phase regression-screen only. Nothing is enabled unless O1 to O3 reach the limit and N1 and N2 pass; otherwise the data go to the maintainer and no range is cut afterwards. Local development indication on one machine, no publication. Measure only in a window that fse-main grants.",
+  "description": "DR-278 and DR-281 class O (kernel plan v2 of DR-168, section 7, slimmed): public store.search of int8 stores with and without the int8 prefilter, base against candidate, on the 859,346 WikiText-103 training paragraphs (wikitext-train, int8 rows, 2 workers, k 10). Three cells: o1-d256-q8 (typical, d256), o2-d1024-q8 (large, d1024) and the edge cell r5-int8-d1024-q1-rows (rows= spread over 50 percent of the rows, d1024, one query). The queries are 256 fixed STS-B test texts outside the store (PCG64 seed 0, digest in every record), encoded outside the timer; every call searches the next block of queries and a group starts at the first block, so both builds run the same calls and their outputs must be bit-identical. Groups last at least 2 s on the faster arm (target_seconds 2.0, the floor of the rules); both arms run the same number of calls, sized on the faster candidate, so the slower base group is longer. 15 pairs, A/A tuning, A/A validation, comparison and confirmation unchanged. Rule, fixed before the measurement: the variant neon-sdot is enabled only if o1 and o2 are each at least 10 percent faster (saving at least max(3 * A/A IQR, 0.02), confirmed with at least half of it, read from the report by hand because the tool applies only the noise rule) and r5 does not get slower (median of the paired factor base/candidate at least 0.98 and the confirmation not below it; r5 has decision_gate false and is assessed explicitly from the paired factor, not from the descriptive_only tool label). Otherwise nothing is enabled and no range is cut afterwards; the data go to the maintainer. A missing cell is inconclusive. Budget 8 h wall time, never extended, never repeated. active_calibration_seconds per cell (sizing, A/A tuning and validation): o1 4500, o2 5400, r5 3600. Expected duration at the first tier (2 s) about 5.4 h (4.4 to 6.5 h); a second tier (4 s) would exceed the budget and end inconclusive. Local development indication on one machine, no publication. Measure only in a window that fse-main grants.",
   "defaults": {
     "profile": "int8-prefilter-search@1",
     "base_doc_ids": "none",
@@ -14,7 +14,7 @@
     "pairs": 15,
     "warmup_calls": 2,
     "warmup_seconds": 12.0,
-    "target_seconds": 6.0,
+    "target_seconds": 2.0,
     "target_aa_iqr": 0.02,
     "active_calibration_seconds": 3600.0,
     "noise_multiplier": 3.0,
@@ -28,76 +28,16 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext-train",
       "stage": "store-search",
-      "queries": 8
+      "queries": 8,
+      "active_calibration_seconds": 4500.0
     },
     {
       "id": "o2-d1024-q8",
       "model": "sentence-transformers/static-retrieval-mrl-en-v1",
       "corpus": "wikitext-train",
       "stage": "store-search",
-      "queries": 8
-    },
-    {
-      "id": "o3-d256-q1",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 1
-    },
-    {
-      "id": "n1-d1024-q1",
-      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 1,
-      "decision_gate": false
-    },
-    {
-      "id": "n2-d256-q8-k100",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
       "queries": 8,
-      "k": 100,
-      "decision_gate": false
-    },
-    {
-      "id": "r1-float32-q1",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 1,
-      "output_dtype": "float32",
-      "decision_gate": false
-    },
-    {
-      "id": "r2-float16-q1",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 1,
-      "output_dtype": "float16",
-      "decision_gate": false
-    },
-    {
-      "id": "r3-int8-blas-q64",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 64,
-      "search_mode": "blas",
-      "decision_gate": false
-    },
-    {
-      "id": "r4-int8-max-per-doc-q8",
-      "model": "minishlab/potion-base-8M",
-      "corpus": "wikitext-train",
-      "stage": "store-search",
-      "queries": 8,
-      "base_doc_ids": "shuffled",
-      "candidate_doc_ids": "shuffled",
-      "max_per_doc": 1,
-      "decision_gate": false
+      "active_calibration_seconds": 5400.0
     },
     {
       "id": "r5-int8-d1024-q1-rows",
@@ -108,7 +48,8 @@
       "filter_kind": "rows",
       "filter_layout": "spread",
       "filter_fraction": 0.5,
-      "decision_gate": false
+      "decision_gate": false,
+      "active_calibration_seconds": 3600.0
     }
   ]
 }
