@@ -112,10 +112,8 @@ def repeated(read, target, times, start=None):
 def exact(value):
     """The dtypes, shapes and bytes of an outcome (arrays, named tuples, dataclasses,
     mappings and lists of them), comparable with ``==`` bit for bit."""
-    if isinstance(value, np.ndarray) and value.dtype.hasobject:  # labels: compare the objects
-        return ("objects", value.shape, tuple(exact(item) for item in value.ravel().tolist()))
     if isinstance(value, np.ndarray):
-        return ("array", str(value.dtype), value.shape, np.ascontiguousarray(value).tobytes())
+        return _array(value)
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         fields = dataclasses.fields(value)
         return (
@@ -127,6 +125,12 @@ def exact(value):
     if isinstance(value, (tuple, list)):
         return (type(value).__name__, tuple(exact(item) for item in value))
     return value
+
+
+def _array(value):
+    if value.dtype.hasobject:  # labels: compare the objects, not their addresses
+        return ("objects", value.shape, tuple(exact(item) for item in value.ravel().tolist()))
+    return ("array", str(value.dtype), value.shape, np.ascontiguousarray(value).tobytes())
 
 
 def step_of(name):
