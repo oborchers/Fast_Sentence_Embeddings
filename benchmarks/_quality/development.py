@@ -140,8 +140,12 @@ def quality_gate(args, cell, prepared, ledger, tag):
 def run(args):
     spec = load(args.development_input, args.cells)
     spec["functional_only"] = args.diagnostic_rehearsal
+    from _quality.binary_run import run_cells as run_binary
+    from _quality.binary_run import selected as binary_selected
     from _quality.prefilter_run import run_cells, selected
 
+    if binary_selected(spec["cells"]):
+        return run_binary(args, spec)
     if selected(spec["cells"]):
         return run_cells(args, spec)
     seen, cells = set(), []

@@ -189,6 +189,50 @@ def _wikitext_train(work, cache, deadline=None):
     )
 
 
+def _agnews(work, cache, deadline=None):
+    """The corpus and the query pool of the DR-255 probe: PCG64 seed 0 over the pinned AG News
+    splits, whitespace collapsed; the pool holds unique test texts that are not in the corpus."""
+    import numpy as np
+    import pyarrow.parquet as pq
+    from _quality.binary_inputs import AGNEWS, CORPUS_ROWS, POOL_QUERIES
+
+    snapshot = _snapshot(
+        AGNEWS["repo"], AGNEWS["revision"], work, cache, dataset=True, patterns=["data/*.parquet"]
+    )
+
+    def split(name):
+        check(deadline)
+        table = pq.read_table(next((snapshot / "data").glob(name + "-*.parquet")), columns=["text"])
+        return [" ".join(t.split()) for t in table.column(0).to_pylist()]
+
+    train, test = split("train"), split("test")
+    rng = np.random.Generator(np.random.PCG64(0))
+    corpus = [train[i] for i in np.sort(rng.choice(len(train), CORPUS_ROWS, replace=False))]
+    stored, seen, pool = set(corpus), set(), []
+    for i in rng.permutation(len(test)):
+        text = test[i]
+        if text and text not in stored and text not in seen:
+            seen.add(text)
+            pool.append(text)
+    pool = pool[:POOL_QUERIES]
+    if len(pool) < POOL_QUERIES:
+        raise ValueError("AG News test has too few texts outside the corpus")
+    return dict(
+        texts=corpus + pool,
+        score_slices=[
+            dict(split="corpus", begin=0, count=len(corpus)),
+            dict(split="queries", begin=len(corpus), count=len(pool)),
+        ],
+        source=dict(
+            **AGNEWS,
+            seed=0,
+            generator="PCG64",
+            preprocessing="collapsed whitespace; corpus sampled from train without replacement; "
+            "pool of unique test texts outside the corpus in a seeded order",
+        ),
+    )
+
+
 def _models(cells, work, cache, deadline=None):
     from fse import Encoder, StaticModel
 
@@ -274,7 +318,9 @@ def _corpus(name, work, cache, loaded, deadline):
         data["timing_texts"] = data["texts"]  # already collapsed; saved once (see prepare_child)
         data["timing_policy"] = "paragraphs of the training split, one-space whitespace"
         return data
-    if name == "stsb":
+    if name == "agnews":
+        data = _agnews(work, cache, deadline)
+    elif name == "stsb":
         data = _stsb(deadline)
     elif name == "wikitext":
         data = _wikitext(work, cache, deadline)

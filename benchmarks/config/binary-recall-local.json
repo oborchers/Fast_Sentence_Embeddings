@@ -1,0 +1,26 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-255 probe, class K: recall@10 of sign-bit Hamming candidates (10- and 40-fold oversampling) rescored exactly with VectorStore.rescore, against the exact search of a float32 store of 100,000 pinned AG News train texts, with 1,000 AG News test texts as queries. No timing.",
+  "defaults": {
+    "profile": "binary-recall@1",
+    "workers": 2,
+    "decision_gate": false,
+    "store_sizes": [100000],
+    "queries_per_set": 1000,
+    "k_values": [10]
+  },
+  "cells": [
+    {
+      "id": "binary-potion",
+      "model": "minishlab/potion-base-8M",
+      "stage": "binary-recall",
+      "corpus": "agnews"
+    },
+    {
+      "id": "binary-retrieval",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "stage": "binary-recall",
+      "corpus": "agnews"
+    }
+  ]
+}
