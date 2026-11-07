@@ -78,4 +78,4 @@ What exceeded a limit when the guardrails came is the ratchet in `[tool.fse.guar
 
 ## Releases
 
-A pushed `v*` tag on `master` runs the release job in CI. It waits for approval in the `release` environment and publishes to PyPI with trusted publishing. Never create tags or releases without the maintainer's explicit approval.
+A pushed `v*` tag on `master` runs the release job in CI. It waits for approval in the `release` environment and publishes to PyPI with trusted publishing. The GitHub release belongs to the release: the job `github-release` creates it from the `CHANGELOG.md` section of the tag, and the steps are in [the release skill](.agents/skills/release/SKILL.md). Never create tags or releases without the maintainer's explicit approval.
