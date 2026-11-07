@@ -177,7 +177,7 @@ def run(args):
     return ledger.done()
 
 
-def main():
+def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
@@ -196,13 +196,22 @@ def main():
         "--fixture-repo", type=Path, help="clone containing the pinned historical STS Git object"
     )
     parser.add_argument("--allocated-at", type=float)
+    parser.add_argument(
+        "--local-run",
+        action="store_true",
+        help="with --run: MTEB cells on a Unix machine, class K, publishable false, no speed value",
+    )
+    parser.add_argument(
+        "--local-budget-seconds", type=float, default=3600, help="wall-time budget of --local-run"
+    )
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
     add_arguments(parser, mode, quality=True)
-    args = parser.parse_args()
-    local_status = dispatch(args, quality=True)
-    if local_status is not None:
-        return local_status
+    return parser
+
+
+def _resolve_paths(args):
+    """The result, work and cache paths and the clone of the historical STS fixture."""
     for name in ("results", "work", "cache"):
         setattr(args, name, getattr(args, name).resolve())
     setup_source = Path(sys.executable).parents[2] / "fse-source"
@@ -210,6 +219,26 @@ def main():
         args.fixture_repo
         or (setup_source if setup_source.is_dir() else Path(__file__).resolve().parents[1])
     ).resolve()
+
+
+def _local(parser, args):
+    """``--run --local-run``: MTEB cells on a Unix machine, class K, never publishable."""
+    if not args.run:
+        parser.error("--local-run goes with --run")
+    for path in (args.results, args.work, args.cache):
+        outside_checkout(path)
+    from _quality.local import run as local_run
+
+    return local_run(args)
+
+
+def main():
+    parser = _parser()
+    args = parser.parse_args()
+    local_status = dispatch(args, quality=True)
+    if local_status is not None:
+        return local_status
+    _resolve_paths(args)
     if args.summarize:
         from _quality.summary import summarize
 
@@ -217,6 +246,8 @@ def main():
         return 0
     if utility(args, "quality"):
         return 0
+    if args.local_run:
+        return _local(parser, args)
     spec = contract(args.input)
     if sys.platform != "linux" or sys.version.split()[0] != spec["machine"]["python_patch"]:
         raise RuntimeError("pinned Linux Python required")
