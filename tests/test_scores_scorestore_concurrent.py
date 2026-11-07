@@ -105,6 +105,7 @@ def test_readers_hold_their_snapshot_through_a_refresh(path, monkeypatch):
             assert store.refresh() == 6
         finally:
             gate.open()
+            readers.wait()
         got = readers.join()
         after = serial(store)
     for name in OPERATIONS:
@@ -123,6 +124,7 @@ def test_a_close_meanwhile_keeps_copies_whole_and_ends_generators(path, monkeypa
         store.close()  # never raises: every reader holds its own shards
     finally:
         gate.open()
+        readers.wait()
     got = readers.join()
     for name in OPERATIONS:
         if name in COPIES:

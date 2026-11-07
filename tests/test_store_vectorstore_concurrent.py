@@ -3,6 +3,7 @@
 later calls, and ``close`` raises while a reader holds its snapshot (docs/architecture/
 store.md, "Concurrency")."""
 
+import gc
 import threading
 
 import numpy as np
@@ -74,9 +75,10 @@ OPERATIONS = {
     "get_vectors": lambda s: s.get_vectors(),
     "get_doc_ids": lambda s: s.get_doc_ids(start=2),
     "iter_batches": lambda s: list(s.iter_batches(block_rows=4)),
+    "verify": lambda s: s.verify(),
 }
-
-# The step each read takes under the active-use guard of the store, where a gate holds it.
+IN_USE = "the store is in use (a search, score or read is running); close it when it is done"
+CLOSED = "the VectorStore is closed"
 
 
 def serial(store):
@@ -129,6 +131,7 @@ def test_readers_hold_their_snapshot_through_a_refresh_and_close_raises(made, mo
                 store.close()
         finally:
             gate.open()
+            readers.wait()
         got = readers.join()
         after = serial(store)
         assert store._active == 0
@@ -148,14 +151,14 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
     with VectorStore.open(path) as store:
         snapshots = [VectorStore.open(path)]
         start = threading.Barrier(len(OPERATIONS) + 1, timeout=60)
-        refreshed = threading.Event()
+        refreshed = threading.Event()  # set also when the refresher fails
         ended = []  # the errors that ended a reader, or the close
 
         def reader(read):
             def run():
                 start.wait()
                 outcomes = []
-                while len(outcomes) < 12 or not refreshed.is_set():
+                while len(outcomes) < 12 or not refreshed.wait(0):
                     try:
                         outcomes.append(exact(read(store)))
                     except RuntimeError as error:
@@ -166,12 +169,14 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
             return run
 
         def refresher():
-            start.wait()
-            for round_ in range(3):
-                write(path, dtype, len(snapshots[-1]), SHARD_ROWS + round_, seed=20 + round_)
-                snapshots.append(VectorStore.open(path))
-                assert store.refresh() == SHARD_ROWS + round_
-            refreshed.set()
+            try:
+                start.wait()
+                for round_ in range(3):
+                    write(path, dtype, len(snapshots[-1]), SHARD_ROWS + round_, seed=20 + round_)
+                    snapshots.append(VectorStore.open(path))
+                    assert store.refresh() == SHARD_ROWS + round_
+            finally:
+                refreshed.set()  # the readers end also after a failure
             try:
                 store.close()
             except RuntimeError as error:
@@ -179,19 +184,17 @@ def test_reads_under_refreshes_and_a_close_match_a_snapshot_in_order(made):
 
         jobs = {name: reader(read) for name, read in OPERATIONS.items()}
         jobs["refresher"] = refresher
-        got = Readers(jobs).start().join()
-        assert store._active == 0
-    closed = "the VectorStore is closed"
-    assert set(ended) <= {closed, "the store is in use (a search, score or read is running); "
-                          "close it when it is done"}  # fmt: skip
-    try:
-        for name, read in OPERATIONS.items():
-            states = [exact(read(snapshot)) for snapshot in snapshots]
-            seen = [states.index(outcome) for outcome in got[name]]  # raises if none matches
-            assert seen == sorted(seen), name
-    finally:
-        for snapshot in snapshots:
-            snapshot.close()
+        try:
+            got = Readers(jobs).start().join()
+            assert store._active == 0
+            assert set(ended) <= {CLOSED, IN_USE}
+            for name, read in OPERATIONS.items():
+                states = [exact(read(snapshot)) for snapshot in snapshots]
+                seen = [states.index(outcome) for outcome in got[name]]  # raises if none
+                assert seen == sorted(seen), name
+        finally:
+            for snapshot in snapshots:
+                snapshot.close()
 
 
 def test_the_int8_prefilter_in_many_threads_gives_the_bits_without_it(tmp_path, monkeypatch):
@@ -271,3 +274,26 @@ def test_blas_in_many_threads_stays_close_to_the_contract(made):
                 np.testing.assert_allclose(outcome.scores, hits.scores, rtol=1e-5, atol=1e-5)
                 rescored = store.rescore(many, outcome.ids, 6)  # the exact cosines of its ids
                 np.testing.assert_allclose(outcome.scores, rescored.scores, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.parametrize("read", ["get_vectors", "get_doc_ids"])
+def test_a_close_during_the_final_copy_of_get_leaves_the_result_whole(made, monkeypatch, read):
+    """``get_*`` joins its parts after the guard: a close then succeeds, and the parts keep
+    the mapped rows readable until the copy ends."""
+    path, _ = made
+    store = VectorStore.open(path)
+    want = exact(OPERATIONS[read](store))
+    gate = Gate([read])
+    gate.hold(monkeypatch, VectorStore, "_row_parts", after=True)  # the guard is released
+    readers = Readers({read: repeated(OPERATIONS[read], store, 1)}).start()
+    try:
+        assert gate.all_arrived()
+        assert store._active == 0
+        store.close()
+        gc.collect()
+    finally:
+        gate.open()
+        readers.wait()
+    assert readers.join() == {read: [want]}
+    with pytest.raises(RuntimeError, match="closed"):
+        OPERATIONS[read](store)

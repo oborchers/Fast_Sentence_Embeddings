@@ -31,6 +31,7 @@ VECTOR_READS = {
     "get_vectors": lambda s: s.get_vectors(start=10, stop=30),
     "get_doc_ids": lambda s: s.get_doc_ids(),
     "rows": lambda s: [batch.vectors for batch in s.iter_batches(block_rows=4)],
+    "verify": lambda s: s.verify(),
 }
 
 
@@ -83,6 +84,7 @@ def test_a_vector_view_cannot_close_while_readers_hold_it(vectors, monkeypatch):
             view.refresh()
     finally:
         gate.open()
+        readers.wait()
     assert readers.join() == {name: [outcome] for name, outcome in want.items()}
     view.close()
     for store in view._view.stores:

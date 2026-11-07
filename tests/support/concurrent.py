@@ -33,16 +33,20 @@ class Gate:
         self.held: set[str] = set()
         self.reached = {name: blocked_in_wait(self.condition, name) for name in names}
 
-    def hold(self, monkeypatch, module, name: str, threads=None) -> None:
+    def hold(self, monkeypatch, module, name: str, threads=None, *, after=False) -> None:
         """Make ``module.name`` stop in an armed thread (of ``threads``, default all) before
-        it runs."""
+        it runs, or with ``after`` once it has returned."""
         real = getattr(module, name)
         chosen = set(self.reached if threads is None else threads)
 
         def held(*args, **kwargs):
-            if threading.current_thread().name in chosen:
+            mine = threading.current_thread().name in chosen
+            if mine and not after:
                 self.pause()
-            return real(*args, **kwargs)
+            result = real(*args, **kwargs)
+            if mine and after:
+                self.pause()
+            return result
 
         monkeypatch.setattr(module, name, held)
 
@@ -87,9 +91,15 @@ class Readers:
             thread.start()
         return self
 
-    def join(self) -> dict[str, object]:
+    def wait(self) -> None:
+        """Wait for every thread that was started, without raising its error (for the clean-up
+        of a test that failed meanwhile)."""
         for thread in self.threads:
-            thread.join(TIMEOUT)
+            if thread.ident is not None:
+                thread.join(TIMEOUT)
+
+    def join(self) -> dict[str, object]:
+        self.wait()
         alive = [thread.name for thread in self.threads if thread.is_alive()]
         assert not alive, f"threads did not finish: {alive}"
         if self.errors:
@@ -133,24 +143,27 @@ def _array(value):
     return ("array", str(value.dtype), value.shape, np.ascontiguousarray(value).tobytes())
 
 
-def step_of(name):
-    """The step a read takes under the active-use guard of the store, where a gate holds it
+def steps_of(name):
+    """The steps a read takes under the active-use guard of the store, where a gate holds it
     (``rescore`` also calls ``_selection.plan``, before the guard)."""
     if name.startswith("search"):
-        return _selection, "plan"
+        return [(_selection, "plan")]
     if name.startswith("take"):
-        return _take, "gather"
+        return [(_take, "gather")]
     if name.startswith("score"):
-        return _search, "score"
+        return [(_search, "score")]
     if name == "rescore":
-        return _rescore, "check_values"
-    return _vectorstore, "stop_row"  # get_* and iter_batches
+        return [(_rescore, "check_values")]
+    if name == "verify":  # a store checks each shard, a view verifies its stores
+        return [(_vectorstore, "check_removed"), (_vectorstore, "verify_members")]
+    return [(_vectorstore, "stop_row")]  # get_* and iter_batches
 
 
 def hold_every_read(gate, monkeypatch, reads):
-    """Hold each read of ``reads`` (named as ``step_of`` expects) at its guarded step."""
-    steps = {}
+    """Hold each read of ``reads`` (named as ``steps_of`` expects) at its guarded step."""
+    steps: dict = {}
     for name in reads:
-        steps.setdefault(step_of(name), []).append(name)
+        for step in steps_of(name):
+            steps.setdefault(step, []).append(name)
     for (module, step), names in steps.items():
         gate.hold(monkeypatch, module, step, threads=names)
