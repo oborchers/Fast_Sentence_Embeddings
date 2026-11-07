@@ -30,6 +30,7 @@ from ._base_checks import (
     float32_matrix,
     float32_vector,
     int64_vector,
+    overlaps,
     real,
     rows_of,
 )
@@ -263,10 +264,10 @@ def check_out(out: object, batch: Batch, prepared: Prepared) -> ndarray:
         raise ValueError(f"out must be a writable C-contiguous float32 array of shape {shape}")
     pool = prepared.pool
     for kept in (pool.vectors, pool.weights, pool.scales, pool.ngram_vectors, pool.ngram_scales):
-        if kept is not None and np.may_share_memory(out, kept):
+        if kept is not None and overlaps(out, kept):
             raise ValueError("out must not share memory with the vectors or weights")
     for kept in (batch.offsets, batch.tokens, batch.ngram_offsets, batch.ngrams):
-        if kept is not None and np.may_share_memory(out, kept):
+        if kept is not None and overlaps(out, kept):
             raise ValueError("out must not share memory with the batch")
     return out
 
@@ -287,9 +288,9 @@ def check_logits_input(
         float32_matrix(weights, "weights", k, rows.shape[1])
     float32_matrix(out, "out", len(rows), k, writable=True)
     for kept in (weights, bias):
-        if kept is not None and np.may_share_memory(out, kept):
+        if kept is not None and overlaps(out, kept):
             raise ValueError("out must not share memory with the weights or the bias")
-    if np.may_share_memory(out, rows) and (weights is not None or out is not rows):
+    if overlaps(out, rows) and (weights is not None or out is not rows):
         raise ValueError("out may be the rows themselves (without weights), else apart from them")
     if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
         raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")
@@ -311,7 +312,7 @@ def check_outputs_input(logits: object, kind: object, link: object, out: object)
         )
     else:
         raise ValueError(f"kind must be 'proba' or 'labels', not {kind!r}")
-    if np.may_share_memory(out, logits):
+    if overlaps(out, logits):
         raise ValueError("out must not share memory with the logits")
 
 
@@ -330,7 +331,7 @@ def check_decisions_input(probabilities: object, thresholds: object, out: object
         or not out.flags.writeable
     ):
         raise ValueError("out must be a writable C-contiguous bool matrix matching probabilities")
-    if any(np.may_share_memory(out, kept) for kept in (probabilities, thresholds)):
+    if any(overlaps(out, kept) for kept in (probabilities, thresholds)):
         raise ValueError("out must not share memory with probabilities or thresholds")
     for name, values in (("probabilities", probabilities), ("thresholds", thresholds)):
         if not np.isfinite(values).all() or np.any((values < 0) | (values > 1)):
