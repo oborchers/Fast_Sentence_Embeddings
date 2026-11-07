@@ -28,7 +28,6 @@ from numpy import ndarray
 from fse import _codes, _log
 from fse._backends import PoolInput, get_backend
 from fse._contract import Batch, Step
-from fse._cpus import usable_cpus
 from fse._text import (
     MAX_CHUNK_ROWS,
     Vocabulary,
@@ -40,6 +39,7 @@ from fse._text import (
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
+from ._pool import Workers, resolve_workers
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -115,7 +115,7 @@ class Pipeline:
         self,
         source: object,
         *,
-        workers: int | None = None,
+        workers: Any = None,
         sink: Sink | None = None,
         chunk_bytes: int | None = None,
         dtype: str = "float32",
@@ -134,7 +134,7 @@ class Pipeline:
         the report of it). Every argument is checked before the source is read.
         """
         start = time.perf_counter()
-        workers = check_workers(workers) or usable_cpus()
+        workers, pool = resolve_workers(workers)
         base = _non_negative(first_row, "first_row")
         inverse = False
         if sink is not None:
@@ -188,6 +188,7 @@ class Pipeline:
             window=window,
             reserve=reserve,
             stop=stop,
+            pool=pool,
         )
         self._done(done[0], done[1], time.perf_counter() - start)
         return None if own is None else own.result()
@@ -383,7 +384,9 @@ def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
 
 
 def check_workers(workers: object) -> int | None:
-    """``workers`` of a run: None (the usable CPUs) or a positive int."""
+    """``workers`` of a run: None (the usable CPUs), a positive int or the ``Workers`` of a call."""
+    if isinstance(workers, Workers):
+        return workers.count
     return None if workers is None else _positive(workers, "workers")
 
 

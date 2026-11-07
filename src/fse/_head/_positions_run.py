@@ -32,7 +32,7 @@ from fse._encoder._doc_ids import check_modes
 from fse._encoder._positions import Replay, check_ids, rows_of, split, window
 from fse._encoder._resume import ResumableSinkMarker
 from fse._encoder._sources import opened
-from fse._runtime import LengthSettings
+from fse._runtime import LengthSettings, streaming
 
 from ._score_target import check_score_sink
 from ._sink_run import Shifted, SinkRun
@@ -232,6 +232,7 @@ def _merge(parts: list[tuple[list, Any]]) -> tuple[list, Any]:
     return rows, None if any(v is None for v in vectors) else np.concatenate(vectors)
 
 
+@streaming
 def stream_batches(
     pipeline: Any,
     items: Iterable[Any],

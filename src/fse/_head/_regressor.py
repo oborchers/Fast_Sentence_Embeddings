@@ -14,7 +14,7 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse._encoder import _pretrained
-from fse._runtime import LengthReport, LengthSettings
+from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
 from . import _lone_run, _model2vec_files, _resume_run, _run, _sklearn
@@ -95,6 +95,7 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -113,6 +114,7 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Literal["summary", "per_row"],
@@ -131,6 +133,7 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: Any = None,
@@ -149,6 +152,7 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: Any = None,
@@ -167,6 +171,7 @@ class Regressor(LinearModel):
         texts: Any,
         *,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -187,6 +192,7 @@ class Regressor(LinearModel):
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         ``sink=`` is then not given. See ``Heads.predict`` for ``vector_sink``,
         ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``."""
+        workers = workers_of(workers, pool)  # before anything is read
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
@@ -211,6 +217,7 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -230,6 +237,7 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -249,6 +257,7 @@ class Regressor(LinearModel):
         output: Literal["values"] = "values",
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -261,6 +270,7 @@ class Regressor(LinearModel):
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
         ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
+        workers = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Regressor.predict_batches"
         )

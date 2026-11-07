@@ -23,9 +23,11 @@ from fse._runtime import (
     LengthCollector,
     LengthReport,
     LengthSettings,
+    Pool,
     QuantizedRows,
     check_workers,
     rule_of,
+    workers_of,
 )
 
 from . import _batches, _positions, _resume
@@ -48,6 +50,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -64,6 +67,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -79,6 +83,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -116,6 +121,7 @@ class _Encoding:
         source, each writing a store of its own. A report of ``lengths`` covers the rows run
         by this call, and its ``first_row`` is their row in the source.
         """
+        workers = workers_of(workers, pool)  # before anything is read
         me: Any = self  # the Encoder
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Encoder.encode")
         check_id_mode(sink, doc_ids)
@@ -147,6 +153,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -163,6 +170,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -178,6 +186,7 @@ class _Encoding:
         *,
         dtype: str | None = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -221,6 +230,7 @@ class _Encoding:
         to there. A stream that ends before it delivered the records the store holds raises a
         ``ValueError``.
         """
+        workers = workers_of(workers, pool)  # before anything is read
         me: Any = self  # the Encoder
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Encoder.encode_batches"

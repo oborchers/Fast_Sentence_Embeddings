@@ -35,7 +35,7 @@ from fse._encoder._batches import (
 )
 from fse._encoder._doc_ids import own_id_sink, refuse_score_sink
 from fse._encoder._sources import opened
-from fse._runtime import LengthSettings, check_workers, rule_of
+from fse._runtime import LengthSettings, check_workers, rule_of, streaming
 from fse._store import ShardSink, VectorStore
 from fse._store._search import score_blocks
 
@@ -228,6 +228,7 @@ def batches(
     return _text_batches(model, head, iter(items), output, return_vectors, workers, sink, settings)
 
 
+@streaming
 def _text_batches(
     model, head, items: Iterable[Any], output, return_vectors, workers, sink, settings=None
 ):

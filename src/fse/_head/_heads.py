@@ -22,7 +22,15 @@ from typing import Any, Literal, NoReturn, overload
 
 from numpy import ndarray
 
-from fse._runtime import HeadsPipeline, LengthReport, LengthSettings, Member, plan_heads
+from fse._runtime import (
+    HeadsPipeline,
+    LengthReport,
+    LengthSettings,
+    Member,
+    Pool,
+    plan_heads,
+    workers_of,
+)
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _heads_run, _resume_run
@@ -134,6 +142,7 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: Any = False,
@@ -152,6 +161,7 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Literal["summary", "per_row"],
         count_truncated: Any = False,
@@ -170,6 +180,7 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -188,6 +199,7 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -206,6 +218,7 @@ class Heads(Mapping):
         *,
         output: Any = None,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -241,6 +254,7 @@ class Heads(Mapping):
         ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
         source. The outputs are not returned, so the memory of the call does not grow with the
         rows of the source; ``output`` is checked and changes nothing the stores hold."""
+        workers = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
         if _resume_run.wanted(
             vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
@@ -259,6 +273,7 @@ class Heads(Mapping):
         output: Any = None,
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
@@ -313,6 +328,7 @@ class Heads(Mapping):
 
         A single head takes the same keywords in its own ``predict_batches``, without a
         group."""
+        workers = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Heads.predict_batches"
         )

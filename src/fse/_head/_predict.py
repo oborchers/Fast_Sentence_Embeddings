@@ -18,7 +18,7 @@ from typing import Any, Literal, overload
 
 from numpy import ndarray
 
-from fse._runtime import LengthReport, LengthSettings
+from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _lone_run, _resume_run, _run
@@ -38,6 +38,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: Any = False,
@@ -55,6 +56,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Level,
         count_truncated: Any = False,
@@ -72,6 +74,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -89,6 +92,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -106,6 +110,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -128,6 +133,7 @@ class _Predicting:
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         see ``Heads.predict`` for ``vector_sink``, ``score_sink``, ``doc_ids``, ``shard`` and
         ``return_vectors``."""
+        workers = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
@@ -145,6 +151,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -158,6 +165,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Level,
@@ -171,6 +179,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -180,6 +189,7 @@ class _Predicting:
         """The probability of every label for every text, float32 (n, classes); with a
         ``sink`` the rows go there and nothing is returned. With ``lengths`` the pair
         ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
+        workers = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_proba"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         self._check_proba()  # type: ignore[attr-defined]
@@ -191,6 +201,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -204,6 +215,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Level,
@@ -217,6 +229,7 @@ class _Predicting:
         texts: Any,
         *,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -226,6 +239,7 @@ class _Predicting:
         """The logits of every text as float32. Multilabel always returns (n, k),
         including k = 1. Single-label heads return (n,) for one output, else (n, k). With
         ``lengths`` the pair ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
+        workers = workers_of(workers, pool)  # before anything is read
         method = "Classifier.decision_function"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         return _run.infer(self, texts, "decision", workers, backend, sink, settings, method)
@@ -238,6 +252,7 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -257,6 +272,7 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: int | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -276,6 +292,7 @@ class _Predicting:
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
         workers: PositiveInt | None = None,
+        pool: Pool | None = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -318,6 +335,7 @@ class _Predicting:
         ``positions=True`` resumes an endless stream that can be read again from a position,
         into sinks made with ``resume=True`` (see ``fse.Heads.predict_batches``); it excludes
         ``sink``."""
+        workers = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_batches"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if output == "proba":

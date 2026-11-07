@@ -28,7 +28,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from fse._runtime import LengthSettings, Pipeline
+from fse._runtime import LengthSettings, Pipeline, streaming
 from fse._text import ArrowSource, is_arrow
 from fse._text._ids import IdSource
 
@@ -231,6 +231,7 @@ class _Run:
         flush(self.sink)
 
 
+@streaming
 def batches(
     pipeline: Pipeline,
     items: Iterable[Any],

@@ -24,7 +24,7 @@ from typing import Any
 
 from fse._encoder._batches import _named, batch_size, batch_source, check_sink, durable, flush
 from fse._encoder._doc_ids import check_modes, split_pair
-from fse._runtime import LengthSettings
+from fse._runtime import LengthSettings, streaming
 from fse._runtime._sinks import sink_dtype, wants_inverse_norms
 from fse._store._base_sink import ShardSinkBase
 
@@ -125,6 +125,7 @@ def _check_rows(vector_sink: Any, score_sink: Any, doc_ids: bool) -> None:
     )
 
 
+@streaming
 def run_batches(
     tokenizer: str,
     pipeline: Any,
