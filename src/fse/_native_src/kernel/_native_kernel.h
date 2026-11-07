@@ -19,6 +19,8 @@
 #include "_native_kernel_steps.h"
 #include "_native_kernel_store.h"
 #include "_native_kernel_search.h"
+#include "_native_kernel_int8.h"
+#include "_native_kernel_prefilter.h"
 #include "_native_kernel_head.h"
 
 /* For the tests: set flush-to-zero and denormals-are-zero (FZ on arm64) and rounding
@@ -101,6 +103,25 @@ static int fse_has_isa(int isa) {
     if (isa == FSE_ISA_NEON) return 1;
 #endif
     return 0;
+}
+
+/* The variants of the int8 prefilter: built into this binary (the compiler could build
+   them) and runnable on this CPU are separate questions. */
+static int fse_i8_compiled(int variant) {
+    if (variant == FSE_I8_PORTABLE) return 1;
+#if defined(FSE_X86)
+    if (variant == FSE_I8_AVX2) return 1;
+#endif
+#if defined(FSE_I8_NEON_SDOT)
+    if (variant == FSE_I8_NEON) return 1;
+#endif
+    return 0;
+}
+static int fse_i8_runnable(int variant) {
+    if (!fse_i8_compiled(variant)) return 0;
+    if (variant == FSE_I8_AVX2) return fse_has_avx2();
+    if (variant == FSE_I8_NEON) return fse_has_dotprod();
+    return 1;
 }
 
 typedef int64_t (*fse_loop_t)(const fse_params *, const fse_batch *, float *, int64_t *, int);

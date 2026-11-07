@@ -214,3 +214,96 @@ def check_pooled_input(rows: object, steps: object, first_row: object) -> None:
         raise ValueError("steps must be a tuple of steps")
     if isinstance(first_row, bool) or not isinstance(first_row, int | np.integer) or first_row < 0:
         raise ValueError(f"first_row must be a non-negative int, not {first_row!r}")
+
+
+# --- The int8 prefilter --------------------------------------------------------------------
+
+PREFILTER_MAX_DIM = 1024  # the bound is proven for at most this many dimensions
+_PREFILTER_INT_MAX = 2**31 - 1
+
+
+def _vector(value: object, dtype: type, length: int, name: str) -> ndarray:
+    if (
+        not isinstance(value, ndarray)
+        or value.dtype != dtype
+        or value.shape != (length,)
+        or not value.flags.c_contiguous
+    ):
+        raise ValueError(
+            f"{name} must be a C-contiguous {np.dtype(dtype)} vector of {length} values"
+        )
+    return value
+
+
+def _check_prefilter_queries(qcodes: object, qscales: object) -> tuple[int, int]:
+    """The int8 queries of the prefilter: a nonempty C-contiguous int8 matrix of at most 1024
+    columns with codes in [-127, 127], and one finite float32 scale, not negative, per row."""
+    if (
+        not isinstance(qcodes, ndarray)
+        or qcodes.dtype != np.int8
+        or qcodes.ndim != 2
+        or not qcodes.size
+        or not qcodes.flags.c_contiguous
+    ):
+        raise ValueError("qcodes must be a nonempty C-contiguous int8 matrix")
+    if qcodes.shape[1] > PREFILTER_MAX_DIM:
+        raise ValueError(f"the bound is proven for at most {PREFILTER_MAX_DIM} dimensions")
+    if qcodes.min() < -127:
+        raise ValueError("the codes of a query lie in [-127, 127]")
+    scales = _vector(qscales, np.float32, qcodes.shape[0], "qscales")
+    if not (np.isfinite(scales).all() and (scales >= 0).all()):
+        raise ValueError("the scales of the queries must be finite and not negative")
+    return qcodes.shape[0], qcodes.shape[1]
+
+
+def check_int8_bounds_input(units: object, qcodes: object, qscales: object) -> None:
+    """The arguments of ``int8_bounds``, checked the same way by every backend: the int8
+    queries and their float32 originals (the normalized queries), one row per query."""
+    queries, dim = _check_prefilter_queries(qcodes, qscales)
+    float32_matrix(units, "units", queries, dim)
+
+
+def _check_count(value: object, name: str) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | np.integer)
+        or not 1 <= value <= _PREFILTER_INT_MAX
+    ):
+        raise ValueError(f"{name} must be an integer from 1 to {_PREFILTER_INT_MAX}")
+
+
+def check_int8_pass_input(
+    stored: object,
+    inverse: object,
+    qcodes: object,
+    qscales: object,
+    slack: object,
+    threshold: object,
+    k: object,
+    capacity: object,
+) -> None:
+    """The arguments of ``int8_pass``, checked the same way by every backend: a block of
+    stored int8 rows with their float32 inverse norms, the int8 queries, the slack and the
+    incoming threshold (float64, one per query; the slack finite and not negative, the
+    threshold not NaN), k and the capacity of kept rows per query (``None``: the default)."""
+    queries, dim = _check_prefilter_queries(qcodes, qscales)
+    if (
+        not isinstance(stored, ndarray)
+        or stored.dtype != np.int8
+        or stored.ndim != 2
+        or stored.shape[1] != dim
+        or not stored.flags.c_contiguous
+    ):
+        raise ValueError(
+            "stored must be a C-contiguous int8 matrix with the dimension of the queries"
+        )
+    _vector(inverse, np.float32, stored.shape[0], "inverse")
+    bound = _vector(slack, np.float64, queries, "slack")
+    start = _vector(threshold, np.float64, queries, "threshold")
+    if not (np.isfinite(bound).all() and (bound >= 0).all()):
+        raise ValueError("the slack of every query must be finite and not negative")
+    if np.isnan(start).any():
+        raise ValueError("a threshold must not be NaN")
+    _check_count(k, "k")
+    if capacity is not None:
+        _check_count(capacity, "capacity")

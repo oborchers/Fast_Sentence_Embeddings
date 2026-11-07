@@ -18,8 +18,9 @@ from collections.abc import Sequence
 import numpy as np
 from numpy import ndarray
 
-from fse import _reference, _reference_head
+from fse import _reference, _reference_head, _reference_prefilter
 from fse._contract import Aggregation, Batch, Link, Op, Step
+from fse._reference_prefilter import Pass
 
 from ._base import (
     Capabilities,
@@ -34,6 +35,8 @@ from ._base import (
     dims,
 )
 from ._base_checks import (
+    check_int8_bounds_input,
+    check_int8_pass_input,
     check_pooled_input,
     check_score_input,
     check_scores_input,
@@ -117,6 +120,32 @@ class NumpyBackend:
     ) -> ndarray:
         check_scores_input(stored, scales, weights, bias)
         return _reference.scores(stored, scales, weights, bias)
+
+    def int8_bounds(
+        self, units: ndarray, qcodes: ndarray, qscales: ndarray
+    ) -> tuple[ndarray, ndarray]:
+        check_int8_bounds_input(units, qcodes, qscales)
+        return _reference_prefilter.bounds(units, qcodes, qscales)
+
+    def int8_pass(
+        self,
+        stored: ndarray,
+        inverse: ndarray,
+        qcodes: ndarray,
+        qscales: ndarray,
+        slack: ndarray,
+        threshold: ndarray,
+        k: int,
+        capacity: int | None = None,
+    ) -> Pass:
+        check_int8_pass_input(stored, inverse, qcodes, qscales, slack, threshold, k, capacity)
+        return _reference_prefilter.int8_pass(
+            stored, inverse, qcodes, qscales, slack, threshold, k, capacity
+        )
+
+    def prefilter_variant(self) -> str | None:
+        """The prefilter variant a search may use: none, the search stays on the exact path."""
+        return None
 
     def store(self, rows: ndarray, codes: ndarray, scales: ndarray | None, first_row: int) -> None:
         check_store_input(rows, codes, scales, first_row)

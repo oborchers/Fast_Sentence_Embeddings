@@ -54,12 +54,26 @@ def exact(stored, inverse, queries, k):
     return ids, [cosines[i, j] for j, i in enumerate(ids)]
 
 
-def search(stored, inverse, queries, k, *, block=4096, order=None, compact="final", run_pass=None):
+def search(
+    stored,
+    inverse,
+    queries,
+    k,
+    *,
+    block=4096,
+    order=None,
+    compact="final",
+    run_pass=None,
+    bounds=None,
+):
     """The search with the prefilter; ``order`` permutes the blocks, ``run_pass`` replaces
-    ``int8_pass``, ``compact="none"`` keeps what the passes kept without the final cut."""
+    ``int8_pass`` and ``bounds`` replaces ``bounds`` (the native ones, or a weakened one),
+    ``compact="none"`` keeps what the passes kept without the final cut."""
     queries = np.asarray(queries, dtype=F32)
     ids, scores = exact(stored, inverse, queries, k)
-    _, qcodes, qscales, slack, ok = prepared(queries)
+    units, qcodes, qscales, slack, ok = prepared(queries)
+    if bounds is not None:
+        slack, ok = bounds(units, qcodes, qscales)
     if not ok.all():
         return Run(ids, scores, "query_range", None)
     run_pass = run_pass or prefilter.int8_pass
@@ -71,7 +85,7 @@ def search(stored, inverse, queries, k, *, block=4096, order=None, compact="fina
         part = slice(first, first + block)
         got = run_pass(stored[part], inverse[part], qcodes, qscales, slack, threshold, k)
         if got.status != "ok":
-            return Run(ids, scores, "unsafe_row", None)
+            return Run(ids, scores, "unsafe_row" if got.status == "unsafe" else got.status, None)
         heaps.append(got.heap)
         parts.append((first, got))
         threshold = prefilter.kth_estimate(prefilter.merge_heaps(heaps, k))

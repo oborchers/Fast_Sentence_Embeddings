@@ -1,5 +1,7 @@
 """Build the Cython extension. All package metadata lives in pyproject.toml."""
 
+import os
+import tempfile
 from glob import glob
 
 import numpy
@@ -16,6 +18,39 @@ FLAGS = {
 }
 
 
+# The NEON dot-product instruction (SDOT) of the int8 prefilter, built through a function
+# attribute so the flags of the whole extension stay the same. The probe compiles one tiny
+# function with it; a compiler that cannot builds the extension without that variant, which
+# then does not exist in the binary (the CPU decides at run time whether it runs).
+DOTPROD_PROBE = """
+#if !defined(__aarch64__)
+#error "SDOT is an aarch64 instruction"
+#endif
+#include <arm_neon.h>
+#if defined(__clang__)
+#define FSE_PROBE_TARGET __attribute__((target("dotprod")))
+#else
+#define FSE_PROBE_TARGET __attribute__((target("+dotprod")))
+#endif
+FSE_PROBE_TARGET int fse_probe(const signed char *a, const signed char *b) {
+    return vaddvq_s32(vdotq_s32(vdupq_n_s32(0), vld1q_s8(a), vld1q_s8(b)));
+}
+"""
+
+
+def compiles(compiler, source, flags):
+    """Whether ``source`` compiles as C with ``flags`` (nothing is linked or kept)."""
+    with tempfile.TemporaryDirectory() as directory:
+        path = os.path.join(directory, "probe.c")
+        with open(path, "w") as handle:
+            handle.write(source)
+        try:
+            compiler.compile([path], output_dir=directory, extra_postargs=flags)
+        except Exception:
+            return False
+    return True
+
+
 class BuildExt(build_ext):
     def build_extensions(self):
         if self.compiler.compiler_type not in FLAGS:
@@ -25,8 +60,11 @@ class BuildExt(build_ext):
                 "use MSVC on Windows, or GCC or Clang elsewhere"
             )
         flags = FLAGS[self.compiler.compiler_type]
+        probe = self.compiler.compiler_type == "unix" and compiles(self.compiler, DOTPROD_PROBE, flags)
         for extension in self.extensions:
             extension.extra_compile_args = [*extension.extra_compile_args, *flags]
+            if probe:
+                extension.define_macros = [*extension.define_macros, ("FSE_HAVE_DOTPROD", "1")]
         super().build_extensions()
 
 
