@@ -35,12 +35,10 @@ from fse._tokenizer_json import tokenizer_of
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
-from ._files import Converted, Files, check_table, read_table
+from ._files import MODEL_RULE, Converted, Files, check_table, cut_table, kept_dims, read_table
 
 FILES = ("config.json", "model.safetensors", "tokenizer.json")
 DEFAULT_MAX_LENGTH = 512
-# The length rule of the model itself, which max_length= of from_pretrained keeps.
-MODEL_RULE = "model"
 # Written by model2vec and its distillation; they do not change how a text is encoded.
 _PROVENANCE = {"model_type", "architectures", "tokenizer_name", "apply_pca", "apply_zipf"}
 _PROVENANCE |= {"sif_coefficient", "seq_length", "pooling"}
@@ -56,12 +54,14 @@ def read_model2vec(
     *,
     truncate: bool = True,
     max_length: Any = MODEL_RULE,
+    truncate_dim: Any = MODEL_RULE,
     normalize: Any = MODEL_RULE,
 ) -> Converted:
     """The encoder parts of the files of a Model2Vec model (``FILES``) with its parsed
     ``config``. With ``truncate`` the length rule is the model's, or ``max_length`` tokens
-    (None: no cut); without, texts are read whole. ``normalize`` is the config's unless
-    a bool is given."""
+    (None: no cut); without, texts are read whole. ``truncate_dim`` keeps the first
+    dimensions of the table (``"model"`` and None all; the model states no cut).
+    ``normalize`` is the config's unless a bool is given."""
     config = check_config(config, files.where("config.json"))
     where = files.where("tokenizer.json")
     tokens, parameters = tokenizer_of(
@@ -70,7 +70,9 @@ def read_model2vec(
     table = model_table(files, config, len(tokens))
     # The table is a read-only view of the bytes that were read once and checked, which
     # nothing else holds: handed over without a copy, with every check of from_arrays.
-    return assemble(config, tokens, parameters, table, truncate, max_length, normalize)
+    return assemble(
+        config, tokens, parameters, table, truncate, max_length, normalize, truncate_dim
+    )
 
 
 def read_object_table(
@@ -100,13 +102,18 @@ def assemble(
     truncate: bool = True,
     max_length: Any = MODEL_RULE,
     normalize: Any = MODEL_RULE,
+    truncate_dim: Any = MODEL_RULE,
 ) -> Converted:
+    width = table.shape[1]
+    kept = kept_dims(truncate_dim, None, width, None)
+    table = cut_table(table, kept)
     words = WordVectors._from_arrays(table, tokens, None, None, None, {}, copy=False)
     length = _length(config, truncate, max_length)
     max_chars = None if length is None else length * median_length(tokens)
     spec = TokenizerSpec(parameters.identifier, parameters, "drop", length, max_chars)
     own = config.get("normalize", False)
-    return Converted(words, spec, own if normalize == MODEL_RULE else normalize)
+    dims = None if kept is None else (width, kept)
+    return Converted(words, spec, own if normalize == MODEL_RULE else normalize, dims)
 
 
 def check_config(config: Any, path: Path) -> dict[str, Any]:

@@ -31,9 +31,17 @@ from fse._contract import UnsupportedArtifactError
 from fse._hub import REPO_ID, HubFiles, check_folders, resolve_link
 
 from . import _folder
-from ._files import MAX_CONFIG_BYTES, NORMALIZE, STATIC_EMBEDDING, Converted, Files, parse_config
+from ._files import (
+    MAX_CONFIG_BYTES,
+    MODEL_RULE,
+    NORMALIZE,
+    STATIC_EMBEDDING,
+    Converted,
+    Files,
+    parse_config,
+)
 from ._format import Source
-from ._model2vec import FILES, MODEL_RULE, read_model2vec
+from ._model2vec import FILES, read_model2vec
 from ._sentence_transformers import read_sentence_transformers
 
 MAX_CARD_BYTES = 16 * 2**20
@@ -141,8 +149,7 @@ def find(
     if mmap:
         raise ValueError("mmap is for fse encoders; a converted model is converted in memory")
     if config is not None and _is_model2vec(files, kind):
-        _model_rules(st_rules)
-        model = read_model2vec(files, config, **rules, normalize=normalize)
+        model = read_model2vec(files, config, **rules, **st_rules, normalize=normalize)
         return _found(files, "model2vec", model)
     if files.has("modules.json"):
         model = read_sentence_transformers(
@@ -181,9 +188,9 @@ def _model_rules(given: dict[str, Any]) -> None:
     changed = sorted(name for name, value in given.items() if value != _DEFAULTS[name])
     if changed:
         raise ValueError(
-            f"{' and '.join(changed)}: this model holds its own rules (truncate and "
-            "max_length are for Model2Vec and sentence-transformers models, truncate_dim "
-            "for sentence-transformers models; normalize works for every model)"
+            f"{' and '.join(changed)}: this model holds its own rules (truncate, max_length "
+            "and truncate_dim are for Model2Vec and sentence-transformers models; normalize "
+            "works for every model)"
         )
 
 

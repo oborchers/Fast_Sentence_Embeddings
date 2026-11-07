@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+import numpy as np
 from numpy import ndarray
 
 from fse._container import CorruptArtifactError, foreign_header, foreign_tensors, strict_json
@@ -27,6 +28,9 @@ from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
 
 MAX_CONFIG_BYTES = 2**20
+# The rule of a model itself, which an argument of from_pretrained (max_length, truncate_dim,
+# normalize) keeps.
+MODEL_RULE = "model"
 # The tensors of vocabulary quantization (model2vec), which no reader of fse reads.
 QUANTIZED = frozenset({"weights", "mapping"})
 _DTYPE_OF_CODE = {"F32": "float32", "F16": "float16", "I8": "int8", "U8": "uint8"}
@@ -81,6 +85,27 @@ class Converted:
     tokenizer: TokenizerSpec
     normalize: bool
     dims: tuple[int, int] | None = None
+
+
+def kept_dims(truncate_dim: Any, stored: int | None, width: int, where: Any) -> int | None:
+    """The dimensions kept of a table ``width`` columns wide, or None for all of them:
+    ``truncate_dim``, or with the model's rule the ``stored`` one (None: all)."""
+    kept = stored if truncate_dim == MODEL_RULE else truncate_dim
+    if kept is None or kept == width:
+        return None
+    if kept > width:
+        source = f"{where} states" if truncate_dim == MODEL_RULE else "the argument is"
+        raise ValueError(f"truncate_dim {kept}: {source} more than the {width} dimensions")
+    return kept
+
+
+def cut_table(table: ndarray, kept: int | None) -> ndarray:
+    """The first ``kept`` columns of the table as a read-only copy; the table itself for None."""
+    if kept is None:
+        return table
+    table = np.ascontiguousarray(table[:, :kept])
+    table.setflags(write=False)
+    return table
 
 
 def parse_config(data: bytes, path: Path) -> Any:
