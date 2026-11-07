@@ -143,7 +143,8 @@ def _reference_title(name):
 @pytest.mark.parametrize("name", ["search", "rescore"])
 def test_validation_errors_are_titled_with_the_method(tmp_path, name):
     expected = _reference_title(name)
-    assert expected.endswith(name)
+    # The stand-in shares the decorator, so pin the two forms pydantic may use.
+    assert expected in {name, f"VectorStore.{name}"}
     path = _write(tmp_path / "a", texts(20))
     with VectorStore.open(path, encoder=ENCODER) as store:
         call = store.search if name == "search" else lambda q, k: store.rescore(q, [[1]], k)
