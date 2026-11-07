@@ -1,0 +1,145 @@
+"""The parent of the DR-255 probe: admission, one child per cell, outputs and the decision."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import time
+from pathlib import Path
+
+from _development_budget import WallBudgetExpiredError, check_args, stopped
+from _development_data import prepare
+from _development_locks import coordinated
+from _development_process import launch
+from _development_records import record_result, session
+from _development_system import LABEL, memory_limit
+from _measurement import append, atomic
+
+from _quality.binary_decision import decide
+from _quality.binary_inputs import CORPUS, CORPUS_ROWS, PROFILE
+
+
+def admission(cell, prepared, work, requested_limit):
+    """Peak bytes of the child (store, its float32 copy, Hamming words) against 85 percent of RAM."""
+    limit = memory_limit()
+    if requested_limit is not None:
+        limit = min(limit, requested_limit) if limit else requested_limit
+    if not limit:
+        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    dim = prepared["models"][cell["model"]]["dimensions"]
+    corpus = prepared["corpora"][CORPUS]
+    table = Path(prepared["models"][cell["model"]]["artifacts"]["float32"]["path"]).stat().st_size
+    rows = CORPUS_ROWS * (4 * dim) * 3 + CORPUS_ROWS * dim // 8 * 2  # store, copy, bits and xor
+    peak = 2 * 1024**3 + 3 * table + rows + corpus["timing_utf8_bytes"] * 8
+    disk = CORPUS_ROWS * 4 * dim + corpus["timing_utf8_bytes"] * 4 + 3 * table
+    free = shutil.disk_usage(work).free
+    return {
+        **LABEL,
+        "estimated_peak_bytes": peak,
+        "memory_limit_bytes": limit,
+        "safety_fraction": 0.85,
+        "required_disk_bytes": disk,
+        "available_disk_bytes": free,
+        "admitted": peak <= limit * 0.85 and free * 0.85 >= disk,
+    }
+
+
+def _job(cell, prepared):
+    return {
+        "action": "binary-recall",
+        "model": cell["model"],
+        "workers": cell["workers"],
+        "artifact": prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]],
+        "corpus": prepared["corpora"][CORPUS],
+    }
+
+
+def count_cell(args, cell, prepared, ledger):
+    plan = admission(cell, prepared, args.work, args.memory_limit_bytes)
+    append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "binary", **plan})
+    if not plan["admitted"]:
+        raise MemoryError("the binary recall probe exceeds RAM or disk admission")
+
+    def notify(row):
+        append(args.results / "coordination.jsonl", row)
+
+    with coordinated(
+        "heavy", args.worker_name, "binary recall probe", notify, lambda: stopped(ledger)
+    ):
+        receipt = launch(args, _job(cell, prepared), args.candidate_python, cell["id"] + "-recall")
+    append(
+        args.results / "checks.jsonl",
+        {"cell_id": cell["id"], **receipt["checks"], "input_identity": receipt["input_identity"]},
+    )
+    for record in receipt["records"]:
+        append(args.results / "binary.jsonl", {"cell_id": cell["id"], **record})
+    return receipt
+
+
+def _preflight(args):
+    """A conservative check before the preparation downloads and exports anything."""
+    limit = memory_limit()
+    if args.memory_limit_bytes is not None:
+        limit = min(limit, args.memory_limit_bytes) if limit else args.memory_limit_bytes
+    if not limit:
+        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    free = shutil.disk_usage(args.work.parent).free
+    if limit * 0.85 < 4 * 1024**3 or free * 0.85 < 4 * 1024**3:
+        raise MemoryError("less than 4 GiB RAM or 4 GiB disk for the preparation and the probe")
+
+
+def selected(cells):
+    """Whether the cells are of the profile; it runs alone."""
+    profiles = {cell["profile"] for cell in cells}
+    if PROFILE in profiles and len(profiles) > 1:
+        raise ValueError(f"{PROFILE} cells run alone")
+    return PROFILE in profiles
+
+
+def run_cells(args, spec):
+    cells = spec["cells"]
+    with session(args, spec) as ledger:
+        _preflight(args)
+        prepared = prepare(args, cells, ledger)
+        check_args(args)
+        for cell in cells:
+            if ledger.stopping:
+                break
+            ledger.current, ledger.stage = cell["id"], "binary_recall"
+            started = time.monotonic()
+            try:
+                receipt = count_cell(args, cell, prepared, ledger)
+                check_args(args)
+            except WallBudgetExpiredError as error:
+                record_result(
+                    ledger,
+                    cell,
+                    started,
+                    status="inconclusive",
+                    decision="inconclusive_budget",
+                    reason=str(error),
+                )
+                ledger.stopping = True
+                break
+            except MemoryError as error:  # refused before the child began
+                record_result(
+                    ledger,
+                    cell,
+                    started,
+                    status="not_started",
+                    decision="not_run",
+                    reason=str(error),
+                )
+                ledger.stopping = True
+                break
+            except Exception as error:
+                record_result(ledger, cell, started, status="failed", reason=repr(error))
+                break
+            record_result(
+                ledger, cell, started, status="valid", binary={"records": len(receipt["records"])}
+            )
+    failed = any(r["status"] == "failed" for r in ledger.finished)
+    outcome = decide(args.results / "binary.jsonl", cells, ledger.finished, failed)
+    atomic(args.results / "decision.json", {**LABEL, **outcome})
+    print(json.dumps(outcome), flush=True)
+    return ledger.done()

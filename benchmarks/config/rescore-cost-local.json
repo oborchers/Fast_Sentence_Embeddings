@@ -1,0 +1,17 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-169 class D: absolute cost of public VectorStore.rescore on synthetic stores (PCG64, 1,048,576 rows, 256 dimensions, int8 and float32), eight cells of queries, candidates, distribution and workers, plus a CPU and memory profile of one call. One arm, no comparison, a signal for priorities only.",
+  "defaults": {
+    "profile": "rescore-cost@1",
+    "workers": 10,
+    "decision_gate": false
+  },
+  "cells": [
+    {
+      "id": "rescore-cost",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "store-rescore"
+    }
+  ]
+}
