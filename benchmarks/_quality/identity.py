@@ -81,6 +81,16 @@ def encode_probe(cell, native):
     return native.encode(texts, normalize_embeddings=True, convert_to_numpy=True)
 
 
+def model2vec_pinned(model):
+    """A Model2Vec model at its pin: model2vec 0.10.0 takes no revision, so it loads the
+    folder of the pinned snapshot."""
+    from huggingface_hub import snapshot_download
+    from model2vec import StaticModel
+
+    folder = snapshot_download(model, revision=MODEL_PINS[model])
+    return StaticModel.from_pretrained(folder, normalize=True, force_download=False)
+
+
 def model_files(cell):
     """sha256 of every file of the pinned snapshot in the local cache (weights, tokenizer and
     configuration all come from the one pinned revision)."""

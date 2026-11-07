@@ -73,11 +73,9 @@ def native_model(cell, fit):
                 truncate_dim=cell.get("truncate_dim", "model"),
             )
     elif backend == "model2vec":
-        from model2vec import StaticModel
+        from _quality.identity import model2vec_pinned
 
-        model = StaticModel.from_pretrained(
-            cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
-        )
+        model = model2vec_pinned(cell["model"])
     elif backend == "st":
         from sentence_transformers import SentenceTransformer
 

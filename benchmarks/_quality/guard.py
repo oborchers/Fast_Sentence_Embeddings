@@ -6,6 +6,7 @@ for the running task and ends the process at once, after the rows are written.""
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -13,8 +14,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-
-from _measurement import append
 
 CACHE_VARIABLES = ("HF_HOME", "HF_DATASETS_CACHE")
 GIB = 1024**3
@@ -96,7 +95,8 @@ class Guard:
             "rss_bytes": rss,
             "free_memory_percent": free_memory_percent(),
         }
-        append(self.results / "telemetry.jsonl", row)
+        with (self.results / "telemetry.jsonl").open("a") as stream:  # no console line
+            stream.write(json.dumps(row, separators=(",", ":")) + "\n")
         if lowest < self.limits["min_free_bytes"] and self.stop_reason is None:
             self.stop_reason = f"free disk below {self.limits['min_free_bytes'] // GIB} GiB"
         if rss > self.limits["rss_limit_bytes"]:

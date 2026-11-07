@@ -39,9 +39,9 @@ def reference_vectors(cell, texts):
 
     name, revision = cell["model"], MODEL_PINS[cell["model"]]
     if cell["reference"] == "model2vec":
-        from model2vec import StaticModel
+        from _quality.identity import model2vec_pinned
 
-        model = StaticModel.from_pretrained(name, revision=revision, normalize=True)
+        model = model2vec_pinned(name)
         vectors = model.encode(list(texts), use_multiprocessing=False)
         return np.asarray(vectors, dtype=np.float32), str(model.embedding.dtype)
     from sentence_transformers import SentenceTransformer

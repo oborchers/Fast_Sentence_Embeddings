@@ -119,19 +119,12 @@ def mean_over(configuration, tasks):
 
 def reproduction(folder, rows):
     """Per task: the largest absolute main_score difference against a published MTEB result
-    in ``references/<org>__<model>/<revision>/<Task>.json``, over the shared subsets."""
-    references = Path(folder) / "references"
+    in ``references/<org>__<model>/<revision>/<Task>.json``, over the shared subsets. The
+    published revision may differ from the pin and is reported with the result."""
     found = []
     for row in rows:
-        if row["status"] != "valid":
-            continue
-        path = (
-            references
-            / row["model"].replace("/", "__")
-            / row["model_revision"]
-            / (row["task"] + ".json")
-        )
-        if not path.is_file():
+        path = reference_of(folder, row) if row["status"] == "valid" else None
+        if path is None:
             continue
         published = {
             (split, e["hf_subset"]): e["main_score"]
@@ -145,6 +138,8 @@ def reproduction(folder, rows):
                 "cell_id": row["cell_id"],
                 "reference": str(path.relative_to(folder)),
                 "reference_sha256": sha256(path),
+                "reference_revision": path.parent.name,
+                "revision_is_pin": path.parent.name == row["model_revision"],
                 "shared_subsets": len(shared),
                 "missing_in_reference": len(set(ours) - set(published)),
                 "max_abs_difference": max(
@@ -153,6 +148,14 @@ def reproduction(folder, rows):
             }
         )
     return found
+
+
+def reference_of(folder, row):
+    model = Path(folder) / "references" / row["model"].replace("/", "__")
+    paths = sorted(model.glob("*/" + row["task"] + ".json"))
+    if len(paths) > 1:
+        raise ValueError(f"several published revisions for {row['cell_id']}")
+    return paths[0] if paths else None
 
 
 # What a cell configures: rows of every status share it, so coverage counts them together.
