@@ -162,7 +162,7 @@ class Workers(NamedTuple):
     The public methods make one from ``workers=`` and ``pool=`` before they read anything;
     the layers below pass it on where they passed ``workers``."""
 
-    count: int
+    workers: int
     pool: Pool | None = None
 
 
@@ -175,21 +175,21 @@ def workers_of(workers: object, pool: object = None) -> Workers:
     if workers is not None:
         workers = _positive(workers, "workers")
     if pool is None:
-        return Workers(usable_cpus() if workers is None else int(workers))  # type: ignore[call-overload]
+        return Workers(usable_cpus() if workers is None else int(workers))
     if not isinstance(pool, Pool):
         raise TypeError(f"pool must be an fse.Pool, not {type(pool).__name__}")
     pool.check_open()
     if workers is None:
         return Workers(pool.workers, pool)
-    if workers > pool.workers:  # type: ignore[operator]
+    if workers > pool.workers:
         raise ValueError(f"workers ({workers}) must not exceed pool.workers ({pool.workers})")
-    return Workers(int(workers), pool)  # type: ignore[call-overload]
+    return Workers(int(workers), pool)
 
 
 def resolve_workers(workers: object) -> tuple[int, Pool | None]:
     """The count and the pool of ``workers``: an int, None or ``Workers``."""
     made = workers_of(workers)
-    return made.count, made.pool
+    return made.workers, made.pool
 
 
 @contextmanager
@@ -198,12 +198,12 @@ def iteration(workers: Workers) -> Iterator[Workers]:
     caller's; otherwise one pool serves every batch of the stream and is closed when the
     iteration ends (exhausted, failed, closed or collected), so no thread outlives it.
     Threads start with the first batch that needs them."""
-    if workers.pool is not None or workers.count == 1:
+    if workers.pool is not None or workers.workers == 1:
         yield workers
         return
-    own = Pool(workers.count)
+    own = Pool(workers.workers)
     try:
-        yield Workers(workers.count, own)
+        yield Workers(workers.workers, own)
     finally:
         own.close()
 

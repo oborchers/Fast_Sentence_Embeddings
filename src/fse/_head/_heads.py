@@ -254,16 +254,16 @@ class Heads(Mapping):
         ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
         source. The outputs are not returned, so the memory of the call does not grow with the
         rows of the source; ``output`` is checked and changes nothing the stores hold."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
         if _resume_run.wanted(
             vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
         ):
             return _resume_run.predict_heads(
-                self, texts, output, return_vectors, workers, backend,
+                self, texts, output, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _heads_run.infer(self, texts, output, workers, backend, settings)
+        return _heads_run.infer(self, texts, output, threads, backend, settings)
 
     @validate_arguments
     def predict_batches(
@@ -328,7 +328,7 @@ class Heads(Mapping):
 
         A single head takes the same keywords in its own ``predict_batches``, without a
         group."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Heads.predict_batches"
         )
@@ -337,7 +337,7 @@ class Heads(Mapping):
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             vector_sink,
             score_sink,

@@ -192,7 +192,7 @@ class Regressor(LinearModel):
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         ``sink=`` is then not given. See ``Heads.predict`` for ``vector_sink``,
         ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
@@ -204,10 +204,10 @@ class Regressor(LinearModel):
                     "scores as score_sink=, without sink="
                 )
             return _resume_run.predict_lone(
-                self, texts, return_vectors, workers, backend,
+                self, texts, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _run.infer(self, texts, "values", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "values", threads, backend, sink, settings, method)
 
     @overload
     def predict_batches(
@@ -270,7 +270,7 @@ class Regressor(LinearModel):
     ) -> Iterator[Any]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
         ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(
             lengths, count_truncated, on_truncation, "Regressor.predict_batches"
         )
@@ -279,7 +279,7 @@ class Regressor(LinearModel):
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             sink,
             vector_sink,

@@ -133,17 +133,17 @@ class _Predicting:
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         see ``Heads.predict`` for ``vector_sink``, ``score_sink``, ``doc_ids``, ``shard`` and
         ``return_vectors``."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if _resume_run.wanted(
             vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
         ):
             return _resume_run.predict_lone(
-                self, texts, return_vectors, workers, backend,
+                self, texts, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _run.infer(self, texts, "labels", workers, backend, None, settings, method)
+        return _run.infer(self, texts, "labels", threads, backend, None, settings, method)
 
     @overload
     def predict_proba(
@@ -189,11 +189,11 @@ class _Predicting:
         """The probability of every label for every text, float32 (n, classes); with a
         ``sink`` the rows go there and nothing is returned. With ``lengths`` the pair
         ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_proba"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         self._check_proba()  # type: ignore[attr-defined]
-        return _run.infer(self, texts, "proba", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "proba", threads, backend, sink, settings, method)
 
     @overload
     def decision_function(
@@ -239,10 +239,10 @@ class _Predicting:
         """The logits of every text as float32. Multilabel always returns (n, k),
         including k = 1. Single-label heads return (n,) for one output, else (n, k). With
         ``lengths`` the pair ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.decision_function"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        return _run.infer(self, texts, "decision", workers, backend, sink, settings, method)
+        return _run.infer(self, texts, "decision", threads, backend, sink, settings, method)
 
     @overload
     def predict_batches(
@@ -335,7 +335,7 @@ class _Predicting:
         ``positions=True`` resumes an endless stream that can be read again from a position,
         into sinks made with ``resume=True`` (see ``fse.Heads.predict_batches``); it excludes
         ``sink``."""
-        workers = workers_of(workers, pool)  # before anything is read
+        threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict_batches"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
         if output == "proba":
@@ -345,7 +345,7 @@ class _Predicting:
             batches,
             output,
             return_vectors,
-            workers,
+            threads,
             backend,
             sink,
             vector_sink,

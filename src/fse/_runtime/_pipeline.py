@@ -386,7 +386,7 @@ def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
 def check_workers(workers: object) -> int | None:
     """``workers`` of a run: None (the usable CPUs), a positive int or the ``Workers`` of a call."""
     if isinstance(workers, Workers):
-        return workers.count
+        return workers.workers
     return None if workers is None else _positive(workers, "workers")
 
 
