@@ -17,8 +17,9 @@ the top k, so only the rows that remain are scored exactly. The bound holds for 
 stored codes in [-128, 127], query codes in [-127, 127], a query with ``||u||**2 <= 1.002`` and
 rows whose inverse norm passes ``row_safe``; the proof is in the contract. The rule adds no
 arithmetic to the contract and never changes a result bit: the survivors go through the exact
-path. Anything outside the domain (``bounds`` says ``ok`` false, ``int8_pass`` says ``unsafe``)
-is for the caller to send to the exact path as a whole.
+path. A pass keeps at most ``capacity`` rows per query (the native kernel's buffer) and says
+``"overflow"`` when that does not suffice. Anything outside the domain (``bounds`` says ``ok``
+false, ``int8_pass`` says ``unsafe``) is for the caller to send to the exact path as a whole.
 
 Everything here is plain float64 and int64 arithmetic in the IEEE standard environment (round
 to nearest even, no flush to zero, no contraction), with the grouping written out below, which
@@ -238,9 +239,7 @@ def int8_pass(
     heap = np.full((len(qcodes), k), -np.inf)
     rows, upper = [], []
     for j in range(len(qcodes)):
-        scanned = _scan(
-            estimate[:, j].tolist(), float(slack[j]), float(threshold[j]), k, capacity
-        )
+        scanned = _scan(estimate[:, j].tolist(), float(slack[j]), float(threshold[j]), k, capacity)
         if scanned is None:
             return Pass("overflow", None, None, None, None)
         top, kept, tops = scanned

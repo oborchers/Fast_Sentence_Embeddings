@@ -60,7 +60,9 @@ class BuildExt(build_ext):
                 "use MSVC on Windows, or GCC or Clang elsewhere"
             )
         flags = FLAGS[self.compiler.compiler_type]
-        probe = self.compiler.compiler_type == "unix" and compiles(self.compiler, DOTPROD_PROBE, flags)
+        probe = self.compiler.compiler_type == "unix" and compiles(
+            self.compiler, DOTPROD_PROBE, flags
+        )
         for extension in self.extensions:
             extension.extra_compile_args = [*extension.extra_compile_args, *flags]
             if probe:

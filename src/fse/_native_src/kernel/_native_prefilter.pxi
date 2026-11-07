@@ -21,7 +21,7 @@ cdef extern from "_native_kernel.h":
 _PREFILTER_VARIANTS = {"portable": 0, "avx2": 1, "neon-sdot": 2}
 _PREFILTER_STATUS = ("ok", "overflow", "unsafe")
 # The bound is proven for at most 1024 dimensions (the integer sums stay below 2^24).
-PREFILTER_MAX_DIM = 1024
+_PREFILTER_MAX_DIM = 1024
 _PREFILTER_INT_MAX = 2**31 - 1
 
 
@@ -70,8 +70,8 @@ def _prefilter_queries(qcodes, qscales):
         or not qcodes.flags.c_contiguous
     ):
         raise ValueError("qcodes must be a nonempty C-contiguous int8 matrix")
-    if qcodes.shape[1] > PREFILTER_MAX_DIM:
-        raise ValueError(f"the bound is proven for at most {PREFILTER_MAX_DIM} dimensions")
+    if qcodes.shape[1] > _PREFILTER_MAX_DIM:
+        raise ValueError(f"the bound is proven for at most {_PREFILTER_MAX_DIM} dimensions")
     _prefilter_array(qscales, np.float32, (qcodes.shape[0],), "qscales")
     return qcodes.shape
 

@@ -240,8 +240,13 @@ def test_the_kernel_limits_the_dimension():
 def test_ci_runs_the_vector_kernel():
     """A build that lost its NEON or AVX2 kernel would otherwise test only the portable one."""
     machine = platform.machine().lower()
-    want = "neon" if machine in ("arm64", "aarch64") else "avx2"
+    arm = machine in ("arm64", "aarch64")
+    want = "neon" if arm else "avx2"
     assert want in _native.available_isas()
+    # The int8 prefilter has a vector variant of its own: the SDOT one is built where the
+    # compiler can (the CI compilers can), and every CI runner of arm64 has the instruction.
+    assert ("neon-sdot" if arm else "avx2") in _native.prefilter_variants()
+    assert _native.prefilter_can_run("neon-sdot" if arm else "avx2")
 
 
 def test_store_rows_checks_its_arguments_and_edges():
