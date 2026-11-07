@@ -33,9 +33,9 @@ TEXTS = [
 ]
 
 
-def _half(n=len(TOKENS)):
+def _half():
     """A float16 table and its exact float32 widening."""
-    half = st.table(n).astype(np.float16)
+    half = st.table(len(TOKENS)).astype(np.float16)
     return half, half.astype(np.float32)
 
 
