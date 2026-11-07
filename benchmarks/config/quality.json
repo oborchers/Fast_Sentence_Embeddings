@@ -602,6 +602,163 @@
         "NanoBEIR"
       ],
       "estimated_seconds": 90
+    },
+    {
+      "id": "probe-bekko-1024",
+      "kind": "probe",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "truncate": true,
+      "truncate_dim": 1024,
+      "backend": "fse",
+      "reference": "st-float32",
+      "workers": 1,
+      "estimated_seconds": 30
+    },
+    {
+      "id": "probe-static-similarity-mrl-multilingual-v1",
+      "kind": "probe",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "reference": "st",
+      "workers": 1,
+      "estimated_seconds": 30
+    },
+    {
+      "id": "probe-potion-multilingual-128M",
+      "kind": "probe",
+      "model": "minishlab/potion-multilingual-128M",
+      "backend": "fse",
+      "reference": "model2vec",
+      "workers": 1,
+      "estimated_seconds": 30
+    },
+    {
+      "id": "probe-static-retrieval-mrl-en-v1",
+      "kind": "probe",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "reference": "st",
+      "workers": 1,
+      "estimated_seconds": 30
+    },
+    {
+      "id": "stage0-bekko-1024",
+      "kind": "mteb",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "backend": "fse",
+      "truncate": true,
+      "truncate_dim": 1024,
+      "workers": 2,
+      "tasks": [
+        "MTEB(Multilingual, v2)/STS17",
+        "NanoBEIR-multilingual/MultilingualNanoNFCorpusRetrieval"
+      ],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "stage0-static-similarity-mrl-multilingual-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(Multilingual, v2)/STS17",
+        "NanoBEIR-multilingual/MultilingualNanoNFCorpusRetrieval"
+      ],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "stage0-potion-multilingual-128M",
+      "kind": "mteb",
+      "model": "minishlab/potion-multilingual-128M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(Multilingual, v2)/STS17",
+        "NanoBEIR-multilingual/MultilingualNanoNFCorpusRetrieval"
+      ],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "stage0-amgix-static-retrieval-multilingual-69m-v1-native",
+      "kind": "mteb",
+      "model": "amgix/static-retrieval-multilingual-69m-v1",
+      "backend": "st",
+      "workers": 2,
+      "tasks": [
+        "MTEB(Multilingual, v2)/STS17",
+        "NanoBEIR-multilingual/MultilingualNanoNFCorpusRetrieval"
+      ],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "stage0-static-retrieval-mrl-en-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "MTEB(Multilingual, v2)/STS17",
+        "NanoBEIR-multilingual/MultilingualNanoNFCorpusRetrieval"
+      ],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "nanoml-bekko-1024",
+      "kind": "mteb",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "backend": "fse",
+      "truncate": true,
+      "truncate_dim": 1024,
+      "workers": 2,
+      "tasks": [
+        "NanoBEIR-multilingual"
+      ],
+      "estimated_seconds": 600
+    },
+    {
+      "id": "nanoml-static-similarity-mrl-multilingual-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "NanoBEIR-multilingual"
+      ],
+      "estimated_seconds": 600
+    },
+    {
+      "id": "nanoml-potion-multilingual-128M",
+      "kind": "mteb",
+      "model": "minishlab/potion-multilingual-128M",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "NanoBEIR-multilingual"
+      ],
+      "estimated_seconds": 600
+    },
+    {
+      "id": "nanoml-amgix-static-retrieval-multilingual-69m-v1-native",
+      "kind": "mteb",
+      "model": "amgix/static-retrieval-multilingual-69m-v1",
+      "backend": "st",
+      "workers": 2,
+      "tasks": [
+        "NanoBEIR-multilingual"
+      ],
+      "estimated_seconds": 600
+    },
+    {
+      "id": "nanoml-static-retrieval-mrl-en-v1",
+      "kind": "mteb",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "workers": 2,
+      "tasks": [
+        "NanoBEIR-multilingual"
+      ],
+      "estimated_seconds": 600
     }
   ]
 }

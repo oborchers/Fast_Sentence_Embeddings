@@ -8,6 +8,8 @@ from pathlib import Path
 
 from _measurement import sha256
 
+from _quality.languages import MULTILINGUAL, multilingual
+
 
 def summarize(folder):
     path = folder / "cells.jsonl"
@@ -16,6 +18,8 @@ def summarize(folder):
     for row in rows:
         if row["kind"] != "mteb" or row["status"] != "valid" or row.get("functional_only"):
             continue
+        if row["benchmark"] in MULTILINGUAL:
+            continue  # summarized with their coverage by _quality.languages
         keys = (
             "model",
             "model_revision",
@@ -49,6 +53,7 @@ def summarize(folder):
         "mteb_score_scale": "unscaled MTEB main_score",
         "rows": result,
         "artifact_scores": artifact_scores(rows),
+        "multilingual": multilingual(folder, rows),
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
     }
 
