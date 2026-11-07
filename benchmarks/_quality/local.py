@@ -1,4 +1,4 @@
-"""Local Unix run of quality cells: class K, never publishable, never a speed value."""
+"""Local Unix run of MTEB and rerank cells: class K, never publishable, never a speed value."""
 
 from __future__ import annotations
 
@@ -19,12 +19,16 @@ def specification(args):
     if len(set(args.cells)) != len(args.cells) or not set(args.cells) <= set(known):
         raise ValueError("unknown or duplicate requested cells")
     spec["cells"] = [known[i] for i in args.cells]
-    if any(c["kind"] != "mteb" or c.get("fit") for c in spec["cells"]):
-        raise ValueError("a local run takes MTEB cells of pinned models without a fit")
+    if any(c["kind"] not in ("mteb", "rerank") or c.get("fit") for c in spec["cells"]):
+        raise ValueError("a local run takes MTEB or rerank cells of pinned models without a fit")
     validate_prerequisites(spec["cells"])
+    from _quality import rerank
     from _quality.mteb import expand
 
-    spec["cells"] = expand(spec["cells"])
+    for cell in spec["cells"]:
+        if cell["kind"] == "rerank":
+            rerank.validate(cell, spec.get("first_stages", {}))
+    spec["cells"] = rerank.expand(expand(spec["cells"]))
     return spec
 
 
@@ -34,6 +38,7 @@ def run(args):
     nothing is repeated or extended."""
     require_unix()
     started_at = time.monotonic()  # the budget covers preparation too
+    from _quality import rerank
     from _quality.mteb import MIND_REASON, evaluate
 
     spec = specification(args)
@@ -55,7 +60,8 @@ def run(args):
     )
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
     environment = sha256(args.results / "environment.json")
-    context = {"results": args.results, "work": args.work, "fits": {}}
+    context = {"results": args.results, "work": args.work, "fits": {}, "study": spec}
+    actions = {"mteb": evaluate, "rerank": rerank.evaluate}
     stopped, signalled = None, []
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda number, _frame: signalled.append(signal.Signals(number).name))
@@ -72,7 +78,7 @@ def run(args):
             row.update(status="not_started", reason=stopped)
         else:
             try:
-                row.update(evaluate(cell, context))
+                row.update(actions[cell["kind"]](cell, context))
             except Exception as error:
                 row.update(status="failed", reason=repr(error))
                 stopped = f"task {cell['id']} failed"

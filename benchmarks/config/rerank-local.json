@@ -1,0 +1,99 @@
+{
+  "format": "quality-study-v1",
+  "description": "DR-277 study, class K: NDCG@10 and recall of fse first stages, BM25, Reciprocal Rank Fusion and local cross-encoder rerankers on the 13 NanoBEIR tasks, with all-MiniLM-L6-v2 as the transformer reference. Run with --run --local-run --input. Reranker seconds are a local diagnostic, never a speed result.",
+  "first_stages": {
+    "bekko-1024": {
+      "kind": "dense",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "backend": "fse",
+      "truncate": true,
+      "truncate_dim": 1024,
+      "workers": 2
+    },
+    "potion-retrieval-32M": {
+      "kind": "dense",
+      "model": "minishlab/potion-retrieval-32M",
+      "backend": "fse",
+      "workers": 2
+    },
+    "all-MiniLM-L6-v2": {
+      "kind": "dense",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "backend": "st",
+      "workers": 2
+    },
+    "bm25": {
+      "kind": "bm25"
+    },
+    "rrf-bekko-bm25": {
+      "kind": "rrf",
+      "inputs": ["bekko-1024", "bm25"]
+    },
+    "rrf-potion-bm25": {
+      "kind": "rrf",
+      "inputs": ["potion-retrieval-32M", "bm25"]
+    }
+  },
+  "cells": [
+    {
+      "id": "rerank-first-stages",
+      "kind": "rerank",
+      "tasks": ["NanoBEIR"],
+      "stages": [
+        "bekko-1024",
+        "potion-retrieval-32M",
+        "all-MiniLM-L6-v2",
+        "bm25",
+        "rrf-bekko-bm25",
+        "rrf-potion-bm25"
+      ],
+      "mteb_check": ["bekko-1024", "potion-retrieval-32M"],
+      "estimated_seconds": 60
+    },
+    {
+      "id": "rerank-minilm",
+      "kind": "rerank",
+      "tasks": ["NanoBEIR"],
+      "stages": ["bekko-1024", "potion-retrieval-32M", "rrf-bekko-bm25"],
+      "reranker": {
+        "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+        "dtype": "float32",
+        "device": "mps",
+        "max_length": 512,
+        "batch_size": 32
+      },
+      "depths": [10, 100],
+      "estimated_seconds": 120
+    },
+    {
+      "id": "rerank-qwen3-0-6b",
+      "kind": "rerank",
+      "tasks": ["NanoBEIR"],
+      "stages": ["bekko-1024", "potion-retrieval-32M", "rrf-bekko-bm25"],
+      "reranker": {
+        "model": "Qwen/Qwen3-Reranker-0.6B",
+        "dtype": "float16",
+        "device": "mps",
+        "max_length": 512,
+        "batch_size": 16
+      },
+      "depths": [10],
+      "estimated_seconds": 300
+    },
+    {
+      "id": "rerank-qwen3-4b",
+      "kind": "rerank",
+      "tasks": ["NanoBEIR"],
+      "stages": ["bekko-1024", "rrf-bekko-bm25"],
+      "reranker": {
+        "model": "Qwen/Qwen3-Reranker-4B",
+        "dtype": "float16",
+        "device": "mps",
+        "max_length": 512,
+        "batch_size": 4
+      },
+      "depths": [10],
+      "estimated_seconds": 1800
+    }
+  ]
+}
