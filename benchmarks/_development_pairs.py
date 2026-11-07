@@ -14,6 +14,7 @@ from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
 from _measurement import append
+from _quality.prefilter_inputs import corpus_names
 
 
 def job_for(cell, prepared, count, tag, owner, batch=None):
@@ -23,6 +24,9 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
         "action": "measure",
         "artifact": model["artifacts"][cell["table_dtype"]],
         "corpus": prepared["corpora"][cell["corpus"]],
+        "query_corpora": {
+            n: prepared["corpora"][n] for n in corpus_names(cell) if n != cell["corpus"]
+        },
         "texts": count,
         "tag": tag,
         "bench_owner": owner,

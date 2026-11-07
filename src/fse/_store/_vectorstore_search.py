@@ -17,7 +17,7 @@ from typing import Any
 
 from fse._cpus import usable_cpus
 
-from . import _filtered, _rescore, _search, _selection, _unique_search
+from . import _filtered, _prefilter, _rescore, _search, _selection, _unique_search
 from ._recovery import rows_in
 from ._result import DocumentSearchResult, SearchResult
 
@@ -54,7 +54,20 @@ def search_store(
             )
             ids, scores, labels = (a[0] if single else a for a in found)
             return DocumentSearchResult(ids, scores, labels)
-        if values is None:
+        fast = _prefilter.search(
+            store._backend,
+            shards,
+            matrix,
+            k,
+            values,
+            kind,
+            workers=workers,
+            exact=exact,
+            grouped=False,
+        )
+        if fast is not None:
+            ids, scores = fast
+        elif values is None:
             ids, scores = _search.search(
                 store._backend, shards, matrix, k, workers=workers, exact=exact
             )

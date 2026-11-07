@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-DOCUMENT_PROFILES = ("document-ids@1", "document-ids-1m@1", "document-search-cost@1")
+DOCUMENT_PROFILES = (
+    "document-ids@1",
+    "document-ids-1m@1",
+    "document-search-cost@1",
+    "int8-prefilter-search@1",
+)
 
 
 def document_profile(cell):

@@ -88,6 +88,7 @@ DEFAULTS = {
     "k_values": [1, 10, 100],
     "probe_rows": 70_000,
     "probe_queries": 32,
+    "search_mode": "exact",
 }
 
 
@@ -173,6 +174,9 @@ def validate_cell(raw, defaults):
     from _development_rescore import validate as validate_rescore
 
     validate_rescore(cell)
+    from _development_prefilter_search import validate as validate_search_cells
+
+    validate_search_cells(cell)
     return cell
 
 

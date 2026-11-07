@@ -19,6 +19,7 @@ from _development_heads import operation as head_operation
 from _development_heads_multi import SPEC as GROUP_SPEC
 from _development_heads_multi import operation as group_operation
 from _development_locks import busy, lock_paths
+from _development_prefilter_search import metrics as prefilter_metrics
 from _development_repeat import repeat
 from _development_resources import check_write_disk
 from _development_search import metrics as search_metrics
@@ -192,4 +193,5 @@ def _measured(operation, job, waiting, policy, resource):
             * (job["texts"] // job["corpus"]["texts"]),
         },
         **search_metrics(job, seconds),
+        **prefilter_metrics(job),
     }
