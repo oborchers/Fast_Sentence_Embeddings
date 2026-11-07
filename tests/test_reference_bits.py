@@ -108,7 +108,7 @@ def test_non_contiguous_and_blocked_input_give_the_same_bits(monkeypatch):
     ],
 )
 def test_sign_bits_reject_other_input(bad):
-    with pytest.raises(ValueError, match="two dimensional|float32, float16"):
+    with pytest.raises(ValueError, match=r"two dimensional|float32, float16"):
         bits.sign_bits(bad)
 
 
@@ -194,7 +194,7 @@ def test_int4_codes_at_the_rounding_boundaries():
     "bad", [np.zeros((1, 4), F32), np.array([[1, np.nan]], F32), np.array([[1, np.inf]], F32)]
 )
 def test_int4_codes_reject_unscalable_queries(bad):
-    with pytest.raises(ValueError, match="zeros|finite"):
+    with pytest.raises(ValueError, match=r"zeros|finite"):
         bits.int4_codes(bad)
 
 
