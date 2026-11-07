@@ -30,6 +30,7 @@ STAGES = (
     "head-group-mixed",
     "head-group-score-sink",
     "prefilter-count",
+    "binary-recall",
 )
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
@@ -165,6 +166,9 @@ def validate_cell(raw, defaults):
     from _quality.prefilter_inputs import validate as validate_prefilter
 
     validate_prefilter(cell)
+    from _quality.binary_inputs import validate as validate_binary
+
+    validate_binary(cell)
     return cell
 
 
@@ -175,6 +179,7 @@ def _inputs(cell, identity):
         "stsb",
         "wikitext",
         "wikitext-train",
+        "agnews",
         *CORPORA,
     ):
         raise ValueError("development cell requires a pinned model and a known corpus")

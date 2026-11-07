@@ -731,3 +731,14 @@ The gate of DR-168 (Suche mit int8-Vorfilter und beweisbarer Fehlerschranke besc
 - Cells: `prefilter-probe` (synthetic arrays with zero rows, ties across the block edge 65,536, cancellation, a negated and a subnormal query, invalid queries; plus 4,096 real rows and 8 queries, no decision), then `prefilter-potion` and `prefilter-retrieval` on 65,536 and 859,346 rows. Queries: 256 of STS-B test and 256 of WikiText-103 test (PCG64 seed 0, texts that are stored or duplicated are excluded and counted), only stand-ins for retrieval queries.
 - Decision (fixed before the run): the median survivor share at k=10, one query, 859,346 rows, scheme A, the worse query set per model. At most 10 % for both models keeps DR-168 in 2.1 as a candidate (next a class D prototype). Otherwise it moves to 2.2. 10 % is a prioritisation limit, not a proof of a speed-up.
 - Outputs: `prefilter.jsonl` (median, p10, p90, max, mean per k and scheme; groups of eight queries as union and pair share), `queries.jsonl`, `checks.jsonl`, `memory.jsonl`, `decision.json`. Scheme `A_unslacked` is not a proof. Rotation and 4-bit copies are separate later studies.
+
+## Recall of sign-bit candidates with exact rescoring: `binary-recall@1`
+
+The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbieten) is class K and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/binary-recall-local.json` builds a float32 store of 100,000 texts of the pinned AG News train split (`fancyzhx/ag_news`, PCG64 seed 0, sampled without replacement, whitespace collapsed) for each of two models (`minishlab/potion-base-8M`, 256 dimensions, and `sentence-transformers/static-retrieval-mrl-en-v1`, 1,024 dimensions). The queries are the first 1,000 unique AG News test texts outside the corpus (seeded order) that encode to a finite nonzero vector.
+
+- Truth: `store.search(queries, 10, mode="exact")`. Candidates: the stored positions in the order of the Hamming distance of the sign bits (bit 1 for a value above zero, `np.bitwise_count`, ties by position), 10 and 40 times k. Result: `store.rescore(queries, candidates, 10)`.
+- Checks (any failure ends the study as `failed`): every rescored hit is a candidate; the rescore of the first 16 queries equals `search(mode="exact", rows=sorted(candidates))` in ids and score bits.
+- Outputs: `binary.jsonl` (mean recall@10 with a 95 % bootstrap interval of 1,000 resamples over the queries, and the recall of the Hamming order alone), `checks.jsonl`, `memory.jsonl`, `decision.json`.
+- Decision (fixed before the run, at 40-fold oversampling, mean recall): at least 0.95 for both models speaks for a symmetric 1-bit draft. Below 0.90 for POTION, asymmetric or centered variants come first. In between there is no decision.
+- The cell takes the heavy lock itself and starts its children with `nice -n 10`; do not wrap it in `--local-heavy`.
+

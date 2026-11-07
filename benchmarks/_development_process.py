@@ -159,6 +159,10 @@ def _other_action(job):
         return measure(job)
     if action == "profile-head":
         return _head_profile(job)
+    if action == "binary-recall":
+        from _quality.binary_child import count_job as binary_job
+
+        return binary_job(job)
     if action == "pooling-input":
         from _development_stages import prepare_batch
 
