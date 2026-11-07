@@ -105,6 +105,7 @@ class _Run:
         self.held = 0  # places of the pool this call holds
         self.source_error: BaseException | None = None
         self.exhausted = False
+        self.sequence = 0  # of the next task
 
     def execute(self, pool: Pool):
         pool.check_open()
@@ -133,30 +134,10 @@ class _Run:
             wait(running, timeout=_POLL_SECONDS)
 
     def _loop(self, pool: Pool):
-        sequence = 0
+        self.sequence = 0
         while True:
             self.changed.clear()
-            # After a worker failed, nothing more is read: only the tasks before it remain.
-            while (
-                not self.exhausted
-                and len(self.pending) < self.window
-                and not self._failed()
-                and self._unfinished() < self.limit
-            ):
-                if not self._place(pool):
-                    break
-                task = self._next()
-                if task is _SKIPPED:
-                    self._give_back(pool)
-                    break
-                item = self.reserve(task)  # an error stops the run at once
-                future = pool.submit(self._work, sequence, item)
-                with self.lock:
-                    self.unfinished += 1
-                future.add_done_callback(self._finished)
-                self.futures.append(future)
-                self.pending.append((sequence, item, future))
-                sequence += 1
+            self._fill(pool)
             if not self.pending:
                 if self.source_error is not None:
                     raise self.source_error
@@ -169,6 +150,30 @@ class _Run:
                 # Not the oldest yet: a finished task of this call may free a slot for the
                 # next one, so do not sit on the oldest alone.
                 self.changed.wait(timeout=_POLL_SECONDS)
+
+    def _fill(self, pool: Pool):
+        """Submit tasks until the window, the slots of this call or the places of the pool are
+        used. After a worker failed, nothing more is read: only the tasks before it remain."""
+        while (
+            not self.exhausted
+            and len(self.pending) < self.window
+            and not self._failed()
+            and self._unfinished() < self.limit
+        ):
+            if not self._place(pool):
+                return
+            task = self._next()
+            if task is _SKIPPED:
+                self._give_back(pool)
+                return
+            item = self.reserve(task)  # an error stops the run at once
+            future = pool.submit(self._work, self.sequence, item)
+            with self.lock:
+                self.unfinished += 1
+            future.add_done_callback(self._finished)
+            self.futures.append(future)
+            self.pending.append((self.sequence, item, future))
+            self.sequence += 1
 
     def _place(self, pool: Pool) -> bool:
         """A place of the pool for one more task. If none is free and this call has tasks to
