@@ -57,6 +57,10 @@ Concatenate the candidates of all member indexes for each query and call `rescor
 
 FAISS refines hits with `IndexRefine` and `k_factor`, whose usual form, `IndexRefineFlat`, needs a second flat index with the full vectors in memory. With fse, search the approximate index for `k_factor * k` hits, then call `store.rescore(queries, ids, k)`. The vectors stay in the store, on disk, and the final scores and order are the exact ones. `rescore` sorts and de-duplicates the candidates of each query and reads each row once, ordered by shard and position. Candidates scattered over a huge store can still touch many pages of the mapped shards, so bound the candidates per query.
 
+## Binary search without an external index
+
+A store with sign bits (`ShardSink(sign_bits=True)` or `fse.add_sign_bits(path)`, see [store.md](architecture/store.md#sign-bits)) can search by itself in two stages: `store.search(queries, k, mode="binary", oversample=40)` ranks all selected rows by the Hamming distance of their bits, keeps the best `oversample * k` per query and scores only those exactly. It is the same idea as an external index with `rescore`, with the first stage inside fse, and the result is `search(mode="exact", rows=sorted(C))` for the candidates `C` bit for bit. Recall is the only approximation: the exact best rows are found when stage 1 keeps them, so measure it on your data as in "Measure recall" below. The first stage is numpy and reads every selected row's bits, so it is a filter in the sense of a flat index, not a graph. With `max_per_doc=1` only the documents among the candidates compete. Shards without bits are derived with one warning. Details and limits: [store.md, "Sign bits"](architecture/store.md#sign-bits).
+
 ## Add rows, continue, repair
 
 Keep a small **sidecar file** next to every index. It holds the path of the store, a generation (a counter or UUID, new for every rebuild), `indexed_rows` (the last prefix that was indexed *and saved*), the dtype and dimension, and the bits of `take_vectors` at a few fixed positions (the first and last indexed row and the first row of every block). Write `indexed_rows` only after the index is saved.

@@ -120,11 +120,12 @@ class VectorStore(MemberReaders):
         k: PositiveInt = 10,
         *,
         workers: PositiveInt | None = None,
-        mode: Literal["auto", "exact", "blas"] = "auto",
+        mode: Literal["auto", "exact", "blas", "binary"] = "auto",
         doc_ids: Any = None,
         rows: Any = None,
         max_per_doc: PositiveInt | None = None,
         pool: Pool | None = None,
+        oversample: PositiveInt | None = None,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
@@ -135,6 +136,15 @@ class VectorStore(MemberReaders):
         blocks to float32 and uses BLAS, faster for many queries, its bits depending on the
         batch; ``"auto"`` (the default) takes exact for up to 8 queries and BLAS above.
         Use ``"exact"`` for results that must be reproducible.
+
+        ``mode="binary"`` ranks the selected rows by the Hamming distance of their sign bits
+        to those of the query, keeps the best ``oversample * k`` (default 40) per query and
+        scores only those exactly: the result is that of ``search(mode="exact",
+        rows=sorted(C))`` for the candidates ``C`` of each query, bit for bit, and it may miss
+        a row of the exact search. A shard without the companion artifact gets its bits
+        derived from its rows, with one WARNING per store; ``fse.add_sign_bits`` writes them.
+        ``oversample`` needs ``mode="binary"``. With ``max_per_doc=1`` the best documents
+        among the candidates are returned. See docs/architecture/store.md, "Binary search".
 
         At most ``k`` hits are returned: fewer if the selection holds fewer rows (or, with
         ``max_per_doc``, fewer documents), without an error. The result then has that
@@ -160,6 +170,7 @@ class VectorStore(MemberReaders):
             rows=rows,
             max_per_doc=max_per_doc,
             pool=pool,
+            oversample=oversample,
         )
 
     @validate_arguments
