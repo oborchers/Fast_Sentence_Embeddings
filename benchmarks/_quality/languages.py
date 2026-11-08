@@ -12,6 +12,7 @@ import statistics
 from pathlib import Path
 
 from _measurement import sha256
+from _measurement_claims import grouping_fields
 
 MULTILINGUAL = ("MTEB(Multilingual, v2)", "NanoBEIR-multilingual")
 FULL = {"MTEB(Multilingual, v2)": 131, "NanoBEIR-multilingual": 13}
@@ -263,7 +264,7 @@ def grouped(rows):
         if row["kind"] != "mteb" or row.get("functional_only"):
             continue
         if row["benchmark"] in MULTILINGUAL:
-            key = json.dumps({k: row.get(k) for k in CONFIGURED}, sort_keys=True)
+            key = json.dumps(grouping_fields(row, CONFIGURED), sort_keys=True)
             groups.setdefault(key, {}).setdefault(row["benchmark"], []).append(row)
     return groups
 

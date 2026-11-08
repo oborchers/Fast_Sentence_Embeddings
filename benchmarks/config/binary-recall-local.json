@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-255 probe, class K: recall@10 of sign-bit Hamming candidates (10- and 40-fold oversampling) rescored exactly with VectorStore.rescore, against the exact search of a float32 store of 100,000 pinned AG News train texts, with 1,000 AG News test texts as queries. No timing.",
+  "description": "DR-255 probe, class correctness: recall@10 of sign-bit Hamming candidates (10- and 40-fold oversampling) rescored exactly with VectorStore.rescore, against the exact search of a float32 store of 100,000 pinned AG News train texts, with 1,000 AG News test texts as queries. No timing.",
   "defaults": {
     "profile": "binary-recall@1",
     "workers": 2,

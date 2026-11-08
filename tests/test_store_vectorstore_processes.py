@@ -4,7 +4,7 @@
 The writer stands still after each shard it publishes, so every state the readers report is
 compared with a serial open of the same state, bit for bit: the long-lived store of each
 reader after ``refresh`` and a second store each reader opens then. Functional evidence
-(class K), no timing.
+(class correctness), no timing.
 """
 
 import sys

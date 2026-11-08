@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "max_per_doc descriptive costs (D): public store.search with max_per_doc=1 on ordered and shuffled document IDs, and the ordinary search as context, on identical float32 POTION stores with 1,002,340 WikiText rows (230 resident cycles of 4358 rows, four ID chunks), one query, k 10. The -small cells are the 4358-row rehearsal. Local development evidence, not publishable; single D medians support no comparison.",
+  "description": "max_per_doc costs, class descriptive: public store.search with max_per_doc=1 on ordered and shuffled document IDs, and the ordinary search as context, on identical float32 POTION stores with 1,002,340 WikiText rows (230 resident cycles of 4358 rows, four ID chunks), one query, k 10. The -small cells are the 4358-row rehearsal. Local development evidence, not publishable; single descriptive medians support no comparison.",
   "defaults": {
     "profile": "document-ids-1m@1",
     "base_doc_ids": "ordered",

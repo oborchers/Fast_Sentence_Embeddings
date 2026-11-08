@@ -1,4 +1,4 @@
-"""Local Unix run of MTEB and rerank cells: class K, never publishable, never a speed value."""
+"""Local Unix run of MTEB and rerank cells: class correctness, never publishable, never a speed value."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def base(cell, environment=None):
     return {
         **cell,
         **LABEL,
-        "class": "K",
+        "class": "correctness",
         "cell_id": cell["id"],
         "machine_environment_sha256": environment,
     }
@@ -137,7 +137,7 @@ def run(args):
         args.results / "environment.json",
         {
             **LABEL,
-            "class": "K",
+            "class": "correctness",
             "contract": spec,
             "budget_seconds": budget,
             "order": args.local_order,
@@ -243,7 +243,7 @@ def finish_files(results: Path, planned: int, extra) -> int:
         results / "DONE",
         {
             **LABEL,
-            "class": "K",
+            "class": "correctness",
             "exit_status": code,
             "cells": len(rows),
             "planned": planned,
