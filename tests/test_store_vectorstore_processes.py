@@ -16,7 +16,7 @@ from fse._store import _recovery
 from fse._store._layout import shard_name
 from support.encoder import finished
 from support.runtime import texts
-from support.store_processes import ROWS, SHARD_ROWS, reader, state, writer
+from support.store_processes import ROWS, SHARD_ROWS, Children, state
 
 READERS = 3
 
@@ -69,12 +69,11 @@ def _follow(author, readers, path, expected, durability):
 def test_reader_processes_see_each_publication_of_a_writer_process(tmp_path, durability):
     path = tmp_path / "store"
     expected = _empty_store(path)
-    children = []
-    try:
-        author = writer(path, durability)
-        children.append(author)
-        readers = [reader(path) for _ in range(READERS)]
-        children += readers
+    with Children() as children:
+        author = children.writer(path, durability)
+        readers = []
+        for _ in range(READERS):
+            readers.append(children.reader(path))
         empty = _serial(path, 0, expected, 0)
         for child in readers:
             assert child.next("opened")["kept"] == empty
@@ -85,9 +84,6 @@ def test_reader_processes_see_each_publication_of_a_writer_process(tmp_path, dur
             child.send("quit")
             child.next("closed")
             child.finish()
-    finally:
-        for child in children:
-            child.close()
     with fse.VectorStore.open(path) as store:
         assert len(store) == ROWS
         store.verify()
@@ -120,8 +116,8 @@ def test_a_publication_by_another_process_between_walk_and_listing_keeps_the_sna
 ):
     path = tmp_path / "store"
     expected = _empty_store(path)
-    author = writer(path, "none")
-    try:
+    with Children() as children:
+        author = children.writer(path, "none")
         for row in (0, SHARD_ROWS):
             author.send("go")
             assert author.next("published")["name"] == shard_name(row)
@@ -142,8 +138,6 @@ def test_a_publication_by_another_process_between_walk_and_listing_keeps_the_sna
         assert store.refresh() == ROWS - 3 * SHARD_ROWS
         assert store.get_vectors().tobytes() == expected.tobytes()
         store.close()
-    finally:
-        author.close()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="only Windows refuses to delete a mapped file")
@@ -153,14 +147,12 @@ def test_windows_refuses_to_delete_a_shard_while_another_process_maps_it(tmp_pat
     with fse.ShardSink(path, encoder, shard_rows=SHARD_ROWS) as sink:
         encoder.encode(texts(ROWS), sink=sink, workers=1)
     file = path / shard_name(0) / "vectors.npy"
-    child = reader(path)
-    try:
+    with Children() as children:
+        child = children.reader(path)
         assert child.next("opened")["kept"]["rows"] == ROWS
         with pytest.raises(PermissionError):
             file.unlink()
         child.send("quit")
         child.next("closed")
         child.finish()
-    finally:
-        child.close()
     file.unlink()

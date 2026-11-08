@@ -8,11 +8,17 @@ import gc
 import pytest
 
 import fse
-from fse._store._layout import shard_name
 from support import scores as sc
 from support.views import score_parts, vector_parts
 
 pytestmark = pytest.mark.usefixtures("windows_file_maps")
+
+
+def _tensors(*paths):
+    """Every tensor file of every shard of the stores ``paths``."""
+    files = [file for path in paths for file in sorted(path.glob("shard-*/*.npy"))]
+    assert {file.parent.parent for file in files} == set(paths)
+    return files
 
 
 def _released_on_close(store, files):
@@ -30,16 +36,16 @@ def test_a_score_store_maps_its_files_until_it_is_closed(tmp_path):
     path = tmp_path / "scores"
     sc.make_scores(path)
     store = fse.ScoreStore.open(path)
-    _released_on_close(store, [path / shard_name(row) / "scores.npy" for row in (0, 4, 8)])
+    _released_on_close(store, _tensors(path))
 
 
 def test_a_vector_view_maps_the_files_of_every_member_until_it_is_closed(tmp_path):
     _, paths = vector_parts(tmp_path)
     view = fse.VectorStore.open_view(paths)
-    _released_on_close(view, [path / shard_name(0) / "vectors.npy" for path in paths])
+    _released_on_close(view, _tensors(*paths))
 
 
 def test_a_score_view_maps_the_files_of_every_member_until_it_is_closed(tmp_path):
     _, paths, _ = score_parts(tmp_path)
     view = fse.ScoreStore.open_view(paths)
-    _released_on_close(view, [path / shard_name(0) / "scores.npy" for path in paths])
+    _released_on_close(view, _tensors(*paths))

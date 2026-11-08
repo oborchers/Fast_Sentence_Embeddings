@@ -92,7 +92,8 @@ def reader_main(path: str) -> None:
 
 
 class Child:
-    """A child running ``main(*args)``, with a bounded queue of its events."""
+    """A child running ``main(*args)``, with a bounded queue of its events; stderr is read
+    all the time, so a child never blocks on it, and shown when the child fails."""
 
     def __init__(self, main, *args):
         code = (
@@ -108,8 +109,13 @@ class Child:
             bufsize=1,
         )
         self.events: queue.Queue = queue.Queue()
-        self.reader = threading.Thread(target=self._read, daemon=True)
-        self.reader.start()
+        self.errors: list[str] = []
+        self.threads = [
+            threading.Thread(target=self._read, daemon=True),
+            threading.Thread(target=self.errors.extend, args=(self.process.stderr,), daemon=True),
+        ]
+        for thread in self.threads:
+            thread.start()
 
     def _read(self) -> None:
         try:
@@ -118,13 +124,17 @@ class Child:
         finally:
             self.events.put({"event": "eof"})
 
+    def _stderr(self) -> str:
+        self.process.wait(timeout=TIMEOUT)
+        self.threads[1].join(TIMEOUT)
+        return "".join(self.errors)
+
     def next(self, expected: str | None = None) -> dict:
         """The next event, within ``TIMEOUT`` seconds; an exit before it fails with the
         child's stderr."""
         event = self.events.get(timeout=TIMEOUT)
         if event["event"] == "eof":
-            self.process.wait(timeout=TIMEOUT)
-            raise AssertionError(self.process.stderr.read())
+            raise AssertionError(self._stderr())
         if expected is not None:
             assert event["event"] == expected, event
         return event
@@ -135,27 +145,47 @@ class Child:
 
     def finish(self) -> None:
         """Wait for a clean exit (status 0) and the end of the output."""
-        assert self.process.wait(timeout=TIMEOUT) == 0, self.process.stderr.read()
-        self.reader.join(TIMEOUT)
-        assert not self.reader.is_alive()
+        assert self.process.wait(timeout=TIMEOUT) == 0, self._stderr()
+        for thread in self.threads:
+            thread.join(TIMEOUT)
+            assert not thread.is_alive()
 
     def close(self) -> None:
         """Kill the child if it still runs, and close its pipes."""
         if self.process.poll() is None:
             self.process.kill()
         self.process.wait(timeout=TIMEOUT)
-        self.reader.join(TIMEOUT)
+        for thread in self.threads:
+            thread.join(TIMEOUT)
         for handle in (self.process.stdin, self.process.stdout, self.process.stderr):
             handle.close()
 
 
-def writer(path, durability) -> Child:
-    """A writer child that stands ready before its first row."""
-    child = Child(writer_main, path, durability)
-    assert child.next("ready")["first_row"] == 0
-    return child
+class Children:
+    """The children of a test: each is registered as soon as it runs, so leaving the
+    ``with`` block closes every one, also after a failed start."""
 
+    def __init__(self):
+        self.started: list[Child] = []
 
-def reader(path) -> Child:
-    """A reader child; its first event is ``opened``."""
-    return Child(reader_main, path)
+    def __enter__(self) -> Children:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        for child in self.started:
+            child.close()
+
+    def writer(self, path, durability) -> Child:
+        """A writer child that stands ready before its first row."""
+        child = self._start(writer_main, path, durability)
+        assert child.next("ready")["first_row"] == 0
+        return child
+
+    def reader(self, path) -> Child:
+        """A reader child; its first event is ``opened``."""
+        return self._start(reader_main, path)
+
+    def _start(self, main, *args) -> Child:
+        child = Child(main, *args)
+        self.started.append(child)
+        return child
