@@ -7,8 +7,8 @@ import math
 import tempfile
 from pathlib import Path
 
-from _harness.budget import check
 from _development_process import checked
+from _harness.budget import check
 from _harness.records import document, sha256
 
 

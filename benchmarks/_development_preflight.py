@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from _harness.budget import check
 from _development_budget import check_args
 from _development_heads_multi import configure as configure_heads
 from _development_ids import mode_for
@@ -13,6 +12,7 @@ from _development_lengths import mode_for as lengths_for
 from _development_pairs import job_for
 from _development_process import checked, launch
 from _development_search import configure
+from _harness.budget import check
 from _harness.records import append, document
 
 

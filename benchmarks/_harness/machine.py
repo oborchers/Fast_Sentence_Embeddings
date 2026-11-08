@@ -16,7 +16,7 @@ from pathlib import Path
 CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
-FIELDS = ("cpu_model_contains", "required_flags", "nofile_soft_min", *RANGES)
+FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", *RANGES)
 
 
 def _cpuinfo():
@@ -51,6 +51,7 @@ def observe(work):
         "disk_free_bytes": shutil.disk_usage(work).free,
         "shm_bytes": shutil.disk_usage(SHM).total if SHM.exists() else None,
         "nofile_soft": resource.getrlimit(resource.RLIMIT_NOFILE)[0],
+        "nofile_hard": resource.getrlimit(resource.RLIMIT_NOFILE)[1],
     }
 
 
@@ -80,15 +81,15 @@ def _range(name, value, bounds, unlimited_ok):
 
 def deviations(observed, expected):
     found = []
-    needle = expected.get("cpu_model_contains")
-    if needle and needle not in (observed["cpu_model"] or ""):
-        found.append(f"cpu_model: observed {observed['cpu_model']!r}, declared to contain {needle!r}")
+    model = expected.get("cpu_model")
+    if model and model != observed["cpu_model"]:
+        found.append(f"cpu_model: observed {observed['cpu_model']!r}, declared {model!r}")
     missing = sorted(set(expected.get("required_flags", [])) - set(observed["flags"]))
     if missing:
         found.append(f"flags: missing {missing}")
-    floor = expected.get("nofile_soft_min")
-    if floor is not None and observed["nofile_soft"] < floor:
-        found.append(f"nofile_soft: observed {observed['nofile_soft']}, declared minimum {floor}")
+    floor = expected.get("nofile_hard_min")
+    if floor is not None and observed["nofile_hard"] < floor:
+        found.append(f"nofile_hard: observed {observed['nofile_hard']}, declared minimum {floor}")
     for name in RANGES:
         if name in expected:
             unlimited = name in ("cpu_quota_cpus", "memory_max_bytes")

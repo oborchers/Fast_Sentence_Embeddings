@@ -7,13 +7,13 @@ import shutil
 import time
 from pathlib import Path
 
-from _harness.budget import WallBudgetExpiredError
 from _development_budget import check_args, stopped
 from _development_data import prepare
 from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
 from _development_system import LABEL, memory_limit
+from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
 from _quality.binary_decision import decide

@@ -10,6 +10,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from _harness.budget import Budget
 from _harness.records import append, atomic, document, exit_code, seal, sha256
@@ -24,7 +25,7 @@ class Ledger:
     publishable). A subclass changes the progress by overriding ``progress_fields``.
     """
 
-    label: dict = {}
+    label: ClassVar[dict] = {}
 
     def __init__(self, root, contract, allocated_at, budget=None):
         self.root, self.contract, self.allocated_at = root, contract, allocated_at

@@ -6,11 +6,11 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from _harness.budget import WallBudgetExpiredError
 from _development_budget import minimum_measured_seconds
 from _development_system import LABEL, machine, observations, source_identity
-from _harness.records import append, atomic, sha256
+from _harness.budget import WallBudgetExpiredError
 from _harness.ledger import Ledger, watching
+from _harness.records import append, atomic, sha256
 from _measurement_setup import outside_checkout
 
 
@@ -32,9 +32,7 @@ class LocalLedger(Ledger):
             "cell": "DONE" if terminal else self.current,
             "finished": len(self.finished),
             "planned": len(self.contract["cells"]),
-            "elapsed_seconds": self.contract["wall_time_budget_seconds"]
-            - self.wall_deadline
-            + now,
+            "elapsed_seconds": self.contract["wall_time_budget_seconds"] - self.wall_deadline + now,
             "wall_time_overrun_seconds": max(0, now - self.wall_deadline),
             "wall_time_budget_seconds": self.contract["wall_time_budget_seconds"],
             "wall_time_remaining_seconds": max(0, self.wall_deadline - now),

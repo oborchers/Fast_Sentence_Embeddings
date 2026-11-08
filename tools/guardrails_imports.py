@@ -180,7 +180,9 @@ def isolated_package_errors(root: Path, cfg: dict) -> list[str]:
         for path in sorted((root / folder).rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for name in sorted(_outside_imports(tree, Path(folder).name)):
-                errors.append(f"{path.relative_to(root).as_posix()} imports {name}; {folder} is isolated")
+                errors.append(
+                    f"{path.relative_to(root).as_posix()} imports {name}; {folder} is isolated"
+                )
     return errors
 
 

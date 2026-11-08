@@ -94,7 +94,14 @@ def definition(*steps, expected=None):
                 "name": name,
                 "environment": "main",
                 "estimate_seconds": 5,
-                "command": [*command, "--results", "{results}", "--allocated-at", "{allocated_at}", *args],
+                "command": [
+                    *command,
+                    "--results",
+                    "{results}",
+                    "--allocated-at",
+                    "{allocated_at}",
+                    *args,
+                ],
             }
             for name, args in steps
         ],
@@ -107,14 +114,21 @@ def _allocation(root, steps, expected=None, allocated_at=None):
     root.mkdir()
     allocated_at = allocated_at or time.time()
     budget = Budget(BILLING, 1, allocated_at)
-    allocation = Allocation(root, "speed", definition(*steps, expected=expected), allocated_at, budget)
+    allocation = Allocation(
+        root, "speed", definition(*steps, expected=expected), allocated_at, budget
+    )
     checked = allocation.begin(False, root)
     return allocation, checked
 
 
 def _record(allocation, code):
-    steps = [row["step"] + ":" + row["status"] for row in read_rows(allocation.record, "steps.jsonl")]
-    exits = {s["name"]: document(allocation.results(s) / "DONE")["exit_status"] for s in allocation.definition["steps"]}
+    steps = [
+        row["step"] + ":" + row["status"] for row in read_rows(allocation.record, "steps.jsonl")
+    ]
+    exits = {
+        s["name"]: document(allocation.results(s) / "DONE")["exit_status"]
+        for s in allocation.definition["steps"]
+    }
     return {"exit_status": code, "steps": steps, "step_exit_status": exits}
 
 
@@ -145,7 +159,11 @@ def _budget_end(root):
     allocation, _ = _allocation(root, [("one", ["--cells", "2"])], allocated_at=time.time() - 7200)
     code = allocation.run({})
     exits = _record(allocation, code)
-    problems = [] if code == 1 and exits["steps"] == ["one:not_started"] else ["a step ran after the budget"]
+    problems = (
+        []
+        if code == 1 and exits["steps"] == ["one:not_started"]
+        else ["a step ran after the budget"]
+    )
     return {"case": "allocation-budget-end", **exits, "problems": problems}
 
 
@@ -164,7 +182,11 @@ def _terminated(root):
     record = _record(allocation, code)
     one = read_rows(allocation.results(allocation.definition["steps"][0]))
     problems = []
-    if record["steps"][1] != "two:not_started" or code != 1 or all(r["status"] == "valid" for r in one):
+    if (
+        record["steps"][1] != "two:not_started"
+        or code != 1
+        or all(r["status"] == "valid" for r in one)
+    ):
         problems.append("SIGTERM did not stop the running step and all later steps")
     return {"case": "allocation-sigterm", **record, "problems": problems}
 

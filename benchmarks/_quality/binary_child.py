@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 
 import numpy as np
-from _harness.budget import check
 from _development_process import checked
+from _harness.budget import check
 from _harness.records import append, document
 
 from _quality.binary_inputs import BOOTSTRAP, CORPUS_ROWS, OVERSAMPLES, QUERIES, STAGE, K

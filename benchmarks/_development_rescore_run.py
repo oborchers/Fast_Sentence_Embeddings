@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import time
 
-from _harness.budget import WallBudgetExpiredError
 from _development_budget import check_args
 from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
 from _development_rescore import PROFILE, STAGE
 from _development_system import observations
+from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
 LOAD_LIMIT, WAIT_SECONDS = 4.0, 900.0

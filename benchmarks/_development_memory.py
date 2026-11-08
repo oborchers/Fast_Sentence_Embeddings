@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from _harness.budget import check
 from _development_lengths import check_against_independent, keywords, split
+from _harness.budget import check
 from _harness.records import atomic
 
 

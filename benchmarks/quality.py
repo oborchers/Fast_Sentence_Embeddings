@@ -10,8 +10,8 @@ import time
 from pathlib import Path
 
 from _development_config import add_arguments, dispatch
-from _harness.records import append, atomic
 from _harness.ledger import Ledger, watching
+from _harness.records import append, atomic
 from _measurement import finalize_rehearsal, rehearsal_limits, write_environment
 from _measurement_config import CONFIG, contract, validate_cell, validate_prerequisites
 from _measurement_setup import outside_checkout, setup, utility

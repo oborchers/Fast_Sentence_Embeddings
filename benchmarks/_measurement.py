@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from _harness.records import append, sha256
+from _harness.records import append, atomic, sha256
 from _measurement_config import CONFIG
 
 

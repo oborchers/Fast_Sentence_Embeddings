@@ -2,24 +2,30 @@
   "speed": {
     "format": "allocation@1",
     "machine_check": {
-      "affinity_cpus": {
-        "min": 32
-      },
-      "memory_max_bytes": {
-        "min": 128000000000
-      },
-      "disk_free_bytes": {
-        "min": 100000000000
-      },
-      "shm_bytes": {
-        "min": 1073741824
-      },
-      "nofile_soft_min": 65536,
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
       "required_flags": [
         "avx2",
         "fma",
         "f16c"
-      ]
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
     },
     "rehearsal_machine_check": {
       "cpu_quota_cpus": {
@@ -34,7 +40,7 @@
       "shm_bytes": {
         "min": 1073741824
       },
-      "nofile_soft_min": 65536
+      "nofile_hard_min": 524288
     },
     "environments": [
       {
@@ -81,24 +87,30 @@
   "quality": {
     "format": "allocation@1",
     "machine_check": {
-      "affinity_cpus": {
-        "min": 32
-      },
-      "memory_max_bytes": {
-        "min": 128000000000
-      },
-      "disk_free_bytes": {
-        "min": 100000000000
-      },
-      "shm_bytes": {
-        "min": 1073741824
-      },
-      "nofile_soft_min": 65536,
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
       "required_flags": [
         "avx2",
         "fma",
         "f16c"
-      ]
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
     },
     "rehearsal_machine_check": {
       "cpu_quota_cpus": {
@@ -113,7 +125,7 @@
       "shm_bytes": {
         "min": 1073741824
       },
-      "nofile_soft_min": 65536
+      "nofile_hard_min": 524288
     },
     "environments": [
       {

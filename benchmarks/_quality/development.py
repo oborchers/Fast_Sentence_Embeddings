@@ -5,7 +5,6 @@ from __future__ import annotations
 import struct
 import time
 
-from _harness.budget import WallBudgetExpiredError
 from _development_budget import check_args, stopped
 from _development_config import load
 from _development_data import prepare
@@ -15,6 +14,7 @@ from _development_process import checked, launch
 from _development_records import record_result, session
 from _development_resources import admission
 from _development_system import LABEL
+from _harness.budget import WallBudgetExpiredError
 from _harness.records import append
 
 

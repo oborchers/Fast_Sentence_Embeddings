@@ -110,9 +110,7 @@ def setup(root, contract, allocated_at, entry, allocation=None):
             _install_fse(execute, uv, root, environment, revision)
     locks = {e["lock"]: sha256(CONFIG / e["lock"]) for e in environments}
     record = {
-        "environments": [
-            {k: e[k] for k in ("name", "role", "revision")} for e in environments
-        ],
+        "environments": [{k: e[k] for k in ("name", "role", "revision")} for e in environments],
         "fse_revision": contract["fse_revision"],
         "python": sys.version,
         "base_image": contract["machine"]["image"],
@@ -120,7 +118,9 @@ def setup(root, contract, allocated_at, entry, allocation=None):
     if "rust" in definition["toolchains"]:
         record["rustup_installer_sha256"] = _install_rust(execute, root)
         locks["rust.lock"] = sha256(CONFIG / "rust.lock")
-        record["system_compiler"] = subprocess.check_output(["cc", "--version"], text=True).splitlines()[0]
+        record["system_compiler"] = subprocess.check_output(
+            ["cc", "--version"], text=True
+        ).splitlines()[0]
     atomic(root / "setup.json", {"locks": locks, **record})
 
 

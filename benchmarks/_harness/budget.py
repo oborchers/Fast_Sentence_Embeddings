@@ -49,6 +49,3 @@ class Budget:
     def admit(self, estimate):
         """True when work of ``estimate`` seconds still fits before the reserve."""
         return self.elapsed() + estimate + self.reserve_seconds <= self.ceiling_seconds
-
-    def spent_usd(self):
-        return self.elapsed() * self.hourly / 3600

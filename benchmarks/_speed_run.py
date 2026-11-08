@@ -11,10 +11,10 @@ import time
 from pathlib import Path
 
 import _measurement as records
-from _harness import records as durable
 import _speed_cells as inputs
 import _speed_pipeline as engines
 import _speed_write as writing
+from _harness import records as durable
 from _harness.ledger import Ledger, watching
 from _measurement import write_environment
 from _measurement_config import CONFIG
@@ -23,8 +23,6 @@ from _measurement_config import contract as load_contract
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
 HERE = Path(__file__).resolve().parent
-
-
 
 
 def require_budget(ledger, estimate):

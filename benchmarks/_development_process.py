@@ -10,9 +10,9 @@ import sys
 import time
 from pathlib import Path
 
-from _harness.budget import WallBudgetExpiredError, check
 from _development_budget import check_args
 from _development_system import LABEL, configure_child, require_unix
+from _harness.budget import WallBudgetExpiredError, check
 from _harness.records import atomic, document, sha256
 from _measurement import package_identity
 

@@ -12,7 +12,6 @@ import time
 from contextlib import nullcontext, suppress
 from pathlib import Path
 
-from _harness.budget import check
 from _development_encode import operation as encode_operation
 from _development_heads import SPEC as HEAD_SPEC
 from _development_heads import operation as head_operation
@@ -26,6 +25,7 @@ from _development_search import metrics as search_metrics
 from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, apply_affinity, observations
+from _harness.budget import check
 from _harness.records import append
 
 
