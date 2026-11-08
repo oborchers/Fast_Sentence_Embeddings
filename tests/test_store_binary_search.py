@@ -96,10 +96,27 @@ def test_validation(tmp_path, monkeypatch):
             store.search(q, 3, mode="hamming")
         with pytest.raises(ValueError, match=r"zero|finite|normalize"):
             store.search(np.zeros(rs.DIM, np.float32), 3, mode="binary")
-        monkeypatch.setattr(_binary_search, "_HELD_BYTES", 1000)
+        monkeypatch.setattr(_binary_search, "CANDIDATE_BYTES", 1000)
         with pytest.raises(ValueError, match="lower oversample"):
             store.search(rs.queries(4), 3, mode="binary", oversample=40)
         store.search(rs.queries(1), 1, mode="binary", oversample=2)  # inside the budget
+
+
+def test_queries_run_in_groups_that_fit_the_candidate_budget(tmp_path, monkeypatch):
+    docs = np.random.default_rng(2).integers(0, 7, N).astype(np.int64)
+    codes = bn.make(tmp_path / "s", "float32", N, docs=docs)
+    qs = rs.queries(5)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        whole = store.search(qs, 3, mode="binary", oversample=2, max_per_doc=1)
+        # m = 6 candidates of 24 bytes: two queries per group, three groups
+        monkeypatch.setattr(_binary_search, "CANDIDATE_BYTES", 300)
+        assert _binary_search.group_size(3, 2, 6) == 2
+        with expect_log("store.binary", queries=5, candidates=30):
+            grouped = store.search(qs, 3, mode="binary", oversample=2, max_per_doc=1)
+        np.testing.assert_array_equal(whole.ids, grouped.ids)
+        np.testing.assert_array_equal(rs.bits(whole.scores), rs.bits(grouped.scores))
+        np.testing.assert_array_equal(whole.doc_ids, grouped.doc_ids)
+        bn.assert_binary_is_exact_on_candidates(store, qs, 3, 6, codes=codes)
 
 
 def test_missing_bits_are_derived_with_one_warning_per_store(tmp_path):
@@ -237,7 +254,7 @@ def test_the_candidates_are_those_of_the_reference_over_many_blocks(tmp_path):
 def test_an_empty_document_filter_ignores_the_budget(tmp_path, monkeypatch):
     docs = np.arange(N, dtype=np.int64) % 5
     bn.make(tmp_path / "s", "float32", N, docs=docs)
-    monkeypatch.setattr(_binary_search, "_HELD_BYTES", 1000)
+    monkeypatch.setattr(_binary_search, "CANDIDATE_BYTES", 1000)
     with fse.VectorStore.open(tmp_path / "s") as store:
         got = store.search(rs.queries(4), 3, mode="binary", doc_ids=[])
         assert got.ids.shape == (4, 0)
