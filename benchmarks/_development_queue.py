@@ -111,7 +111,11 @@ class Waiter:
         try:
             if not _try_lock(fd):
                 return True
-            _unlink(path, fd)
+            try:
+                _unlink(path, fd)
+            except FileNotFoundError:
+                # A canceling waiter may unlink before closing its last descriptor.
+                pass
             return False
         finally:
             os.close(fd)

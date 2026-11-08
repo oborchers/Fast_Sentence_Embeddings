@@ -170,3 +170,34 @@ def test_ticket_write_failure_closes_descriptor(queue, tmp_path, monkeypatch):
         current.close()
     assert current.fd is None
     assert list(current.root.iterdir()) == [current.root / ".guard"]
+
+
+def test_registered_waiter_can_leave_with_guard_held(queue, tmp_path):
+    import fcntl
+
+    current = waiter(queue, tmp_path)
+    assert current.position() == (1, 1)
+    with (current.root / ".guard").open("r+") as guard:
+        fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert current.position() is None
+        current.close()
+    assert list(current.root.iterdir()) == [current.root / ".guard"]
+
+
+def test_concurrent_cancellation_while_reaping(queue, tmp_path, monkeypatch):
+    current = waiter(queue, tmp_path)
+    current.root.mkdir()
+    abandoned = current.root / ("000000000001-" + "a" * 32)
+    abandoned.touch()
+    real = queue._unlink
+
+    def disappearing(path, fd):
+        if path == abandoned:
+            path.unlink()
+        real(path, fd)
+
+    monkeypatch.setattr(queue, "_unlink", disappearing)
+    try:
+        assert current.position() == (1, 1)
+    finally:
+        current.close()
