@@ -108,12 +108,15 @@ def csr(array: ndarray) -> tuple[ndarray, ndarray]:
     return array[keep], offsets
 
 
-def _read_stored(tensors: dict[str, ndarray], local: ndarray) -> ndarray:
-    return tensors["vectors"][local]
-
-
-def _read_inverse(tensors: dict[str, ndarray], local: ndarray) -> ndarray:
-    return tensors["inv_norms"][local]
+def _unique_positions(wanted: ndarray) -> ndarray:
+    """Sort an owned query section in place, copying only to remove duplicates."""
+    wanted.sort()
+    if not wanted.size:
+        return wanted
+    keep = np.empty(len(wanted), np.bool_)
+    keep[0] = True
+    np.not_equal(wanted[1:], wanted[:-1], out=keep[1:])
+    return wanted if keep.all() else wanted[keep]
 
 
 def _best(
@@ -170,19 +173,23 @@ class _Run:
         )
 
     def part(self, q: int, wanted: ndarray) -> tuple[ndarray, ndarray, ndarray | None]:
-        stored = self.rows(wanted, _read_stored, (self.dim,), self.shards[0][1]["vectors"].dtype)
-        inverse = self.rows(wanted, _read_inverse, (), F32)
+        stored = _take.gather_sorted(self.shards, wanted, self.total, "vectors")
+        inverse = _take.gather_sorted(self.shards, wanted, self.total, "inv_norms")
         try:
             scores = self.backend.cosines(stored, inverse, self.queries[q : q + 1])
         except ValueError as error:
             text = re.sub(r"\brow (\d+)\b", lambda m: f"row {wanted[int(m[1])]}", str(error))
             raise ValueError(f"query {q}: {text}") from None
-        labels = self.rows(wanted, _take.read_doc_ids, (), np.int64) if self.one_per_doc else None
+        labels = (
+            _take.gather_sorted(self.shards, wanted, self.total, "doc_ids")
+            if self.one_per_doc
+            else None
+        )
         return _best(wanted, np.ascontiguousarray(scores[:, 0]), labels, self.k)
 
     def query(self, q: int) -> tuple[tuple[ndarray, ndarray, ndarray | None], int]:
         """The best rows of query ``q`` and the number of rows gathered for it."""
-        wanted = np.unique(self.positions[self.offsets[q] : self.offsets[q + 1]])
+        wanted = _unique_positions(self.positions[self.offsets[q] : self.offsets[q + 1]])
         won = None
         for begin in range(0, len(wanted), self.part_rows):
             found = self.part(q, wanted[begin : begin + self.part_rows])
@@ -211,7 +218,8 @@ def exact_sets(
     ``positions[offsets[q]:offsets[q + 1]]`` (already checked against the rows of
     ``shards``; duplicates are dropped; ``with_doc_ids`` adds the document IDs of the winners), as (positions, scores, document IDs or None) per
     query without padding, best first, and the number of rows gathered. The caller holds
-    the store's active-use guard."""
+    the store's active-use guard. Each query section must be privately owned and disjoint;
+    it is sorted in place, so callers must not pass borrowed public candidate arrays."""
     _search.check_queries(backend, queries)
     run = _Run(
         backend, shards, queries, k, one_per_doc, with_doc_ids or one_per_doc, offsets, positions

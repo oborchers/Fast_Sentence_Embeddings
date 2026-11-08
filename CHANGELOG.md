@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file. The format is b
 
 - Reuse the shared pool for text scans and add `pool=` to `fse.add_sign_bits` (DR-309: Gemeinsamen Pool auch für die Text-Zerlegung und add_sign_bits nutzen). File, encoded-string and Arrow scans use the pool threads and task places before encoding. Batch iterators scan on their iteration pool; `StreamSource` collections still scan inline. Sign-bit backfills share the pool limits and leave it open, including after failures. Chunks, error order and output bytes stay unchanged.
 
+- Evaluate a named `cells@1` decision across development cells (DR-298: Gesamtentscheidung über mehrere Zellen im Mess-Kern auswerten). Main cells must pass their existing noise and confirmation gates plus the declared practical saving. Edge cells must meet their factor bound in comparison and confirmation. Four explicit changes: optional automatic early stop after a final rejection (disabled in the local int8 study), exit 1 for an overall rejection or inconclusive result including partial selections, `decision.json` also after preparation failure or budget exhaustion, and per-edge factor bounds without a global minimum. Cell decisions are unchanged. Measurement tooling only.
+
 - Document named linear heads, score stores, document IDs and later filtering, add the Civil Comments filtering recipe, and extend the classification and folding recipes (DR-230: Kopf-Dokumentation und Toxizitäts-Beispielkopf vorbereiten). Documentation only; no change to the library.
 
 - Add `VectorStore.search(..., mode="binary", oversample=None)` (DR-267: Binäre Suche mit search(mode="binary", oversample=) anbieten, part of DR-255: Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbieten). Stage 1 ranks the selected rows by the Hamming distance of their sign bits to the bits of the query (numpy, `fse._reference_bits`) and keeps the best `oversample * k` per query (default 40, provisional until DR-264: Recall der Varianten und Kosten der Bitsuche gegen den int8-Vorfilter messen); stage 2 scores only those rows exactly with the path of `rescore`, so the result is `search(mode="exact", rows=sorted(C))` for the candidates `C` bit for bit, and `oversample` at least the selection gives `mode="exact"`. `rows=`, `doc_ids=`, `max_per_doc=1`, `workers=` and `pool=` work; a shard without sign bits is derived from its rows with one `store.bits_derived` WARNING per store. New events `store.binary` and `store.bits_derived`. `"binary"` and `oversample` are public values and freeze with 2.1; no new persistence name; `score` and score stores are unchanged.
@@ -114,6 +116,10 @@ All notable changes to this project are documented in this file. The format is b
 - From the next release, macOS Intel (x86_64) wheels are no longer built, tested or published. macOS wheels target Apple Silicon (arm64) only. Source distributions remain available, but builds on Intel Macs are unverified and no longer tested in CI. Existing 2.0.0 wheels remain available.
 
 - Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
+
+### Changed
+
+- Avoid a second stored-row copy when rescoring candidates, including stage 2 of binary search (DR-310: Doppelte Zeilenkopie beim exakten Nachrechnen in rescore und der binären Suche vermeiden). Sort private candidate sections in place and gather ascending parts directly into their output. Scores, IDs and tie order keep the same bits. Public candidate arrays remain unchanged.
 
 ## [2.0.0] - 2026-11-02
 
