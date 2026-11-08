@@ -278,3 +278,76 @@ def test_wide_filtered_rows_without_bits_are_copied_in_bounded_blocks(tmp_path):
         finally:
             tracemalloc.stop()
     assert peak < 40 << 20  # one copy of the selected rows would be 62 MiB
+
+
+def _equal_bits_store(path, n=N, docs=None):
+    """Every row has the same sign bits (all positive), so every distance ties and the
+    candidates are decided by the position alone."""
+    from support.take_store import write_rows
+
+    codes = np.abs(np.random.default_rng(7).standard_normal((n, rs.DIM)).astype(np.float32)) + 0.1
+    write_rows(path, "float32", codes, shard_rows=7, doc_ids=docs)
+    fse.add_sign_bits(path)
+    return codes
+
+
+@pytest.mark.parametrize("m", [9, 10, 11, 25, 59, 60])
+@pytest.mark.parametrize("selection", ["all", "rows", "doc_ids"])
+def test_tied_distances_across_blocks_choose_the_smaller_positions(
+    tmp_path, monkeypatch, m, selection
+):
+    docs = np.arange(N, dtype=np.int64) % 6
+    codes = _equal_bits_store(tmp_path / "s", docs=docs)
+    qs = np.abs(rs.queries(4)) + 0.1  # the same bits as the rows
+    monkeypatch.setattr(_binary_search, "_DISTANCE_ENTRIES", 40)  # blocks of 10 rows, 4 queries
+    chosen = {"all": None, "rows": list(range(2, 58)), "doc_ids": [0, 1, 3, 5]}[selection]
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        values, kind = (None, "rows")
+        if selection == "rows":
+            values = np.array(chosen, np.int64)
+        elif selection == "doc_ids":
+            values, kind = np.array(chosen, np.int64), "doc_ids"
+        with store._using() as shards:
+            positions, offsets, selected, _ = _binary_search.candidates(
+                store, shards, qs, m, values, kind, workers=3
+            )
+        rows = None
+        if selection == "rows":
+            rows = chosen
+        elif selection == "doc_ids":
+            rows = [int(r) for r in np.flatnonzero(np.isin(docs, chosen))]
+        assert selected == (N if rows is None else len(rows))
+        want = bn.candidates(codes, qs, min(m, selected), rows)
+        for q in range(len(qs)):
+            got = np.sort(positions[offsets[q] : offsets[q + 1]])
+            np.testing.assert_array_equal(got, want[q])
+            assert got.tolist() == (sorted(rows) if rows else list(range(N)))[: min(m, selected)]
+
+
+def test_the_candidates_of_a_view_are_those_of_the_whole_store(tmp_path):
+    whole, parts = vector_parts(tmp_path)
+    fse.add_sign_bits(parts[1])
+    qs = np.random.default_rng(6).standard_normal((3, 17)).astype(np.float32)
+    with (
+        fse.VectorStore.open(whole) as one,
+        fse.VectorStore.open_view(parts) as view,
+        expect_log("store.bits_derived") as warned,
+    ):
+        for m in (4, 13, 40):
+            a = _binary_search.candidates(one, one._shards, qs, m, None, "rows", workers=2)
+            b = _binary_search.candidates(view, view._shards, qs, m, None, "rows", workers=2)
+            np.testing.assert_array_equal(a[1], b[1])
+            for q in range(len(qs)):
+                np.testing.assert_array_equal(
+                    np.sort(a[0][a[1][q] : a[1][q + 1]]), np.sort(b[0][b[1][q] : b[1][q + 1]])
+                )
+    assert len(warned) == 2  # one per store object
+
+
+def test_the_candidate_bound_admits_exactly_one_query_at_the_limit(monkeypatch):
+    per_query = 6 * _binary_search.CANDIDATE_ENTRY_BYTES
+    monkeypatch.setattr(_binary_search, "CANDIDATE_BYTES", per_query)
+    assert _binary_search.group_size(3, 2, 6) == 1
+    monkeypatch.setattr(_binary_search, "CANDIDATE_BYTES", per_query - 1)
+    with pytest.raises(ValueError, match="lower oversample"):
+        _binary_search.group_size(3, 2, 6)

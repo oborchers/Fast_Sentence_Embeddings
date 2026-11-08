@@ -42,8 +42,8 @@ MAX_ROWS = 1 << POSITION_BITS
 _MASK = np.int64(MAX_ROWS - 1)
 CANDIDATE_BYTES = 64 << 20  # what the candidates of one group of queries may hold
 # Bytes per candidate of a query: while merging, the buffer of ``m + rows`` keys (at most 16)
-# and the result being added (at most 8); while the candidate set is written, the kept keys
-# (8) and the positions (8).
+# and the result being added (at most 8); while the candidate set is written, the buffer (at
+# most 16, released block by block) and the positions (8).
 CANDIDATE_ENTRY_BYTES = 24
 MAX_GROUP = 256  # queries of a group, one block of queries
 _DISTANCE_ENTRIES = 1 << 18  # distances of one task: rows times queries (1 MiB of int32)
@@ -154,7 +154,7 @@ class _Keep:
     """The best ``m`` keys of every query so far, per block of queries. One buffer of
     ``m + min(m, rows of a result)`` rows per block of queries receives every result after
     the kept keys and is partitioned in place back to ``m`` rows when it overflows, so
-    merging allocates nothing."""
+    merging allocates no array of the size of the buffer."""
 
     def __init__(self, m: int, result_rows: int):
         self.m, self.extra = m, min(m, result_rows)
@@ -164,7 +164,10 @@ class _Keep:
     def add(self, start: int, keys: ndarray) -> None:
         buffer = self.buffer.get(start)
         if buffer is None:
-            buffer = self.buffer[start] = np.empty((self.m + self.extra, keys.shape[1]), np.int64)
+            shape = (self.m + self.extra, keys.shape[1])
+            # Column-major: every query is contiguous along axis 0, so the in-place partition
+            # needs no temporary copy of its column.
+            buffer = self.buffer[start] = np.empty(shape, np.int64, order="F")
             self.size[start] = 0
         at = self.size[start]
         buffer[at : at + len(keys)] = keys
