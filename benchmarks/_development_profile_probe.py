@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from _harness.records import atomic, document
@@ -29,7 +30,16 @@ def child(file):
         result = {"version": memray.__version__, "path": memray.__file__}
     else:
         raise ValueError("unknown profile probe action")
-    atomic(Path(job["receipt"]), result)
+    atomic(
+        Path(job["receipt"]),
+        {
+            **result,
+            "diagnostic_profile": True,
+            "valid_for_comparison": False,
+            "diagnostic_pid": os.getpid(),
+            "diagnostic_parent_pid": os.getppid(),
+        },
+    )
 
 
 def access_program(path, receipt):
@@ -37,7 +47,7 @@ def access_program(path, receipt):
     path.write_text(
         "import json, os, time\n"
         f"with open({str(receipt)!r}, 'x') as stream:\n"
-        "    json.dump({'diagnostic_pid': os.getpid(), 'diagnostic_parent_pid': os.getppid()}, stream)\n"
+        "    json.dump({'diagnostic_pid': os.getpid(), 'diagnostic_parent_pid': os.getppid(), 'diagnostic_profile': True, 'valid_for_comparison': False}, stream)\n"
         "until = time.monotonic() + 1.5\n"
         "while time.monotonic() < until:\n"
         "    values = [str(i) for i in range(1000)]\n"
