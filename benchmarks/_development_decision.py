@@ -9,9 +9,7 @@ from _harness.records import append, atomic
 
 
 def judge(cell, aa, main, confirmation, functional=False):
-    result = practical(
-        cell, nonregression(cell, decide(cell, aa, main, confirmation))
-    )
+    result = practical(cell, nonregression(cell, decide(cell, aa, main, confirmation)))
     if functional:
         result["decision"] = "functional_only"
     gate = result.get("practical")
@@ -53,9 +51,11 @@ def finish(ledger):
 
 def overall_of(ledger):
     return evaluate(
-        ledger.contract["decision"], ledger.finished,
+        ledger.contract["decision"],
+        ledger.finished,
         [c["id"] for c in ledger.contract["cells"]],
-        ledger.contract.get("functional_only", False), ledger.contract["local_phase"],
+        ledger.contract.get("functional_only", False),
+        ledger.contract["local_phase"],
         getattr(ledger, "stopped_after", None),
     )
 
@@ -109,8 +109,11 @@ def replay(results):
     result = {"cells": decisions}
     if "decision" in contract:
         result["overall"] = evaluate(
-            contract["decision"], rows, [c["id"] for c in contract["cells"]],
-            contract.get("functional_only", False), contract["local_phase"],
+            contract["decision"],
+            rows,
+            [c["id"] for c in contract["cells"]],
+            contract.get("functional_only", False),
+            contract["local_phase"],
         )
     return result
 
@@ -119,10 +122,14 @@ def _replay_cell(results, contract, row):
     from _harness.records import document
 
     if all(isinstance(row.get(k), dict) for k in ("aa", "comparison", "confirmation")):
-        return judge(row, row["aa"], row["comparison"], row["confirmation"],
-                     row.get("functional_only", False))
+        return judge(
+            row,
+            row["aa"],
+            row["comparison"],
+            row["confirmation"],
+            row.get("functional_only", False),
+        )
     if contract.get("local_phase") == "screen" and isinstance(row.get("comparison"), dict):
-        control = document(results / (row["cell_id"] + "-aa.json"))
+        control = document(results / (row["cell_id"] + "-comparison.json"))["control"]
         return screen(row, control["aa"], row["comparison"], row.get("functional_only", False))
-    return {"decision": row.get("decision", "not_run"), "status": row["status"],
-            "replayed": False}
+    return {"decision": row.get("decision", "not_run"), "status": row["status"], "replayed": False}

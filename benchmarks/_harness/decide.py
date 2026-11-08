@@ -10,8 +10,16 @@ import math
 
 # These profiles run through the development controller's paired comparison.
 PAIRED_PROFILES = {
-    "standard@1", "encoder@1", "document-ids@1", "document-ids-1m@1", "length-report@1", "linear-heads@1", "linear-heads-multi@1",
-    "linear-heads-scores@1", "int8-prefilter-search@1", "document-search-cost@1",
+    "standard@1",
+    "encoder@1",
+    "document-ids@1",
+    "document-ids-1m@1",
+    "length-report@1",
+    "linear-heads@1",
+    "linear-heads-multi@1",
+    "linear-heads-scores@1",
+    "int8-prefilter-search@1",
+    "document-search-cost@1",
 }
 FULL_PHASES = {"all", "compare", "confirm"}
 
@@ -43,6 +51,10 @@ def validate(rule, cells):
         if name not in by_name:
             raise ValueError(f"unknown decision cell: {name}")
         _validate_role(by_name[name], name in main)
+    _validate_edges(edge)
+
+
+def _validate_edges(edge):
     for bound in edge.values():
         if not isinstance(bound, dict) or set(bound) != {"min_factor"}:
             raise ValueError("edge requires exactly min_factor")
@@ -119,9 +131,12 @@ def evaluate(rule, rows, selected, functional=False, phase="all", stopped_after=
     complete = all(value in ("pass", "fail") for value in roles.values())
     decision = _overall(roles, functional)
     return {
-        "rule": rule, "decision": decision,
-        "final": decision in ("reject", "enable"), "complete": complete,
-        "roles": roles, "stopped_after": stopped_after,
+        "rule": rule,
+        "decision": decision,
+        "final": decision in ("reject", "enable"),
+        "complete": complete,
+        "roles": roles,
+        "stopped_after": stopped_after,
     }
 
 
