@@ -134,8 +134,20 @@ class Runner:
         file, receipt = folder / "check.py", folder / "receipt.json"
         access_program(file, receipt)
         target = [self.spec["python"], "-I", str(file)]
-        meta = self.launch(command(self.spec, executable, folder, target), "access")
-        result = self.inspect(folder, document(receipt), meta, profiler)
+        try:
+            meta = self.launch(command(self.spec, executable, folder, target), "access")
+            result = self.inspect(folder, document(receipt), meta, profiler)
+        except Exception as error:
+            atomic(
+                self.root / "check.json",
+                {
+                    "requested": self.spec["requested"],
+                    "valid": False,
+                    "reason": type(error).__name__,
+                    "error": str(error),
+                },
+            )
+            raise
         atomic(self.root / "check.json", result)
         return result
 
@@ -146,7 +158,7 @@ def _operations(runner, check_only, result):
     origin = None if check_only else resolve(spec)
     extra = lock_packages(spec["extra_lock"]) if spec["tool"] == "memray" else {}
     with held(
-        runner.state, spec["name"], "profile " + spec["name"], runner.notify, runner.deadline - 30
+        runner.state, spec["name"], "profile " + spec["name"], runner.notify, runner.deadline
     ):
         profiler = runner.profiler()
         if spec["extra_lock"] is not None:
