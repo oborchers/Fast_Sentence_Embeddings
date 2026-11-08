@@ -225,7 +225,7 @@ def _log_entry(width, k, read, pairs, fallback, workers) -> None:
         rows=read,
         pairs=pairs,
         fallback=fallback,
-        workers=workers,
+        workers=_search.count(workers),
     )
 
 
@@ -236,12 +236,12 @@ def _log_search(width, k, rows, workers) -> None:
         width,
         k,
         rows,
-        workers,
+        _search.count(workers),
         queries=width,
         k=k,
         mode="exact",
         rows=rows,
-        workers=workers,
+        workers=_search.count(workers),
     )
 
 
@@ -266,7 +266,7 @@ def search(
     values: ndarray | None,
     kind: str,
     *,
-    workers: int,
+    workers: Any,
     exact: bool,
     grouped: bool,
 ) -> tuple[ndarray, ndarray] | None:

@@ -29,7 +29,7 @@ from numpy import ndarray
 
 from fse import _codes, _log
 from fse._container import NpyContainer
-from fse._cpus import usable_cpus
+from fse._runtime import Pool, workers_of
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _search, _take, _vector_batches
@@ -123,6 +123,7 @@ class VectorStore(MemberReaders):
         doc_ids: Any = None,
         rows: Any = None,
         max_per_doc: PositiveInt | None = None,
+        pool: Pool | None = None,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
@@ -143,6 +144,10 @@ class VectorStore(MemberReaders):
         smaller id), each hit of a different document. Only 1 is allowed in this version;
         larger values may be added later. It combines with ``doc_ids`` and ``rows``: the
         rows are selected first, then grouped.
+
+        ``pool`` (an ``fse.Pool``) runs the tasks on its threads instead of threads of the
+        call, at most ``workers`` (by default ``pool.workers``) at once; a bit-defined call gives
+        the same bits as without it, ``"blas"`` stays close as without it. See docs/architecture/store.md, "Concurrency".
         """
         return search_store(
             self,
@@ -153,6 +158,7 @@ class VectorStore(MemberReaders):
             doc_ids=doc_ids,
             rows=rows,
             max_per_doc=max_per_doc,
+            pool=pool,
         )
 
     @validate_arguments
@@ -165,6 +171,7 @@ class VectorStore(MemberReaders):
         *,
         workers: PositiveInt | None = None,
         max_per_doc: PositiveInt | None = None,
+        pool: Pool | None = None,
     ) -> SearchResult:
         """The ``k`` best rows of every query among its own ``candidates``, scored exactly:
         the result of ``search(query, k, mode="exact", rows=sorted(set(candidates) - {-1}))``,
@@ -176,8 +183,10 @@ class VectorStore(MemberReaders):
         holds ``min(k, candidates)`` rows (``max_per_doc=1``: ``min(k, documents)``). A
         matrix result is as wide as the longest list, filled up on the right with ids
         ``-1``, scores ``-inf`` and document IDs ``-1``; a single query is not filled up.
-        Keep ``candidates`` unchanged until the call returns."""
-        return rescore_store(self, queries, candidates, k, workers=workers, max_per_doc=max_per_doc)
+        Keep ``candidates`` unchanged until the call returns. ``pool`` as for ``search``."""
+        return rescore_store(
+            self, queries, candidates, k, workers=workers, max_per_doc=max_per_doc, pool=pool
+        )
 
     @validate_arguments
     def score(
@@ -187,13 +196,15 @@ class VectorStore(MemberReaders):
         *,
         workers: PositiveInt | None = None,
         mode: Literal["auto", "exact", "blas"] = "auto",
+        pool: Pool | None = None,
     ) -> ndarray:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one
         per vector): shape (rows,) or (rows, vectors). ``mode`` as for ``search``: exact
         for up to 8 weight vectors by default, BLAS above. Every row is scored;
-        ``get_doc_ids`` returns the labels of the rows.
+        ``get_doc_ids`` returns the labels of the rows. ``pool`` as for ``search``.
         """
+        threads = workers_of(workers, pool)  # before anything is read
         self._check_open()
         matrix, single = _search.queries(self._backend, self.dim, weights, "weights")
         with self._using() as shards:
@@ -202,7 +213,7 @@ class VectorStore(MemberReaders):
                 shards,
                 matrix,
                 bias,
-                workers=workers or usable_cpus(),
+                workers=threads,
                 exact=_search.is_exact(mode, len(matrix)),
             )
         return out[:, 0] if single else out
