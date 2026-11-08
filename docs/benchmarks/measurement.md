@@ -505,7 +505,7 @@ The core holds no limit. The values live in the data of the allocation. Those of
 Use the exact image digest from `pins.json`, Linux amd64, at most two CPU quota units and four GiB RAM. Give the ST process pool at least one GiB `/dev/shm` and an adequate hard `nofile` limit. Inputs and generated outputs stay outside the repository. The production memory plan remains attached even though the actual rehearsal data are small.
 
 ```sh
-/speed-env/main/bin/python /source/benchmarks/speed.py --rehearse --study all \
+/speed-env/main/bin/python /source/benchmarks/speed.py --rehearse --study libraries \
   --results /proof/speed-results --work /proof/speed-work \
   --reference-python /speed-env/reference/bin/python --allocated-at "$MEASURE_ALLOCATED_AT"
 /quality-env/main/bin/python /source/benchmarks/quality.py --rehearse \
@@ -513,7 +513,7 @@ Use the exact image digest from `pins.json`, Linux amd64, at most two CPU quota 
   --allocated-at "$MEASURE_ALLOCATED_AT"
 ```
 
-The speed rehearsal runs all configured pairs, dtype controls and writing with reduced sizes. The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler, budget gate and allocation runner (normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1). The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
+The speed rehearsal runs the configured pairs of the selected study with reduced sizes; `--study all` adds dtype controls and writing, and needs `--base-python` (for the `versions` cells) and a candidate fse with `fse.Heads` (for the `heads` cells). The bekko cells need a container of about 6 GiB, which is an exception to the four GiB rule of the rehearsal machine check and needs the maintainer's approval each time (the check in `allocation.json` stays at four GiB). The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler, budget gate and allocation runner (normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1). The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
 
 Do not add repository tests for these measurement tools. Run the functional modes and the ordinary repository gates. These tools do not change the fse hot path, so no local performance result is required for moving them.
 
