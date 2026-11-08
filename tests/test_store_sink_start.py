@@ -43,6 +43,11 @@ def _commit(sink, count):
     sink.commit(0, target)
 
 
+def _commit_and_flush(sink):
+    _commit(sink, 4)
+    sink.flush()  # the publish start happens in the hash thread
+
+
 def test_partial_shard_starts_only_write_and_hash_then_flush_starts_publish(sink):
     assert all(t.ident is None for t in _threads(sink))
     _commit(sink, 1)
@@ -66,8 +71,7 @@ def test_each_start_failure_reaches_caller_and_close_cleans_shards(sink, monkeyp
     monkeypatch.setattr(worker._thread, "start", fail)
     with captured() as records:
         with pytest.raises(RuntimeError, match=f"cannot start {stage}") as raised:
-            _commit(sink, 4)
-            sink.flush()  # the publish start happens in the hash thread
+            _commit_and_flush(sink)
         assert raised.value is root
         assert worker.failed
         assert sink._committed == (4 if stage == "publish" else 0)

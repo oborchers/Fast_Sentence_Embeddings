@@ -147,7 +147,8 @@ def test_start_serializes_with_another_first_submit_or_stop(monkeypatch, competi
         release.set()
         first_thread.join(10)
         second_thread.join(10)
-        assert not first_thread.is_alive() and not second_thread.is_alive()
+        assert not first_thread.is_alive()
+        assert not second_thread.is_alive()
         assert errors == []
         writer.drain()
         assert calls == [1]
