@@ -71,6 +71,16 @@ def profile_utility(args):
     return None
 
 
+def child_job(file):
+    job = document(file)
+    if job.get("kind") == "profile-input":
+        from _speed_profile import input_child
+
+        input_child(job)
+    else:
+        measure_child(job)
+
+
 def main():
     args = arguments()
     profile_status = profile_utility(args)
@@ -82,13 +92,7 @@ def main():
     if utility(args, "speed"):
         return 0
     if args.child_job:
-        job = document(args.child_job)
-        if job.get("kind") == "profile-input":
-            from _speed_profile import input_child
-
-            input_child(job)
-        else:
-            measure_child(job)
+        child_job(args.child_job)
         return 0
     specification = contract(args.input)
     if (
