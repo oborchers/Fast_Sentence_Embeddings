@@ -76,7 +76,7 @@ def test_nested_backfill_refused_before_any_write(tmp_path, sizes):
 
         future = pool.submit(nested)
         with pytest.raises(RuntimeError, match="same pool"):
-            future.result(timeout=10)
+            assert other.join() == {"other": 2}
         assert not list(path.glob("*sign_bits-*"))
         assert fse.add_sign_bits(path, workers=1, pool=pool) == len(sizes)
 
@@ -111,9 +111,14 @@ def test_backfill_waits_for_a_shared_place(tmp_path, monkeypatch):
 def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monkeypatch, error_type):
     path = tmp_path / "store"
     signed_store(path, sizes=(5, 3, 2, 4))
+    other_path = tmp_path / "other"
+    signed_store(other_path, sizes=(5, 3))
     condition = threading.Condition()
     release = False
     started = threading.Event()
+    independent = threading.Event()
+    done = threading.Event()
+    other_waits = []
     waiting = []
     owners = []
     real_write = _bits_write._write
@@ -121,9 +126,16 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
 
     def init(self, pool):
         real_init(self, pool)
-        owners.append((self.ended, blocked_in_wait(self.ended, "backfill")))
+        if threading.current_thread().name == "backfill":
+            owners.append((self.ended, blocked_in_wait(self.ended, "backfill")))
 
     def write(tmp, *args, **kwargs):
+        if tmp.parent == other_path:
+            if "0000000000000000" in tmp.name:
+                other_waits.append(blocked_in_wait(done._cond, threading.current_thread().name))
+                independent.set()
+                assert done.wait(10)
+            return real_write(tmp, *args, **kwargs)
         if "0000000000000000" in tmp.name:
             assert started.wait(10)
             assert arrived(waiting[0], condition)
@@ -139,17 +151,9 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
     monkeypatch.setattr(_search_run._Own, "__init__", init)
     monkeypatch.setattr(_bits_write, "_write", write)
     with fse.Pool(4) as pool:
-        independent = threading.Event()
-        done = threading.Event()
-        other_waits = []
-
-        def other():
-            with pool.inside():
-                other_waits.append(blocked_in_wait(done._cond, threading.current_thread().name))
-                independent.set()
-                assert done.wait(10)
-
-        future = pool.submit(other)
+        other = Readers(
+            {"other": lambda: fse.add_sign_bits(other_path, workers=2, pool=pool)}
+        ).start()
         assert independent.wait(10)
         assert arrived(other_waits[0], done._cond)
         readers = Readers(
@@ -167,12 +171,12 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
         try:
             with pytest.raises(error_type, match="failed writer"):
                 readers.join()
-            assert not future.done()  # failed backfill did not wait for the independent task
+            assert other.threads[0].is_alive()  # the independent call still owns its writer
             assert not list(path.glob(".sign_bits-*"))
             assert pool.try_acquire()
             pool.release()
         finally:
             done.set()
-            future.result(timeout=10)
+            assert other.join() == {"other": 2}
     monkeypatch.undo()
     assert fse.add_sign_bits(path, workers=1) >= 1
