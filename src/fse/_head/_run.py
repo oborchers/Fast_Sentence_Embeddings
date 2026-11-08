@@ -137,12 +137,16 @@ def infer(
     sink: Any,
     settings: LengthSettings | None = None,
     method: str = "predict",
+    *,
+    return_vectors: bool = False,
 ) -> Any:
     """``output`` of every text of ``texts`` (or row of a store): an array, or None when
     ``sink`` took them (its ``flush`` runs after the last row). With a level of ``settings``
     the pair of it and the ``LengthReport``."""
     check_workers(workers)
     check_backend(backend)
+    if return_vectors:
+        _check_predict_vectors(model, texts, sink)
     if sink is not None:
         check_output_sink(model, sink, output)
     if isinstance(texts, VectorStore):
@@ -154,10 +158,10 @@ def infer(
             else:
                 _commit(sink, first_row, block)
         return _joined(model, parts, output, sink)
-    head = model._pipeline(backend, with_vectors=False)
+    head = model._pipeline(backend, with_vectors=return_vectors)
     collector = None if settings is None else settings.collector(0, rule(model))
     with opened(texts, model._tokenizer) as source:
-        rows, _ = head.infer(
+        rows, vectors = head.infer(
             source,
             output=RUNTIME[output],
             workers=workers,
@@ -168,7 +172,24 @@ def infer(
     if sink is not None:
         flush(sink)
     found = None if sink is not None else finish(model, rows, output)
-    return found if collector is None else (found, collector.report())
+    return predict_result(found, vectors, return_vectors, collector)
+
+
+def _check_predict_vectors(model: Any, texts: Any, sink: Any) -> None:
+    if isinstance(texts, VectorStore):
+        raise ValueError("a store holds the vectors already; read them with get_vectors")
+    if model.standalone:
+        raise ValueError("a standalone model has no vectors: its table is folded")
+    if sink is not None:
+        raise ValueError("sink= takes the values; use predict_batches or vector_sink= for vectors")
+
+
+def predict_result(found: Any, vectors: Any, return_vectors: bool, collector: Any) -> Any:
+    """The flat return tuple of predict, with the optional report last."""
+    result = (found, vectors) if return_vectors else (found,)
+    if collector is not None:
+        return (*result, collector.report())
+    return result if return_vectors else found
 
 
 def _joined(model: Any, parts: list, output: str, sink: Any) -> Any:

@@ -4,8 +4,9 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Serve development lock waiters in registration order and report queue position (DR-315: Wartende an der Heavy-Sperre in Ankunftsreihenfolge bedienen). Canceled and crashed waiters leave the queue; existing lock owners are never taken over. FIFO requires draining old waiting controllers and wrappers before rollout. Measurement tooling only.
+- Return `(result, vectors)` from `Heads.predict`, `Classifier.predict` and `Regressor.predict` with `return_vectors=True` and no sinks (DR-312: return_vectors=True in Heads.predict ohne Sinks nicht still übergehen); previously the call raised ValueError. With lengths the return is `(result, vectors, LengthReport)`. Outputs and encoder vectors match `predict_batches(return_vectors=True)` bit for bit, including the unfolded path of raw-mean heads. Resume sink returns stay unchanged. Standalone heads, VectorStore inputs and `Regressor.predict(sink=...)` refuse this switch.
 
+- Serve development lock waiters in registration order and report queue position (DR-315: Wartende an der Heavy-Sperre in Ankunftsreihenfolge bedienen). Canceled and crashed waiters leave the queue; existing lock owners are never taken over. FIFO requires draining old waiting controllers and wrappers before rollout. Measurement tooling only.
 
 - Reuse the shared pool for text scans and add `pool=` to `fse.add_sign_bits` (DR-309: Gemeinsamen Pool auch für die Text-Zerlegung und add_sign_bits nutzen). File, encoded-string and Arrow scans use the pool threads and task places before encoding. Batch iterators scan on their iteration pool; `StreamSource` collections still scan inline. Sign-bit backfills share the pool limits and leave it open, including after failures. Chunks, error order and output bytes stay unchanged.
 

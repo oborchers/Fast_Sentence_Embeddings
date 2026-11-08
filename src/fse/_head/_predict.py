@@ -42,13 +42,85 @@ class _Predicting:
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
-        return_vectors: bool = False,
+        return_vectors: Literal[False] = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
     ) -> ndarray: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[True],
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[ndarray, ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> ndarray | tuple[ndarray, ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Level,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[False] = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[ndarray, LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Level,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[True],
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[ndarray, ndarray, LengthReport]: ...
 
     @overload
     def predict(
@@ -66,7 +138,7 @@ class _Predicting:
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray, LengthReport]: ...
+    ) -> tuple[ndarray, LengthReport] | tuple[ndarray, ndarray, LengthReport]: ...
 
     @overload
     def predict(
@@ -132,18 +204,28 @@ class _Predicting:
         With a ``score_sink`` (``fse.ScoreSink(path, classifier, name=..., resume=True)``) or
         a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
         see ``Heads.predict`` for ``vector_sink``, ``score_sink``, ``doc_ids``, ``shard`` and
-        ``return_vectors``."""
+        ``return_vectors``.
+
+        Without sinks, ``return_vectors=True`` returns ``(labels, vectors)`` or, with
+        ``lengths``, ``(labels, vectors, fse.LengthReport)``. Otherwise the result is
+        ``labels`` or ``(labels, fse.LengthReport)``. Vectors are the encoder's float32
+        rows, bit for bit as in ``predict_batches(return_vectors=True)``. Raw-mean heads
+        then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
+        Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
+        Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
+        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors."""
         threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        if _resume_run.wanted(
-            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
-        ):
+        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard):
             return _resume_run.predict_lone(
                 self, texts, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _run.infer(self, texts, "labels", threads, backend, None, settings, method)
+        return _run.infer(
+            self, texts, "labels", threads, backend, None, settings, method,
+            return_vectors=return_vectors,
+        )  # fmt: skip
 
     @overload
     def predict_proba(
