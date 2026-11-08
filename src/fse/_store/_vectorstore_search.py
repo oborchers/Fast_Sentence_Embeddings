@@ -17,7 +17,7 @@ from typing import Any
 
 from fse._runtime import Pool, workers_of
 
-from . import _filtered, _prefilter, _rescore, _search, _selection, _unique_search
+from . import _binary_search, _filtered, _prefilter, _rescore, _search, _selection, _unique_search
 from ._recovery import rows_in
 from ._result import DocumentSearchResult, SearchResult
 
@@ -32,8 +32,11 @@ def search_store(
     doc_ids: Any,
     rows: Any,
     max_per_doc: int | None,
+    oversample: int | None = None,
     pool: Pool | None = None,
 ) -> SearchResult:
+    if oversample is not None and mode != "binary":
+        raise ValueError('oversample needs mode="binary"')
     threads = workers_of(workers, pool)  # before anything is read
     store._check_open()
     matrix, single = _search.queries(store._backend, store.dim, queries, "queries")
@@ -41,6 +44,10 @@ def search_store(
         values, kind = _selection.plan(
             store._info.has_doc_ids, doc_ids, rows, max_per_doc, rows_in(shards)
         )
+        if mode == "binary":
+            return _binary(
+                store, shards, matrix, single, k, oversample, values, kind, max_per_doc, threads
+            )
         exact = _search.is_exact(mode, len(matrix))
         if max_per_doc is not None:
             found = _unique_search.search(
@@ -88,6 +95,27 @@ def search_store(
         if store._info.has_doc_ids:
             return DocumentSearchResult(ids, scores, _filtered.document_ids(shards, ids))
         return SearchResult(ids, scores)
+
+
+def _binary(store, shards, matrix, single, k, oversample, values, kind, max_per_doc, threads):
+    found = _binary_search.search(
+        store,
+        shards,
+        matrix,
+        k,
+        _binary_search.DEFAULT_OVERSAMPLE if oversample is None else oversample,
+        values,
+        kind,
+        max_per_doc=max_per_doc,
+        workers=threads,
+    )
+    if single:
+        ids, scores, labels = found[0]
+    else:
+        ids, scores, labels = _rescore.pad(found, store._info.has_doc_ids)
+    if labels is not None:  # the store has document IDs
+        return DocumentSearchResult(ids, scores, labels)
+    return SearchResult(ids, scores)
 
 
 def rescore_store(
