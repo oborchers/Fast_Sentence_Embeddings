@@ -30,7 +30,7 @@ def heavy(tmp_path, monkeypatch):
 
 
 def _run(heavy, root, mode, deadline=None):
-    state = SimpleNamespace(number=None, child=None, received_at=None)
+    state = heavy._Signals()
     result, errors = [], []
 
     def worker():
@@ -223,3 +223,56 @@ def test_empty_group_requires_a_complete_process_snapshot(heavy, monkeypatch):
         lambda *_args, **_kwargs: f"{os.getpid()} {os.getpgrp()} S\n",
     )
     assert heavy._zombie_group(999999) is True
+
+
+def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, monkeypatch):
+    real_send, real_sleep, real_drain = heavy._send, heavy.time.sleep, heavy._drain
+    injected = threading.Event()
+    states = []
+
+    def denied(group, signum):
+        if injected.is_set() and signum == signal.SIGINT:
+            assert (tmp_path / "heavy.lock" / "owner").is_file()
+            raise PermissionError("repeated signal denied")
+        return real_send(group, signum)
+
+    def sleep(seconds):
+        if states and not injected.is_set() and (tmp_path / "descendant.pid").exists():
+            injected.set()
+            states[0].receive(signal.SIGINT, None)
+            assert (tmp_path / "heavy.lock" / "owner").is_file()
+        real_sleep(seconds)
+
+    monkeypatch.setattr(heavy, "_send", denied)
+    monkeypatch.setattr(heavy.time, "sleep", sleep)
+    monkeypatch.setattr(
+        heavy, "_drain", lambda child, notify, **kw: real_drain(child, notify, grace=0.2, **kw)
+    )
+    state, thread, result, errors = _run(heavy, tmp_path, "ignore", time.monotonic() + 0.1)
+    states.append(state)
+    try:
+        thread.join(10)
+        assert not thread.is_alive()
+        assert injected.is_set()
+        assert result == []
+        assert len(errors) == 1
+        assert str(errors[0]) == "repeated signal denied"
+        assert not (tmp_path / "heavy.lock").exists()
+        with pytest.raises(ProcessLookupError):
+            os.kill(int((tmp_path / "descendant.pid").read_text()), 0)
+    finally:
+        (tmp_path / "release").touch()
+        thread.join(10)
+
+
+def test_normal_wrapper_preserves_separate_error_stream(heavy, monkeypatch):
+    real = heavy.subprocess.Popen
+    streams = []
+
+    def launch(*args, **kwargs):
+        streams.append(kwargs["stderr"])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(heavy.subprocess, "Popen", launch)
+    assert heavy.run([sys.executable, "-c", "pass"], "test-heavy", lambda _: None) == 0
+    assert streams[0] is None

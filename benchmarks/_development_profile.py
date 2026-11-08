@@ -217,11 +217,20 @@ def _attempt(runner, check_only):
             result["status"] = "inconclusive_budget"
         else:
             result["status"] = "refused" if result.get("phase") == "preflight" else "failed"
-    if runner.state.number is not None:
+    return _terminal(result, runner.state, runner.deadline)
+
+
+def _terminal(result, state, deadline):
+    if state.number is not None:
         result["status"] = "interrupted"
-        result["causes"].append({"signal": runner.state.number})
-    elif time.monotonic() >= runner.deadline - 30:
+        cause = {"signal": state.number}
+        if cause not in result["causes"]:
+            result["causes"].append(cause)
+    elif time.monotonic() >= deadline - 30:
         result["status"] = "inconclusive_budget"
+        cause = {"type": "WallBudgetExpiredError", "reason": "profile admission deadline ended"}
+        if cause not in result["causes"]:
+            result["causes"].append(cause)
     return result
 
 
@@ -267,7 +276,9 @@ def run(file, check_only=False):
             ledger.wall_deadline = deadline
             with beating(ledger.progress):
                 result = _attempt(Runner(spec, state, deadline), check_only)
-                ledger.result(cell, started, **LABEL, decision="diagnostic_profile", **result)
+            state.finish()
+            result = _terminal(result, state, deadline)
+            ledger.result(cell, started, **LABEL, decision="diagnostic_profile", **result)
             return ledger.done()
         except BaseException as error:
             seal_unstarted(root, 1, repr(error))

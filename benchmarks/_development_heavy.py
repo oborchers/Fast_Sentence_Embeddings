@@ -50,12 +50,23 @@ class _Signals:
         self.number = None
         self.child = None
         self.received_at = None
+        self.errors = []
+        self.previous_mask = None
 
     def receive(self, signum, _frame):
         self.received_at = self.received_at or time.monotonic()
         self.number = self.number or signum
         if self.child is not None:
-            _send(self.child.pid, signum)
+            _cleanup_call(lambda: _send(self.child.pid, signum), self.errors)
+
+    def finish(self):
+        # End signal acceptance before committing the terminal records. Restore the
+        # original handlers before delivering signals arriving after this boundary.
+        self.previous_mask = signal.pthread_sigmask(
+            signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM}
+        )
+        for signum in signal.sigpending() & {signal.SIGINT, signal.SIGTERM}:
+            self.receive(signum, None)
 
 
 @contextmanager
@@ -67,6 +78,8 @@ def signals():
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
+        if state.previous_mask is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, state.previous_mask)
 
 
 def _priority(command, notify):
@@ -187,18 +200,24 @@ def execute(command, state, notify, deadline=None, env=None, stdout=None):
     if state.number is not None:
         return 128 + state.number, metadata
     child = subprocess.Popen(
-        command, start_new_session=True, env=env, stdout=stdout, stderr=subprocess.STDOUT
+        command,
+        start_new_session=True,
+        env=env,
+        stdout=stdout,
+        stderr=subprocess.STDOUT if stdout is not None else None,
     )
     state.child = child
-    if state.number is not None:
-        state.receive(state.number, None)
     try:
+        if state.number is not None:
+            state.receive(state.number, None)
         if deadline is None:
             child.wait()
             _wait_group(child.pid)
         else:
             metadata["deadline"], metadata["escalated"] = _bounded(child, state, notify, deadline)
         status = child.wait()
+        if getattr(state, "errors", []):
+            raise state.errors[0]
         notify({**LABEL, "event": "heavy_leader_finished", "pid": child.pid, "exit_status": status})
     except BaseException:
         _drain(child, notify, kill=deadline is not None)
