@@ -177,7 +177,7 @@ The [SIF and uSIF recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/
 
 ## Recipes: from a model to a working application
 
-These nine recipes show the full workflow, including preparation, execution and checks.
+These recipes show the full workflow, including preparation, execution and checks.
 Start with the job you want to do:
 
 | Use case | Recipe |
@@ -193,13 +193,14 @@ Start with the job you want to do:
 | Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
 | External indexes | [Put FAISS, USearch, or hnswlib on your vectors, then let fse give the hits exact scores.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/10-external-ann-indexes.ipynb) |
 | Rerank candidates | [Let fse find 100 candidates, then let a local cross-encoder of your choice put the best ones on top.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/11-reranker-candidates.ipynb) |
+| Filter large text collections | [Store scores with document IDs and change filters without running the encoder again.](recipes/13-filter-texts.ipynb) |
 | FastAPI search | [Answer many searches at once from one store, then from three stores on a shared drive.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/12-fastapi-search.ipynb) |
 
 The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
 The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
 These are worked examples you can adapt, not hosted services.
 
-## Label text with a linear classifier
+## Linear heads: classify text and save scores
 
 Route support requests, filter documents or classify a dataset.
 Train a supported linear model in scikit-learn, then let fse run it directly on text.
@@ -210,6 +211,7 @@ Install `scikit-learn` first: `pip install scikit-learn`.
 
 ```python
 from sklearn.linear_model import LogisticRegression
+import fse
 from fse import Classifier, Encoder
 
 encoder = Encoder.from_pretrained("minishlab/potion-base-8M", normalize=False)
@@ -224,6 +226,87 @@ Train on real labeled data for your application.
 Load the saved model with `Classifier.load("router.safetensors")` and predict without scikit-learn.
 
 The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
+
+### Several heads in one pass
+
+`fse.Heads` groups named heads from the same encoder. Each head keeps its own labels and file.
+The group tokenizes each text once. This tiny training set only demonstrates the API.
+
+```python
+import numpy as np
+from sklearn.multiclass import OneVsRestClassifier
+
+indicator = np.array([[1, 0], [1, 0], [0, 1], [0, 1]])
+model = OneVsRestClassifier(LogisticRegression()).fit(encoder.encode(texts), indicator)
+tags = Classifier.from_sklearn(encoder, model, labels=["support", "sales"])
+heads = fse.Heads(route=classifier, tags=tags)
+outputs = heads.predict(texts, output="proba")  # a mapping, one array per head
+```
+
+### Save scores with document IDs
+
+Store decisions (logits, the values before the probability rule) to derive probabilities and labels later.
+A score store needs no sentence vectors. Use a fresh directory for this example.
+
+```python
+doc_ids = np.array([101, 102, 103, 104], dtype=np.int64)
+with fse.ScoreSink("request-scores", heads=heads, doc_ids=True) as sink:
+    for batch in heads.predict_batches([(texts, doc_ids)], doc_ids=True, score_sink=sink):
+        pass
+scores = fse.ScoreStore.open("request-scores", heads=heads)
+scores.verify()
+np.testing.assert_array_equal(scores.get_doc_ids(), doc_ids)
+```
+
+### Change filters after inference
+
+Multilabel heads test each label independently, strictly above its threshold. Equality is false.
+`predict_batches` derives masks from stored scores. Your code uses a mask to select IDs.
+
+```python
+for batch in scores.predict_batches(thresholds={"tags": {"support": 0.7}}):
+    support = batch.outputs["tags"][:, 0]
+    selected_ids = batch.doc_ids[support]
+scores.close()
+```
+
+Save all scores for unrestricted later thresholds. If you discard rows, softer thresholds cannot recover them from that subset.
+The [filtering tutorial](recipes/13-filter-texts.ipynb) checks this with seven labels on a small Civil Comments sample.
+Its counts demonstrate the workflow, not moderation quality.
+
+### Write vectors and scores in one run
+
+Use two sinks and two folders. `return_vectors=True` computes full sentence vectors, so raw-mean heads take the unfolded path.
+This gives up the narrower pooling of folding. Each folder is durable separately, without an atomic commit across folders.
+`batch.durable_rows` confirms the smaller durable prefix of the two sinks.
+Read the final count from both sinks after the iterator finishes and flushes its last partial shard.
+
+```python
+with fse.ShardSink("request-vectors", encoder, doc_ids=True) as vectors, fse.ScoreSink(
+    "request-scores-with-vectors", heads=heads, doc_ids=True
+) as sink:
+    for batch in heads.predict_batches(
+        [(texts, doc_ids)], doc_ids=True, return_vectors=True,
+        vector_sink=vectors, score_sink=sink,
+    ):
+        confirmed_rows = batch.durable_rows
+    confirmed_rows = min(vectors.durable_rows, sink.durable_rows)  # after the final flush
+```
+
+### Import a linear Model2Vec classifier
+
+A finished Model2Vec classifier with one linear layer can also run through fse.
+Hidden layers are rejected. Pass a trained classification object or its exported pipeline:
+
+```python
+# trained_model2vec is your finished StaticModelForClassification with n_layers=0.
+imported = Classifier.from_model2vec(trained_model2vec)
+imported.save("imported-classifier.safetensors")
+```
+
+For an exported local folder or a Hub repository, use `Classifier.from_pretrained(path_or_repo, revision=commit)`.
+See the [head formats](docs/architecture/formats.md) for supported links and import limits.
+These additions require fse from master until 2.1 is released.
 
 ### Why folding works
 

@@ -2,6 +2,8 @@
 nbclient==0.11.0
 nbformat==5.11.1
 ipykernel==7.4.0
+# tqdm.notebook needs widgets, including when notebooks execute through nbclient.
+ipywidgets==8.1.8
 numpy==2.5.4
 scipy==1.18.1
 scikit-learn==1.9.1
