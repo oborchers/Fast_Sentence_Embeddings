@@ -146,8 +146,8 @@ class VectorStore(MemberReaders):
         rows are selected first, then grouped.
 
         ``pool`` (an ``fse.Pool``) runs the tasks on its threads instead of threads of the
-        call, at most ``workers`` (by default ``pool.workers``) at once; the results are the
-        same bits as without it. See docs/architecture/store.md, "Concurrency".
+        call, at most ``workers`` (by default ``pool.workers``) at once; a bit-defined call gives
+        the same bits as without it, ``"blas"`` stays close as without it. See docs/architecture/store.md, "Concurrency".
         """
         return search_store(
             self,

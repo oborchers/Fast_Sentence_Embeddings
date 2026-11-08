@@ -157,26 +157,96 @@ def test_an_error_of_the_tasks_gives_the_place_back():
         assert free_places(pool) == pool.max_tasks
 
 
-@pytest.mark.parametrize("how", ["close", "collect"])
-def test_a_stream_ended_early_waits_for_its_tasks_and_frees_the_pool(how):
-    started = []
+class Busy:
+    """Tasks of another call that occupy threads of the pool until ``free``, submitted
+    straight to the pool (they take no place of it)."""
 
-    def slow(i):
-        started.append(i)
+    def __init__(self, pool, threads):
+        self.release, self.started = threading.Event(), threading.Semaphore(0)
+        self.futures = [pool.submit(self._block) for _ in range(threads)]
+        for _ in range(threads):
+            assert self.started.acquire(timeout=TIMEOUT)  # every one runs on its thread
+
+    def _block(self):
+        self.started.release()
+        assert self.release.wait(TIMEOUT)
+
+    def running(self):
+        return not any(f.done() for f in self.futures)
+
+    def free(self):
+        self.release.set()
+        for future in self.futures:
+            future.result(TIMEOUT)
+
+
+@pytest.mark.parametrize("how", ["close", "collect", "error"])
+def test_a_stream_ended_early_cancels_waiting_tasks_and_waits_only_for_its_running_one(how):
+    """One thread of the pool is busy with another call. The stream has one task running
+    (held), the next ones submitted but not started. Ending the stream cancels those, waits
+    for the held one, does not wait for the other call, and gives every place back."""
+    held_started, held_free = threading.Event(), threading.Event()
+    ran, done = [], []
+
+    def task(i):
+        ran.append(i)
+        if i == 1:
+            held_started.set()
+            assert held_free.wait(TIMEOUT)
+            done.append(1)  # the held task has ended
         return i
 
-    with Pool(2) as pool:
-        stream = _search_run.run(slow, range(1000), Workers(2, pool), "t")
-        assert next(stream) == 0
-        if how == "close":
-            stream.close()
-        else:
-            del stream
-        count = len(started)
-        assert count < 20
-        assert free_places(pool) == pool.max_tasks  # no task of the stream holds a place
+    with Pool(2, max_tasks=6) as pool:
+        other = Busy(pool, 1)
+        streams = [_search_run.run(task, range(100), Workers(2, pool), "t")]
+        assert next(streams[0]) == 0
+        assert held_started.wait(TIMEOUT)
+        ended = {}
+
+        def end():
+            if how == "close":
+                streams[0].close()
+            elif how == "collect":
+                streams.clear()  # the last reference: the generator is finalized here
+            else:
+                with pytest.raises(ZeroDivisionError):
+                    streams[0].throw(ZeroDivisionError())
+            ended["held_done_first"] = 1 in done
+
+        closer = threading.Thread(target=end)
+        closer.start()
+        held_free.set()
+        closer.join(TIMEOUT)
+        assert not closer.is_alive()
+        assert ended["held_done_first"]
+        assert ran == [0, 1]  # the submitted tasks after the held one never started
+        assert other.running()  # the other call was not waited for
+        assert free_places(pool) == pool.max_tasks
+        other.free()
         assert squares(4, Workers(2, pool)) == [0, 1, 4, 9]
-        assert len(started) == count  # nothing of the stream ran after it ended
+
+
+def test_an_interrupt_while_waiting_cancels_every_task_not_started(monkeypatch):
+    """Every thread is busy with another call, so the tasks of the call wait unstarted; an
+    interrupt while it waits for the oldest cancels all of them (also that oldest one) and
+    the call ends without waiting for the other call."""
+    real = _search_run._taken
+
+    def interrupted(_future):
+        raise KeyboardInterrupt
+
+    ran = []
+    with Pool(3, max_tasks=4) as pool:
+        other = Busy(pool, 3)
+        monkeypatch.setattr(_search_run, "_taken", interrupted)
+        with pytest.raises(KeyboardInterrupt):  # two tasks, both submitted: it waits for them
+            list(_search_run.run(ran.append, range(2), Workers(3, pool), "t"))
+        monkeypatch.setattr(_search_run, "_taken", real)
+        assert other.running()
+        assert free_places(pool) == 4
+        other.free()
+        assert ran == []
+        assert squares(3, Workers(2, pool)) == [0, 1, 4]
 
 
 def test_a_call_between_two_blocks_of_a_stream_on_the_same_pool_finds_places():
@@ -257,12 +327,22 @@ def test_a_call_waits_for_a_place_held_by_another_and_then_runs():
         def second():
             outcome["b"] = squares(4, Workers(2, pool))
 
+        waiting, real = threading.Event(), pool.acquire
+
+        def acquire():  # the blocking wait for a place, entered by the waiter
+            if threading.current_thread().name == "waiter":
+                waiting.set()
+            real()
+
+        pool.acquire = acquire
         holder = threading.Thread(target=first)
         holder.start()
         assert entered.wait(TIMEOUT)
         assert free_places(pool) == 0  # the running task holds the only place
-        waiter = threading.Thread(target=second)
+        waiter = threading.Thread(target=second, name="waiter")
         waiter.start()
+        assert waiting.wait(TIMEOUT)  # it has nothing of its own, so it waits for a place
+        assert outcome == {}
         release.set()
         holder.join(TIMEOUT)
         waiter.join(TIMEOUT)

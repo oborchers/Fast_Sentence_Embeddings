@@ -92,54 +92,72 @@ def _own_threads(fn: Callable[[Any], Any], tasks: Iterator[Any], workers: int, n
 
 
 class _Own:
-    """The tasks one call submitted to a pool: how many have not finished, and an event set
-    whenever one finishes. Each gives its place back when it ends (run, failed or
-    cancelled), in the thread that ends it."""
+    """The tasks one call submitted to a pool and that have not ended. A task gives its place
+    back in its worker when it ends (run or failed), or here when it is cancelled before it
+    started: exactly once, also when an interrupt hits the calling thread meanwhile."""
 
     def __init__(self, pool: Pool):
         self.pool = pool
-        self.lock = threading.Lock()
-        self.futures: set[Future] = set()
-        self.changed = threading.Event()
+        self.ended = threading.Condition()
+        self.unended = 0  # submitted, neither ended nor cancelled
+        self.futures: set[Future] = set()  # to cancel; a finished one may linger, harmlessly
+        self.changed = threading.Event()  # a task finished: wakes the call (or its poll does)
 
     def submit(self, fn: Callable[[Any], Any], task: Any) -> Future:
         """``fn(task)`` on the pool, on a place the caller took."""
+        with self.ended:
+            self.unended += 1
         try:
             future = self.pool.submit(self._work, fn, task)
         except BaseException:
-            self.pool.release()
+            self._end()
             raise
-        with self.lock:
-            self.futures.add(future)  # before the callback: it may run at once
+        with self.ended:
+            self.futures.add(future)
         future.add_done_callback(self._finished)
         return future
 
     def _work(self, fn: Callable[[Any], Any], task: Any) -> Any:
-        with self.pool.inside():
-            return fn(task)
+        try:
+            with self.pool.inside():
+                return fn(task)
+        finally:
+            self._end()
+
+    def _end(self) -> None:
+        self.pool.release()  # first: once no task is left, every place is back
+        with self.ended:
+            self.unended -= 1
+            self.ended.notify_all()
 
     def _finished(self, future: Future) -> None:
-        self.pool.release()  # first: once no future is left, every place is back
-        with self.lock:
+        with self.ended:
             self.futures.discard(future)
         self.changed.set()
 
     def unfinished(self) -> int:
-        with self.lock:
-            return len(self.futures)
+        with self.ended:
+            return self.unended
 
-    def settle(self, pending: deque) -> None:
-        """Cancel the tasks that have not started and wait for the running ones: nothing of
-        this call outlives it. A second interrupt stops the wait, not the places: each
-        comes back when its task ends."""
-        for future in pending:
-            future.cancel()
-        while True:
-            with self.lock:
-                running = list(self.futures)
-            if not running:
-                return
-            wait(running, timeout=_POLL_SECONDS)
+    def settle(self) -> None:
+        """Cancel every task of this call that has not started and wait for the running ones:
+        nothing of this call outlives it, and the tasks of other calls are not waited for.
+        A second interrupt stops the wait, not the places: each comes back when its task
+        ends."""
+        with self.ended:
+            mine = list(self.futures)
+        for future in mine:  # outside the lock: a cancel runs the callbacks at once
+            if future.cancel():
+                self._end()
+        with self.ended:
+            while self.unended:
+                self.ended.wait(_POLL_SECONDS)
+
+
+def _taken(future: Future) -> None:
+    """Wait for ``future`` in steps, so an interrupt reaches the calling thread."""
+    while not future.done():
+        wait([future], timeout=_POLL_SECONDS)
 
 
 def _on_pool(fn: Callable[[Any], Any], tasks: Iterator[Any], threads: Workers) -> Iterator[Any]:
@@ -148,7 +166,8 @@ def _on_pool(fn: Callable[[Any], Any], tasks: Iterator[Any], threads: Workers) -
     pool.check_open()
     with pool.inside():  # refused inside a call or a task of the same pool
         pass
-    own, pending = _Own(pool), deque()
+    own = _Own(pool)
+    pending: deque[Future] = deque()
     exhausted = False
     try:
         while True:
@@ -156,12 +175,15 @@ def _on_pool(fn: Callable[[Any], Any], tasks: Iterator[Any], threads: Workers) -
             exhausted = exhausted or _fill(own, fn, tasks, pending, 2 * limit, limit)
             if not pending:
                 return
-            if pending[0].done() or exhausted or len(pending) >= 2 * limit:
-                yield pending.popleft().result()
+            oldest = pending[0]
+            if oldest.done() or exhausted or len(pending) >= 2 * limit:
+                _taken(oldest)
+                pending.popleft()  # only once it is done: until then settle cancels it
+                yield oldest.result()
             else:  # a finished task of this call may free a slot for the next one
                 own.changed.wait(timeout=_POLL_SECONDS)
     finally:
-        own.settle(pending)
+        own.settle()
 
 
 def _fill(own: _Own, fn, tasks: Iterator[Any], pending: deque, window: int, limit: int) -> bool:

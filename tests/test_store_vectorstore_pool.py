@@ -222,6 +222,13 @@ def classifier():
     )
 
 
+def regressor():
+    rng = np.random.default_rng(6)
+    return fse.Regressor.from_arrays(
+        finished(dim=DIM), rng.standard_normal((2, DIM)).astype(F32), [0.5, -0.25]
+    )
+
+
 def test_the_store_mode_of_a_head_runs_on_the_pool_it_is_given(store, monkeypatch):
     """The head took ``pool=`` and dropped it; now its blocks run on the pool, with the
     bits of a call without one."""
@@ -230,6 +237,8 @@ def test_the_store_mode_of_a_head_runs_on_the_pool_it_is_given(store, monkeypatc
         "labels": exact(model.predict(store)),
         "proba": exact(model.predict_proba(store)),
         "batches": [exact(b.outputs) for b in model.predict_batches(store, output="proba")],
+        "decision": exact(model.decision_function(store)),
+        "values": exact(regressor().predict(store)),
     }
     with Pool(3) as pool:
         submits = Submits(monkeypatch)
@@ -237,6 +246,8 @@ def test_the_store_mode_of_a_head_runs_on_the_pool_it_is_given(store, monkeypatc
         assert exact(model.predict_proba(store, pool=pool, workers=2)) == want["proba"]
         batches = model.predict_batches(store, output="proba", pool=pool)
         assert [exact(b.outputs) for b in batches] == want["batches"]
+        assert exact(model.decision_function(store, pool=pool)) == want["decision"]
+        assert exact(regressor().predict(store, pool=pool)) == want["values"]
         assert submits.count > 0
         assert free_places(pool) == pool.max_tasks
     assert store._active == 0
