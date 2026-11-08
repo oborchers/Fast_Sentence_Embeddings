@@ -177,6 +177,30 @@ def rust_child(job):
     atomic(Path(job["receipt"]), record)
 
 
+def widened_snapshot(snapshot, folder):
+    """A copy of a Sentence Transformers snapshot whose float16 tables are float32.
+
+    fse reads no foreign float16 table. The widening is exact (every float16 value is a float32
+    value), so ``quantize("float16")`` of the encoder read from the copy gives back the stored
+    float16 table, and the Sentence Transformers arm widens the same stored values itself."""
+    import numpy as np
+    from safetensors.numpy import load_file, save_file
+
+    source = Path(snapshot)
+    folder.mkdir(parents=True)
+    for path in sorted(source.glob("*.json")):
+        (folder / path.name).write_bytes(path.read_bytes())
+    tensors = load_file(source / "model.safetensors")
+    widened = {
+        name: array.astype(np.float32) if array.dtype == np.float16 else array
+        for name, array in tensors.items()
+    }
+    if not any(a.dtype == np.float16 for a in tensors.values()):
+        raise ValueError("a table to widen must be float16")
+    save_file(widened, folder / "model.safetensors")
+    return folder
+
+
 def prepare_models(root, contract, reuse=None):
     from huggingface_hub import snapshot_download
 
@@ -196,8 +220,13 @@ def prepare_models(root, contract, reuse=None):
             local_files_only=reuse is not None,
             allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
+        source = (
+            widened_snapshot(snapshot, root / "widened" / repo.rsplit("/", 1)[-1])
+            if any(c["model"] == repo and c.get("widen_weights") for c in contract["cells"])
+            else snapshot
+        )
         encoder = (
-            Encoder.from_pretrained(snapshot, normalize=True, truncate=False)
+            Encoder.from_pretrained(source, normalize=True, truncate=False)
             if repo.startswith("sentence-transformers/")
             or contract.get("model_formats", {}).get(repo) == "sentence-transformers"
             else StaticModel.from_pretrained(snapshot, normalize=True).encoder
