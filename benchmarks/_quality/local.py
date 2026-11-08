@@ -77,6 +77,7 @@ class Ledger:
         self.written = 0
         self.active = None
         self.started, self.budget = time.monotonic(), budget
+        self.closed = False
 
     def progress(self, terminal=False):
         """progress.json, like every other result kind (the heartbeat calls it too)."""
@@ -93,6 +94,9 @@ class Ledger:
             else max(0.0, self.budget - elapsed),
         }
         with self.progress_lock:  # the heartbeat and an emergency abort never write at once
+            if self.closed:  # the terminal progress is written; the manifest hashes it
+                return
+            self.closed = terminal
             atomic(self.results / "progress.json", {**LABEL_K, **fields})
 
     def write(self, row):
@@ -121,6 +125,7 @@ class Ledger:
                 self.results / "cells.jsonl",
                 {**base(cell, self.environment), "status": "not_started", "reason": reason},
             )
+            self.written += 1
         self.progress(terminal=True)
         finish_files(self.results, len(self.cells), {"emergency_abort": reason})
 

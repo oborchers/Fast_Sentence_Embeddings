@@ -27,10 +27,14 @@ default = pathlib.Path(os.environ["MEASURE_SOURCE"]) / "benchmarks/config/alloca
 allocation = pathlib.Path(os.environ.get("MEASURE_ALLOCATION") or default)
 if allocation.exists():
     names = [s["name"] for s in json.loads(allocation.read_text())[entry]["steps"]]
-for name in names:
-    seal_unstarted(root / (name + "-results"), status)
+folders = [root / (name + "-results") for name in names]
 if (root / "allocation-results").exists():
-    seal_unstarted(root / "allocation-results", status)
+    folders.append(root / "allocation-results")
+for folder in folders:  # each folder alone: one failure does not leave the others open
+    try:
+        seal_unstarted(folder, status)
+    except Exception as error:
+        print("could not seal", folder, repr(error))
 FINISH_RECORD
   if test "${MEASURE_CONTROL_PROBE:-0}" != 1; then sleep infinity; fi
 }

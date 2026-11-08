@@ -490,7 +490,7 @@ The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _har
 
 1. `begin` checks the machine before anything is installed. A deviation starts no step: every step folder and the allocation record are sealed with exit status 1 and the deviations as the reason, and the bootstrap stops.
 2. `run` takes each step in order. Before every step the shared budget (`Budget`, counted from `--allocated-at`, the smaller of planned minutes and planned balance, with the collection reserve) must admit its estimate. A step that does not fit, or that follows a stop signal, is sealed as `not_started`.
-3. Each step has its own result folder `<step>-results`, its own `DONE`, its own PID (`<step>-logs/measurement.pid`) and its own restart guard (`<step>-state/started`, claimed once; a second start is refused with status 77). The bootstrap keeps its allocation-level guard beside it.
+3. Each step has its own result folder `<step>-results`, its own `DONE`, its own PID (`<step>-logs/measurement.pid`) and its own restart guard (`step-state/<step>`, claimed once; a second start is refused with status 77). The bootstrap keeps its allocation-level guard beside it.
 4. A failed step does not hide the next one: step 2 runs after step 1 fails, and the allocation ends with status 1. SIGTERM goes to the running step and stops every later step.
 5. The record `allocation-results/` holds `allocation.json`, `machine-check.json`, `steps.jsonl` and its own manifest and `DONE`.
 

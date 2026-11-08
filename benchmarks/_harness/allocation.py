@@ -84,10 +84,10 @@ class Allocation:
 
     def claim(self, step):
         """The restart guard of one step: the first start claims it, any later one is refused."""
-        state = self.root / f"{step['name']}-state"
+        state = self.root / "step-state"  # not <step>-state: the bootstrap owns that
         state.mkdir(exist_ok=True)
         try:
-            with (state / "started").open("x") as stream:
+            with (state / step["name"]).open("x") as stream:
                 stream.write(f"{time.time()}\n")
         except FileExistsError:
             return False
@@ -126,7 +126,12 @@ class Allocation:
         if not self.claim(step):
             self.step_row(step, "restart_refused", RESTART_STATUS, "step already started once")
             return RESTART_STATUS
-        process = self.start(step, command)
+        try:
+            process = self.start(step, command)
+        except OSError as error:
+            return self.skip(step, f"step could not start: {error!r}")
+        if self.stopping:  # a signal between the admission and the registration
+            process.send_signal(signal.SIGTERM)
         code = process.wait()
         results = self.results(step)
         sealed = (results / "DONE").exists()
@@ -179,8 +184,8 @@ def budget_of(study_file, pins_file, profile, allocated_at):
 def collect_all(root, archives):
     """One verified archive per folder of an allocation, steps and record alike."""
     archives.mkdir(parents=True, exist_ok=False)
-    steps = [row["results"] for row in read_rows(root / "allocation-results", "steps.jsonl")]
-    names = ["allocation-results", *steps]
+    declared = document(root / "allocation-results" / "allocation.json")["definition"]["steps"]
+    names = ["allocation-results", *(f"{step['name']}-results" for step in declared)]
     for name in names:
         verify(root / name)
     return [collect(root / name, archives / f"{name}.tar.gz") for name in names]

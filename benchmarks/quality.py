@@ -133,7 +133,7 @@ def run(args):
         "recall": recall,
         "probe": probe,
     }
-    with watching(ledger):
+    with watching(ledger, restore=False):
         try:
             args.work.mkdir(parents=True, exist_ok=False)
             from nltk import download

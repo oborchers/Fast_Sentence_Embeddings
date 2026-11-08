@@ -122,9 +122,11 @@ def beating(write_progress):
 
 
 @contextmanager
-def watching(ledger):
+def watching(ledger, restore=True):
     """Write progress every 15 seconds and turn SIGINT and SIGTERM into ``ledger.stopping``:
-    the active cell finishes, no later one is admitted. Handlers return to what they were."""
+    the active cell finishes, no later one is admitted. With ``restore`` the handlers return
+    to what they were; the entries keep them to the end, so a signal during the closing
+    checks and the seal cannot kill the process."""
     previous = {
         signum: signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
         for signum in (signal.SIGINT, signal.SIGTERM)
@@ -133,5 +135,5 @@ def watching(ledger):
         with beating(ledger.progress):
             yield ledger
     finally:
-        for signum, handler in previous.items():
+        for signum, handler in previous.items() if restore else ():
             signal.signal(signum, handler)

@@ -323,7 +323,7 @@ def run(args):
     os.environ["MEASURE_WORK"] = str(args.work)
     write_environment(args, contract)
     context = None
-    with watching(ledger):
+    with watching(ledger, restore=False):
         try:
             require_budget(ledger, 60)
             context = prepare(args, contract, ledger)

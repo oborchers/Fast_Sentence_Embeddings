@@ -37,7 +37,7 @@ def sync_directory(path):
 
 def atomic(path, value):
     temporary = path.with_suffix(path.suffix + ".pending")
-    with temporary.open("x") as stream:
+    with temporary.open("w") as stream:  # a leftover of a dead writer is replaced
         json.dump(value, stream, allow_nan=False, separators=(",", ":"))
         stream.write("\n")
         stream.flush()
