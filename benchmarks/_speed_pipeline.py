@@ -312,7 +312,7 @@ def measure_child(job):
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "workers": job["workers"],
                 "worker_path": adapter["factory"].__name__,
-                "widened_weights": bool(job.get("widen_weights")),
+                "widened_weights": bool(job.get("widen_weights")) and job["backend"] == "st",
             },
         )
     finally:
