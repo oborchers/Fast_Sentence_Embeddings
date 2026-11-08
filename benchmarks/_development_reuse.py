@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 
 from _development_system import machine, source_identity
-from _harness.records import document, sha256
+from _harness.decide import evaluate
+from _harness.records import document, exit_code, read_rows, sha256
 
 
 def context(cell, prepared, identities):
@@ -33,7 +34,7 @@ def load_control(root, cell_id, suffix, expected, functional):
     root = root.resolve(strict=True)
     done = document(root / "DONE")
     manifest = root / "manifest.json"
-    if done["exit_status"] or sha256(manifest) != done["manifest_sha256"]:
+    if sha256(manifest) != done["manifest_sha256"]:
         raise ValueError("reused development results are incomplete or failed")
     if time.time() - done["completed_at"] >= 900:
         raise ValueError(
@@ -41,6 +42,8 @@ def load_control(root, cell_id, suffix, expected, functional):
         )
     files = document(manifest)["files"]
     _verify_files(root, files)
+    if not _completed(root, done):
+        raise ValueError("reused development results are incomplete or failed")
     name = cell_id + "-" + suffix + ".json"
     if name not in {row["path"] for row in files}:
         raise ValueError("reused control is absent from its final manifest")
@@ -80,3 +83,29 @@ def _cell_gap(root, cell_id):
     if last is None or time.time() - last >= 900:
         raise ValueError("reused cell was idle for fifteen minutes; fresh A/A required")
     return last
+
+
+def _completed(root, done):
+    """An overall decision may be inconclusive while all controls completed correctly.
+
+    Only that explained exit 1 is reusable. Recompute it from the sealed evidence;
+    technical failures, unstarted cells and fatal records remain disqualifying.
+    """
+    if done["exit_status"] == 0:
+        return True
+    contract = document(root / "environment.json")["contract"]
+    rows = read_rows(root, "cells.jsonl")
+    if done["exit_status"] != 1 or "decision" not in contract:
+        return False
+    if exit_code(rows, len(contract["cells"]), root):
+        return False
+    recorded = document(root / "decision.json")["overall"]
+    overall = evaluate(
+        contract["decision"],
+        rows,
+        [c["id"] for c in contract["cells"]],
+        contract.get("functional_only", False),
+        contract["local_phase"],
+        recorded["stopped_after"],
+    )
+    return recorded == overall and overall["decision"] in ("reject", "inconclusive")

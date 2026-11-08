@@ -8,10 +8,9 @@ from _development_budget import check_args, stopped
 from _development_calibrate import calibrate
 from _development_config import load
 from _development_data import prepare
+from _development_decision import finish, judge, screen, stop_after
 from _development_descriptive import describe, regression_screen
 from _development_functional import stage
-from _development_heads import nonregression
-from _development_heads_multi import practical
 from _development_identity import STAGE
 from _development_identity_run import run as run_identity
 from _development_locks import coordinated
@@ -20,7 +19,6 @@ from _development_preflight import preflight
 from _development_records import record_result, session
 from _development_resources import plans
 from _development_reuse import context, load_control
-from _development_statistics import decide, decision_enabled
 from _development_system import LABEL, observations, require_timing_priority
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
@@ -95,45 +93,9 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             },
         )
     if args.local_phase == "screen":
-        if main["output"] != control["aa"]["output"]:
-            raise ValueError("screen output differs from its A/A control")
-        if args.functional:
-            return dict(status="valid", decision="functional_only", comparison=main)
-        if not decision_enabled(cell):
-            return dict(status="valid", decision="descriptive_only", comparison=main)
-        threshold = max(
-            cell["noise_multiplier"] * control["aa"]["factor"]["iqr"],
-            cell["minimum_saving"],
-            cell["practical_saving"] or 0,
-        )
-        passed = main["time_saving"] >= threshold
-        return dict(
-            status="inconclusive" if passed else "rejected",
-            decision="screen_requires_full_evidence" if passed else "screen_reject",
-            comparison=main,
-            threshold=threshold,
-        )
+        return screen(cell, control["aa"], main, args.functional)
     confirmation = block(*arguments, "confirmation", **options)
-    result = practical(
-        current, nonregression(current, decide(current, control["aa"], main, confirmation))
-    )
-    if args.functional:
-        result["decision"] = "functional_only"
-    gate = result.get("practical")
-    if gate and not gate["passed"] and result["decision"] == "keep":
-        result["decision"] = "keep_below_practical_saving"  # decision.json must not say keep
-    valid = _valid(result, args.functional)
-    return dict(status="valid" if valid else "rejected", **result)
-
-
-def _valid(result, rehearsal):
-    """A decision is valid when it is keep (or descriptive, or functional), and where the
-    cell declared them, its noise-limited nonregression and its practical saving hold."""
-    valid = result["decision"] in ("keep", "descriptive_only", "functional_only")
-    for gate in ("nonregression", "practical"):
-        if gate in result and not rehearsal:
-            valid = valid and result[gate]["passed"]
-    return valid
+    return judge(current, control["aa"], main, confirmation, args.functional)
 
 
 def run(args):
@@ -164,17 +126,7 @@ def run(args):
                 continue
             if not _cell(args, cell, prepared, ledger):
                 break
-        atomic(
-            args.results / "decision.json",
-            {
-                **LABEL,
-                "functional_only": args.functional,
-                "cells": {
-                    row["cell_id"]: row.get("decision", "not_run") for row in ledger.finished
-                },
-            },
-        )
-    return ledger.done()
+    return finish(ledger)
 
 
 def _cell(args, cell, prepared, ledger):
@@ -194,8 +146,10 @@ def _cell(args, cell, prepared, ledger):
         result = dict(status="not_executable", decision="not_executable_memory", reason=str(error))
     except Exception as error:
         record_result(ledger, cell, started, status="failed", decision="failed", reason=repr(error))
+        stop_after(ledger, cell)
         return False
     record_result(ledger, cell, started, **result)
+    stop_after(ledger, cell)
     if cell["stop_session_on_reject"] and _ended_badly(result):
         ledger.stopping = True  # the cells after it stay not_started
     return True
