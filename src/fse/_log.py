@@ -58,6 +58,7 @@ EVENTS: dict[str, tuple[str, int]] = {
     "store.refreshed": ("fse.store", DEBUG),
     "store.view_opened": ("fse.store", INFO),
     "store.repaired": ("fse.store", INFO),
+    "store.sign_bits_added": ("fse.store", INFO),
     "store.search": ("fse.store", DEBUG),
     "store.rescore": ("fse.store", DEBUG),
     "store.prefilter": ("fse.store", DEBUG),

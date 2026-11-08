@@ -184,7 +184,7 @@ The first follows from `c_r <= a* + B <= a + B + 2^-53 |a|` and `fl(a + E) >= a 
 
 ## Sign bits (`sign_bits@1`)
 
-A binary prefilter of a search ranks rows by one bit per dimension. The rule adds no arithmetic: it has no floating point operation, no rounding rule and no `transform_version`. The reference is `fse._reference_bits` (`sign_bits`, `query_bits`, `hamming`, `candidates`, and for variant B `int4_codes`, `signed_sums`, `candidates_signed`). It names no public API, store format or persistence name yet; those follow with the search that uses it. The rule is fixed; only the maintainer changes it.
+A binary prefilter of a search ranks rows by one bit per dimension. The rule adds no arithmetic: it has no floating point operation, no rounding rule and no `transform_version`. The reference is `fse._reference_bits` (`sign_bits`, `query_bits`, `hamming`, `candidates`, and for variant B `int4_codes`, `signed_sums`, `candidates_signed`). The bits of a shard are stored as the companion artifact `sign_bits-<first row>` ([store.md](store.md#sign-bits)); a search that uses them follows. The rule is fixed; only the maintainer changes it.
 
 **Bit rule.** The bit of a stored value is 1 exactly if its integer bit pattern, read as a signed integer, is greater than 0:
 

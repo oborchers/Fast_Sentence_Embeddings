@@ -52,6 +52,9 @@ class Shard:
     fingerprint: str = field(default="", kw_only=True, compare=False, repr=False)
     # Its anchor in a store of the mode ``source_position@1``, else None.
     anchor: SourcePosition | None = field(default=None, kw_only=True)
+    # The mapped sign bits of its rows (``sign_bits-<first row>``, docs/architecture/store.md,
+    # "Sign bits") when the companion artifact exists, else None; set when the shard is opened.
+    sign_bits: ndarray | None = field(default=None, kw_only=True, compare=False, repr=False)
 
 
 class Kind(Protocol):
