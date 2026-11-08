@@ -52,7 +52,7 @@ def decide(path, cells, finished, failed):
 
 def _place(worst):
     if all(v <= THRESHOLD for v in worst.values()):
-        return {"decision": "stays in 2.1 as a candidate; next step: class D prototype"}
+        return {"decision": "stays in 2.1 as a candidate; next step: class descriptive prototype"}
     note = "moves to 2.2"
     if all(v > REJECT for v in worst.values()):
         note += (

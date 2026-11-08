@@ -1,4 +1,4 @@
-"""Profile binary-recall@1: cell contract and fixed numbers of the DR-255 recall probe (class K)."""
+"""Profile binary-recall@1: cell contract and fixed numbers of the DR-255 recall probe (class correctness)."""
 
 from __future__ import annotations
 
