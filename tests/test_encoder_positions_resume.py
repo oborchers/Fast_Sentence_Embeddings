@@ -92,7 +92,7 @@ def test_a_crash_after_every_batch_gives_the_same_store(tmp_path):
 
 
 def _start(path):
-    return int(ps.sink(path).source_position[0][1:]) if path.exists() else 0
+    return int(ps.attribute(path, "source_position")[0][1:]) if path.exists() else 0
 
 
 def test_a_stream_that_ends_before_the_stored_records_is_refused(tmp_path):
@@ -121,7 +121,7 @@ def test_stopping_a_replay_early_is_allowed(tmp_path):
 def test_durable_rows_count_the_replay_rows(tmp_path):
     # 100 stored rows, the last shard ends in the batch of 20 records from row 80: skip 20
     ps.write(tmp_path / "s", ps.stream(SENTENCES, 20, end=100), rows=10)
-    assert ps.sink(tmp_path / "s", rows=10).source_position == ("o80", 20)
+    assert ps.attribute(tmp_path / "s", "source_position", rows=10) == ("o80", 20)
     with ps.sink(tmp_path / "s", rows=10) as target:
         results = list(
             ENCODER.encode_batches(
@@ -144,7 +144,7 @@ def test_durable_rows_are_zero_without_durability(tmp_path):
 def test_the_last_result_may_report_fewer_rows_than_the_sink(tmp_path):
     results = ps.write(tmp_path / "s", ps.stream(SENTENCES, 50))
     assert results[-1].durable_rows <= 300
-    assert ps.sink(tmp_path / "s").first_row == 300
+    assert ps.attribute(tmp_path / "s", "first_row") == 300
 
 
 # --- other inputs -------------------------------------------------------------------------

@@ -102,7 +102,7 @@ def test_a_position_is_checked_before_a_store_is_made(tmp_path, position, error,
 def test_a_position_of_64_kib_is_stored_whole(tmp_path):
     for name, position in (("a", "a" * 65536), ("b", "é" * 32768)):  # ASCII; two bytes each
         _run(tmp_path / name, [(SENTENCES[:100], position)])
-        assert ps.sink(tmp_path / name).source_position == (position, 100)
+        assert ps.attribute(tmp_path / name, "source_position") == (position, 100)
         rows = ps.anchors(tmp_path / name)
         assert [a[2] for a in rows] == [position, position]
 
@@ -201,7 +201,7 @@ def test_a_failed_batch_is_not_the_anchor_of_a_shard_it_filled_nothing_of(tmp_pa
         with pytest.raises(UnicodeEncodeError):
             next(batches)
     assert ps.anchors(tmp_path / "s") == [(0, 5, "o0", 0)]
-    assert ps.sink(tmp_path / "s").source_position == ("o0", 5)
+    assert ps.attribute(tmp_path / "s", "source_position") == ("o0", 5)
 
 
 def test_the_position_moves_forward_with_the_published_shards(tmp_path):
@@ -214,4 +214,4 @@ def test_the_position_moves_forward_with_the_published_shards(tmp_path):
         assert target.source_position == ("o50", 14)
         list(batches)
         assert target.source_position == ("o250", 50)
-    assert ps.sink(tmp_path / "s").source_position == ("o250", 50)
+    assert ps.attribute(tmp_path / "s", "source_position") == ("o250", 50)

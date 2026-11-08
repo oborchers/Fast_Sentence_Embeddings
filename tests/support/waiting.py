@@ -2,6 +2,7 @@
 thread arrived at a point before they act (a sleep only hopes it did)."""
 
 import threading
+import time
 
 
 def blocked_in_wait(condition: threading.Condition, thread_name: str) -> threading.Event:
@@ -27,4 +28,17 @@ def arrived(reached: threading.Event, condition: threading.Condition, timeout: f
     if not condition.acquire(timeout=timeout):
         return False
     condition.release()
+    return True
+
+
+def until(done, timeout: float = 10, step: float = 0.01) -> bool:
+    """Whether ``done()`` turned true within ``timeout`` seconds (an event wait in a loop,
+    never a sleep, and one monotone deadline for the whole wait)."""
+    deadline = time.monotonic() + timeout
+    pause = threading.Event()
+    while not done():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return done()
+        pause.wait(min(step, remaining))
     return True

@@ -145,10 +145,14 @@ def test_sinks_are_checked_before_any_text_is_read(tmp_path):
         (fse.MemorySink(2), "rows of 3 values"),
         (fse.MemorySink(3, "float16"), "float32 rows"),
         (IdentitySink(3, model.output_identity("decision")), "takes the rows of"),
-        (fse.ShardSink(tmp_path / "s", model.encoder), "ShardSink stores the vectors"),
     ]:
         with pytest.raises(ValueError, match=match):
             model.predict_proba(stream(), sink=sink)
+    with (
+        fse.ShardSink(tmp_path / "s", model.encoder) as sink,
+        pytest.raises(ValueError, match="ShardSink stores the vectors"),
+    ):
+        model.predict_proba(stream(), sink=sink)
     with pytest.raises(ValueError, match="labels go to no sink"):
         model.predict_batches(iter([["w1"]]), sink=fse.MemorySink(1))
     assert read == []

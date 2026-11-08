@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from support.logs import PAUSED, STRICT, TOP, unexpected
+from support.sink_threads import left_since, sink_threads
 
 TEST_DATA = Path(__file__).parent / "test_data"
 
@@ -48,6 +49,20 @@ def pytest_runtest_call(item):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_teardown(item):  # pluggy passes only the arguments a hook names
     return (yield from _strict(item))
+
+
+@pytest.fixture(autouse=True)
+def no_sink_threads_left():
+    """A test closes every sink it opens: no writer thread (``fse-shard-*``) that the test
+    started may live after it. Threads of an earlier leak are in the base set, so one leak
+    fails one test, whatever the order (each xdist worker is its own process)."""
+    before = sink_threads()
+    yield
+    left = left_since(before)
+    if left:
+        pytest.fail(
+            "this test left sink threads (close every sink): " + ", ".join(t.name for t in left)
+        )
 
 
 @pytest.fixture(scope="session")
