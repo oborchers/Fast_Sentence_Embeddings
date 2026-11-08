@@ -190,6 +190,6 @@ Logging: `store.search` carries `max_per_doc=1` only on this path.
 Result width rule for every search: at most `k` hits, `min(k, candidates)`, never an error
 for a `k` above the number of rows (the unfiltered check `k > len(store)` was removed;
 filtered searches already worked this way). An empty selection gives empty `ids` (int64),
-`scores` (float32) and `doc_ids` (int64). The change needs no timing measurement (class K,
+`scores` (float32) and `doc_ids` (int64). The change needs no timing measurement (class correctness,
 tests): it only removes a comparison before the search starts; the scan, its blocks and
 its arithmetic are untouched.

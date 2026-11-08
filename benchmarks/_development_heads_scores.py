@@ -62,7 +62,7 @@ def validate(cell):
         )
     if cell["decision_gate"] or cell["practical_saving"] is not None:
         raise ValueError(
-            "linear-heads-scores@1 cells are descriptive (class D), not decision cells"
+            "linear-heads-scores@1 cells are of class descriptive, not decision cells"
         )
     if (cell["sinks"] == "scores") == bool(cell["return_vectors"]):
         raise ValueError(

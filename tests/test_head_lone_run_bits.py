@@ -1,4 +1,4 @@
-"""A single head writes the stores a group of that head writes, byte for byte (class K)."""
+"""A single head writes the stores a group of that head writes, byte for byte (class correctness)."""
 
 import numpy as np
 import pytest

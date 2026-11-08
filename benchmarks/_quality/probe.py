@@ -1,6 +1,6 @@
 """Private output probes: fse vectors against the native library on multilingual texts.
 
-A functional check of class K before any score is read: it shows that fse computes what the
+A functional check of class correctness before any score is read: it shows that fse computes what the
 model's own library computes. For a float16 table (bekko-static-embedding-v1) the reference
 is Sentence Transformers with its weights widened to float32, because fse accumulates
 float16 rows in float32 while Sentence Transformers averages in float16."""
@@ -98,5 +98,5 @@ def probe(cell, _context=None):
         "min_cosine": float(cosine.min()) if cosine.size else None,
         "model_revision": MODEL_PINS[cell["model"]],
         "bound": {"rtol": RTOL, "atol": ATOL},
-        "scope": "functional output probe, class K; no score and no speed value",
+        "scope": "functional output probe, class correctness; no score and no speed value",
     }
