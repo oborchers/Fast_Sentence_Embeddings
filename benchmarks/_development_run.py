@@ -22,6 +22,7 @@ from _development_resources import plans
 from _development_reuse import context, load_control
 from _development_statistics import decide, decision_enabled
 from _development_system import LABEL, observations, require_timing_priority
+from _harness import functional
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 from _quality.development import quality_gate
@@ -169,6 +170,11 @@ def run(args):
             {
                 **LABEL,
                 "functional_only": args.functional,
+                **(
+                    {"evidence_stage": "functional", "note": functional.NOTE}
+                    if args.functional
+                    else {}
+                ),
                 "cells": {
                     row["cell_id"]: row.get("decision", "not_run") for row in ledger.finished
                 },
@@ -195,6 +201,8 @@ def _cell(args, cell, prepared, ledger):
     except Exception as error:
         record_result(ledger, cell, started, status="failed", decision="failed", reason=repr(error))
         return False
+    if args.functional:  # never readable as a timing: the stage and the note travel with it
+        result = {**result, "evidence_stage": "functional", "note": functional.NOTE}
     record_result(ledger, cell, started, **result)
     if cell["stop_session_on_reject"] and _ended_badly(result):
         ledger.stopping = True  # the cells after it stay not_started
