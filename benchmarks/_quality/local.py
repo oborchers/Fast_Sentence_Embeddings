@@ -71,12 +71,12 @@ class Ledger:
     writes the active task as aborted and the rest as not started, then ends the process,
     also when writing fails."""
 
-    def __init__(self, results, cells, environment, budget=None):
+    def __init__(self, results, cells, environment, budget=None, started=None):
         self.results, self.cells, self.environment = results, cells, environment
         self.lock, self.progress_lock = threading.Lock(), threading.Lock()
         self.written = 0
         self.active = None
-        self.started, self.budget = time.monotonic(), budget
+        self.started, self.budget = started or time.monotonic(), budget
         self.closed = False
 
     def progress(self, terminal=False):
@@ -177,7 +177,7 @@ def run(args):
     )
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
     environment = sha256(args.results / "environment.json")
-    ledger = Ledger(args.results, spec["cells"], environment, budget)
+    ledger = Ledger(args.results, spec["cells"], environment, budget, started_at)
     guard = Guard(args.results, [args.results, args.work, *folders.values()], limits, ledger.abort)
     guard.start()
     with beating(ledger.progress):
