@@ -118,7 +118,7 @@ class _Keep:
         for start in list(self.pending):
             if self.pending[start]:
                 self._merge(start)
-        columns = []
+        columns: list[ndarray] = []
         for start in sorted(self.kept):
             columns.extend(self.kept[start][:, q] & _MASK for q in range(self.kept[start].shape[1]))
         offsets = np.zeros(n_queries + 1, np.int64)

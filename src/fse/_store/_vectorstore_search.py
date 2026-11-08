@@ -32,8 +32,8 @@ def search_store(
     doc_ids: Any,
     rows: Any,
     max_per_doc: int | None,
-    pool: Pool | None = None,
     oversample: int | None = None,
+    pool: Pool | None = None,
 ) -> SearchResult:
     if oversample is not None and mode != "binary":
         raise ValueError('oversample needs mode="binary"')

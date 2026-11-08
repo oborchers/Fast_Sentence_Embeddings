@@ -124,8 +124,8 @@ class VectorStore(MemberReaders):
         doc_ids: Any = None,
         rows: Any = None,
         max_per_doc: PositiveInt | None = None,
-        pool: Pool | None = None,
         oversample: PositiveInt | None = None,
+        pool: Pool | None = None,
     ) -> SearchResult:
         """The ``k`` rows with the largest cosine to every query (a vector, or a matrix of one
         per row): ids (positions in the store) and scores of shape (k,), or (queries, k),
@@ -169,8 +169,8 @@ class VectorStore(MemberReaders):
             doc_ids=doc_ids,
             rows=rows,
             max_per_doc=max_per_doc,
-            pool=pool,
             oversample=oversample,
+            pool=pool,
         )
 
     @validate_arguments
