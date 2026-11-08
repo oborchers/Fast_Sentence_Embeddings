@@ -24,7 +24,11 @@ def run():
 
     def notify(event):
         print(json.dumps(event), flush=True)
-        if event["event"] == "waiting_for_lock" and sys.argv[2] == "budget":
+        if (
+            event["event"] == "waiting_for_lock"
+            and isinstance(event["position"], int)
+            and sys.argv[2] == "budget"
+        ):
             ledger.wall_deadline = time.monotonic() - 1
 
     signal.signal(signal.SIGTERM, receive)

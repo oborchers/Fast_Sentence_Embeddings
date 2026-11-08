@@ -47,7 +47,13 @@ def contender(role="heavy", mode="normal"):
 
 
 def event(child, name):
-    return announced(child.stdout, lambda item: item["event"] == name)
+    return announced(
+        child.stdout,
+        lambda item: (
+            item["event"] == name
+            and (name != "waiting_for_lock" or isinstance(item["position"], int))
+        ),
+    )
 
 
 def finish(child):
@@ -290,3 +296,108 @@ _release(path, owner)
             if old.poll() is None:
                 old.kill()
             old.communicate(timeout=10)
+
+
+@pytest.mark.parametrize("stage", ["registration", "notification"])
+@pytest.mark.parametrize("stop", ["signal", "budget"])
+def test_stop_before_payload(locks, monkeypatch, stage, stop):
+    from types import SimpleNamespace
+
+    import _development_budget
+    import _development_queue
+    from _harness.budget import WallBudgetExpiredError
+
+    state = SimpleNamespace(wall_deadline=None, stopping=False)
+    real = _development_queue.Waiter.position
+
+    def halt():
+        if stop == "budget":
+            state.wall_deadline = 0
+        else:
+            state.stopping = True
+
+    def position(waiter):
+        result = real(waiter)
+        if stage == "registration":
+            halt()
+        return result
+
+    def notify(message):
+        if stage == "notification" and message["event"] == "lock_acquired":
+            halt()
+
+    monkeypatch.setattr(_development_queue.Waiter, "position", position)
+    expected = WallBudgetExpiredError if stop == "budget" else InterruptedError
+    with (
+        pytest.raises(expected),
+        locks.coordinated(
+            "heavy", "test", "test", notify, lambda: _development_budget.stopped(state)
+        ),
+    ):
+        pytest.fail("stopped process started payload")
+    assert not locks.lock_paths()[1].exists()
+    assert [p.name for p in locks.lock_paths()[1].with_name("heavy.lock.queue").iterdir()] == [
+        ".guard"
+    ]
+
+
+@pytest.mark.parametrize("kind", ["fifo", "symlink", "oversized", "partial"])
+def test_holder_snapshot_is_nonblocking_and_bounded(locks, tmp_path, kind):
+    holder = tmp_path / "holder"
+    holder.mkdir()
+    owner = holder / "owner"
+    if kind == "fifo":
+        os.mkfifo(owner)
+    elif kind == "symlink":
+        other = tmp_path / "target"
+        other.write_text('{"private": true}')
+        owner.symlink_to(other)
+    else:
+        owner.write_text("x" * 65537 if kind == "oversized" else '{"pid":')
+    assert locks._holder(holder) is None
+
+
+@pytest.mark.usefixtures("locks")
+@pytest.mark.parametrize("roles", [("timing", "heavy"), ("legacy", "heavy")])
+def test_barrier_started_contenders_do_not_overlap(roles):
+    import selectors
+
+    script = CONTENDER.with_name("lock_racer.py")
+    children = []
+    try:
+        for role in roles:
+            child = subprocess.Popen(
+                [sys.executable, "-u", str(script), role],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=0,
+            )
+            children.append(child)
+            event(child, "ready")
+        for child in children:
+            child.stdin.write(b"x")
+            child.stdin.flush()
+        with selectors.DefaultSelector() as selector:
+            for child in children:
+                selector.register(child.stdout, selectors.EVENT_READ, child)
+            winner = None
+            while winner is None:
+                ready = selector.select(10)
+                assert ready, "neither contender entered payload"
+                for key, _ in ready:
+                    child = key.data
+                    message = announced(child.stdout, lambda _: True)
+                    if message["event"] == "payload":
+                        winner = child
+                        break
+        loser = next(child for child in children if child is not winner)
+        event(loser, "waiting_for_lock")
+        finish(winner)
+        event(loser, "payload")
+        finish(loser)
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+            child.communicate(timeout=10)

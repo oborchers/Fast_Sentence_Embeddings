@@ -120,8 +120,13 @@ w.position()
         ],
         stdout=subprocess.PIPE,
     ) as child:
-        announced(child.stdout, lambda item: item["event"] == "crash")
-        assert child.wait(timeout=10) == 9
+        try:
+            announced(child.stdout, lambda item: item["event"] == "crash")
+            assert child.wait(timeout=10) == 9
+        finally:
+            if child.poll() is None:
+                child.kill()
+            child.communicate(timeout=10)
     current = waiter(queue, tmp_path)
     try:
         assert current.position() == (1, 1)

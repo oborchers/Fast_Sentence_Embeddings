@@ -6,6 +6,7 @@ import errno
 import json
 import math
 import os
+import stat
 import tempfile
 import time
 import uuid
@@ -87,9 +88,21 @@ def _rollback_claim(path, created, written):
 
 def _holder(path):
     try:
-        return json.loads((path / "owner").read_text())
+        fd = os.open(path / "owner", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                return None
+            data = os.read(fd, 65537)
+            return json.loads(data) if len(data) <= 65536 else None
+        finally:
+            os.close(fd)
     except (OSError, ValueError):
         return None
+
+
+def _check_stopped(stopped):
+    if stopped():
+        raise InterruptedError("stopped before development lock admission")
 
 
 def _waiting(path, peer, position, notify):
@@ -137,9 +150,9 @@ def coordinated(
     waiter = Waiter(path, owner)
     try:
         while True:
-            if stopped():
-                raise InterruptedError("stopped before development lock admission")
+            _check_stopped(stopped)
             position = waiter.position()
+            _check_stopped(stopped)
             if position is not None and position[0] == 1 and not busy(peer) and admitted():
                 with _claimed(path, peer, owner, admitted, notify) as acquired:
                     if acquired:
@@ -147,6 +160,7 @@ def coordinated(
                         notify(
                             {**LABEL, "event": "lock_acquired", "lock": str(path), "owner": owner}
                         )
+                        _check_stopped(stopped)
                         yield owner
                         break
             _waiting(path, peer, position, notify)
