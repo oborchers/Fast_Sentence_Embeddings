@@ -8,7 +8,7 @@ import os
 import re
 import stat
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 
 _TICKET = re.compile(r"[0-9]{12,}-[0-9a-f]{32}\Z")
 _BUSY = (errno.EAGAIN, errno.EACCES, errno.EWOULDBLOCK)
@@ -111,11 +111,9 @@ class Waiter:
         try:
             if not _try_lock(fd):
                 return True
-            try:
+            # A canceling waiter may unlink before closing its last descriptor.
+            with suppress(FileNotFoundError):
                 _unlink(path, fd)
-            except FileNotFoundError:
-                # A canceling waiter may unlink before closing its last descriptor.
-                pass
             return False
         finally:
             os.close(fd)
