@@ -38,6 +38,9 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
+    mode.add_argument("--profile", type=Path, help="profile an addressed child from profile@1")
+    mode.add_argument("--profile-check", type=Path, help="check profiler access from profile@1")
+    mode.add_argument("--profile-probe", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--setup", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--rehearse", action="store_true")
@@ -53,13 +56,28 @@ def main():
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
     args = parser.parse_args()
+    if args.profile_probe:
+        from _development_profile_probe import child
+
+        child(args.profile_probe)
+        return 0
+    if args.profile or args.profile_check:
+        from _development_profile import run as profile
+
+        return profile(args.profile or args.profile_check, check_only=bool(args.profile_check))
     local_status = dispatch(args)
     if local_status is not None:
         return local_status
     if utility(args, "speed"):
         return 0
     if args.child_job:
-        measure_child(document(args.child_job))
+        job = document(args.child_job)
+        if job.get("kind") == "profile-input":
+            from _speed_profile import input_child
+
+            input_child(job)
+        else:
+            measure_child(job)
         return 0
     specification = contract(args.input)
     if (

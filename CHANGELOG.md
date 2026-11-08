@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Profile an addressed development or fse speed child with `speed.py --profile` and the strict `profile@1` contract (DR-313: Profiljob für einen adressierten Kindjob unter der Heavy-Sperre ausführen). One heavy lock covers access checks, offline input reconstruction and execution. Profiles have a separate deadline, fresh folders, checked origin hashes and executing identities, explicit coverage evidence and diagnostic receipts that comparison summaries refuse. Measurement tooling only.
+
 - Return `(result, vectors)` from `Heads.predict`, `Classifier.predict` and `Regressor.predict` with `return_vectors=True` and no sinks (DR-312: return_vectors=True in Heads.predict ohne Sinks nicht still übergehen); previously the call raised ValueError. With lengths the return is `(result, vectors, LengthReport)`. Outputs and encoder vectors match `predict_batches(return_vectors=True)` bit for bit, including the unfolded path of raw-mean heads. Resume sink returns stay unchanged. Standalone heads, VectorStore inputs and `Regressor.predict(sink=...)` refuse this switch.
 
 - Serve development lock waiters in registration order and report queue position (DR-315: Wartende an der Heavy-Sperre in Ankunftsreihenfolge bedienen). Canceled and crashed waiters leave the queue; existing lock owners are never taken over. FIFO requires draining old waiting controllers and wrappers before rollout. Measurement tooling only.
