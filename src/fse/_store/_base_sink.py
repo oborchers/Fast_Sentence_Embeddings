@@ -67,6 +67,7 @@ class ShardSinkBase(ResumableSinkMarker):
         self._io = WriterThread("fse-shard-write", failure=failure)
         self._publisher = WriterThread("fse-shard-publish", failure=failure)
         self._published = 0  # shards
+        self._extras_published = 0  # companion artifacts (sign bits) published after shards
 
     # --- what a family of stores supplies ----------------------------------------------
 
@@ -364,6 +365,9 @@ class ShardSinkBase(ResumableSinkMarker):
             raise
         self._count_published(writer, rows, durable=self._synced)
         self._published_event(writer, rows)
+        # What belongs beside the shard comes last: its rows are counted already, so a
+        # failure here is an error of the sink and never changes what was published.
+        self._extras_published += writer.publish_extras()
 
     def _count_published(self, writer: ShardBase, rows: int, *, durable: bool) -> None:
         self._made.discard(writer)

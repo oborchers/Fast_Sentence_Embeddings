@@ -42,6 +42,7 @@ from fse._container import remove_temporary
 from fse._container._npy import write_manifest
 from fse._container._npy_inplace import publish_directory, sync_data
 
+from ._bits_writer import BitsColumn
 from ._columns import Entry, MemoryColumn, StreamColumn
 from ._id_writer import IdColumn
 from ._kind import shard_name
@@ -161,6 +162,11 @@ class ShardBase:
         )
         return rows
 
+    def publish_extras(self) -> bool:
+        """Publish what belongs beside the published shard (nothing here); True if it
+        published something. An error is raised after the rows of the shard are counted."""
+        return False
+
     def abort(self) -> OSError | None:
         """Drop the shard: removes the temporary directory; returns the error of a removal
         that failed (None once it is gone, also if it was gone already)."""
@@ -184,9 +190,11 @@ class ShardWriter(ShardBase):
         created_by: str,
         *,
         synced: bool = True,
+        sign_bits: bool = False,
     ):
         super().__init__(store, first_row, capacity, created_by, synced=synced)
         self.info = info
+        self.bits = BitsColumn(store, info, first_row, capacity, created_by) if sign_bits else None
         self.dtype = np.dtype(_codes.STORAGE_TYPES[info.dtype])
         # vectors.npy is created at the first write, so the shards reserved ahead of their
         # writes (a task over many small shards) hold no open file.
@@ -222,6 +230,8 @@ class ShardWriter(ShardBase):
                 raise ValueError("missing document IDs for committed rows")
             self.ids.commit(doc_ids)
         self.vectors.commit(codes)
+        if self.bits is not None:
+            self.bits.commit(begin, codes)
         self._committed_rows(begin, len(codes))
 
     def write(self, begin: int, codes: ndarray, doc_ids: ndarray | None = None) -> None:
@@ -233,6 +243,22 @@ class ShardWriter(ShardBase):
                 raise ValueError("missing document IDs for written rows")
             self.ids.write(begin, doc_ids)
         self._written_rows_done(len(codes))
+
+    def publish_extras(self) -> bool:
+        """Publish the sign bits of the published shard (``sign_bits=True``) with the
+        durability of the shard; True if this call published them. The bits are released
+        either way."""
+        if self.bits is None:
+            return False
+        try:
+            return self.bits.publish(self.committed, synced=self.synced)
+        finally:
+            self.bits.release()
+
+    def abort(self) -> OSError | None:
+        if self.bits is not None:
+            self.bits.release()
+        return super().abort()
 
     def _metadata(self, rows: int) -> dict[str, str]:
         metadata = shard_metadata(

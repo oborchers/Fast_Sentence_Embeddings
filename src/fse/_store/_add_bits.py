@@ -18,16 +18,13 @@ left; what was published stays and is valid.
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
-from fse import _log
 from fse._runtime import workers_of
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
-from ._bits_format import width
-from ._bits_write import created_by, write_bits
+from ._bits_write import backfill
 from ._layout import read_store
 from ._recovery import clear_exception_frames, snapshot
 from ._vectors_format import VECTORS
@@ -59,47 +56,9 @@ def add_sign_bits(
     try:
         checked = snapshot(root, info, verify=True)
         try:
-            todo = [
-                (shard, tensors) for shard, tensors in checked.shards if shard.sign_bits is None
-            ]
-            written = _write_all(root, info, todo, durability == "full", count)
+            return backfill(root, info, checked.shards, durability == "full", count, start)
         finally:
             checked.shards.clear()  # release the mappings
     except BaseException as error:
         clear_exception_frames(error)
         raise
-    rows = sum(item[0].rows for item, done in zip(todo, written, strict=True) if done)
-    _log.emit(
-        "store.sign_bits_added",
-        "fse store: wrote the sign bits of %d shards (%d rows)",
-        sum(written),
-        rows,
-        shards=sum(written),
-        rows=rows,
-        bytes=rows * width(info.dim),
-        durability=durability,
-        seconds=time.perf_counter() - start,
-    )
-    return sum(written)
-
-
-def _write_all(root: Path, info: Any, todo: list, full: bool, workers: int) -> list[bool]:
-    """Whether this call published the bits of each shard of ``todo``, in order."""
-    by = created_by()
-
-    def one(item: tuple) -> bool:
-        shard, tensors = item
-        return write_bits(
-            root, info, shard, tensors["vectors"], synced=full and not shard.unsynced, by=by
-        )
-
-    if workers == 1 or len(todo) <= 1:
-        return [one(item) for item in todo]
-    with ThreadPoolExecutor(min(workers, len(todo)), thread_name_prefix="fse-sign-bits") as pool:
-        futures = [pool.submit(one, item) for item in todo]
-        try:
-            return [future.result() for future in futures]
-        except BaseException:
-            for future in futures:
-                future.cancel()
-            raise

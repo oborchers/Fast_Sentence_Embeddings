@@ -20,7 +20,9 @@ def sentences(n=300):
 
 def write(path, source, *, encoder=ENCODER, shard=None, rows=SHARD_ROWS, workers=1, **kwargs):
     """One run of ``source`` into a resumable store, closed again; returns the sink."""
-    options = {k: kwargs.pop(k) for k in ("dtype", "durability", "doc_ids") if k in kwargs}
+    options = {
+        k: kwargs.pop(k) for k in ("dtype", "durability", "doc_ids", "sign_bits") if k in kwargs
+    }
     ids = kwargs.pop("ids", None)
     with ShardSink(path, encoder, shard_rows=rows, resume=True, **options) as sink:
         encoder.encode(source, workers=workers, sink=sink, shard=shard, doc_ids=ids, **kwargs)

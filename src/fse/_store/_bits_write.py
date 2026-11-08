@@ -19,6 +19,8 @@ is valid.
 from __future__ import annotations
 
 import secrets
+import time
+from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -26,7 +28,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from fse import _reference_bits
+from fse import _log, _reference_bits
 from fse._container import (
     CorruptArtifactError,
     Hasher,
@@ -94,7 +96,15 @@ def write_bits(
     """Derive and publish the bits of ``shard``; True if this call published them, False if
     another writer had published a valid artifact first. ``synced=False`` skips the sync of
     the store directory and tags the artifact ``fse.durability=none``."""
-    bits = derived(shard, vectors)
+    return publish_bits(path, info, shard, derived(shard, vectors), synced=synced, by=by)
+
+
+def publish_bits(
+    path: Path, info: Any, shard: Shard, bits: ndarray, *, synced: bool, by: str
+) -> bool:
+    """Publish ``bits`` (those of the rows of ``shard``) as its artifact, like ``write_bits``
+    but without deriving them: the caller made them from the rows it wrote (a sink) or checked
+    them against the checksum of the shard (``derived``)."""
     tmp = path / f".{PREFIX}{shard.first_row:016d}.writing-{secrets.token_hex(4)}"
     try:
         _write(tmp, bits, metadata_of(info, shard, by, unsynced=not synced), synced=synced)
@@ -109,3 +119,47 @@ def write_bits(
         raise
     failed_cleanup(tmp, remove_temporary(tmp), None)  # gone once published
     return True
+
+
+def write_all(root: Path, info: Any, todo: list, full: bool, workers: int) -> list[bool]:
+    """Whether this call published the bits of each ``(shard, tensors)`` of ``todo``, in
+    order; ``workers`` shards at once. A shard tagged ``fse.durability=none`` gets a tagged
+    artifact, also with ``full``."""
+    by = created_by()
+
+    def one(item: tuple) -> bool:
+        shard, tensors = item
+        return write_bits(
+            root, info, shard, tensors["vectors"], synced=full and not shard.unsynced, by=by
+        )
+
+    if workers == 1 or len(todo) <= 1:
+        return [one(item) for item in todo]
+    with ThreadPoolExecutor(min(workers, len(todo)), thread_name_prefix="fse-sign-bits") as pool:
+        futures = [pool.submit(one, item) for item in todo]
+        try:
+            return [future.result() for future in futures]
+        except BaseException:
+            for future in futures:
+                future.cancel()
+            raise
+
+
+def backfill(root: Path, info: Any, shards: list, full: bool, workers: int, start: float) -> int:
+    """Write the bits of every ``(shard, tensors)`` of ``shards`` that has none, log
+    ``store.sign_bits_added`` and return the number of artifacts this call published."""
+    todo = [(shard, tensors) for shard, tensors in shards if shard.sign_bits is None]
+    written = write_all(root, info, todo, full, workers)
+    rows = sum(item[0].rows for item, done in zip(todo, written, strict=True) if done)
+    _log.emit(
+        "store.sign_bits_added",
+        "fse store: wrote the sign bits of %d shards (%d rows)",
+        sum(written),
+        rows,
+        shards=sum(written),
+        rows=rows,
+        bytes=rows * width(info.dim),
+        durability="full" if full else "none",
+        seconds=time.perf_counter() - start,
+    )
+    return sum(written)
