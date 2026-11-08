@@ -5,7 +5,7 @@ Use exactly two measurement entries:
 | Entry | Purpose | Study data |
 | :--- | :--- | :--- |
 | `benchmarks/quality.py` | MTEB, offline SIF fits, STS, recall and score summaries | `benchmarks/config/quality.json` |
-| `benchmarks/speed.py` | Paired libraries, table dtypes and streamed writing | `benchmarks/config/speed.json` |
+| `benchmarks/speed.py` | Paired libraries, table dtypes, precision, paragraphs, heads, versions and streamed writing | `benchmarks/config/speed.json` |
 
 A new study adds data. A new Python library adds a native factory and a registry entry in `_speed_pipeline.py`. Do not add a separate runner. The retained Hub preparation and publication tools have another owner. These commands never publish models or change README values.
 
@@ -476,7 +476,7 @@ python benchmarks/speed.py --bootstrap --source-revision FULL_COMMIT_SHA > /exte
 python benchmarks/quality.py --bootstrap --source-revision FULL_COMMIT_SHA > /external/quality-bootstrap.sh
 ```
 
-The lifecycle owner uses `/bin/bash` as entrypoint with the generated script. Enable SSH injection and `22/tcp` when remote collection needs SSH. `PUBLIC_KEY` is read directly by the script. Set `MEASURE_ALLOCATED_AT`. Optional `MEASURE_INPUT` selects another reviewed study file. `MEASURE_STUDY` selects `libraries`, `dtypes`, `headline` or `all` for speed. No provider API is called by either entry.
+The lifecycle owner uses `/bin/bash` as entrypoint with the generated script. Enable SSH injection and `22/tcp` when remote collection needs SSH. `PUBLIC_KEY` is read directly by the script. Set `MEASURE_ALLOCATED_AT`. Optional `MEASURE_INPUT` selects another reviewed study file. `MEASURE_STUDY` selects `libraries`, `dtypes`, `headline`, `bekko`, `paragraphs`, `heads`, `versions` or `all` for speed. No provider API is called by either entry.
 
 The bootstrap starts SSH before setup, claims one persistent start marker and preserves existing results on restart. It then runs the allocation lifecycle (see "Allocation lifecycle" below). The default result/work/environment paths are `/speed-results`, `/speed-work`, `/speed-env` or their `quality` equivalents. Cache paths are outside the checkout. Never copy a credential into a study or result file.
 
@@ -507,7 +507,7 @@ The core holds no limit. The values live in the data of the allocation. Those of
 Use the exact image digest from `pins.json`, Linux amd64, at most two CPU quota units and four GiB RAM. Give the ST process pool at least one GiB `/dev/shm` and an adequate hard `nofile` limit. Inputs and generated outputs stay outside the repository. The production memory plan remains attached even though the actual rehearsal data are small.
 
 ```sh
-/speed-env/main/bin/python /source/benchmarks/speed.py --rehearse --study all \
+/speed-env/main/bin/python /source/benchmarks/speed.py --rehearse --study libraries \
   --results /proof/speed-results --work /proof/speed-work \
   --reference-python /speed-env/reference/bin/python --allocated-at "$MEASURE_ALLOCATED_AT"
 /quality-env/main/bin/python /source/benchmarks/quality.py --rehearse \
@@ -515,7 +515,7 @@ Use the exact image digest from `pins.json`, Linux amd64, at most two CPU quota 
   --allocated-at "$MEASURE_ALLOCATED_AT"
 ```
 
-The speed rehearsal runs all configured pairs, dtype controls and writing with reduced sizes. The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler, budget gate and allocation runner (normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1). The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
+The speed rehearsal runs the configured pairs of the selected study with reduced sizes; `--study all` adds dtype controls and writing, and needs `--base-python` (for the `versions` cells) and a candidate fse with `fse.Heads` (for the `heads` cells). The bekko cells need a container of about 6 GiB, which is an exception to the four GiB rule of the rehearsal machine check and needs the maintainer's approval each time (the check in `allocation.json` stays at four GiB). The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler, budget gate and allocation runner (normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1). The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
 
 Do not add repository tests for these measurement tools. Run the functional modes and the ordinary repository gates. These tools do not change the fse hot path, so no local performance result is required for moving them.
 
@@ -524,6 +524,27 @@ Do not add repository tests for these measurement tools. Run the functional mode
 A library cell declares `model`, `reference`, `workers`, `texts`, `dimensions`, `dtype`, `rounds`, `planned_input_bytes` and `estimated_seconds`. Keep the common input digest within a pair. Do not shrink only the slow arm. If the common workload is too expensive, obtain a new agreed workload before starting.
 
 Dtype cells use `reference: fse-control`, the same table dtype in both arms and bit-exact output checks. For a source-code comparison, a reviewed data cell can use `reference: fse-base` with `--base-python /external/base-env/bin/python`. The base and candidate use their own installed package identities. Such a pair is a base/candidate comparison, not an identical-code A/A control.
+
+### Protocol variants
+
+`benchmarks/_speed_protocol.py` names the variant of each cell from its `kind` and `reference`, refuses a combination it does not list, and records the variant name in the cell result. The variants stay separate and versioned; the tolerances are the constants of `check_output` in `_speed_cells.py` (rtol 3e-5, atol 3e-6; they equal the `speed.json` `rules` values, which the code does not read) and no variant widens them. A study is refused before any download when it has `fse-base` cells and no `--base-python`, or head cells and an fse without `fse.Heads`.
+
+| Variant | Cells | Output check | A/A control |
+| :--- | :--- | :--- | :--- |
+| `library-compare@1` | `encode` against `model2vec`, `rust`, `fastembed`, `st` | shared tolerance | none |
+| `dtype-control@1` | `dtype` against `fse-control` | bits | fse against fse, at most 1.10 |
+| `version-compare@1` | `dtype` against `fse-base` (two installed versions) | bits | none |
+| `heads-compare@1` | `heads` against `model2vec`, `fse-unfolded`, `fse-separate` | tolerance, or bits for `fse-separate` | none |
+| `write@1` | `write` | bits (codes, scales, inventories) | none |
+
+### Precision, paragraphs, heads and versions
+
+- Stage `bekko`: a Sentence Transformers repository other than the `sentence-transformers/` namespace is read in that format when `speed.json` lists it under `model_formats`. The cell sets `table_dtype: float16` for fse (a float16 table, float32 output) and `widen_weights: true` for the Sentence Transformers arm, which widens its table to float32 before any timer so that no arm measures a half-precision path the other does not share. The receipt records `widened_weights`, and the memory plan adds the float16 original that exists while the table is widened.
+- Stage `paragraphs`: `corpus: paragraphs` draws whole WikiText-103 paragraphs (the pinned 832,318, cut by the common character limit) instead of sentences, with the same seed and sampling. The planned byte counts of these cells are fixed like all others.
+- Stage `heads`: the workload is the fixed head of the development study (`linear-heads@1`, four softmax outputs, float32 PCG64 seed 17; four heads for `linear-heads-multi@1`). Every arm returns the probabilities (output `proba`) of the heads in the order `head_0` to `head_3`, for raw means (the encoder never normalizes), as one float32 matrix of `dimensions` columns (4, or 16 for four heads). Folding the head into the table is outside every timer. Three pairs: folded `predict_proba` against Model2Vec `encode(normalize=False)` followed by the affine map and the softmax in NumPy; folded against unfolded (`predict_batches` with `return_vectors=True`); four heads in one `Heads.predict` against four single `predict_proba` calls (bits).
+- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. The standard allocation has no base environment, so this stage needs one added to the allocation and passed on first. Search cells (time per request, output checked against exact) are not part of this entry yet.
+
+The sizes of these cells mirror the existing cells of the same model; the study for a release sets its own sizes and budget before any paid run.
 
 Writing cells record first native-file read through ShardSink close. They use a float32 table, int8 storage and `durability: none`. Model loading, input generation and verification are outside this timer. Sink opening and external file/directory synchronization have separate observations. Codes, scales, row counts and file inventories are checked before deletion. Logical file bytes are not device write amplification. Separate sequential worker configurations do not isolate a CPU-scaling effect.
 
