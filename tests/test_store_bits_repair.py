@@ -183,6 +183,26 @@ def test_bits_of_another_hash_algorithm_stop_the_repair_wherever_they_lie(tmp_pa
     assert tree(path) == before
 
 
+@pytest.mark.parametrize("kind", ["file", "dangling_symlink"])
+@pytest.mark.parametrize("where", ["beside_a_shard", "orphan"])
+def test_an_entry_that_is_no_directory_is_damage_the_repair_moves(tmp_path, kind, where):
+    path, _ = made(tmp_path)
+    name = bits_name(5) if where == "beside_a_shard" else bits_name(10)
+    entry = path / name
+    if entry.exists():
+        shutil.rmtree(entry)
+    if kind == "file":
+        entry.write_bytes(b"not a directory")
+    else:
+        entry.symlink_to(tmp_path / "nowhere")
+    with pytest.raises(fse.CorruptArtifactError):
+        fse.VectorStore.open(path)
+    assert fse.repair_store(path) == 10
+    assert broken_entries(path) == [name]
+    with fse.VectorStore.open(path) as store:
+        assert len(store) == 10
+
+
 def test_unreadable_bits_are_damage_not_a_stop(tmp_path):
     path, _ = made(tmp_path)
     (path / bits_name(0) / "manifest.json").write_text("not json")

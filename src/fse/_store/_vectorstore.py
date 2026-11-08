@@ -39,7 +39,7 @@ from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, clear_exception_frames, rows_in, stop_row
-from ._refresh import refreshed, with_new_bits
+from ._refresh import prepared
 from ._result import SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
@@ -376,8 +376,7 @@ class VectorStore(MemberReaders):
             raise ValueError("a view does not refresh; open it again")
         with self._refreshing, self._using() as shards:
             try:
-                checked = refreshed(self._root, self._info, shards)
-                older, added_bits = with_new_bits(self._root, self._info, shards)
+                checked, older, added_bits = prepared(self._root, self._info, shards)
             except BaseException as error:
                 clear_exception_frames(error)  # also the maps of the bits opened so far
                 raise

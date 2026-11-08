@@ -62,6 +62,16 @@ def with_new_bits(path: Path, info: Any, shards: list) -> tuple[list, int]:
     return out, added
 
 
+def prepared(path: Path, info: Any, shards: list) -> tuple[Snapshot, list, int]:
+    """What a refresh of ``shards`` needs: the new shards (``refreshed``), the old ones with the
+    bits that appeared for them (``with_new_bits``) and the number of those. Its own frame ends
+    before the caller clears the frames of an error, so the maps of the new shards, opened
+    before the bits of an old one failed, are not kept by the traceback."""
+    checked = refreshed(path, info, shards)
+    older, added_bits = with_new_bits(path, info, shards)
+    return checked, older, added_bits
+
+
 def _check_last(path: Path, last: Any) -> None:
     try:
         found = NpyContainer().metadata(path / last.name).get(FINGERPRINT_KEY)

@@ -152,6 +152,7 @@ def check_manifest(directory: Path) -> None:
     apply: a container, container version, format version, rule, durability tag or checksum
     algorithm of the future is an UnsupportedArtifactError (damage that cannot be read is a
     CorruptArtifactError)."""
+    check_directory(directory.parent, directory.name)
     file = directory / "manifest.json"
     manifest = _strict_json(_manifest_bytes(directory, file), file)
     if not isinstance(manifest, dict):
