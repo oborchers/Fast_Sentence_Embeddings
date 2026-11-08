@@ -35,6 +35,7 @@ def test_nothing_is_read_before_the_arguments_are_checked(store, monkeypatch):
         raise AssertionError("a row was read")
 
     monkeypatch.setattr(_rescore._take, "gather", refuse)
+    monkeypatch.setattr(_rescore._take, "gather_sorted", refuse)
     query = rs.queries(1)[0]
     bad = [
         (np.ma.masked_array(np.array([1], np.int64)), TypeError, "masked array"),

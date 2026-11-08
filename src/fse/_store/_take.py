@@ -105,6 +105,44 @@ def gather(
     return out.reshape(wanted.shape + tail)
 
 
+def gather_sorted(
+    shards: list[tuple[Any, dict[str, ndarray]]],
+    wanted: ndarray,
+    total: int,
+    name: str,
+) -> ndarray:
+    """Read column ``name`` at ascending unique 1-D positions into one owned array.
+
+    The caller owns and orders the positions. Validate their range before accessing any
+    tensor; unlike general ``gather``, neither sorting nor an output permutation is needed.
+    """
+    if wanted.size:
+        if total == 0:
+            raise ValueError("rows must be positions of the store, but the store has no rows")
+        if wanted[0] < 0 or wanted[-1] >= total:
+            raise ValueError(_outside(wanted, wanted.shape, total))
+    column = shards[0][1][name]
+    out = np.empty((len(wanted), *column.shape[1:]), column.dtype)
+    firsts = [shard.first_row for shard, _ in shards]
+    bounds = np.searchsorted(wanted, [*firsts, total])
+    row_bytes = max(1, column.dtype.itemsize * int(np.prod(column.shape[1:]))) + 8
+    block = max(1, _BLOCK_BYTES // row_bytes)
+    for (shard, tensors), begin, end in zip(shards, bounds[:-1], bounds[1:], strict=True):
+        for low in range(int(begin), int(end), block):
+            high = min(low + block, int(end))
+            source = tensors[name]
+            assert source.dtype == out.dtype  # a dtype conversion could silently buffer
+            # The whole range was checked above. No index clips; raise would buffer out.
+            np.take(
+                source,
+                wanted[low:high] - shard.first_row,
+                axis=0,
+                out=out[low:high],
+                mode="clip",
+            )
+    return out
+
+
 def _outside(flat: ndarray, shape: tuple[int, ...], total: int) -> str:
     """The message for the first position of ``flat`` outside the store."""
     at = int(np.argmax((flat < 0) | (flat >= total)))
