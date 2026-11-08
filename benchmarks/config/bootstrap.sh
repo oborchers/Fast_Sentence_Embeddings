@@ -11,7 +11,7 @@ results="$root/$entry-results"
 mkdir -p "$root/$entry-logs" "$state"
 exec > >(tee -a "$root/$entry-logs/bootstrap.log") 2>&1
 finish() {
-  export MEASURE_EXIT_STATUS="$?" MEASURE_ROOT_PATH="$root" MEASURE_ENTRY="$entry" MEASURE_SOURCE="$source"
+  export MEASURE_EXIT_STATUS="$?" MEASURE_ROOT_PATH="${root:-/}" MEASURE_ENTRY="$entry" MEASURE_SOURCE="$source"
   set +e
   trap - EXIT
   /usr/local/bin/python - <<'FINISH_RECORD'
@@ -78,7 +78,7 @@ profile=()
 if test "$entry" = speed && test "${MEASURE_STUDY:-libraries}" = headline; then profile=(--billing-profile headline_billing); fi
 export PYTHONPATH="$source/benchmarks"
 lifecycle=(/usr/local/bin/python -m _harness.allocation)
-common=(--spec "$allocation" --entry "$entry" --root "$root" --allocated-at "$MEASURE_ALLOCATED_AT" --study-file "$input" --pins-file "$source/benchmarks/config/pins.json" "${profile[@]}")
+common=(--spec "$allocation" --entry "$entry" --root "${root:-/}" --allocated-at "$MEASURE_ALLOCATED_AT" --study-file "$input" --pins-file "$source/benchmarks/config/pins.json" "${profile[@]}")
 # The machine check comes before any installation: a rejected machine starts no step.
 "${lifecycle[@]}" begin "${common[@]}" "${rehearsal[@]}"
 /usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocation "$allocation" --allocated-at "$MEASURE_ALLOCATED_AT"
