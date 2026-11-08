@@ -30,8 +30,7 @@ def public_result(encoder, head, path, call, pool):
         return head.predict_proba(path, workers=3, pool=pool)
     if call == "heads":
         return fse.Heads(a=head).predict(path, workers=3, pool=pool)
-    import pyarrow as pa
-
+    pa = pytest.importorskip("pyarrow")
     batch = pa.array([TEXT] * 5000)
     return [batch.rows for batch in encoder.encode_batches([batch], workers=3, pool=pool)]
 
