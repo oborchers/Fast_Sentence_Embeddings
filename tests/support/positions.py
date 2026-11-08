@@ -33,7 +33,11 @@ def write(path, batches, *, stop=None, workers=1, **kwargs):
     """The batches of a stream into a store of the mode source_position@1, closed again; with
     ``stop`` only the first ``stop`` batches (a crash after the last batch the consumer saw).
     Returns the list of results."""
-    options = {k: kwargs.pop(k) for k in ("dtype", "durability", "doc_ids", "rows") if k in kwargs}
+    options = {
+        k: kwargs.pop(k)
+        for k in ("dtype", "durability", "doc_ids", "rows", "sign_bits")
+        if k in kwargs
+    }
     results = []
     with sink(path, **options) as target:
         for found in ENCODER.encode_batches(

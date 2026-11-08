@@ -34,10 +34,11 @@ from fse._partition import partition
 from fse._validation import PositiveInt, validate_arguments
 
 from ._base_sink import ShardSinkBase
+from ._bits_write import backfill as backfill_bits
 from ._layout import check_root_size, create_store, read_store
 from ._position_format import MODE as SOURCE_POSITION
 from ._position_format import SourcePosition, anchor_of, check_position
-from ._recovery import refuse_unsynced, snapshot
+from ._recovery import clear_exception_frames, refuse_unsynced, snapshot
 from ._resume_format import MODE as SOURCE_ROWS
 from ._resume_format import SourceRows, check_mode, check_source, sync_store
 from ._shard import ShardWriter
@@ -125,6 +126,7 @@ class ShardSink(ShardSinkBase):
         durability: Literal["full", "none"] = "full",
         doc_ids: bool = False,
         resume: bool = False,
+        sign_bits: bool = False,
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
@@ -150,6 +152,7 @@ class ShardSink(ShardSinkBase):
         self.dim, self.dtype, self.encoder_fingerprint = info.dim, dtype, info.encoder
         self._created_by = created_by
         self.resume = resume
+        self.sign_bits = sign_bits
         self._new, self._kept = new, 0
         if resume:  # the store is made or compared once a run brings its source
             self._ready = False
@@ -173,6 +176,7 @@ class ShardSink(ShardSinkBase):
             dtype=self.dtype,
             shard_rows=self.shard_rows,
             durability=durability,
+            **({"sign_bits": True} if self.sign_bits else {}),
             **resumed,
         )
 
@@ -200,6 +204,7 @@ class ShardSink(ShardSinkBase):
             if self._synced:
                 refuse_unsynced(self.path, checked.shards)
             rows = sum(shard_.rows for shard_, _ in checked.shards)
+            self._backfill(info, checked.shards)
         finally:
             checked.shards.clear()
         if self._synced:
@@ -239,6 +244,7 @@ class ShardSink(ShardSinkBase):
                 refuse_unsynced(self.path, checked.shards)
             rows = sum(shard_.rows for shard_, _ in checked.shards)
             stream = stream_of(info, checked.shards)
+            self._backfill(info, checked.shards)
         finally:
             checked.shards.clear()
         if self._synced:
@@ -248,6 +254,19 @@ class ShardSink(ShardSinkBase):
         self._stream = stream
         self._opened_event(self._new, self.durability, resume=SOURCE_POSITION, kept_rows=rows)
         return rows
+
+    def _backfill(self, info: StoreInfo, shards: list) -> None:
+        """With ``sign_bits=True``, write the bits that the published shards of a resumed store
+        lack (a run that stopped between a shard and its bits): the shards are checked, so
+        the bits are those the uninterrupted run would have written. An append sink does not
+        read the whole store, so it leaves them to ``fse.add_sign_bits``."""
+        if self.sign_bits:
+            start = time.perf_counter()
+            try:
+                backfill_bits(self.path, info, shards, self._synced, 1, start)
+            except BaseException as error:
+                clear_exception_frames(error)  # the frames hold the mappings of the shards
+                raise
 
     def _check_stream(self) -> None:
         """The checks of ``encode_batches(positions=True)`` that read nothing: the sink resumes,
@@ -268,6 +287,7 @@ class ShardSink(ShardSinkBase):
             self.shard_rows,
             self._created_by,
             synced=self._synced,
+            sign_bits=self.sign_bits,
         )
 
     def _own(self, n_rows: int) -> tuple:
@@ -340,6 +360,7 @@ class ShardSink(ShardSinkBase):
             outcome=outcome,
             seconds=time.perf_counter() - self._start,
             **({"skipped_rows": self._kept} if self.resume else {}),
+            **({"sign_bits_shards": self._extras_published} if self.sign_bits else {}),
         )
 
     def _published_event(self, writer, rows: int) -> None:
