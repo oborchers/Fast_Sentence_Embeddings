@@ -124,7 +124,7 @@ offsets. Binary search and the int8 prefilter supply freshly owned CSR arrays to
 
 | Allocation per running query | Before | After |
 | :--- | :--- | :--- |
-| Unique positions | `np.unique`: version-dependent workspace and 8u-byte result | In-place sort, m-byte mask; 8u-byte copy only with duplicates |
+| Unique positions | `np.unique`: version-dependent workspace and result capacity (logical size 8u) | In-place sort, m-byte mask; 8u-byte copy only with duplicates |
 | Stored vectors of a part | 2*p*d*s transient bytes | p*d*s bytes |
 | Gather position order and ordered positions | 16p bytes per column | None |
 | Shard starts, search boundaries and their conversion | O(S) per gather | O(S) per gather |
@@ -132,7 +132,7 @@ offsets. Binary search and the int8 prefilter supply freshly owned CSR arrays to
 | Inverse norms | Output 4p plus gather indices and temporary 4p copy | Output 4p, no second value copy |
 | Document IDs with `max_per_doc=1` | Output 8p plus gather indices and temporary 8p copy | Output 8p, no second value copy |
 | Cosine scores | 4p bytes | 4p bytes |
-| Ungrouped part selection | About 32p bytes plus selected winners | Same |
+| Ungrouped part selection | About max(24p, 16p + 12*min(k,p)) bytes plus small sort workspace | Same |
 | Winner merge | O(h) positions, scores, optional labels, ordering and selection | Same |
 | Winner document IDs without grouping | General gather on score-ordered winners, O(h + S) | Same |
 
@@ -153,6 +153,79 @@ accessing tensors. It uses `np.take(..., out=..., mode="clip")` on each shard bl
 matching source and output dtypes. The validated indices cannot clip. [NumPy documents](https://numpy.org/doc/1.26/reference/generated/numpy.take.html)
 that `mode="raise"` always buffers `out`; using it would restore the second row copy.
 The general `gather` remains necessary for score-ordered winner IDs and public `take_*`.
+
+#### Local allocation probe
+
+Diagnostic evidence only (class correctness, no timing claim, no Linux comparison):
+Apple M1 Pro, macOS 27.0.1, Python 3.13.16, NumPy 2.5.4, native NEON backend,
+2026-11-08. Base 758fa180, candidate library code f4f7e6a2 (accounting update 4721372b).
+Synthetic int8 rows, d = 256, eight shards, eight queries, k = 13,000,
+oversample = 40, m = 520,000, p = 60,787; PCG64 seeds 310 (store), 311 (queries),
+312 through 319 (candidate lists). One import warmup, then three calls per configuration
+and arm, in fresh processes per configuration. Store construction ran separately from
+RSS measurement. All 24 candidate calls matched the saved base IDs and score bits.
+
+Isolated allocation peaks in MiB, with inputs allocated before tracing. These operations
+have different lifetimes, so the rows must not be added together. Small Python and NumPy
+object overhead is included; formulas give the principal arrays.
+
+| Allocation or operation | Formula before / after | Measured before / after (MiB) |
+| :--- | :--- | :--- |
+| Owned CSR for eight queries, including construction mask | `8*q*m + q*m` / same | 35.706 / same (31.739 retained) |
+| Distinct positions | `np.unique` copy, hash workspace and result / m-byte mask, in-place sort | 8.987 / 0.497 |
+| Duplicates, u = 260,000 | `np.unique` workspace and result / m + 8u | 5.954 / 2.480 |
+| Gather order | 8p / none | 0.469 / none |
+| Ordered-position array | 8p / none | 0.464 retained / none |
+| Local shard indices | 8p / 8p | 0.464 / 0.464 |
+| Transient stored-row copy | p*d*s / none | 14.844 / none |
+| Vector gather, including position buffers | 2*p*d*s + 24p / p*d*s + 8p | 31.077 / 15.306 |
+| Inverse-norm gather | 32p / 12p | 1.857 / 0.697 |
+| Document-ID gather for ascending parts | 40p / 16p | 2.321 / 0.929 |
+| Shard starts and boundaries, S = 8 | O(S) / O(S) | 0.0007 / same |
+| CPU cosine output and validation | 4p + small workspace / same | 0.235 / same |
+| Ungrouped part selection, k = 13,000 | max(24p, 16p + 12*min(k,p)) + small workspace / same | 1.399 / same |
+| Grouped part selection (17,000 labels) | O(p) plus winners / same | 2.240 / same |
+| Merge two lists of h = 13,000 winners | O(h) / same | 1.298 / same |
+| General gather of score-ordered winner IDs | O(h + S) / same | 0.497 / same |
+| Pad eight result lists | 12*q*h / same | 1.191 / same |
+
+The ordered-array probe peaked at 0.928 MiB because its fixture also constructed an
+8p-byte order array. Its retained output above isolates the 8p-byte ordered array.
+The distinct `np.unique` result retained 5.017 MiB, above its logical 8u = 3.967 MiB:
+NumPy 2.5.4's hash path retained spare result capacity. NumPy 1.26.4 uses a different
+sort path, so this old-path result is version-specific. The new mask and compact-copy
+formulas do not depend on that hash implementation. A direct `take` probe including
+its output measured 29.682 MiB with `mode="raise"` and 14.841 MiB with `mode="clip"`.
+
+Whole-call allocation peaks below are maxima of three calls, including owned CSR,
+results and all stage peaks. Peaks were saved before each reset at the boundary of each
+binary group (five queries, then three); current traced bytes at entry were saved too.
+
+| Store rows | Call | Workers | Before (MiB) | After (MiB) |
+| :--- | :--- | :--- | :--- | :--- |
+| 1,000,000 | rescore | 1 | 67.986 | 50.171 |
+| 1,000,000 | rescore | 4 | 172.545 | 100.810 |
+| 1,000,000 | binary | 1 | 55.651 | 41.792 |
+| 1,000,000 | binary | 4 | 160.049 | 88.468 |
+| 2,000,000 | rescore | 1 | 67.986 | 50.171 |
+| 2,000,000 | rescore | 4 | 172.565 | 100.964 |
+| 2,000,000 | binary | 1 | 55.651 | 41.792 |
+| 2,000,000 | binary | 4 | 160.049 | 88.829 |
+
+With one worker the exact stage's peak above its entry allocation fell from
+36.147 to 18.333 MiB for rescore, and from 35.697 to 17.884 MiB for binary search.
+The reduction of about 17.814 MiB exceeds the declared 0.8*p*d*s = 11.872 MiB boundary.
+The binary scan's allocation peak stayed at about 41.8 MiB with one worker and became
+the whole-call peak. With four workers its scan peak was 41.7 to 42.4 MiB; scheduling
+changes the overlap of the later rescoring tasks. The earlier observation of an extra
+8 MiB at two million rows was not reproduced, so its cause remains unconfirmed.
+
+Process peak RSS (fresh processes, maxima across the calls) ranged from 474.1 to
+1,013.7 MiB before and from 463.4 to 815.0 MiB after, depending on configuration.
+RSS includes mapped file pages and allocator retention; it is not the allocation bound
+above. CPU call attribution verified 72 parts and 144 vector/inverse reads for one
+rescore call in both arms, changing from `gather` to `gather_sorted`. The four-worker
+calls use threads, not child processes. No CPU or wall-time comparison is claimed.
 
 ## Views
 
