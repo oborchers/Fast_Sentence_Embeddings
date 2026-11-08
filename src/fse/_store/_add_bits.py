@@ -60,11 +60,17 @@ def add_sign_bits(
 
     def run_shards(fn, items):
         return list(_search_run.run(fn, items, threads, "fse-sign-bits"))
+
     try:
         checked = snapshot(root, info, verify=True)
         try:
             return backfill(
-                root, info, checked.shards, durability == "full", threads.workers, start,
+                root,
+                info,
+                checked.shards,
+                durability == "full",
+                threads.workers,
+                start,
                 run_shards=run_shards if pool is not None else None,
             )
         finally:

@@ -97,8 +97,11 @@ class FileSource(_Buffered):
         run_ranges: Callable | None = None,
     ) -> tuple[Scan, Exception | None]:
         result = super().scan_until_error(
-            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows, first_row=first_row,
-            run_ranges=run_ranges
+            workers=workers,
+            chunk_bytes=chunk_bytes,
+            chunk_rows=chunk_rows,
+            first_row=first_row,
+            run_ranges=run_ranges,
         )
         self._check_unchanged()  # a change during the scan
         return result

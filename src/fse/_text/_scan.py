@@ -94,6 +94,7 @@ def _scan_pool(workers: int, total: int, run_ranges: Callable | None = None):
 
 def _ordered_scan(run_ranges: Callable, fn: Callable, ranges: list):
     """Transport task errors as values, so an earlier invalid sentence wins."""
+
     def safe(span):
         try:
             return fn(span)
@@ -272,9 +273,7 @@ class _Buffered:
         sentences = 0
         chunks: list[Chunk] = []
         with _scan_pool(workers, total, run_ranges) as map_ranges:
-            for span, result in zip(
-                ranges, map_ranges(scan, ranges), strict=True
-            ):
+            for span, result in zip(ranges, map_ranges(scan, ranges), strict=True):
                 error_byte, error_sentence = result[2], result[3]
                 error = None
                 if error_byte >= 0:
@@ -293,7 +292,11 @@ class _Buffered:
         return Scan(sentences, tuple(chunks)), None
 
     def _offset_scan(
-        self, workers: int, chunk_bytes: int, chunk_rows: int, first_row: int,
+        self,
+        workers: int,
+        chunk_bytes: int,
+        chunk_rows: int,
+        first_row: int,
         run_ranges: Callable | None = None,
     ) -> tuple[Scan, Exception | None]:
         """The scan of sentences with offsets: validated, then cut from the offsets into
@@ -305,7 +308,10 @@ class _Buffered:
         return Scan(rows, chunks), error
 
     def _validated(
-        self, workers: int, chunk_bytes: int, first_row: int,
+        self,
+        workers: int,
+        chunk_bytes: int,
+        first_row: int,
         run_ranges: Callable | None = None,
     ) -> tuple[int, Exception | None]:
         """The sentences before the first invalid one, and its error (or None); a verified

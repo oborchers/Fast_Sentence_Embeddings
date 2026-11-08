@@ -128,8 +128,9 @@ def publish_bits(
     return True
 
 
-def write_all(root: Path, info: Any, todo: list, full: bool, workers: int,
-              run_shards: Callable | None = None) -> list[bool]:
+def write_all(
+    root: Path, info: Any, todo: list, full: bool, workers: int, run_shards: Callable | None = None
+) -> list[bool]:
     """Whether this call published the bits of each ``(shard, tensors)`` of ``todo``, in
     order; ``workers`` shards at once. A shard tagged ``fse.durability=none`` gets a tagged
     artifact, also with ``full``."""
@@ -155,8 +156,15 @@ def write_all(root: Path, info: Any, todo: list, full: bool, workers: int,
             raise
 
 
-def backfill(root: Path, info: Any, shards: list, full: bool, workers: int, start: float,
-             run_shards: Callable | None = None) -> int:
+def backfill(
+    root: Path,
+    info: Any,
+    shards: list,
+    full: bool,
+    workers: int,
+    start: float,
+    run_shards: Callable | None = None,
+) -> int:
     """Write the bits of every ``(shard, tensors)`` of ``shards`` that has none, log
     ``store.sign_bits_added`` and return the number of artifacts this call published."""
     todo = [(shard, tensors) for shard, tensors in shards if shard.sign_bits is None]

@@ -76,6 +76,7 @@ def test_encoding_from_a_task_on_the_same_pool_is_refused(tmp_path):
     path = source_file(tmp_path)
     encoder = finished()
     with fse.Pool(2, max_tasks=1) as pool:
+
         def nested():
             with pool.inside():
                 return encoder.encode(path, pool=pool)

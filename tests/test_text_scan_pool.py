@@ -51,6 +51,7 @@ def test_runner_preserves_chunks_and_uses_only_pool_threads(source, monkeypatch)
     monkeypatch.setattr(source, "_scanner", scanner)
     monkeypatch.setattr(_scan, "ThreadPoolExecutor", no_executor)
     with Pool(3, max_tasks=1) as pool:
+
         def runner(fn, spans):
             calls.append(1)
             results = []
@@ -73,15 +74,17 @@ def test_an_earlier_invalid_sentence_wins_over_a_later_task_exception(
     tmp_path, monkeypatch, offsets
 ):
     path = tmp_path / "bad"
-    path.write_bytes(b"\xff\n" + b"w1\n" * 400_000)
-    src = StringSource.encoded([b"\xff", *([b"w1"] * 400_000)]) if offsets else FileSource(path)
+    path.write_bytes(b"\xff\n" + b"w1\n" * 600_000)
+    src = StringSource.encoded([b"\xff", *([b"w1"] * 600_000)]) if offsets else FileSource(path)
     real = src._scanner
+    later = []
 
     def scanner(*args):
         fn = real(*args)
 
         def scan(span):
             if span[0] > 0:
+                later.append(span)
                 raise MemoryError("later range")
             return fn(span)
 
@@ -90,12 +93,14 @@ def test_an_earlier_invalid_sentence_wins_over_a_later_task_exception(
     monkeypatch.setattr(src, "_scanner", scanner)
     try:
         with Pool(2) as pool:
+
             def runner(fn, spans):
                 results = []
                 run(spans, fn, lambda _, r: results.append(r), workers=2, pool=pool)
                 return results
 
             scan, error = src.scan_until_error(workers=2, run_ranges=runner)
+            assert later
             assert scan.sentences == 0
             assert isinstance(error, UnicodeDecodeError)
             assert "sentence 0" in str(error)
@@ -137,6 +142,7 @@ def test_runner_task_errors_are_raised_in_range_order(monkeypatch):
 
     monkeypatch.setattr(src, "_scanner", scanner)
     with Pool(2) as pool:
+
         def runner(fn, spans):
             results = []
             run(spans, fn, lambda _, r: results.append(r), workers=2, pool=pool)

@@ -246,9 +246,12 @@ class Pipeline:
         window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))
         task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))
         stop = threading.Event()
+
         def run_ranges(fn, ranges):
             results: list[Any] = []
-            run(ranges, fn, lambda _task, result: results.append(result), workers=workers, pool=pool)
+            run(
+                ranges, fn, lambda _task, result: results.append(result), workers=workers, pool=pool
+            )
             return results
 
         tasks = plan(

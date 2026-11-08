@@ -34,7 +34,7 @@ def test_backfill_on_pool_writes_identical_bytes(tmp_path, monkeypatch, dtype, s
         assert fse.add_sign_bits(shared, pool=pool) == len(sizes)
         assert fse.add_sign_bits(shared, pool=pool) == 0
         assert not pool.closed
-    for row in (0, 5, 8)[:len(sizes)]:
+    for row in (0, 5, 8)[: len(sizes)]:
         assert tree(own / bits_name(row)) == tree(shared / bits_name(row))
     assert names
     # One shard follows the shared runner too, but its task runs inline inside the pool.
@@ -69,6 +69,7 @@ def test_nested_backfill_refused_before_any_write(tmp_path, sizes):
     path = tmp_path / "store"
     signed_store(path, sizes=sizes)
     with fse.Pool(2) as pool:
+
         def nested():
             with pool.inside():
                 return fse.add_sign_bits(path, pool=pool)
@@ -107,9 +108,7 @@ def test_backfill_waits_for_a_shared_place(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("error_type", [ValueError, KeyboardInterrupt])
-def test_failure_settles_own_writers_but_not_an_independent_call(
-    tmp_path, monkeypatch, error_type
-):
+def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monkeypatch, error_type):
     path = tmp_path / "store"
     signed_store(path, sizes=(5, 3, 2, 4))
     condition = threading.Condition()
@@ -142,15 +141,20 @@ def test_failure_settles_own_writers_but_not_an_independent_call(
     with fse.Pool(4) as pool:
         independent = threading.Event()
         done = threading.Event()
+        other_waits = []
 
         def other():
             with pool.inside():
+                other_waits.append(blocked_in_wait(done._cond, threading.current_thread().name))
                 independent.set()
                 assert done.wait(10)
 
         future = pool.submit(other)
         assert independent.wait(10)
-        readers = Readers({"backfill": lambda: fse.add_sign_bits(path, workers=2, pool=pool)}).start()
+        assert arrived(other_waits[0], done._cond)
+        readers = Readers(
+            {"backfill": lambda: fse.add_sign_bits(path, workers=2, pool=pool)}
+        ).start()
         try:
             assert started.wait(10)
             cond, event = owners[0]
@@ -160,12 +164,15 @@ def test_failure_settles_own_writers_but_not_an_independent_call(
                 release = True
                 condition.notify_all()
             readers.wait()
+        try:
+            with pytest.raises(error_type, match="failed writer"):
+                readers.join()
+            assert not future.done()  # failed backfill did not wait for the independent task
+            assert not list(path.glob(".sign_bits-*"))
+            assert pool.try_acquire()
+            pool.release()
+        finally:
             done.set()
             future.result(timeout=10)
-        with pytest.raises(error_type, match="failed writer"):
-            readers.join()
-        assert not list(path.glob(".sign_bits-*"))
-        assert pool.try_acquire()
-        pool.release()
     monkeypatch.undo()
     assert fse.add_sign_bits(path, workers=1) >= 1
