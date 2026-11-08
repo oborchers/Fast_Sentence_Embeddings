@@ -14,7 +14,7 @@ the same length. Token-id inputs (2.1) add task types with their own ``batch``.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -80,6 +80,7 @@ def plan(
     tokenizer: str,
     stop: threading.Event | None = None,
     first_row: int = 0,
+    run_ranges: Callable | None = None,
 ) -> Plan:
     """Scan ``source`` and plan one task per chunk of at most ``chunk_rows`` rows; an error
     of the scan names its row from ``first_row`` (the row of the run where it starts)."""
@@ -97,6 +98,7 @@ def plan(
         chunk_bytes=chunk_bytes,
         chunk_rows=chunk_rows,
         first_row=first_row,
+        run_ranges=run_ranges,
     )
     chunks = scan.chunks
     if chunk_bytes is None and not inline and workers > 1:  # the automatic plan only

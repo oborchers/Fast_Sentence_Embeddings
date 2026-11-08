@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
@@ -80,12 +80,30 @@ def _decode_error(data: Any, start: int, end: int, sentence: int) -> UnicodeDeco
     raise AssertionError(f"no UTF-8 error in sentence {sentence}")  # pragma: no cover
 
 
-def _scan_pool(workers: int, total: int) -> AbstractContextManager[ThreadPoolExecutor | None]:
-    """Threads for a scan, or None to scan in the calling thread: with one worker and for
-    sources under _SCAN_INLINE_BYTES. The chunks are the same either way."""
+@contextmanager
+def _scan_pool(workers: int, total: int, run_ranges: Callable | None = None):
+    """An ordered map for a scan, inline for small sources or one worker."""
     if workers == 1 or total < _SCAN_INLINE_BYTES:
-        return nullcontext(None)
-    return ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-text")
+        yield map
+    elif run_ranges is not None:
+        yield lambda fn, ranges: _ordered_scan(run_ranges, fn, ranges)
+    else:
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-text") as pool:
+            yield pool.map
+
+
+def _ordered_scan(run_ranges: Callable, fn: Callable, ranges: list):
+    """Transport task errors as values, so an earlier invalid sentence wins."""
+    def safe(span):
+        try:
+            return fn(span)
+        except Exception as error:
+            return error
+
+    for result in run_ranges(safe, ranges):
+        if isinstance(result, Exception):
+            raise result
+        yield result
 
 
 def _integer(value: object) -> int | None:
@@ -231,6 +249,7 @@ class _Buffered:
         chunk_bytes: int | None = None,
         chunk_rows: int | None = None,
         first_row: int = 0,
+        run_ranges: Callable | None = None,
     ) -> tuple[Scan, Exception | None]:
         """As ``scan``, but the first invalid sentence ends the chunks instead of raising:
         the chunks of the sentences before it and its error (or None). The runtime encodes
@@ -243,7 +262,7 @@ class _Buffered:
         if self._positions() == 0:
             return Scan(0, ()), None
         if self._offsets is not None:
-            return self._offset_scan(workers, chunk_bytes, chunk_rows, first_row)
+            return self._offset_scan(workers, chunk_bytes, chunk_rows, first_row, run_ranges)
         scan = self._scanner(chunk_bytes, chunk_rows)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
 
@@ -252,9 +271,9 @@ class _Buffered:
 
         sentences = 0
         chunks: list[Chunk] = []
-        with _scan_pool(workers, total) as pool:
+        with _scan_pool(workers, total, run_ranges) as map_ranges:
             for span, result in zip(
-                ranges, (map if pool is None else pool.map)(scan, ranges), strict=True
+                ranges, map_ranges(scan, ranges), strict=True
             ):
                 error_byte, error_sentence = result[2], result[3]
                 error = None
@@ -274,18 +293,20 @@ class _Buffered:
         return Scan(sentences, tuple(chunks)), None
 
     def _offset_scan(
-        self, workers: int, chunk_bytes: int, chunk_rows: int, first_row: int
+        self, workers: int, chunk_bytes: int, chunk_rows: int, first_row: int,
+        run_ranges: Callable | None = None,
     ) -> tuple[Scan, Exception | None]:
         """The scan of sentences with offsets: validated, then cut from the offsets into
         chunks of about equal bytes (``offset_cuts``)."""
-        rows, error = self._validated(workers, chunk_bytes, first_row)
+        rows, error = self._validated(workers, chunk_bytes, first_row, run_ranges)
         assert self._offsets is not None
         cuts = offset_cuts(self._offsets[: rows + 1], chunk_bytes, chunk_rows).tolist()
         chunks = tuple(Chunk(a, b, a, b - a) for a, b in pairwise(cuts))
         return Scan(rows, chunks), error
 
     def _validated(
-        self, workers: int, chunk_bytes: int, first_row: int
+        self, workers: int, chunk_bytes: int, first_row: int,
+        run_ranges: Callable | None = None,
     ) -> tuple[int, Exception | None]:
         """The sentences before the first invalid one, and its error (or None); a verified
         buffer has no invalid sentence."""
@@ -294,8 +315,8 @@ class _Buffered:
         scan = self._scanner(1 << 62, _native.MAX_CHUNK_ROWS)
         ranges = list(pairwise(self._range_bounds(workers, chunk_bytes)))
         sentences = 0
-        with _scan_pool(workers, self.nbytes) as pool:
-            for result in (map if pool is None else pool.map)(scan, ranges):
+        with _scan_pool(workers, self.nbytes, run_ranges) as map_ranges:
+            for result in map_ranges(scan, ranges):
                 count, _, error_byte, error_sentence = result
                 if error_byte >= 0:
                     return sentences + error_sentence, self._error(

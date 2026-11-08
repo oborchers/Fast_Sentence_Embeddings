@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import secrets
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -127,7 +128,8 @@ def publish_bits(
     return True
 
 
-def write_all(root: Path, info: Any, todo: list, full: bool, workers: int) -> list[bool]:
+def write_all(root: Path, info: Any, todo: list, full: bool, workers: int,
+              run_shards: Callable | None = None) -> list[bool]:
     """Whether this call published the bits of each ``(shard, tensors)`` of ``todo``, in
     order; ``workers`` shards at once. A shard tagged ``fse.durability=none`` gets a tagged
     artifact, also with ``full``."""
@@ -139,6 +141,8 @@ def write_all(root: Path, info: Any, todo: list, full: bool, workers: int) -> li
             root, info, shard, tensors["vectors"], synced=full and not shard.unsynced, by=by
         )
 
+    if run_shards is not None and workers > 1:
+        return run_shards(one, todo)
     if workers == 1 or len(todo) <= 1:
         return [one(item) for item in todo]
     with ThreadPoolExecutor(min(workers, len(todo)), thread_name_prefix="fse-sign-bits") as pool:
@@ -151,11 +155,12 @@ def write_all(root: Path, info: Any, todo: list, full: bool, workers: int) -> li
             raise
 
 
-def backfill(root: Path, info: Any, shards: list, full: bool, workers: int, start: float) -> int:
+def backfill(root: Path, info: Any, shards: list, full: bool, workers: int, start: float,
+             run_shards: Callable | None = None) -> int:
     """Write the bits of every ``(shard, tensors)`` of ``shards`` that has none, log
     ``store.sign_bits_added`` and return the number of artifacts this call published."""
     todo = [(shard, tensors) for shard, tensors in shards if shard.sign_bits is None]
-    written = write_all(root, info, todo, full, workers)
+    written = write_all(root, info, todo, full, workers, run_shards)
     rows = sum(item[0].rows for item, done in zip(todo, written, strict=True) if done)
     _log.emit(
         "store.sign_bits_added",

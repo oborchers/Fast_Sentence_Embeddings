@@ -39,7 +39,7 @@ from fse._text import (
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
-from ._pool import Workers, resolve_workers
+from ._pool import Pool, Workers, resolve_workers
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -151,6 +151,7 @@ class Pipeline:
             + getattr(sink, "extra_row_bytes", 0)
             + (0 if lengths is None else lengths.row_bytes),
             base,
+            pool=pool,
         )
         self._planned(source, tasks, workers, window, dtype, sink)
         own: ArrayRows | GrowingRows | None = None
@@ -235,6 +236,7 @@ class Pipeline:
         chunk_bytes: int | None,
         row_bytes: int,
         first_row: int = 0,
+        pool: Pool | None = None,
     ) -> tuple[Plan, int, threading.Event]:
         """The tasks of ``source`` for rows of ``row_bytes`` each, the window, and the event
         the executor sets once a task failed. The rows of the window stay within
@@ -244,6 +246,11 @@ class Pipeline:
         window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))
         task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))
         stop = threading.Event()
+        def run_ranges(fn, ranges):
+            results: list[Any] = []
+            run(ranges, fn, lambda _task, result: results.append(result), workers=workers, pool=pool)
+            return results
+
         tasks = plan(
             source,
             workers=workers,
@@ -252,6 +259,7 @@ class Pipeline:
             tokenizer=self.spec.tokenizer.name,
             stop=stop,
             first_row=first_row,
+            run_ranges=run_ranges if pool is not None else None,
         )
         return tasks, window, stop
 

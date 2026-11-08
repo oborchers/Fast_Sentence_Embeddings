@@ -21,9 +21,10 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from fse._runtime import workers_of
+from fse._runtime import Pool, workers_of
 from fse._validation import PathLike, PositiveInt, validate_arguments
 
+from . import _search_run
 from ._bits_write import backfill
 from ._layout import read_store
 from ._recovery import clear_exception_frames, snapshot
@@ -36,6 +37,7 @@ def add_sign_bits(
     *,
     durability: Literal["full", "none"] = "full",
     workers: PositiveInt | None = None,
+    pool: Pool | None = None,
 ) -> int:
     """Write the sign bits of every shard of the store ``path`` that has none and return the
     number of artifacts written (0 if every shard has them).
@@ -48,15 +50,23 @@ def add_sign_bits(
     in any case. ``workers`` shards are done at once (default: the usable CPUs). Run it while
     writers append if you must: a shard published meanwhile is not covered, and an artifact
     another writer published first is kept when it is valid. A score store raises
-    ``UnsupportedArtifactError``."""
+    ``UnsupportedArtifactError``. With ``pool=``, shards share its threads and task
+    places. ``workers`` defaults to its size and must not exceed it. The caller owns
+    the pool; inline work (``workers=1``) takes no place."""
     start = time.perf_counter()
     root = Path(path)
+    threads = workers_of(workers, pool)
     info = read_store(root, VECTORS.name)
-    count = workers_of(workers).workers
+
+    def run_shards(fn, items):
+        return list(_search_run.run(fn, items, threads, "fse-sign-bits"))
     try:
         checked = snapshot(root, info, verify=True)
         try:
-            return backfill(root, info, checked.shards, durability == "full", count, start)
+            return backfill(
+                root, info, checked.shards, durability == "full", threads.workers, start,
+                run_shards=run_shards if pool is not None else None,
+            )
         finally:
             checked.shards.clear()  # release the mappings
     except BaseException as error:

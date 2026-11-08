@@ -99,12 +99,14 @@ class ArrowSource(_Buffered):
         chunk_bytes: int | None = None,
         chunk_rows: int | None = None,
         first_row: int = 0,
+        run_ranges: Callable | None = None,
     ) -> tuple[Scan, Exception | None]:
         """As for every source; a null ends the column like an invalid sentence: the rows
         before it are the chunks, and its error follows them unless one of them is
         invalid."""
         scan, error = super().scan_until_error(
-            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows, first_row=first_row
+            workers=workers, chunk_bytes=chunk_bytes, chunk_rows=chunk_rows, first_row=first_row,
+            run_ranges=run_ranges
         )
         if error is None and self._column.null_row >= 0:
             error = _native.arrow_null_error(first_row + self._column.null_row)

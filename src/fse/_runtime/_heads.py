@@ -113,7 +113,7 @@ class HeadsPipeline:
             0 if lengths is None else lengths.row_bytes,
         )
         tasks, window, stop = plan.primary.plan_tasks(
-            source, workers, chunk_bytes, row_bytes, first_row
+            source, workers, chunk_bytes, row_bytes, first_row, pool=pool
         )
         vectors = (self.vector_dim, vector_dtype, vector_sink) if plan.with_vectors else None
         targets = Targets(
