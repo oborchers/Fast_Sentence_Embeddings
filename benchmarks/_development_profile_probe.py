@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 
@@ -27,7 +28,12 @@ def child(file):
     elif action == "version":
         import memray
 
-        result = {"version": memray.__version__, "path": memray.__file__}
+        binary = importlib.import_module("memray._memray")
+        result = {
+            "version": memray.__version__,
+            "path": binary.__file__,
+            "module_path": memray.__file__,
+        }
     else:
         raise ValueError("unknown profile probe action")
     atomic(
