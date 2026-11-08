@@ -7,6 +7,7 @@ import pytest
 
 import fse
 from fse._runtime import _executor, _pipeline
+from fse._store import _search_run
 from fse._text import ArrowSource, _scan
 from support.concurrent import Readers, exact
 from support.encoder import finished
@@ -121,7 +122,15 @@ def test_encode_and_search_overlap_on_six_and_two_workers(tmp_path, monkeypatch)
 
         return scan
 
+    def no_executor(**_kwargs):
+        raise AssertionError("encode or search started extra threads")
+
     monkeypatch.setattr(_scan._Buffered, "_scanner", scanner)
+    monkeypatch.setattr(_scan, "ThreadPoolExecutor", no_executor)
+    monkeypatch.setattr(_search_run, "ThreadPoolExecutor", no_executor)
+    # Shard writers of other tests can still live in this worker process. Only the
+    # threads created for these two calls belong to this pool's thread budget.
+    existing = set(threading.enumerate())
     with fse.VectorStore.open(store_path) as store, fse.Pool(8, start=True) as pool:
         query = np.ones(6, dtype=np.float32)
         wanted = exact(store.search(query, 5, mode="exact", workers=1))
@@ -130,8 +139,10 @@ def test_encode_and_search_overlap_on_six_and_two_workers(tmp_path, monkeypatch)
             assert started.wait(10)
             assert arrived(waiting[0], condition)
             assert exact(store.search(query, 5, mode="exact", workers=2, pool=pool)) == wanted
-            threads = [t for t in threading.enumerate() if t.name.startswith("fse-")]
-            assert len(threads) <= 8
+            threads = [
+                t for t in threading.enumerate() if t not in existing and t.name.startswith("fse-")
+            ]
+            assert len(threads) == 8
             assert all(t.name.startswith("fse-worker") for t in threads)
         finally:
             with condition:
