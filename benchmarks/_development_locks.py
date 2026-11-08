@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import errno
 import json
+import math
 import os
+import stat
 import tempfile
 import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+from _development_queue import Waiter, validate_paths
 from _development_system import LABEL, require_unix
 
 
@@ -23,6 +26,7 @@ def lock_paths():
     )
     if paths[0].resolve() == paths[1].resolve():
         raise ValueError("bench.lock and heavy.lock must have different paths")
+    validate_paths(paths)
     return paths
 
 
@@ -82,29 +86,87 @@ def _rollback_claim(path, created, written):
                 raise
 
 
+def _holder(path):
+    try:
+        fd = os.open(path / "owner", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                return None
+            data = os.read(fd, 65537)
+            return json.loads(data) if len(data) <= 65536 else None
+        finally:
+            os.close(fd)
+    except (OSError, ValueError):
+        return None
+
+
+def _check_stopped(stopped):
+    if stopped():
+        raise InterruptedError("stopped before development lock admission")
+
+
+def _waiting(path, peer, position, notify):
+    place, count = position if position is not None else (None, None)
+    notify(
+        {
+            **LABEL,
+            "event": "waiting_for_lock",
+            "lock": str(path),
+            "peer": str(peer),
+            "position": place,
+            "waiting": count,
+            "holder": _holder(path),
+            "peer_holder": _holder(peer),
+        }
+    )
+
+
 @contextmanager
-def coordinated(role, worker, purpose, notify, stopped=lambda: False, admitted=lambda: True):
-    """Claim only our own lock, recheck its peer, and never take over any owner."""
+def _claimed(path, peer, owner, admitted, notify):
+    acquired = _claim(path, owner)
+    accepted = False
+    try:
+        accepted = acquired and not busy(peer) and admitted()
+        yield accepted
+    finally:
+        if acquired:
+            _release(path, owner)
+            if accepted:
+                notify({**LABEL, "event": "lock_released", "lock": str(path), "owner": owner})
+
+
+@contextmanager
+def coordinated(
+    role, worker, purpose, notify, stopped=lambda: False, admitted=lambda: True, *, poll=1.0
+):
+    """Admit the first registered waiter; never take over an existing lock owner."""
+    if not math.isfinite(poll) or poll <= 0:
+        raise ValueError("poll must be finite and positive")
     bench, heavy = lock_paths()
     path, peer = (bench, heavy) if role == "timing" else (heavy, bench)
     if role not in ("timing", "heavy") or not worker or not purpose:
         raise ValueError("a timing/heavy role, worker and purpose are required")
     owner = dict(worker=worker, pid=os.getpid(), purpose=purpose, token=uuid.uuid4().hex)
-    while True:
-        if stopped():
-            raise InterruptedError("stopped before development lock admission")
-        if not busy(peer) and admitted() and _claim(path, owner):
-            if not busy(peer) and admitted():
-                break
-            _release(path, owner)
-        notify({**LABEL, "event": "waiting_for_lock", "lock": str(path), "peer": str(peer)})
-        time.sleep(1)
+    waiter = Waiter(path, owner)
     try:
-        notify({**LABEL, "event": "lock_acquired", "lock": str(path), "owner": owner})
-        yield owner
+        while True:
+            _check_stopped(stopped)
+            position = waiter.position()
+            _check_stopped(stopped)
+            if position is not None and position[0] == 1 and not busy(peer) and admitted():
+                with _claimed(path, peer, owner, admitted, notify) as acquired:
+                    if acquired:
+                        waiter.close()
+                        notify(
+                            {**LABEL, "event": "lock_acquired", "lock": str(path), "owner": owner}
+                        )
+                        _check_stopped(stopped)
+                        yield owner
+                        break
+            _waiting(path, peer, position, notify)
+            time.sleep(poll)
     finally:
-        _release(path, owner)
-        notify({**LABEL, "event": "lock_released", "lock": str(path), "owner": owner})
+        waiter.close()
 
 
 def heavy_command(command, worker, notify):

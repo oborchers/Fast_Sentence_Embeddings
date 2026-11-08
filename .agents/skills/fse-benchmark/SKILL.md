@@ -107,6 +107,7 @@ same positive sign and at least half the effect. Maximum deviation is reported o
 All raw observations remain. Use ABBA explicitly in a cell when appropriate.
 
 `FSE_BENCH_LOCK` and `FSE_HEAVY_LOCK` configure mutually exclusive mkdir locks.
+Each lock serves registered waiters in FIFO order; see the measurement guide for queue positions, cancellation and mixed-version rollout.
 Use `speed.py --local-heavy --worker-name NAME -- COMMAND ...` for builds/checks.
 Timing waits for one-minute load below five before each cell and arm. Foreign CPU
 above fifty percent is telemetry only. macOS clears child background policy when
