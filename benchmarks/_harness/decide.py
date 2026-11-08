@@ -90,14 +90,16 @@ def _main(rule, row):
 
 
 def _edge(bound, row):
-    if row["status"] != "valid":
+    if row["status"] not in ("valid", "rejected"):
         return "open"
     if "comparison" not in row or "confirmation" not in row:
         return "open"
     factors = [number(row[b]["factor"]["median"], "factor") for b in ("comparison", "confirmation")]
     if min(factors) <= 0:
         raise ValueError("positive decision factors required")
-    return "pass" if min(factors) >= bound["min_factor"] else "fail"
+    if min(factors) < bound["min_factor"]:
+        return "fail"
+    return "pass" if row["status"] == "valid" else "open"
 
 
 def evaluate(rule, rows, selected, functional=False, phase="all", stopped_after=None):

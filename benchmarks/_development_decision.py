@@ -105,13 +105,7 @@ def replay(results):
         cell_id = row["cell_id"]
         if cell_id in decisions:
             raise ValueError("duplicate replay cell")
-        if all(isinstance(row.get(k), dict) for k in ("aa", "comparison", "confirmation")):
-            result = judge(row, row["aa"], row["comparison"], row["confirmation"],
-                           row.get("functional_only", False))
-            decisions[cell_id] = result
-        else:
-            decisions[cell_id] = {"decision": row.get("decision", "not_run"),
-                                  "status": row["status"], "replayed": False}
+        decisions[cell_id] = _replay_cell(results, contract, row)
     result = {"cells": decisions}
     if "decision" in contract:
         result["overall"] = evaluate(
@@ -119,3 +113,16 @@ def replay(results):
             contract.get("functional_only", False), contract["local_phase"],
         )
     return result
+
+
+def _replay_cell(results, contract, row):
+    from _harness.records import document
+
+    if all(isinstance(row.get(k), dict) for k in ("aa", "comparison", "confirmation")):
+        return judge(row, row["aa"], row["comparison"], row["confirmation"],
+                     row.get("functional_only", False))
+    if contract.get("local_phase") == "screen" and isinstance(row.get("comparison"), dict):
+        control = document(results / (row["cell_id"] + "-aa.json"))
+        return screen(row, control["aa"], row["comparison"], row.get("functional_only", False))
+    return {"decision": row.get("decision", "not_run"), "status": row["status"],
+            "replayed": False}
