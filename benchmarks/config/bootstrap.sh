@@ -23,7 +23,8 @@ status = int(os.environ["MEASURE_EXIT_STATUS"])
 if not os.environ.get("MEASURE_CONTROL_PROBE"):
     status = status or 1
 names = [entry]
-allocation = pathlib.Path(os.environ["MEASURE_SOURCE"]) / "benchmarks/config/allocation.json"
+default = pathlib.Path(os.environ["MEASURE_SOURCE"]) / "benchmarks/config/allocation.json"
+allocation = pathlib.Path(os.environ.get("MEASURE_ALLOCATION") or default)
 if allocation.exists():
     names = [s["name"] for s in json.loads(allocation.read_text())[entry]["steps"]]
 for name in names:
