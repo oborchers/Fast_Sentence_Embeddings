@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 import fse
-from fse._container import NpyContainer
+from fse._container import NpyContainer, _npy, _npy_inplace
 from fse._store import _bits_write
 from fse._store._bits_format import bits_name, open_bits
 from fse._store._layout import read_store, shard_name
@@ -116,22 +116,45 @@ def test_a_failed_sync_after_the_rename_is_reported_and_the_bits_stay(tmp_path, 
     assert not list(path.glob(".sign_bits-*"))
 
 
-def test_unsynced_bits_skip_the_directory_sync_and_are_tagged(tmp_path, monkeypatch):
+def test_unsynced_bits_sync_no_directory_and_are_tagged(tmp_path, monkeypatch):
+    path = tmp_path / "store"
+    signed_store(path, sizes=(5, 3))
+    info, shards = opened(path)
+    synced = []
+    for module in (_npy, _npy_inplace):
+        real = module._sync_directory
+
+        def spy(directory, *args, _real=real, **kwargs):
+            synced.append(directory)
+            return _real(directory, *args, **kwargs)
+
+        monkeypatch.setattr(module, "_sync_directory", spy)
+    (shard, tensors), (other, other_tensors) = shards
+    _bits_write.write_bits(path, info, shard, tensors["vectors"], synced=False, by="x")
+    assert synced == []
+    assert NpyContainer().metadata(path / bits_name(0))["fse.durability"] == "none"
+    _bits_write.write_bits(path, info, other, other_tensors["vectors"], synced=True, by="y")
+    assert path in synced  # the rename is synced in the store directory
+    assert "fse.durability" not in NpyContainer().metadata(path / bits_name(5))
+    assert not list(path.glob(".sign_bits-*"))
+
+
+def test_hash_and_bits_are_made_from_one_copy_of_the_bytes(tmp_path, monkeypatch):
     path = tmp_path / "store"
     signed_store(path, sizes=(5,))
-    info, shards = opened(path)
+    _, shards = opened(path)
     shard, tensors = shards[0]
-    real, seen = _bits_write.publish_directory, []
+    vectors = np.array(tensors["vectors"])  # writable, as another process could change a map
+    seen = []
+    real = _bits_write._reference_bits.sign_bits
 
-    def spy(tmp, final, *, sync_parent):
-        seen.append(sync_parent)
-        real(tmp, final, sync_parent=sync_parent)
+    def spy(block):
+        seen.append(np.shares_memory(block, vectors))
+        return real(block)
 
-    monkeypatch.setattr(_bits_write, "publish_directory", spy)
-    _bits_write.write_bits(path, info, shard, tensors["vectors"], synced=False, by="x")
-    _bits_write.write_bits(path, info, shard, tensors["vectors"], synced=True, by="y")
-    assert seen == [False, True]
-    assert NpyContainer().metadata(path / bits_name(0))["fse.durability"] == "none"
+    monkeypatch.setattr(_bits_write._reference_bits, "sign_bits", spy)
+    _bits_write.derived(shard, vectors)
+    assert seen == [False]
 
 
 def test_created_by_names_fse():

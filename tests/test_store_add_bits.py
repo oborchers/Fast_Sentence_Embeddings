@@ -55,9 +55,11 @@ def test_one_and_many_workers_write_the_same_bytes(tmp_path):
 def test_the_shards_and_the_root_are_not_changed(tmp_path):
     path = tmp_path / "store"
     signed_store(path)
-    before = {name: tree(path / name) for name in ("store.json", shard_name(0), shard_name(5))}
+    before = {name: tree(path / name) for name in (shard_name(0), shard_name(5))}
+    root = (path / "store.json").read_bytes()
     fse.add_sign_bits(path)
     assert {name: tree(path / name) for name in before} == before
+    assert (path / "store.json").read_bytes() == root
 
 
 def test_durability_none_tags_the_artifacts_and_opening_hashes_them(tmp_path):

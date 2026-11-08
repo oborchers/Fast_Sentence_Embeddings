@@ -118,6 +118,14 @@ def test_an_unknown_version_or_rule_is_never_skipped(tmp_path, changes, message)
         fse.VectorStore.open(path)
 
 
+def test_a_future_format_is_unsupported_even_when_its_structure_is_unreadable(tmp_path):
+    path, _, _ = made(tmp_path)
+    change_metadata(path / bits_name(0), {"fse.format_version": "2"})
+    (path / bits_name(0) / "sign_bits.npy").unlink()
+    with pytest.raises(fse.UnsupportedArtifactError, match="format '2'"):
+        fse.VectorStore.open(path)
+
+
 def test_the_tensor_must_be_the_uint8_bits_of_the_shard(tmp_path):
     path, _, _ = made(tmp_path)
     directory = path / bits_name(0)

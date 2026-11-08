@@ -27,7 +27,14 @@ import numpy as np
 from numpy import ndarray
 
 from fse import _reference_bits
-from fse._container import CorruptArtifactError, Hasher, NpyContainer, remove_temporary
+from fse._container import (
+    CorruptArtifactError,
+    Hasher,
+    NpyContainer,
+    remove_temporary,
+    tensor_code,
+)
+from fse._container._npy import write_manifest
 from fse._container._npy_inplace import publish_directory
 
 from ._bits_format import PREFIX, TENSOR, bits_name, metadata_of, open_bits, width
@@ -52,7 +59,9 @@ def derived(shard: Shard, vectors: ndarray) -> ndarray:
     hasher = Hasher()
     step = max(1, READ_BYTES // max(1, dim * vectors.itemsize))
     for begin in range(0, shard.rows, step):
-        block = np.ascontiguousarray(vectors[begin : begin + step])
+        block = np.array(
+            vectors[begin : begin + step], copy=True, order="C"
+        )  # hash and bits read these bytes
         hasher.update(block)
         out[begin : begin + step] = _reference_bits.sign_bits(block)
     if hasher.checksum() != shard.checksums["vectors"]:
@@ -61,6 +70,22 @@ def derived(shard: Shard, vectors: ndarray) -> ndarray:
             "written; run fse.repair_store(path) while no writer or reader runs"
         )
     return out
+
+
+def _write(tmp: Path, bits: ndarray, metadata: dict[str, str], *, synced: bool) -> None:
+    """The artifact in the new directory ``tmp``: the file synced, the manifest renamed in
+    last. The store directory is not synced here (``NpyContainer.write`` would): that is
+    the business of the publication, and ``synced=False`` skips it."""
+    tmp.mkdir()
+    digest = NpyContainer._write_tensor(tmp / f"{TENSOR}.npy", bits)
+    entries = {TENSOR: (tensor_code(bits), tuple(int(n) for n in bits.shape), digest)}
+    write_manifest(
+        tmp,
+        entries,
+        metadata,
+        tmp / f".manifest.json.writing-{secrets.token_hex(4)}",
+        directories=synced,
+    )
 
 
 def write_bits(
@@ -72,7 +97,7 @@ def write_bits(
     bits = derived(shard, vectors)
     tmp = path / f".{PREFIX}{shard.first_row:016d}.writing-{secrets.token_hex(4)}"
     try:
-        NpyContainer().write(tmp, {TENSOR: bits}, metadata_of(info, shard, by, unsynced=not synced))
+        _write(tmp, bits, metadata_of(info, shard, by, unsynced=not synced), synced=synced)
         publish_directory(tmp, path / bits_name(shard.first_row), sync_parent=synced)
     except FileExistsError:
         failed_cleanup(tmp, remove_temporary(tmp), None)

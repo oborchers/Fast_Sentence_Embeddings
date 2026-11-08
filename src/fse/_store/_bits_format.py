@@ -36,6 +36,8 @@ from fse._container import (
     NpyContainer,
     checksum,
 )
+from fse._container._common import _check_algorithm, _strict_json
+from fse._container._npy import _check_version, _manifest_bytes
 from fse._contract import UnsupportedArtifactError
 
 from ._kind import Shard, shard_name
@@ -145,6 +147,33 @@ def check_identifiers(metadata: dict, file: Path) -> None:
         raise UnsupportedArtifactError(f"{file}: unsupported {DURABILITY} {durability!r}")
 
 
+def check_manifest(directory: Path) -> None:
+    """The readable identifiers of the artifact in ``directory`` before today's structure rules
+    apply: a container, container version, format version, rule, durability tag or checksum
+    algorithm of the future is an UnsupportedArtifactError (damage that cannot be read is a
+    CorruptArtifactError)."""
+    file = directory / "manifest.json"
+    manifest = _strict_json(_manifest_bytes(directory, file), file)
+    if not isinstance(manifest, dict):
+        return
+    container = manifest.get("container")
+    if isinstance(container, str) and container != NpyContainer.name:
+        raise UnsupportedArtifactError(f"{file}: unsupported container {container!r}")
+    if "container" in manifest and "container_version" in manifest:
+        _check_version(directory, manifest)
+    metadata = manifest.get("metadata")
+    if not isinstance(metadata, dict):
+        return
+    check_identifiers(metadata, file)
+    values = [
+        value
+        for key, value in metadata.items()
+        if isinstance(value, str) and (key.startswith(CHECKSUM_PREFIX) or key == FINGERPRINT_KEY)
+    ]
+    if values:
+        _check_algorithm(directory, values)
+
+
 def check_directory(path: Path, name: str) -> Path:
     directory = path / name
     if not directory.is_dir() or directory.is_symlink():
@@ -188,8 +217,8 @@ def open_bits(path: Path, info: Any, shard: Shard, *, verify: bool) -> tuple[nda
         return None
     directory = check_directory(path, name)
     file = directory / "manifest.json"
+    check_manifest(directory)
     tensors, metadata = NpyContainer().open(directory, mmap=True)
-    check_identifiers(metadata, file)
     tagged = _tagged(metadata, file)
     _check_bound(metadata, info, shard, file)
     bits = tensors.get(TENSOR)

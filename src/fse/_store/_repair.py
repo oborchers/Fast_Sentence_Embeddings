@@ -24,7 +24,7 @@ from ._bits_format import (
     bits_name,
     canonical_bits,
     check_content,
-    check_identifiers,
+    check_manifest,
     has_bits,
     open_bits,
     present,
@@ -164,30 +164,11 @@ def _has_bits(path: Path, info: Any, row: int) -> bool:
     if not (has_bits(info) and present(directory)):
         return False
     try:
-        _bits_identifiers(directory)
+        check_manifest(directory)
     except CorruptArtifactError as error:
         _reraise_unreadable(error)
         clear_exception_frames(error)  # damaged: the repair moves it
     return True
-
-
-def _bits_identifiers(directory: Path) -> None:
-    """An unsupported container, version or rule of a sign-bits artifact raises
-    UnsupportedArtifactError before any mutation."""
-    if not directory.is_dir() or directory.is_symlink():
-        return
-    file = directory / "manifest.json"
-    manifest = _strict_json(_manifest_bytes(directory, file), file)
-    if not isinstance(manifest, dict):
-        return
-    container = manifest.get("container")
-    if isinstance(container, str) and container != NpyContainer.name:
-        raise UnsupportedArtifactError(f"{file}: unsupported container {container!r}")
-    if "container" in manifest and "container_version" in manifest:
-        _check_version(directory, manifest)
-    metadata = manifest.get("metadata")
-    if isinstance(metadata, dict):
-        check_identifiers(metadata, file)
 
 
 def _bits_valid(path: Path, info: Any, shard: Any, tensors: dict) -> bool:

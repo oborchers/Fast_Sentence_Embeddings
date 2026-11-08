@@ -166,6 +166,23 @@ def test_unknown_bits_beside_a_damaged_shard_stop_the_repair_too(tmp_path):
     assert tree(path) == before
 
 
+@pytest.mark.parametrize("beside", ["nothing", "a_damaged_shard"])
+def test_bits_of_another_hash_algorithm_stop_the_repair_wherever_they_lie(tmp_path, beside):
+    path, _ = made(tmp_path)
+    if beside == "nothing":
+        shutil.copytree(path / bits_name(5), path / bits_name(10))
+        name = bits_name(10)
+    else:
+        (path / shard_name(8) / "manifest.json").unlink()
+        name = bits_name(8)
+    manifest = path / name / "manifest.json"
+    manifest.write_text(manifest.read_text().replace("xxh3-128:", "blake3:"))
+    before = tree(path)
+    with pytest.raises(fse.UnsupportedArtifactError):
+        fse.repair_store(path)
+    assert tree(path) == before
+
+
 def test_unreadable_bits_are_damage_not_a_stop(tmp_path):
     path, _ = made(tmp_path)
     (path / bits_name(0) / "manifest.json").write_text("not json")
