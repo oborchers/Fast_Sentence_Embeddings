@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The tasks of a search, score or rescore, in task order, in this thread or on worker
+"""The tasks of a search, score, rescore or sign-bit backfill, in task order, inline or on worker
 threads (docs/architecture/store.md, "Concurrency").
 
 Without a pool a call that has two tasks or more makes its own threads and ends them when

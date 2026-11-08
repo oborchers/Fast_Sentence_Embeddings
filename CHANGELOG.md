@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Reuse the shared pool for text scans and add `pool=` to `fse.add_sign_bits` (DR-309: Gemeinsamen Pool auch für die Text-Zerlegung und add_sign_bits nutzen). File, encoded-string and Arrow scans use the pool threads and task places before encoding. Batch iterators scan on their iteration pool; `StreamSource` collections still scan inline. Sign-bit backfills share the pool limits and leave it open, including after failures. Chunks, error order and output bytes stay unchanged.
+
 - Evaluate a named `cells@1` decision across development cells (DR-298: Gesamtentscheidung über mehrere Zellen im Mess-Kern auswerten). Main cells must pass their existing noise and confirmation gates plus the declared practical saving. Edge cells must meet their factor bound in comparison and confirmation. Four explicit changes: optional automatic early stop after a final rejection (disabled in the local int8 study), exit 1 for an overall rejection or inconclusive result including partial selections, `decision.json` also after preparation failure or budget exhaustion, and per-edge factor bounds without a global minimum. Cell decisions are unchanged. Measurement tooling only.
 
 - Document named linear heads, score stores, document IDs and later filtering, add the Civil Comments filtering recipe, and extend the classification and folding recipes (DR-230: Kopf-Dokumentation und Toxizitäts-Beispielkopf vorbereiten). Documentation only; no change to the library.
