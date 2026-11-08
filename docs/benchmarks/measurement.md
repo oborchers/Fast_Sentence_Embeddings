@@ -508,7 +508,7 @@ ST checks `RLIMIT_NOFILE` inside its adapter and raises the soft limit to at lea
 
 ## Quality study data
 
-Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall`. A fitted artifact is referenced by its preceding cell ID. The retired one-off GloVe corpus-selection experiment is not part of this entry.
+Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall`. The local quality run also takes `rerank` (see the reranker study below). A fitted artifact is referenced by its preceding cell ID. The retired one-off GloVe corpus-selection experiment is not part of this entry.
 
 MTEB remains pinned at 2.26.25 and unmodified. Expansion preserves the benchmark's actual language subsets, evaluation splits and seed. Evaluation resolves the configured benchmark task, not an unrestricted task with the same name. Summaries separate worker configurations. English evaluation excludes MindSmallReranking and is labelled 40 of 41 tasks. Its two failed attempts do not yield a score. NanoBEIR has 13 tasks. A single named task runs in full. Neither production nor rehearsal silently samples evaluation rows.
 
@@ -536,6 +536,28 @@ python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
 ```
 
 The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class K, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder is read in place and is not an archive for `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: K` of the rows. The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart. Numbers of a local run never go into the README or a model card; those come from the Linux protocol above. The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
+
+### Reranker study (`rerank` cells, DR-277)
+
+The study of DR-277 (Rezept und Experiment für fse-Kandidaten mit nachgelagertem Reranker erstellen) is class K and measures how much a local reranker on the top N candidates of an fse search recovers. It runs through the local quality run with its own study file:
+
+```sh
+python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
+  /external/quality-env/bin/python benchmarks/quality.py --run --local-run \
+  --input benchmarks/config/rerank-local.json \
+  --cells rerank-first-stages rerank-minilm rerank-qwen3-0-6b --local-budget-seconds 7200 \
+  --results /external/rerank-01 --work /external/rerank-work-01
+```
+
+The environment is the quality environment with the two packages of `benchmarks/config/rerank.in` (bm25s 0.3.16, PyStemmer 3.1.0); on macOS `torch==2.15.0` replaces the CPU build so that a reranker may use the Apple GPU (MPS). fse itself imports none of them. A `rerank` cell names first stages from the study's `first_stages` and optionally one reranker with candidate depths, and expands into one cell per NanoBEIR task like an MTEB cell. The data are the pinned MTEB 2.26.25 NanoBEIR tasks with every query that has judged documents (649) and the full corpora, texts as MTEB reads them (title and text joined).
+
+- **First stages.** Dense stages search exactly by cosine over the normalized vectors of the MTEB adapter of the cell (`_quality/mteb.py`), so fse cells load as their MTEB cells do. BM25 is bm25s with the Lucene variant (k1 1.5, b 0.75), English stop words and the PyStemmer English stemmer. Reciprocal Rank Fusion adds `1 / (60 + rank)` over the lists ([Cormack, Clarke and Büttcher, SIGIR 2009](https://doi.org/10.1145/1571941.1572114)); k = 60 is fixed in the study code. Every ranking holds 1,000 documents. Exact ties break by corpus position in dense and BM25 stages, and by the best rank in any input list, then position, in RRF.
+- **Rerankers.** Sentence Transformers cross-encoders at the revisions of `pins.json`, with the dtype, device, `max_length` and batch size of the cell. Each (query, document) pair among the candidates of all stages of a cell is scored once; a reranked arm orders its first N candidates by that score (ties by first-stage rank) and keeps the rest of the first-stage list behind them.
+- **Metrics.** NDCG@10, Recall@10 and Recall@100 by pytrec_eval, as MTEB computes them (a malformed ranking is refused); the summary (`--summarize`, key `rerank`) gives the unweighted mean over the 13 tasks only for an arm with all 13 tasks valid.
+- **Check.** For the fse stages of `mteb_check`, unmodified MTEB runs on the same task and encoder. The raw cosine scores of the study, handed to pytrec_eval as MTEB hands them and rounded to five places as MTEB rounds, must give exactly MTEB's NDCG@10, Recall@10 and Recall@100, or the cell fails. The metrics of the study ranking are recorded beside them; they differ only where documents tie exactly, because pytrec_eval breaks ties by document ID. Study metrics are not rounded.
+- **Raw data.** Each row writes the rankings (`*-rankings.npz`) and, with a reranker, every pair score (`*-pairs.npz`) to the result folder.
+
+Reranker seconds per query are a local diagnostic (`timing_scope`), never a speed result. The cell `rerank-qwen3-4b` stays in the data for a machine with enough memory; on the 16 GB development Mac its probe did not finish (DR-277).
 
 Model cards and the README consume reviewed summaries. Summarization never writes either file. Diagnostic quality wall times are not inference-throughput claims. Existing published quality values and protected 1.1 baselines remain unchanged.
 

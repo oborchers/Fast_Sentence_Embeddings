@@ -8,6 +8,8 @@ from pathlib import Path
 
 from _measurement import sha256
 
+from _quality.rerank_summary import rerank_summary
+
 
 def summarize(folder):
     path = folder / "cells.jsonl"
@@ -49,6 +51,7 @@ def summarize(folder):
         "mteb_score_scale": "unscaled MTEB main_score",
         "rows": result,
         "artifact_scores": artifact_scores(rows),
+        "rerank": rerank_summary(rows),
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
     }
 

@@ -26,6 +26,9 @@ fasttext==0.9.3
 faiss-cpu==1.15.1
 usearch==2.26.6
 hnswlib==0.8.0
+sentence-transformers==6.2.0
+bm25s==0.3.16
+PyStemmer==3.1.0
 # Framework baselines for the publication-dependent sections of recipe 06.
 # Install the three fse adapter packages separately as explained in the notebook.
 langchain-core==1.7.3

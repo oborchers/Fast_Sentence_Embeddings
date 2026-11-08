@@ -23,6 +23,7 @@ A vector is a list of numbers that represents a text.
 | <img src="media/07-local-compute-and-http-icon.svg" width="46" alt="Recipe number"> | [**Local compute and HTTP**](07-local-compute-and-http.ipynb). See when a local HTTP request costs more than encoding the text. | 5 min |
 | <img src="media/08-folded-classifier-icon.svg" width="46" alt="Recipe number"> | [**Folded classifier**](08-folded-classifier.ipynb). Fold a trained classifier into word vectors, then save a smaller model for your app. | 15 min |
 | | [**External indexes**](10-external-ann-indexes.ipynb). Put FAISS, USearch, or hnswlib on your vectors, then let fse give the hits exact scores. | 15 min |
+| | [**Rerank candidates**](11-reranker-candidates.ipynb). Let fse find 100 candidates, then let a local cross-encoder of your choice put the best ones on top. | 10 min |
 
 *Estimates for reading, excluding installation, downloads, and execution.
 The first recipe includes a large-data speed demonstration, which needs additional disk space and execution time.
