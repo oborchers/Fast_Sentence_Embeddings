@@ -16,7 +16,7 @@ from _speed_pipeline import measure_child
 from _speed_run import run
 
 
-def main():
+def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=CONFIG / "speed.json")
     parser.add_argument(
@@ -55,7 +55,10 @@ def main():
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def profile_utility(args):
     if args.profile_probe:
         from _development_profile_probe import child
 
@@ -65,6 +68,14 @@ def main():
         from _development_profile import run as profile
 
         return profile(args.profile or args.profile_check, check_only=bool(args.profile_check))
+    return None
+
+
+def main():
+    args = arguments()
+    profile_status = profile_utility(args)
+    if profile_status is not None:
+        return profile_status
     local_status = dispatch(args)
     if local_status is not None:
         return local_status
@@ -86,7 +97,7 @@ def main():
     ):
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:
-        parser.error("allocation Unix timestamp required")
+        raise ValueError("allocation Unix timestamp required")
     if args.setup:
         if os.getenv("MEASURE_REHEARSAL") == "1":
             rehearsal_limits()
