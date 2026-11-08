@@ -181,7 +181,8 @@ def test_group_query_failure_keeps_lock_through_cleanup(heavy, tmp_path, monkeyp
         thread.join(10)
         assert not thread.is_alive()
         assert result == []
-        assert len(errors) == 1 and isinstance(errors[0], PermissionError)
+        assert len(errors) == 1
+        assert isinstance(errors[0], PermissionError)
         assert len(failures) == 2
         assert not (tmp_path / "heavy.lock").exists()
         with pytest.raises(ProcessLookupError):

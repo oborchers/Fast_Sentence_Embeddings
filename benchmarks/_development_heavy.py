@@ -166,7 +166,7 @@ def _drain(child, notify, grace=10.0, *, kill=True):
                 "pid": child.pid,
                 "cleanup_error": bool(errors),
             }
-            _cleanup_call(lambda: notify(event), errors)
+            _cleanup_call(lambda event=event: notify(event), errors)
             report_at = time.monotonic() + 15
         time.sleep(0.05)
     return _drained(errors, escalated)
