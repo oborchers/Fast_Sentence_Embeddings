@@ -6,7 +6,8 @@ import shutil
 from pathlib import Path
 
 from _development_ids import document_profile
-from _development_system import LABEL, memory_limit
+from _development_system import LABEL
+from _harness import resources
 
 
 def disk_reserve(cell):
@@ -56,14 +57,10 @@ def _score_sink_disk(cell, count, dim):
     return count * row * cell["iterations"] * 2
 
 
-def admission(cell, prepared, count, work, requested_limit=None):
+def admission(cell, prepared, count, work, requested_limit, kind):
     corpus = prepared["corpora"][cell["corpus"]]
     model = prepared["models"][cell["model"]]
-    limit = memory_limit()
-    if requested_limit is not None:
-        limit = min(limit, requested_limit) if limit else requested_limit
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit = resources.require_limit(requested_limit)
     mean_bytes = corpus["timing_utf8_bytes"] / corpus["texts"]
     dim = model["dimensions"]
     output = count * dim * 4
@@ -108,17 +105,35 @@ def admission(cell, prepared, count, work, requested_limit=None):
         components["mapped_store_and_filter"] = output + count * 48
         disk += (output + count * 8) * 2
     disk += _score_sink_disk(cell, count, dim)
-    free_disk = shutil.disk_usage(work).free
-    return {
+    return resources.assess(
+        components,
+        limit=limit,
+        work=work,
+        disk=disk,
+        kind=kind,
         **LABEL,
-        "texts": count,
-        "operation_repetitions": cell["iterations"],
-        "components": components,
-        "sequential_phases": phases,
-        "estimated_peak_bytes": sum(components.values()),
-        "memory_limit_bytes": limit,
-        "safety_fraction": 0.85,
-        "required_disk_bytes": disk,
-        "available_disk_bytes": free_disk,
-        "admitted": sum(components.values()) <= limit * 0.85 and free_disk >= disk,
-    }
+        texts=count,
+        operation_repetitions=cell["iterations"],
+        sequential_phases=phases,
+    )
+
+
+def plans(args, cells, prepared, kind):
+    """The plan of every cell of a study at the size of ``prepared``: the repetitions are the
+    declared ones (calibration may grow them, and admits again before every sizing step)."""
+    from _development_identity import STAGE
+    from _development_identity import admission as identity_admission
+
+    result = {}
+    for cell in cells:
+        corpus = prepared["corpora"][cell["corpus"]]
+        if cell["stage"] == STAGE:
+            result[cell["id"]] = identity_admission(
+                cell, corpus, args.work, args.memory_limit_bytes, kind
+            )
+            continue
+        count = corpus["texts"] * cell["resident_cycles"]
+        result[cell["id"]] = admission(
+            cell, prepared, count, args.work, args.memory_limit_bytes, kind
+        )
+    return result

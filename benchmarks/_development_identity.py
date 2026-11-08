@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 
 from _development_process import checked
+from _harness import resources
 from _harness.budget import check
 from _harness.records import sha256
 
@@ -185,27 +186,19 @@ def verify(corpus):
     checked(corpus["path"], corpus["sha256"])
 
 
-def admission(cell, corpus, work, limit):
+def admission(cell, corpus, work, requested_limit, kind):
     """Estimated memory and disk: the mapped file is page cache, the list is resident."""
-    from _development_system import memory_limit
-
-    limit = min(filter(None, (limit, memory_limit())), default=None)
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit = resources.require_limit(requested_limit)
     rows = corpus["rows"]
     mean = corpus["bytes"] / max(1, corpus["lines"])
     components = {"reserve": 1024**3, "blocks_and_marks": CHUNK * 4 + rows * 2}
     if corpus["form"] == "strings":
         components["python_list_and_source"] = int(rows * (mean + 80) + rows * (mean + 16) * 2)
-    free = shutil.disk_usage(work).free
-    need = cell["probe_bytes"] + 256 * 1024**2
-    plan = dict(
-        components=components,
-        estimated_peak_bytes=sum(components.values()),
-        memory_limit_bytes=limit,
-        required_disk_bytes=need,
-        available_disk_bytes=free,
+    return resources.assess(
+        components,
+        limit=limit,
+        work=work,
+        disk=cell["probe_bytes"] + 256 * 1024**2,
+        kind=kind,
         page_cache_bytes=corpus["bytes"] if corpus["form"] == "file" else 0,
     )
-    plan["admitted"] = plan["estimated_peak_bytes"] <= limit * 0.85 and free >= need
-    return plan

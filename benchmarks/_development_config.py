@@ -90,6 +90,7 @@ DEFAULTS = {
     "probe_queries": 32,
     "search_mode": "exact",
 }
+OPTIONAL = {"functional_rows"}  # read only by the functional stage; absent from other cells
 
 
 def _positive(value, name, integral=False):
@@ -104,7 +105,7 @@ def validate_cell(raw, defaults):
     if (
         not isinstance(raw, dict)
         or required - raw.keys()
-        or raw.keys() - required - DEFAULTS.keys()
+        or raw.keys() - required - DEFAULTS.keys() - OPTIONAL
     ):
         raise ValueError("development cell has missing or unknown fields")
     cell = {**DEFAULTS, **defaults, **raw}
@@ -177,6 +178,9 @@ def validate_cell(raw, defaults):
     from _development_prefilter_search import validate as validate_search_cells
 
     validate_search_cells(cell)
+    from _development_functional import validate as validate_functional
+
+    validate_functional(cell)
     return cell
 
 
@@ -277,9 +281,12 @@ def add_arguments(parser, mode, quality=False):
     parser.add_argument("--worker-name", default="fse-development")
     parser.add_argument("--candidate-python")
     parser.add_argument(
+        "--functional",
         "--diagnostic-rehearsal",
+        dest="functional",
         action="store_true",
-        help="functional probes only, no timing decision",
+        help="stage functional: run the study on a really reduced input and prove that every "
+        "path works; no speed evidence. --diagnostic-rehearsal is the deprecated alias",
     )
     parser.add_argument("--memory-limit-bytes", type=int)
     parser.add_argument("--cpu-affinity", type=int, nargs="+")

@@ -9,10 +9,12 @@ from pathlib import Path
 
 from _development_budget import check_args, stopped
 from _development_data import prepare
+from _development_functional import stage
 from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
-from _development_system import LABEL, memory_limit
+from _development_system import LABEL
+from _harness import resources
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
@@ -22,13 +24,9 @@ from _quality.prefilter_inputs import PROFILE, corpus_names
 BLOCK_ROWS, QUERY_BLOCK = 16_384, 32
 
 
-def admission(cell, prepared, work, requested_limit):
+def admission(cell, prepared, work, requested_limit, kind):
     """Peak bytes of every phase against 85 percent of RAM, and the disk of the stores."""
-    limit = memory_limit()
-    if requested_limit is not None:
-        limit = min(limit, requested_limit) if limit else requested_limit
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit = resources.require_limit(requested_limit)
     corpus = prepared["corpora"][cell["corpus"]]
     model = prepared["models"][cell["model"]]
     dim, rows = model["dimensions"], max(cell["store_sizes"])
@@ -44,17 +42,15 @@ def admission(cell, prepared, work, requested_limit):
         + 2 * BLOCK_ROWS * dim * 8,  # a float64 row block and its products
     }
     disk = rows * (dim + 4) * 2 + texts + 3 * table + (1024**3 if cell["scope"] == "main" else 0)
-    free = shutil.disk_usage(work).free
-    peak = max(phases.values())
+    return resources.assess(
+        phases=phases, limit=limit, work=work, disk=disk, disk_fraction=0.85, kind=kind, **LABEL
+    )
+
+
+def plans(args, cells, prepared, kind):
     return {
-        **LABEL,
-        "phases": phases,
-        "estimated_peak_bytes": peak,
-        "memory_limit_bytes": limit,
-        "safety_fraction": 0.85,
-        "required_disk_bytes": disk,
-        "available_disk_bytes": free,
-        "admitted": peak <= limit * 0.85 and free * 0.85 >= disk,
+        cell["id"]: admission(cell, prepared, args.work, args.memory_limit_bytes, kind)
+        for cell in cells
     }
 
 
@@ -98,7 +94,8 @@ def _write(args, cell, receipt):
 
 
 def count_cell(args, cell, prepared, ledger):
-    plan = admission(cell, prepared, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, prepared, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "prefilter", **plan})
     if not plan["admitted"]:
         raise MemoryError("the prefilter count exceeds RAM or disk admission")
@@ -116,11 +113,7 @@ def count_cell(args, cell, prepared, ledger):
 
 def _preflight(args, cells):
     """A conservative check before the preparation downloads and writes anything."""
-    limit = memory_limit()
-    if args.memory_limit_bytes is not None:
-        limit = min(limit, args.memory_limit_bytes) if limit else args.memory_limit_bytes
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit, _ = resources.require_limit(args.memory_limit_bytes)
     free = shutil.disk_usage(args.work.parent).free
     if any(c["scope"] == "main" for c in cells) and (
         limit * 0.85 < 4 * 1024**3 or free * 0.85 < 6 * 1024**3
@@ -140,7 +133,7 @@ def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
         _preflight(args, cells)
-        prepared = prepare(args, cells, ledger)
+        prepared = stage(args, ledger, cells, prepare(args, cells, ledger), plans, reducible=False)
         check_args(args)
         done = {}
         for cell in cells:

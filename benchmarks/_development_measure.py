@@ -18,6 +18,7 @@ from _development_heads import operation as head_operation
 from _development_heads_multi import SPEC as GROUP_SPEC
 from _development_heads_multi import operation as group_operation
 from _development_locks import busy, lock_paths
+from _development_path_evidence import observe as path_evidence
 from _development_prefilter_search import metrics as prefilter_metrics
 from _development_repeat import repeat
 from _development_resources import check_write_disk
@@ -49,6 +50,8 @@ def _policy(job):
 
 
 def _quiet(job, waiting):
+    if job.get("functional_only"):  # untimed: no load wait, no lock ownership to keep
+        return observations(job["work"], excluded=(os.getppid(),))
     bench, heavy = lock_paths()
     started = time.monotonic()
     while True:
@@ -148,7 +151,9 @@ def measure(job):
         context = nullcontext(factories[job["stage"]]())
     with context as operation:
         check(job.get("wall_deadline"))
-        return _measured(operation, job, waiting, policy, resource)
+        result = _measured(operation, job, waiting, policy, resource)
+        evidence = path_evidence(operation, job)  # one untimed call after the measurement
+        return result if evidence is None else {**result, "path_evidence": evidence}
 
 
 def _measured(operation, job, waiting, policy, resource):

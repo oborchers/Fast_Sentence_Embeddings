@@ -228,7 +228,8 @@ def memory_preflight(context, contract):
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
     target = contract["machine"]["ram_bytes"]
-    limit = target if contract.get("functional_only") else min(target, int(maximum))
+    declared = contract.get("functional_only") or target <= int(maximum)
+    limit = (target, "declared") if declared else (int(maximum), "cgroup")
     rows = []
     for cell in contract["cells"]:
         production = dict(
@@ -256,7 +257,10 @@ def pair(context, cell):
     maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
-    budget = inputs.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
+    kind = "functional" if cell.get("functional_only") else "production"
+    budget = inputs.memory_plan(
+        cell, identity["file_bytes"], model_bytes, (int(maximum), "cgroup"), kind
+    )
     durable.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
     if not budget["admitted"]:
         raise MemoryError("fixed input exceeds the declared memory budget")

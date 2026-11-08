@@ -224,8 +224,8 @@ Defaults are six-second groups, at least two full warmups totaling twelve second
 fifteen pairs per block. AB/BA alternates; a cell can explicitly select ABBA. Its factor
 is the sum of A times divided by the sum of B times. Every measured group meets the
 frozen group duration floor. It is a continuous interval, not a sum of separately
-timed snippets. `--diagnostic-rehearsal` labels small functional probes and disables
-timing decisions, not correctness checks.
+timed snippets. `--functional` (the stage functional, see "Stage functional and resource plan")
+labels small functional probes and disables timing decisions, not correctness checks.
 
 Calibration sizes a common iteration count with reserve on both builds, keeping the
 resident corpus fixed. This follows the calibrated loop pattern described by
@@ -386,7 +386,7 @@ The `descriptive_only` tool label does not establish that assessment.
 `filter_kind` selects physical `rows` or logical `doc_ids`; `queries` and `k` are explicit.
 Both installed builds must support the selected filter API. Use two candidate
 interpreters for functional probes or controls where master lacks that API.
-Run `--diagnostic-rehearsal` with a separately named small-cycle configuration for
+Run `--functional` with a separately named small-cycle configuration for
 functional probes. Never report those observations as the large workload's throughput.
 
 ### Filtered-search cost profile
@@ -797,7 +797,57 @@ python benchmarks/speed.py --diagnose \
   --results /external/dr248/results-01 --work /external/dr248/work-01
 ```
 
-A rehearsal uses a separately named configuration that sets `source_bytes`, `source_rows` and `probe_bytes` small (for example 10 MiB, 1000 and 1 MiB) and `--diagnostic-rehearsal`; it proves the stage works and is labelled `functional_only`. Its seconds are never a result.
+A rehearsal uses a separately named configuration that sets `source_bytes`, `source_rows` and `probe_bytes` small (for example 10 MiB, 1000 and 1 MiB) and `--functional`; it proves the stage works and is labelled `functional_only`. Its seconds are never a result.
+
+## Stage functional and resource plan
+
+`--functional` is the stage that proves a study works. It is no speed evidence: every cell
+result and `decision.json` carry `evidence_stage: functional` and the note "functional run: no
+speed evidence", next to the existing `functional_only` and the decision `functional_only`.
+`--diagnostic-rehearsal` is the deprecated alias of the same flag and will go with the old
+paths. The published speed study keeps `--rehearse`, which already reduces its input.
+
+- **The input is really reduced.** After preparation, every corpus that carries no scores is
+  replaced by a file of `hash-sample@1` rows: the rows with the smallest SHA-256 of
+  `seed:position` (seed 0), in their original order. A corpus with scores or roles (STS-B,
+  AG News) stays whole. The quality gate and every later step read the reduced file.
+  `functional-plan.json` (`inputs`) and the `source.functional` field of the reduced corpus hold the
+  original rows, the reduced rows, the rule, the seed, the floor and a digest of the chosen
+  positions. The default is 12,000 rows.
+- **A path with a domain keeps its domain.** The int8 prefilter enters a search only with at
+  least 65,536 selected rows, so a prefilter search cell keeps at least that many rows (with
+  `filter_kind: rows` the rows divided by the filter fraction), rounded up to 5,000. A cell may
+  declare more with `functional_rows`; fewer is refused when the study is loaded. Cells that
+  share a corpus share its largest need.
+- **Two plans that never mix.** `production-plan.json` holds the plan of the full study and
+  says whether a functional run happened beside it. `functional-plan.json` holds the plan of
+  the run that really happened. Both come from `benchmarks/_harness/resources.py` and have the
+  same shape: components (or phases), the peak, the limit and its source (`cgroup`,
+  `physical` or `requested`), 85 percent as the safety share, the disk needed and free, and
+  `admitted`. The plan uses the declared repetitions; calibration admits again before every
+  sizing step. `--local-phase prepare` with `--reuse-work` shows both plans without any
+  measurement. The development, quality, prefilter, binary, identity and speed paths all
+  admit through this one plan; the resident-set guard of a local quality run
+  (`_quality/guard.py`) stays a runtime watch, not a plan.
+- **Which path really ran.** Each measured arm of `int8-prefilter-search@1` makes one more
+  search call after its measurement, outside every timer, with the `store.prefilter` debug
+  record captured. `operations.jsonl` and the block result (`path_evidence`, per arm) hold the
+  backend and instruction set, the prefilter variant the backend enables (`null`: none,
+  `unavailable`: the build has no such API), the calls observed (as many as one group makes,
+  at most 64, block after block), how many entered the prefilter, the distinct fallback
+  reasons (`none`, `query_range`, `unsafe_row`, `overflow`, `budget`) and the record of each
+  call. A path that changes between rounds of one arm is an error.
+- **No load wait, still no disturbance.** Functional work takes the heavy lock (the role of
+  builds and checks, so it never overlaps a timing window), starts its children with
+  `nice -n 10` and does not wait for the one-minute load or for a peer's heavy lock. Wrap it in
+  `--local-heavy` only for builds, never the controller itself.
+- **Not reducible.** `binary-recall@1` (100,000 texts) and the prefilter count have a fixed
+  size in code and get the production plan only. `rescore-cost@1` (1,048,576 synthetic rows)
+  prepares no input and has no plan; under `--functional` it takes the heavy role, ignores the
+  load, starts its child at nice 10 and ends with the decision `functional_only`.
+- **Every record is labelled.** A functional controller and each of its children add
+  `evidence_stage: functional` and the note to every record, receipt and call line they write
+  (through the shared `LABEL`), so no timing of a functional run can be read as a measurement.
 
 ## Rows a provable int8 prefilter keeps: `int8-prefilter@1`
 

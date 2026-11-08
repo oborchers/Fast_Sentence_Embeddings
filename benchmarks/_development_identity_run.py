@@ -28,7 +28,8 @@ def run(args, cell, prepared, ledger):
     if args.local_phase != "descriptive":
         raise ValueError(f"{STAGE} is class descriptive: use --local-phase descriptive")
     corpus = prepared["corpora"][cell["corpus"]]
-    plan = admission(cell, corpus, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, corpus, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": "descriptive", **plan})
     if not plan["admitted"]:
         raise MemoryError("source-identity workload exceeds RAM or disk admission")
@@ -40,11 +41,12 @@ def run(args, cell, prepared, ledger):
         append(args.results / "coordination.jsonl", row)
 
     def quiet():
-        return observations(args.work)["load"][0] < 5
+        return args.functional or observations(args.work)["load"][0] < 5
 
     tag = cell["id"] + "-descriptive"
+    role = "heavy" if args.functional else "timing"  # functional work is untimed
     with coordinated(
-        "timing", args.worker_name, cell["id"], notify, lambda: stopped(ledger), quiet
+        role, args.worker_name, cell["id"], notify, lambda: stopped(ledger), quiet
     ) as owner:
         wait_for_arm(args, ledger, cell["id"])
         ledger.current, ledger.stage = cell["id"], "descriptive"
@@ -56,17 +58,17 @@ def run(args, cell, prepared, ledger):
             "bench_owner": owner,
             "repetitions": args.descriptive_repetitions,
             "cpu_affinity": args.cpu_affinity,
-            "functional_only": args.diagnostic_rehearsal,
+            "functional_only": args.functional,
             "admission": plan,
         }
-        record = launch(args, job, args.candidate_python, tag, timed=True)
+        record = launch(args, job, args.candidate_python, tag, timed=not args.functional)
     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     check_args(args)
     costs = summary(record["seconds"])
     costs.pop("max_deviation")  # a distance from one means nothing for absolute seconds
     result = dict(
         status="valid",
-        decision="functional_only" if args.diagnostic_rehearsal else "descriptive_only",
+        decision="functional_only" if args.functional else "descriptive_only",
         arm="candidate",
         seconds=costs,
         seconds_per_gib=costs["median"] * 1024**3 / record["identity_bytes"],

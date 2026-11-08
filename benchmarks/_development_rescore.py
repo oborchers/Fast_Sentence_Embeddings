@@ -180,6 +180,7 @@ def cost_job(job):
 
 
 def _keep(job, row):
+    from _development_system import LABEL
     from _harness.records import append
 
-    append(Path(job["receipt"]).with_suffix(".partial.jsonl"), row)
+    append(Path(job["receipt"]).with_suffix(".partial.jsonl"), {**LABEL, **row})

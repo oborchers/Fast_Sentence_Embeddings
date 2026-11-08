@@ -9,7 +9,7 @@ from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
 from _development_rescore import PROFILE, STAGE
-from _development_system import observations
+from _development_system import LABEL, observations
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
@@ -34,18 +34,20 @@ def _measure(args, cell, ledger):
         append(args.results / "coordination.jsonl", row)
 
     def admitted():
-        return observations(args.work)["load"][0] < LOAD_LIMIT
+        return args.functional or observations(args.work)["load"][0] < LOAD_LIMIT
 
     def stopped():
         return ledger.stopping or time.monotonic() - waited > WAIT_SECONDS
 
-    with coordinated("timing", args.worker_name, cell["id"], notify, stopped, admitted):
+    role = "heavy" if args.functional else "timing"  # functional work is untimed
+    with coordinated(role, args.worker_name, cell["id"], notify, stopped, admitted):
         append(
             args.results / "load.jsonl",
             {"cell_id": cell["id"], "load_at_start": observations(args.work)["load"]},
         )
         job = {"action": "rescore-cost", "workers": cell["workers"]}
-        return launch(args, job, args.candidate_python, cell["id"] + "-cost", timed=True)
+        tag = cell["id"] + "-cost"
+        return launch(args, job, args.candidate_python, tag, timed=not args.functional)
 
 
 def run_cells(args, spec):
@@ -71,12 +73,21 @@ def run_cells(args, spec):
                 record_result(ledger, cell, started, status="failed", reason=repr(error))
                 break
             for row in receipt["records"]:
-                append(args.results / "rescore.jsonl", {"cell_id": cell["id"], **row})
+                append(args.results / "rescore.jsonl", {"cell_id": cell["id"], **LABEL, **row})
             atomic(
                 args.results / "profile.json",
-                {"profile": receipt["profile"], "peak_rss_bytes": receipt["peak_rss_bytes"]},
+                {
+                    **LABEL,
+                    "profile": receipt["profile"],
+                    "peak_rss_bytes": receipt["peak_rss_bytes"],
+                },
             )
             record_result(
-                ledger, cell, started, status="valid", decision="descriptive_only", stage=STAGE
+                ledger,
+                cell,
+                started,
+                status="valid",
+                decision="functional_only" if args.functional else "descriptive_only",
+                stage=STAGE,
             )
     return ledger.done()

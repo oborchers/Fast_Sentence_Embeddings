@@ -51,7 +51,7 @@ def describe(args, cell, prepared, ledger, owner, identities):
         confirmation="not_run",
         valid_for_comparison=False,
     )
-    if args.diagnostic_rehearsal:
+    if args.functional:
         result["decision"] = "functional_only"
     atomic(args.results / (cell["id"] + "-descriptive.json"), result)
     return result
@@ -88,7 +88,7 @@ def regression_screen(args, cell, prepared, ledger, owner, identities):
         confirmation="not_run",
         equivalence_established=False,
     )
-    if args.diagnostic_rehearsal:
+    if args.functional:
         result.update(status="valid", decision="functional_only")
     atomic(args.results / (cell["id"] + "-regression-screen.json"), result)
     return result

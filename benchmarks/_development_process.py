@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from _development_budget import check_args
-from _development_system import LABEL, configure_child, require_unix
+from _development_system import LABEL, configure_child, mark_functional, require_unix
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.records import atomic, document, sha256
 from _measurement import package_identity
@@ -34,6 +34,7 @@ def interpreter(value):
 def launch(args, job, python, tag, timed=False):
     check_args(args)
     job = {
+        "functional_only": bool(getattr(args, "functional", False)),
         **job,
         "wall_deadline": getattr(args, "wall_deadline", None),
         **LABEL,
@@ -90,6 +91,8 @@ def identity():
 def child(file):
     require_unix()
     job = document(file)
+    if job.get("functional_only"):
+        mark_functional()
     workers = job.get("workers", 1)
     configure_child(workers)
     try:
@@ -165,6 +168,11 @@ def _other_action(job):
         from _development_rescore import cost_job
 
         return cost_job(job)
+    return _late_action(job)
+
+
+def _late_action(job):
+    action = job["action"]
     if action == "binary-recall":
         from _quality.binary_child import count_job as binary_job
 
@@ -177,6 +185,10 @@ def _other_action(job):
         from _development_filter_memory import profile
 
         return profile(job)
+    if action == "functional-reduce":
+        from _development_functional import reduce_child
+
+        return reduce_child(job)
     raise ValueError("unknown development child action")
 
 

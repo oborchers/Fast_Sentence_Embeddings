@@ -11,7 +11,16 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+from _harness import functional, resources
+
 LABEL = {"mode": "local-development", "publishable": False}
+
+
+def mark_functional():
+    """Label every record this process writes from now on as a functional run. ``LABEL`` is
+    spread into every record, so no result, receipt or call line of the process can be read as
+    a timing."""
+    LABEL.update(evidence_stage="functional", note=functional.NOTE)
 
 
 def apply_affinity(affinity):
@@ -59,7 +68,7 @@ def require_unix():
 
 def require_timing_priority(args):
     """Refuse a timing controller with a nonzero nice before any directory or budget exists."""
-    if args.diagnostic_rehearsal or args.local_phase == "prepare":
+    if args.functional or args.local_phase == "prepare":
         return
     if not hasattr(os, "getpriority"):
         return
@@ -96,35 +105,6 @@ def _affinity():
     return None
 
 
-def _physical_memory():
-    candidates = []
-    if sys.platform == "darwin":
-        value = _sysctl("hw.memsize")
-        if value:
-            candidates.append(int(value))
-    elif hasattr(os, "sysconf"):
-        with suppress(ValueError, OSError):
-            candidates.append(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
-    return candidates
-
-
-def memory_limit():
-    """Return detected physical/cgroup RAM, or None rather than inventing a limit."""
-    candidates = _physical_memory()
-    if sys.platform.startswith("linux"):
-        candidates.extend(_cgroup_memory())
-    return min((n for n in candidates if n > 0), default=None)
-
-
-def _cgroup_memory():
-    candidates = []
-    for name in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
-        value = _optional_text(name)
-        if value and value.isdecimal():
-            candidates.append(int(value))
-    return candidates
-
-
 def machine():
     require_unix()
     cpu = platform.processor() or platform.machine()
@@ -148,7 +128,7 @@ def machine():
         "cpu": cpu,
         "logical_cpus": os.cpu_count(),
         "physical_cpus": int(physical) if physical else None,
-        "memory_limit_bytes": memory_limit(),
+        "memory_limit_bytes": resources.memory_limit()[0],
         "affinity": _affinity(),
         "governor": _optional_text(governor) if sys.platform.startswith("linux") else None,
         "frequency_policy": "observe only; no frequency or governor changes",
