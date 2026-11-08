@@ -339,7 +339,7 @@ def test_a_score_generator_made_before_a_refresh_reads_the_rows_of_its_call(scor
 
 
 def test_a_refresh_does_not_let_close_unmap_rows_it_reads(vectors, monkeypatch):
-    reached, release, _ = _stalled(monkeypatch, _vectorstore, "refreshed")
+    reached, release, _ = _stalled(monkeypatch, _vectorstore, "prepared")
     thread = threading.Thread(target=vectors.refresh)
     thread.start()
     try:
@@ -378,7 +378,7 @@ def test_a_score_store_closed_during_a_refresh_stays_closed(scores, monkeypatch)
 
 def test_two_refreshes_at_once_add_the_shards_once(vectors, monkeypatch):
     append_rows(vectors.path)
-    reached, release, _ = _stalled(monkeypatch, _vectorstore, "refreshed")
+    reached, release, _ = _stalled(monkeypatch, _vectorstore, "prepared")
     waiting = threading.Event()
 
     class Watched:
