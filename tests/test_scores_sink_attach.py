@@ -92,7 +92,8 @@ def test_other_thresholds_change_the_model_and_so_the_heads_of_the_sink(tmp_path
 def test_a_valid_last_shard_with_other_thresholds_than_the_model_is_refused(tmp_path):
     path = tmp_path / "s"
     group = sh.group()
-    schema = fse.ScoreSink(tmp_path / "probe", group).score_schema
+    with fse.ScoreSink(tmp_path / "probe", group) as probe:
+        schema = probe.score_schema
     info = schema.with_paths(PATHS).info(False)
     create_store(path, info)
     sc.add_shard(path, info, 0, 4, limit=0.99)  # valid alone; the model's thresholds differ

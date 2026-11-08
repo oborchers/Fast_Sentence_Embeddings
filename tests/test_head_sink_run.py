@@ -75,10 +75,11 @@ def test_the_id_mode_must_match_each_sink(tmp_path):
             with pytest.raises(ValueError, match="stores doc_ids; pass doc_ids=True"):
                 _call(heads, given)
         name = "score_sink"
-        with pytest.raises(ValueError, match=f"needs the {name} to have doc_ids"):
-            _call(
-                heads, {"vector_sink": vectors, "score_sink": _plain(tmp_path, heads)}, doc_ids=True
-            )
+        with (
+            _plain(tmp_path, heads) as plain,
+            pytest.raises(ValueError, match=f"needs the {name} to have doc_ids"),
+        ):
+            _call(heads, {"vector_sink": vectors, "score_sink": plain}, doc_ids=True)
     with pytest.raises(ValueError, match="needs a vector_sink or a score_sink with doc_ids"):
         _call(heads, {}, doc_ids=True)
 

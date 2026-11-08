@@ -43,8 +43,11 @@ def test_check_output_sink(tmp_path):
     check_output_sink(model, fse.MemorySink(3), "decision")
     with pytest.raises(ValueError, match="labels go to no sink"):
         check_output_sink(model, fse.MemorySink(1), "labels")
-    with pytest.raises(ValueError, match="ShardSink stores the vectors"):
-        check_output_sink(model, fse.ShardSink(tmp_path / "s", model.encoder), "proba")
+    with (
+        fse.ShardSink(tmp_path / "s", model.encoder) as sink,
+        pytest.raises(ValueError, match="ShardSink stores the vectors"),
+    ):
+        check_output_sink(model, sink, "proba")
     with pytest.raises(TypeError, match="target and commit"):
         check_output_sink(model, object(), "proba")
 

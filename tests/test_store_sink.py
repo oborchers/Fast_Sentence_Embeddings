@@ -128,13 +128,14 @@ def test_a_sink_takes_one_run(tmp_path):
 def test_concurrent_appenders_never_replace_a_shard(tmp_path):
     with ShardSink(tmp_path / "s", ENCODER) as sink:
         ENCODER.encode(texts(5), sink=sink)
-    a = ShardSink(tmp_path / "s", ENCODER, shard_rows=16)
-    b = ShardSink(tmp_path / "s", ENCODER, shard_rows=16)
-    assert a.first_row == b.first_row == 5
-    ENCODER.encode(texts(16, seed=7), sink=a)  # a publishes shard-5 first
-    with pytest.raises(FileExistsError, match=r"another writer appended .* at row 5 first"):
-        ENCODER.encode(texts(16, seed=8), sink=b)
-    b.close()
+    with (
+        ShardSink(tmp_path / "s", ENCODER, shard_rows=16) as a,
+        ShardSink(tmp_path / "s", ENCODER, shard_rows=16) as b,
+    ):
+        assert a.first_row == b.first_row == 5
+        ENCODER.encode(texts(16, seed=7), sink=a)  # a publishes shard-5 first
+        with pytest.raises(FileExistsError, match=r"another writer appended .* at row 5 first"):
+            ENCODER.encode(texts(16, seed=8), sink=b)
     codes, _, _, found = _store_rows(tmp_path / "s", "float32")
     assert [(s.first_row, s.rows) for s in found] == [(0, 5), (5, 16)]
     np.testing.assert_array_equal(codes[5:], _want("float32", texts(16, seed=7))[0])

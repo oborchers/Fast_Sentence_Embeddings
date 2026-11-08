@@ -29,6 +29,13 @@ def sink(path, **kwargs):
     )
 
 
+def attribute(path, name, **kwargs):
+    """An attribute of a sink opened at ``path`` (``source_position``, ``first_row``), read
+    and closed again: a sink starts its writer threads, so every probe closes it."""
+    with sink(path, **kwargs) as probe:
+        return getattr(probe, name)
+
+
 def write(path, batches, *, stop=None, workers=1, **kwargs):
     """The batches of a stream into a store of the mode source_position@1, closed again; with
     ``stop`` only the first ``stop`` batches (a crash after the last batch the consumer saw).

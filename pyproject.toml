@@ -482,6 +482,7 @@ ignore_names = [
     "pytest_runtest_teardown",
     "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
+    "no_sink_threads_left", # an autouse fixture of tests/conftest.py, run by pytest
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "broken_logging",    # a fixture used through pytest.mark.usefixtures
     "no_fse_threads_left", # an autouse fixture of tests/test_runtime_pool.py
