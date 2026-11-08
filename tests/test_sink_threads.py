@@ -24,13 +24,27 @@ def test_a_thread_that_outlives_the_test_is_named():
         thread.join(10)
 
 
-def test_a_thread_that_ends_a_moment_later_is_accepted():
+def test_a_thread_that_ends_a_moment_later_is_accepted(monkeypatch):
     release = threading.Event()
     before = sink_threads()
     thread = _thread("fse-shard-hash", release)
-    threading.Timer(0.05, release.set).start()
-    assert left_since(before, timeout=10) == []
-    thread.join(10)
+    seen_alive = []
+    real = sink_threads
+
+    def looking():  # the first look finds the thread alive, then it is let go
+        found = real()
+        if not seen_alive:
+            seen_alive.append(thread in found)
+            release.set()
+        return found
+
+    monkeypatch.setattr("support.sink_threads.sink_threads", looking)
+    try:
+        assert left_since(before, timeout=10) == []
+    finally:
+        release.set()
+        thread.join(10)
+    assert seen_alive == [True]
 
 
 def test_a_leak_from_before_is_in_the_base_set_and_no_new_one_follows():
