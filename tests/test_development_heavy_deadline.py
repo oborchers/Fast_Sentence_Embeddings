@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -122,6 +123,8 @@ def test_zombie_only_group_is_proven_ended_under_lock(heavy, tmp_path):
             with pytest.raises(PermissionError):
                 os.killpg(child.pid, 0)
             assert heavy._group_alive(child.pid) is False
+            heavy._send(child.pid, signal.SIGTERM)
+            heavy._send(child.pid, signal.SIGKILL)
             assert (tmp_path / "heavy.lock" / "owner").is_file()
     finally:
         assert child.wait(timeout=5) == 7
@@ -190,3 +193,33 @@ def test_group_query_failure_keeps_lock_through_cleanup(heavy, tmp_path, monkeyp
     finally:
         (tmp_path / "release").touch()
         thread.join(10)
+
+
+@pytest.mark.parametrize("iteration", range(10))
+def test_single_process_deadline_records_clean_shutdown(heavy, tmp_path, iteration):
+    state = SimpleNamespace(number=None, child=None, received_at=None)
+    with heavy.held(state, f"test-heavy-{iteration}", "single process deadline", lambda _: None):
+        status, metadata = heavy.execute(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            state,
+            lambda _: None,
+            deadline=time.monotonic() + 0.05,
+        )
+        assert status == -signal.SIGTERM
+        assert metadata["deadline"] is True
+        assert metadata["escalated"] == "term"
+        assert (tmp_path / "heavy.lock" / "owner").is_file()
+    assert not (tmp_path / "heavy.lock").exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin complete process snapshot")
+def test_empty_group_requires_a_complete_process_snapshot(heavy, monkeypatch):
+    monkeypatch.setattr(heavy.subprocess, "check_output", lambda *_args, **_kwargs: "")
+    with pytest.raises(RuntimeError, match="snapshot omitted its controller"):
+        heavy._zombie_group(999999)
+    monkeypatch.setattr(
+        heavy.subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: f"{os.getpid()} {os.getpgrp()} S\n",
+    )
+    assert heavy._zombie_group(999999) is True

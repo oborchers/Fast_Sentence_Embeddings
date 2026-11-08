@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 
 from _development_locks import coordinated
 from _development_system import LABEL, require_unix
@@ -16,8 +16,14 @@ from _harness.budget import check
 
 
 def _send(group, signum):
-    with suppress(ProcessLookupError):
+    try:
         os.killpg(group, signum)
+    except ProcessLookupError:
+        return
+    except PermissionError:
+        if sys.platform == "darwin" and not _group_alive(group):
+            return
+        raise
 
 
 def _wait_group(group):
@@ -89,23 +95,16 @@ def held(state, worker, purpose, notify, deadline=None):
 
 
 def _zombie_group(group):
-    # Darwin's killpg filters zombies and can report EPERM for a zombie-only group.
-    output = subprocess.check_output(["/bin/ps", "-axo", "pgid=,stat="], text=True)
-    states = [
-        state
-        for number, state in (line.split() for line in output.splitlines())
-        if int(number) == group
+    # Darwin filters zombie members even for real signals, not only signal zero.
+    output = subprocess.check_output(["/bin/ps", "-axo", "pid=,pgid=,stat="], text=True)
+    rows = [
+        (int(pid), int(pgid), state)
+        for pid, pgid, state in (line.split() for line in output.splitlines())
     ]
-    if states:
-        return all(state.startswith("Z") for state in states)
-    # The last zombie may have been reaped while ps took its snapshot.
-    try:
-        os.killpg(group, 0)
-    except ProcessLookupError:
-        return True
-    except PermissionError:
-        return False
-    return False
+    if not any(pid == os.getpid() for pid, _, _ in rows):
+        raise RuntimeError("Darwin process snapshot omitted its controller")
+    # A complete snapshot can also prove that the last member was already reaped.
+    return all(state.startswith("Z") for _, pgid, state in rows if pgid == group)
 
 
 def _group_alive(group):

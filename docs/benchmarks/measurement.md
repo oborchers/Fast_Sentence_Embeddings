@@ -1020,7 +1020,9 @@ The group receives SIGTERM 30 seconds before the profile deadline, then SIGKILL
 after a ten-second grace period if necessary. The lock remains held until the
 entire group ends, even if that exceeds the deadline. On Darwin, a zero-signal
 permission error counts as completion only when the process list proves every
-remaining member is a zombie, or a second probe proves the group disappeared.
+remaining member is a zombie, or proves there are no remaining members. The
+snapshot must include its own controller. The same proof applies when a real
+signal races with the last member exiting.
 Live or unobserved membership remains an error. Cleanup retains the lock until
 group completion is proved, then reports the error. An outstanding group is
 reported every 15 seconds. These are shutdown parameters, not measured timings.
