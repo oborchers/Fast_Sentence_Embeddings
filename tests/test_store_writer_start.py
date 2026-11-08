@@ -65,7 +65,7 @@ def test_start_failure_is_shared_and_an_existing_thread_is_stopped(
     finally:
         writer.stop()
         other.stop()
-    assert writer._ended.is_set()
+    assert writer._ended.is_set() is after_start
     if after_start:
         writer._thread.join(10)
         assert not writer._thread.is_alive()
@@ -166,3 +166,38 @@ def test_stop_before_first_submit_wins():
     with pytest.raises(RuntimeError, match="stopped"):
         writer.submit(lambda: None)
     assert writer._thread.ident is None
+
+
+@pytest.mark.parametrize("started", [False, True])
+def test_stop_can_be_retried_after_an_interrupt_before_handover(monkeypatch, started):
+    writer = WriterThread()
+    if started:
+        writer.submit(lambda: None)
+        writer.drain()
+    if started:
+        real = writer._items
+
+        class InterruptedQueue(type(real)):
+            def append(self, _item):
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(writer, "_items", InterruptedQueue())
+    else:
+        real = writer._ended.set
+
+        def interrupt():
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(writer._ended, "set", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        writer.stop()
+    if started:
+        monkeypatch.setattr(writer, "_items", real)
+    else:
+        monkeypatch.setattr(writer._ended, "set", real)
+    stopped = threading.Thread(target=writer.stop, daemon=True)
+    stopped.start()
+    stopped.join(10)
+    assert not stopped.is_alive()
+    assert writer._ended.is_set()
+    writer.stop()

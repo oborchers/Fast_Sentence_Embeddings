@@ -166,3 +166,55 @@ def test_resume_backfills_bits_on_attach_without_starting_sink_threads(tmp_path,
         monkeypatch.setattr(sink, "_attach_source", attach)
         ENCODER.encode(source, sink=sink, workers=1)
         assert all(t.ident is None for t in _threads(sink))
+
+
+def test_uncertain_start_can_close_before_a_late_bootstrap_without_taking_work(sink, monkeypatch):
+    import signal
+
+    worker = sink._io
+    thread = worker._thread
+    entered, release = threading.Event(), threading.Event()
+    real_bootstrap = thread._bootstrap
+    took = []
+
+    def bootstrap():
+        entered.set()
+        assert release.wait(10)
+        real_bootstrap()
+
+    def interrupted_wait(*_args, **_kwargs):
+        assert entered.wait(10)  # OS thread exists but has not set ident
+        signal.raise_signal(signal.SIGINT)
+
+    def interrupt(_signum, _frame):
+        raise KeyboardInterrupt
+
+    def take():
+        took.append(True)
+        raise AssertionError("a late bootstrap must never take work")
+
+    monkeypatch.setattr(thread, "_bootstrap", bootstrap)
+    monkeypatch.setattr(thread._started, "wait", interrupted_wait)
+    monkeypatch.setattr(worker, "_take", take)
+    previous = signal.signal(signal.SIGINT, interrupt)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            _commit(sink, 1)
+        assert thread.ident is None
+        assert worker._launch_state == "launching"
+        assert not worker._ended.is_set()
+        assert worker._abandoned
+        assert not worker._accepting
+        sink.close()
+        sink.close()
+        assert not worker._ended.is_set()
+        assert not list(sink.path.glob(".shard-*"))
+        assert sink.published_rows == sink.durable_rows == 0
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        release.set()
+        assert worker._ended.wait(10)
+        thread.join(10)
+    assert worker._launch_state == "started"
+    assert not thread.is_alive()
+    assert took == []

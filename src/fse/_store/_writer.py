@@ -90,9 +90,9 @@ class WriterThread:
         self._abandoned = False
         self._accepting = True  # until the thread ends
         self._stopping = False
-        self._ended = threading.Event()  # set by the thread itself, as its last step
+        self._ended = threading.Event()  # set at thread exit, or stop if never launched
         self._running = -1  # the bytes of the piece running, -1 for none
-        self._launch_state: Literal["new", "launching", "started", "failed"] = "new"
+        self._launch_state: Literal["new", "launching", "started"] = "new"
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
 
     def submit(
@@ -154,16 +154,23 @@ class WriterThread:
     def stop(self) -> None:
         """Finish the work handed over (unless an error or ``abandon`` drops it) and end
         the thread; returns once the thread has ended its last piece, which has no time
-        bound while a piece blocks (a write to a hanging drive)."""
+        bound while a piece blocks (a write to a hanging drive). An uncertain failed
+        start has taken no work: stop abandons it without waiting for a bootstrap that
+        might never happen. A late bootstrap only ends this writer, touching no file.
+        """
         with self._state:
             if not self._stopping:
                 self._accepting = False
-                self._stopping = True
-                if self._launch_state in ("new", "failed"):
+                if self._launch_state == "new":
                     self._ended.set()  # no thread exists to set it
-                    return
-                self._state.notify_all()
-                self._items.append(None)
+                elif self._launch_state == "launching":
+                    self._abandoned = True  # no work was handed over before start failed
+                else:
+                    self._state.notify_all()
+                    self._items.append(None)
+                self._stopping = True  # an interrupted handover can be retried
+            if self._launch_state == "launching":
+                return
         while not self._ended.wait(_POLL):
             pass
 
@@ -177,13 +184,13 @@ class WriterThread:
             try:
                 self._thread.start()
             except BaseException as error:
+                # No work has been queued. With an unknown outcome, a late bootstrap
+                # must end before taking anything, even if close already cleaned up.
+                self._accepting = False
+                self._abandoned = True
                 self._error = error
                 self._failure.record(error)
-                if self._thread.ident is None:
-                    self._launch_state = "failed"
-                    self._accepting = False
-                    self._ended.set()
-                else:
+                if self._thread.ident is not None:
                     self._launch_state = "started"
                 self.check(report)
             else:
@@ -196,6 +203,10 @@ class WriterThread:
 
     def _run(self) -> None:
         try:
+            with self._state:
+                self._launch_state = "started"  # bootstrap confirms an uncertain start
+                if self._abandoned:
+                    return  # no work was taken, so only this writer's state is touched
             while self._step(self._take()):
                 pass
         finally:
