@@ -63,9 +63,10 @@ def probe(job):
     model = Encoder.load(checked(job["artifact"]["path"], job["artifact"]["sha256"]), mmap=True)
     check(job.get("wall_deadline"))
     data = document(checked(job["corpus"]["path"], job["corpus"]["sha256"]))
-    if len(data.get("timing_texts", data["texts"])) != job["corpus"]["texts"]:
+    source = data["timing_texts"] if "timing_texts" in data else data["texts"]
+    if len(source) != job["corpus"]["texts"]:
         raise ValueError("preflight corpus row count differs from prepared provenance")
-    texts = data.get("timing_texts", data["texts"])[:16]
+    texts = source[:16]
     if not texts:
         raise ValueError("preflight requires nonempty source rows")
     job["texts"] = len(texts)
