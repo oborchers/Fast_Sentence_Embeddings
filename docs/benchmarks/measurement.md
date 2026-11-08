@@ -475,7 +475,7 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
 
 `benchmarks/config/allocation.json` (`allocation@1`, one section per entry) declares what one rented machine must be, which environments to install and the steps to run:
 
-- `machine_check`: what the machine must be. Fields: `cpu_model_contains`, `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_soft_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
+- `machine_check`: what the machine must be. Fields: `cpu_model` (exact), `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_hard_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
 - `environments`: `base`, `candidate` and `reference` environments, each with its own lock and a product revision (`"pins"` for the revision of `pins.json`, a full commit, or none). The candidate's source is `fse-source`; any other role gets `fse-source-<name>`.
 - `steps`: ordered; each names an environment, a command with `{field}` placeholders (`{python}`, `{results}`, `{work}`, `{allocated_at}`, `{source}`, `{python_<environment>}` and `--param` values) and an `estimate_seconds`.
 
@@ -489,7 +489,7 @@ The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _har
 
 `speed.py --collect ALLOCATION_ROOT --archive DIR` verifies and archives the record and every step folder; a single result folder (published, local development or local quality) takes `--collect FOLDER --archive FILE.tar.gz` as before.
 
-The production values of `machine_check` come from `pins.json` (`machine`: 32 vCPU, 128 GB RAM, 150 GB disk) and from the kernel contract (`avx2`, `fma`, `f16c`, docs/architecture/numerical-contract.md). The minimum free disk (100 GB), the descriptor limit (65,536) and `shm` (1 GiB, as in the rehearsal rules) are assumptions that the maintainer confirms before the first paid allocation.
+The core holds no limit. The values live in the data of the allocation. Those of the published studies come from the 2.0 evidence (`sentence-speed-2026-11`, `environment.json`: `AMD EPYC 9575F 64-Core Processor`, 32 allowed CPUs, `memory.max` 128000000000), the kernel contract (`avx2`, `fma`, `f16c`) and the Linux plan (free disk at least 120 GB on pod 1, hard `nofile` at least 524288). Not evidenced yet, and marked as placeholders for the maintainer: `shm_bytes` (1 GiB, the rehearsal rule; the 2.0 archive does not record `/dev/shm`) and `cpu_quota_cpus` (at least 32; the 2.0 run did not record `cpu.max`).
 
 `python -m _harness.controls --out DIR` (from `benchmarks/`) runs the lifecycle controls without any environment: normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1, SIGTERM and budget end of an allocation. Every rehearsal runs them too (below).
 
