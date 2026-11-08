@@ -45,7 +45,7 @@ def test_runner_preserves_chunks_and_uses_only_pool_threads(source, monkeypatch)
 
         return scan
 
-    def no_executor(**kwargs):
+    def no_executor(**_kwargs):
         raise AssertionError("the scan made its own executor")
 
     monkeypatch.setattr(source, "_scanner", scanner)
@@ -62,10 +62,12 @@ def test_runner_preserves_chunks_and_uses_only_pool_threads(source, monkeypatch)
         assert got == wanted
         assert error is None
         if source._verified:
-            assert not calls and not names
+            assert not calls
+            assert not names
         else:
             assert calls == [1]
-            assert names and all(name.startswith("fse-worker") for name in names)
+            assert names
+            assert all(name.startswith("fse-worker") for name in names)
         assert not pool.closed
 
 
@@ -127,14 +129,16 @@ def test_without_a_runner_large_unverified_sources_keep_their_own_threads(monkey
 
     monkeypatch.setattr(src, "_scanner", scanner)
     scan, error = src.scan_until_error(workers=2)
-    assert error is None and scan.sentences == 5000
-    assert names and all(name.startswith("fse-text") for name in names)
+    assert error is None
+    assert scan.sentences == 5000
+    assert names
+    assert all(name.startswith("fse-text") for name in names)
 
 
 def test_runner_task_errors_are_raised_in_range_order(monkeypatch):
     src = StringSource.encoded([b"w1 " * 100] * 5000)
 
-    def scanner(*args):
+    def scanner(*_args):
         def scan(span):
             raise MemoryError(str(span[0]))
 
@@ -148,7 +152,7 @@ def test_runner_task_errors_are_raised_in_range_order(monkeypatch):
             run(spans, fn, lambda _, r: results.append(r), workers=2, pool=pool)
             return results
 
-        with pytest.raises(MemoryError, match="^0$"):
+        with pytest.raises(MemoryError, match=r"^0$"):
             src.scan_until_error(workers=2, run_ranges=runner)
         assert pool.try_acquire()
         pool.release()

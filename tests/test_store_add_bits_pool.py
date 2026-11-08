@@ -44,7 +44,7 @@ def test_backfill_on_pool_writes_identical_bytes(tmp_path, monkeypatch, dtype, s
 
 @pytest.mark.parametrize("kind", ["type", "closed", "too_many"])
 def test_pool_is_validated_before_reading_store(tmp_path, monkeypatch, kind):
-    def no_read(*args, **kwargs):
+    def no_read(*_args, **_kwargs):
         raise AssertionError("store was read before pool validation")
 
     monkeypatch.setattr(_add_bits, "read_store", no_read)

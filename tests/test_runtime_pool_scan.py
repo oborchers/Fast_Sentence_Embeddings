@@ -44,7 +44,7 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
 
         return scan
 
-    def no_executor(**kwargs):
+    def no_executor(**_kwargs):
         raise AssertionError("scan started extra threads")
 
     def invoke(pool):
@@ -62,13 +62,16 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
     monkeypatch.setattr(_scan, "ThreadPoolExecutor", no_executor)
     with fse.Pool(3, max_tasks=1) as pool:
         assert exact(invoke(pool)) == wanted
-        assert calls and all(p is pool for p in calls)
-        assert names and all(name.startswith("fse-worker") for name in names)
+        assert calls
+        assert all(p is pool for p in calls)
+        assert names
+        assert all(name.startswith("fse-worker") for name in names)
     if call == "batches":
         calls.clear()
         names.clear()
         assert exact(invoke(None)) == wanted  # its iteration owns one pool for scans too
-        assert calls and all(p is not None for p in calls)
+        assert calls
+        assert all(p is not None for p in calls)
         assert all(name.startswith("fse-worker") for name in names)
 
 
