@@ -111,8 +111,14 @@ def publish_bits(
         publish_directory(tmp, path / bits_name(shard.first_row), sync_parent=synced)
     except FileExistsError:
         failed_cleanup(tmp, remove_temporary(tmp), None)
-        if open_bits(path, info, shard, verify=True) is None:  # pragma: no cover - it vanished
+        found = open_bits(path, info, shard, verify=True)
+        if found is None:  # pragma: no cover - it vanished
             raise
+        if not np.array_equal(found[0], bits):  # an untagged artifact is not hashed on open
+            raise CorruptArtifactError(
+                f"{bits_name(shard.first_row)}: the artifact of another writer is not the bits "
+                f"of {shard.name}; run fse.repair_store(path) while no writer or reader runs"
+            ) from None
         return False
     except BaseException as error:
         failed_cleanup(tmp, remove_temporary(tmp), error)

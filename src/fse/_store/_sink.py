@@ -38,7 +38,7 @@ from ._bits_write import backfill as backfill_bits
 from ._layout import check_root_size, create_store, read_store
 from ._position_format import MODE as SOURCE_POSITION
 from ._position_format import SourcePosition, anchor_of, check_position
-from ._recovery import refuse_unsynced, snapshot
+from ._recovery import clear_exception_frames, refuse_unsynced, snapshot
 from ._resume_format import MODE as SOURCE_ROWS
 from ._resume_format import SourceRows, check_mode, check_source, sync_store
 from ._shard import ShardWriter
@@ -262,7 +262,11 @@ class ShardSink(ShardSinkBase):
         read the whole store, so it leaves them to ``fse.add_sign_bits``."""
         if self.sign_bits:
             start = time.perf_counter()
-            backfill_bits(self.path, info, shards, self._synced, 1, start)
+            try:
+                backfill_bits(self.path, info, shards, self._synced, 1, start)
+            except BaseException as error:
+                clear_exception_frames(error)  # the frames hold the mappings of the shards
+                raise
 
     def _check_stream(self) -> None:
         """The checks of ``encode_batches(positions=True)`` that read nothing: the sink resumes,

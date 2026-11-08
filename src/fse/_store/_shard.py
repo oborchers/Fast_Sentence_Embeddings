@@ -194,7 +194,13 @@ class ShardWriter(ShardBase):
     ):
         super().__init__(store, first_row, capacity, created_by, synced=synced)
         self.info = info
-        self.bits = BitsColumn(store, info, first_row, capacity, created_by) if sign_bits else None
+        self.bits = None
+        if sign_bits:
+            try:
+                self.bits = BitsColumn(store, info, first_row, capacity, created_by)
+            except BaseException:  # the temporary directory exists already and nobody owns it
+                remove_temporary(self.tmp)
+                raise
         self.dtype = np.dtype(_codes.STORAGE_TYPES[info.dtype])
         # vectors.npy is created at the first write, so the shards reserved ahead of their
         # writes (a task over many small shards) hold no open file.

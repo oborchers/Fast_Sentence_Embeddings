@@ -10,11 +10,11 @@ from fse import _reference_bits
 from fse._container import NpyContainer, PublishedNotDurableError
 from fse._store import ShardSink, _bits_write
 from fse._store._bits_format import bits_name
-from fse._store._layout import read_store, shard_name, shards
+from fse._store._layout import open_shard, read_store, shard_name, shards
 from support.bits import stored_bits, tree
 from support.encoder import finished
 from support.logs import captured
-from support.runtime import texts
+from support.runtime import small_tasks, texts
 
 ENCODER = finished()  # 6 dimensions, one byte of bits per row
 SENTENCES = texts(40)
@@ -55,12 +55,14 @@ def test_the_default_writes_no_bits_and_the_shards_are_those_with_bits(tmp_path)
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("workers", [1, 3])
-def test_the_bits_equal_add_sign_bits_and_the_reference(tmp_path, dtype, workers):
+def test_the_bits_equal_add_sign_bits_and_the_reference(tmp_path, monkeypatch, dtype, workers):
+    small_tasks(monkeypatch)  # many tasks, none inline
     plain, signed = tmp_path / "plain", tmp_path / "signed"
     for path, options in ((plain, {}), (signed, {"sign_bits": True})):
         with ShardSink(path, ENCODER, dtype=dtype, shard_rows=16, **options) as sink:
             ENCODER.encode(texts(100), workers=workers, sink=sink)
     assert fse.add_sign_bits(plain) == 7
+    assert len(bits_entries(signed)) == 7
     assert bits_entries(plain) == bits_entries(signed)  # byte for byte, manifests included
     with fse.VectorStore.open(signed) as store:
         store.verify()
@@ -292,9 +294,68 @@ def test_an_interrupt_between_the_shard_and_its_bits_leaves_a_valid_store(tmp_pa
 # --- sign bits of the rows read back by the store ------------------------------------------------
 
 
-def test_the_bits_of_a_run_in_many_workers_are_those_of_one(tmp_path):
+def test_the_bits_of_a_run_in_many_workers_are_those_of_one(tmp_path, monkeypatch):
+    small_tasks(monkeypatch)
     one, many = tmp_path / "one", tmp_path / "many"
     for path, workers in ((one, 1), (many, 4)):
         with ShardSink(path, ENCODER, shard_rows=7, sign_bits=True) as sink:
             ENCODER.encode(texts(60), workers=workers, sink=sink)
+    assert len(bits_entries(one)) == 9
     assert bits_entries(one) == bits_entries(many)
+
+
+def test_a_failure_in_the_middle_of_writing_the_bits_leaves_nothing_but_the_shard(
+    tmp_path, monkeypatch
+):
+    def fail(*_args, **_kwargs):
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr(_bits_write.NpyContainer, "_write_tensor", fail)
+    sink, error = run_until_closed(tmp_path / "store")
+    assert isinstance(error, OSError)
+    assert sink.published_rows == sink.durable_rows == 8
+    path = tmp_path / "store"
+    assert sorted(p.name for p in path.iterdir()) == [shard_name(0), "store.json"]
+
+
+def test_a_failed_allocation_of_the_bits_leaves_no_temporary_shard(tmp_path, monkeypatch):
+    from fse._store import _bits_writer
+
+    def fail(*_args, **_kwargs):
+        raise MemoryError("no memory for the bits")
+
+    monkeypatch.setattr(_bits_writer.BitsColumn, "__init__", fail)
+    path = tmp_path / "store"
+    sink = ShardSink(path, ENCODER, shard_rows=8, sign_bits=True)
+    with pytest.raises(MemoryError), sink:
+        sink.target(0, 4)
+    assert not [p for p in path.iterdir() if p.name.startswith(".")]
+
+
+def test_a_concurrent_artifact_with_other_bits_is_an_error_though_it_is_untagged(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "store"
+    real = _bits_write.publish_directory
+    done = []
+
+    def other_bits_first(tmp, target, **kwargs):
+        if not done:
+            done.append(1)
+            info = read_store(path)
+            shard, tensors = open_shard(path, info, 0)
+            _bits_write.publish_bits(
+                path,
+                info,
+                shard,
+                ~_reference_bits.sign_bits(tensors["vectors"]),
+                synced=True,
+                by="x",
+            )
+        real(tmp, target, **kwargs)
+
+    monkeypatch.setattr(_bits_write, "publish_directory", other_bits_first)
+    sink = ShardSink(path, ENCODER, shard_rows=8, sign_bits=True)
+    with pytest.raises(fse.CorruptArtifactError, match="not the bits"), sink:
+        ENCODER.encode(SENTENCES[:8], workers=1, sink=sink)
+    assert sink.published_rows == 8

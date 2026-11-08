@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 import fse
 from fse._container import NpyContainer
-from fse._store import _add_bits
+from fse._store import _bits_write
 from fse._store._bits_format import bits_name
 from fse._store._layout import shard_name
 from support.bits import check_against_reference, expected_bits, signed_store, stored_bits, tree
@@ -110,7 +110,7 @@ def test_a_failure_leaves_the_published_bits_and_a_rerun_equals_an_uninterrupted
     for path in (whole, broken):
         signed_store(path, sizes=(5, 3, 2))
     fse.add_sign_bits(whole)
-    real = _add_bits.write_bits
+    real = _bits_write.write_bits
     calls = []
 
     def stop_at_the_second(*args, **kwargs):
@@ -119,7 +119,7 @@ def test_a_failure_leaves_the_published_bits_and_a_rerun_equals_an_uninterrupted
             raise KeyboardInterrupt
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(_add_bits, "write_bits", stop_at_the_second)
+    monkeypatch.setattr(_bits_write, "write_bits", stop_at_the_second)
     with pytest.raises(KeyboardInterrupt):
         fse.add_sign_bits(broken, workers=1)
     monkeypatch.undo()
