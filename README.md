@@ -279,6 +279,7 @@ Its counts demonstrate the workflow, not moderation quality.
 Use two sinks and two folders. `return_vectors=True` computes full sentence vectors, so raw-mean heads take the unfolded path.
 This gives up the narrower pooling of folding. Each folder is durable separately, without an atomic commit across folders.
 `batch.durable_rows` confirms the smaller durable prefix of the two sinks.
+Read the final count from both sinks after the iterator finishes and flushes its last partial shard.
 
 ```python
 with fse.ShardSink("request-vectors", encoder, doc_ids=True) as vectors, fse.ScoreSink(
@@ -289,6 +290,7 @@ with fse.ShardSink("request-vectors", encoder, doc_ids=True) as vectors, fse.Sco
         vector_sink=vectors, score_sink=sink,
     ):
         confirmed_rows = batch.durable_rows
+    confirmed_rows = min(vectors.durable_rows, sink.durable_rows)  # after the final flush
 ```
 
 ### Import a linear Model2Vec classifier
