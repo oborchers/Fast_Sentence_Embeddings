@@ -6,6 +6,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from contextlib import contextmanager, suppress
 
@@ -22,9 +23,7 @@ def _send(group, signum):
 def _wait_group(group):
     while True:
         _reap(group)
-        try:
-            os.killpg(group, 0)
-        except ProcessLookupError:
+        if not _group_alive(group):
             return
         time.sleep(0.05)
 
@@ -89,33 +88,88 @@ def held(state, worker, purpose, notify, deadline=None):
         yield
 
 
-def _alive(child):
-    if child.poll() is not None:
-        _reap(child.pid)
+def _zombie_group(group):
+    # Darwin's killpg filters zombies and can report EPERM for a zombie-only group.
+    output = subprocess.check_output(["/bin/ps", "-axo", "pgid=,stat="], text=True)
+    states = [
+        state
+        for number, state in (line.split() for line in output.splitlines())
+        if int(number) == group
+    ]
+    if states:
+        return all(state.startswith("Z") for state in states)
+    # The last zombie may have been reaped while ps took its snapshot.
     try:
-        os.killpg(child.pid, 0)
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return False
+
+
+def _group_alive(group):
+    try:
+        os.killpg(group, 0)
     except ProcessLookupError:
         return False
+    except PermissionError:
+        if sys.platform == "darwin" and _zombie_group(group):
+            return False
+        raise
     return True
 
 
-def _drain(child, notify, grace=10.0):
+def _alive(child):
+    if child.poll() is not None:
+        _reap(child.pid)
+    return _group_alive(child.pid)
+
+
+def _cleanup_call(callback, errors, default=None):
+    try:
+        return callback()
+    except Exception as error:
+        if not errors:
+            errors.append(error)
+        return default
+
+
+def _ended_within(child, deadline, errors):
+    while _cleanup_call(lambda: _alive(child), errors, True):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+    return True
+
+
+def _drained(errors, escalated):
+    if errors:
+        raise errors[0]
+    return escalated
+
+
+def _drain(child, notify, grace=10.0, *, kill=True):
+    errors = []
     escalated = "term"
-    for signum in (signal.SIGTERM, signal.SIGKILL):
-        _send(child.pid, signum)
-        end = time.monotonic() + grace
-        while _alive(child) and time.monotonic() < end:
-            time.sleep(0.05)
-        if not _alive(child):
-            return escalated
-        escalated = "kill"
+    for signum in (signal.SIGTERM, signal.SIGKILL) if kill else (signal.SIGTERM,):
+        _cleanup_call(lambda signum=signum: _send(child.pid, signum), errors)
+        if _ended_within(child, time.monotonic() + grace, errors):
+            return _drained(errors, escalated)
+        escalated = "kill" if kill else "term"
     report_at = 0
-    while _alive(child):
+    while _cleanup_call(lambda: _alive(child), errors, True):
         if time.monotonic() >= report_at:
-            notify({**LABEL, "event": "group_not_ended", "pid": child.pid})
+            event = {
+                **LABEL,
+                "event": "group_not_ended",
+                "pid": child.pid,
+                "cleanup_error": bool(errors),
+            }
+            _cleanup_call(lambda: notify(event), errors)
             report_at = time.monotonic() + 15
         time.sleep(0.05)
-    return escalated
+    return _drained(errors, escalated)
 
 
 def _bounded(child, state, notify, deadline):
@@ -148,12 +202,7 @@ def execute(command, state, notify, deadline=None, env=None, stdout=None):
         status = child.wait()
         notify({**LABEL, "event": "heavy_leader_finished", "pid": child.pid, "exit_status": status})
     except BaseException:
-        if deadline is None:
-            _send(child.pid, signal.SIGTERM)
-            child.wait()
-            _wait_group(child.pid)
-        else:
-            _drain(child, notify)
+        _drain(child, notify, kill=deadline is not None)
         raise
     finally:
         state.child = None

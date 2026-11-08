@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -102,3 +103,89 @@ def test_normal_wrapper_keeps_integer_exit_status(heavy, status):
     )
     assert type(value) is int
     assert value == status
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin zombie-only killpg behavior")
+def test_zombie_only_group_is_proven_ended_under_lock(heavy, tmp_path):
+    child = subprocess.Popen([sys.executable, "-c", "raise SystemExit(7)"], start_new_session=True)
+    state = SimpleNamespace(number=None)
+    try:
+        with heavy.held(state, "test-heavy", "Darwin zombie group", lambda _: None):
+
+            def zombie():
+                output = subprocess.check_output(
+                    ["/bin/ps", "-p", str(child.pid), "-o", "stat="], text=True
+                )
+                return output.strip().startswith("Z")
+
+            assert until(zombie)
+            with pytest.raises(PermissionError):
+                os.killpg(child.pid, 0)
+            assert heavy._group_alive(child.pid) is False
+            assert (tmp_path / "heavy.lock" / "owner").is_file()
+    finally:
+        assert child.wait(timeout=5) == 7
+    assert not (tmp_path / "heavy.lock").exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin permission fallback")
+def test_live_member_does_not_turn_permission_error_into_completion(heavy, tmp_path, monkeypatch):
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.stdin.buffer.read(1)"],
+        stdin=subprocess.PIPE,
+        start_new_session=True,
+    )
+    real = heavy.os.killpg
+
+    def denied(group, signum):
+        if group == child.pid and signum == 0:
+            raise PermissionError("probe denied")
+        return real(group, signum)
+
+    try:
+        with heavy.held(SimpleNamespace(number=None), "test-heavy", "live member", lambda _: None):
+            monkeypatch.setattr(heavy.os, "killpg", denied)
+            with pytest.raises(PermissionError, match="probe denied"):
+                heavy._group_alive(child.pid)
+            assert (tmp_path / "heavy.lock" / "owner").is_file()
+    finally:
+        child.communicate(b"x", timeout=10)
+    assert child.returncode == 0
+    assert not (tmp_path / "heavy.lock").exists()
+
+
+def test_group_query_failure_keeps_lock_through_cleanup(heavy, tmp_path, monkeypatch):
+    real_alive, real_send, real_drain = heavy._group_alive, heavy._send, heavy._drain
+    failures = []
+
+    def denied_twice(group):
+        if len(failures) < 2:
+            assert until(lambda: (tmp_path / "descendant.pid").exists())
+            failures.append(group)
+            raise PermissionError("probe denied")
+        return real_alive(group)
+
+    def send(group, signum):
+        assert (tmp_path / "heavy.lock" / "owner").is_file()
+        return real_send(group, signum)
+
+    monkeypatch.setattr(heavy, "_group_alive", denied_twice)
+    monkeypatch.setattr(heavy, "_send", send)
+    monkeypatch.setattr(
+        heavy,
+        "_drain",
+        lambda child, notify, **kwargs: real_drain(child, notify, grace=0.2, **kwargs),
+    )
+    _, thread, result, errors = _run(heavy, tmp_path, "ignore", deadline=time.monotonic() + 60)
+    try:
+        thread.join(10)
+        assert not thread.is_alive()
+        assert result == []
+        assert len(errors) == 1 and isinstance(errors[0], PermissionError)
+        assert len(failures) == 2
+        assert not (tmp_path / "heavy.lock").exists()
+        with pytest.raises(ProcessLookupError):
+            os.kill(int((tmp_path / "descendant.pid").read_text()), 0)
+    finally:
+        (tmp_path / "release").touch()
+        thread.join(10)

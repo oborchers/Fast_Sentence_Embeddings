@@ -1018,7 +1018,11 @@ receipt also reports whether `profile_ready` appeared in the log.
 The child admission deadline reserves 60 seconds for shutdown and sealing.
 The group receives SIGTERM 30 seconds before the profile deadline, then SIGKILL
 after a ten-second grace period if necessary. The lock remains held until the
-entire group ends, even if that exceeds the deadline. An outstanding group is
+entire group ends, even if that exceeds the deadline. On Darwin, a zero-signal
+permission error counts as completion only when the process list proves every
+remaining member is a zombie, or a second probe proves the group disappeared.
+Live or unobserved membership remains an error. Cleanup retains the lock until
+group completion is proved, then reports the error. An outstanding group is
 reported every 15 seconds. These are shutdown parameters, not measured timings.
 
 Every receipt is marked `diagnostic_profile: true` and
@@ -1031,3 +1035,4 @@ can be collected through `speed.py --collect`. No automatic retry occurs.
 
 Profiler format sources: [py-spy 0.4.2 speedscope writer](https://github.com/benfred/py-spy/blob/v0.4.2/src/speedscope.rs),
 [memray 1.20.0 metadata](https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_metadata.py).
+Darwin group-query behavior: [XNU killpg1 implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c).
