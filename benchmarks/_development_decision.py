@@ -114,6 +114,7 @@ def replay(results):
             [c["id"] for c in contract["cells"]],
             contract.get("functional_only", False),
             contract["local_phase"],
+            _replay_stop(results, contract, rows),
         )
     return result
 
@@ -133,3 +134,31 @@ def _replay_cell(results, contract, row):
         control = document(results / (row["cell_id"] + "-comparison.json"))["control"]
         return screen(row, control["aa"], row["comparison"], row.get("functional_only", False))
     return {"decision": row.get("decision", "not_run"), "status": row["status"], "replayed": False}
+
+
+def _replay_stop(results, contract, rows):
+    """Preserve the stop address only when the sealed rows prove that first rejection."""
+    from _harness.records import document
+
+    marker = document(results / "decision.json")["overall"]["stopped_after"]
+    following = [r for r in rows if r.get("stopped_after") is not None]
+    if marker is None:
+        if following:
+            raise ValueError("replay rows contain an unrecorded stop")
+        return None
+    rule = contract["decision"]
+    if not rule["stop_early"] or contract.get("functional_only", False):
+        raise ValueError("replay stop is inconsistent with the contract")
+    positions = [i for i, row in enumerate(rows) if row["cell_id"] == marker]
+    if len(positions) != 1:
+        raise ValueError("replay stop cell is missing or duplicated")
+    index = positions[0]
+    later = rows[index + 1 :]
+    if any(r["status"] != "not_started" or r.get("stopped_after") != marker for r in later):
+        raise ValueError("replay contains work after the recorded stop")
+    selected = [c["id"] for c in contract["cells"]]
+    before = evaluate(rule, rows[:index], selected, phase=contract["local_phase"])
+    after = evaluate(rule, rows[: index + 1], selected, phase=contract["local_phase"])
+    if before["decision"] == "reject" or after["decision"] != "reject":
+        raise ValueError("replay stop does not address the first final rejection")
+    return marker
