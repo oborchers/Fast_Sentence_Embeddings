@@ -18,8 +18,9 @@ def control_proof(root, entry):
     cases = controls.run_all(root)
     script = root / "bootstrap.sh"
     script.write_text(bootstrap(entry, "0" * 40))
+    # The probe names its own steps: an allocation file of the caller must not leak into it.
     env = {
-        **os.environ,
+        **{k: v for k, v in os.environ.items() if k != "MEASURE_ALLOCATION"},
         "MEASURE_CONTROL_PROBE": "1",
         "MEASURE_ROOT": str((root / "restart").resolve()),
     }
