@@ -97,8 +97,13 @@ class Allocation:
         logs = self.root / f"{step['name']}-logs"
         logs.mkdir(exist_ok=True)
         process = subprocess.Popen(command)
-        (logs / "measurement.pid").write_text(f"{process.pid}\n")
-        self.active = process
+        self.active = process  # registered at once: a stop signal reaches it from here on
+        try:
+            (logs / "measurement.pid").write_text(f"{process.pid}\n")
+        except OSError:
+            process.kill()
+            process.wait()
+            raise
         return process
 
     def step_values(self, values, step):

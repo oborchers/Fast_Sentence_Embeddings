@@ -77,6 +77,8 @@ def seal(root, exit_status, cells, label=None, extra=None):
     """Write manifest.json over the folder, then DONE over the manifest. DONE is last: a
     folder without it is not finished and collection refuses it."""
     label = label or {}
+    for leftover in root.rglob("*.pending"):  # a dead writer's temporary file is no member
+        leftover.unlink()
     atomic(root / SEALED[0], {**label, "files": inventory(root)})
     atomic(
         root / SEALED[1],
