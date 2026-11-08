@@ -76,7 +76,7 @@ def test_nested_backfill_refused_before_any_write(tmp_path, sizes):
 
         future = pool.submit(nested)
         with pytest.raises(RuntimeError, match="same pool"):
-            assert other.join() == {"other": 2}
+            future.result(timeout=10)
         assert not list(path.glob("*sign_bits-*"))
         assert fse.add_sign_bits(path, workers=1, pool=pool) == len(sizes)
 
