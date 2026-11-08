@@ -29,9 +29,9 @@ def task_data(name):
     """The pinned task of the NanoBEIR benchmark, with the queries MTEB keeps (those with
     judged documents). Refuses what this study does not reproduce: other subsets or splits,
     a given candidate list, skipped first results, unknown or repeated IDs."""
-    from _quality.mteb import tasks_for
+    from _quality.suites import benchmark_tasks
 
-    task = next(t for t in tasks_for("NanoBEIR") if t.metadata.name == name)
+    task = next(t for t in benchmark_tasks("NanoBEIR") if t.metadata.name == name)
     if list(task.hf_subsets) != ["default"] or list(task.eval_splits) != ["train"]:
         raise ValueError(f"{name}: unexpected subsets or splits")
     if task.skip_first_result:

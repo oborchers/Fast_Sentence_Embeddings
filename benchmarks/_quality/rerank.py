@@ -29,12 +29,14 @@ def _sources():
     from _measurement import sha256
 
     here = Path(__file__).parent
-    return {p.name: sha256(p) for p in [*sorted(here.glob("rerank*.py")), here / "mteb.py"]}
+    # mteb.py evaluates through suites.py (tasks), identity.py and guard.py (admission).
+    shared = [here / f"{name}.py" for name in ("mteb", "suites", "identity", "guard")]
+    return {p.name: sha256(p) for p in [*sorted(here.glob("rerank*.py")), *shared]}
 
 
 def expand(cells):
     """One cell per NanoBEIR task; other kinds pass unchanged."""
-    from _quality.mteb import tasks_for
+    from _quality.suites import benchmark_tasks
 
     result = []
     for cell in cells:
@@ -43,7 +45,7 @@ def expand(cells):
             continue
         if cell["tasks"] != ["NanoBEIR"]:
             raise ValueError("a rerank cell covers the NanoBEIR benchmark")
-        for task in tasks_for("NanoBEIR"):
+        for task in benchmark_tasks("NanoBEIR"):
             name = task.metadata.name
             result.append({**cell, "id": cell["id"] + "_" + name, "task": name})
     return result
@@ -99,9 +101,10 @@ def _mteb_check(cell, stages, data, context, arms):
     beside them (they differ only where documents tie exactly, as duplicates in ArguAna)."""
     import json
 
-    from _quality.mteb import evaluate, filters_for, tasks_for
+    from _quality.mteb import evaluate
+    from _quality.suites import benchmark_tasks, filters_for
 
-    task = next(t for t in tasks_for("NanoBEIR") if t.metadata.name == data.name)
+    task = next(t for t in benchmark_tasks("NanoBEIR") if t.metadata.name == data.name)
     checks = {}
     for name in cell.get("mteb_check", []):
         mteb_cell = {

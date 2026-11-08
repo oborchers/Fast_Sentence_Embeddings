@@ -8,62 +8,11 @@ import time
 from importlib.metadata import version
 
 from _measurement import atomic, package_identity, sha256
-from _measurement_config import MODEL_PINS, PINS
+from _measurement_config import MODEL_PINS
 
-MIND_REASON = "not computed: MTEB 2.26.25 MindSmallReranking needs more memory than the 64 GB machine (two attempts, status 137 and earlier ENOSPC)"
-
-
-def tasks_for(suite):
-    import mteb
-
-    if version("mteb") != PINS["versions"]["mteb"]:
-        raise ValueError("MTEB differs from the pinned evaluator")
-    if suite in ("MTEB(eng, v2)", "NanoBEIR"):
-        tasks = list(mteb.get_benchmark(suite).tasks)
-        expected = 41 if suite == "MTEB(eng, v2)" else 13
-        if len(tasks) != expected:
-            raise ValueError("pinned benchmark task count changed")
-        return [t for t in tasks if t.metadata.name != "MindSmallReranking"]
-    task = mteb.get_task(suite)
-    if task.metadata.name == "MindSmallReranking":
-        raise ValueError(MIND_REASON)
-    return [task]
-
-
-def expand(cells):
-    result = []
-    membership = {
-        t.metadata.name: (suite, t)
-        for suite in ("MTEB(eng, v2)", "NanoBEIR")
-        for t in tasks_for(suite)
-    }
-    for cell in cells:
-        if cell["kind"] != "mteb":
-            result.append(cell)
-            continue
-        for task, benchmark in cell_tasks(cell, membership):
-            result.append(
-                {
-                    **cell,
-                    "id": cell["id"] + "_" + task.metadata.name.replace(".", "-"),
-                    "task": task.metadata.name,
-                    "benchmark": benchmark,
-                    "evaluation_filters": filters_for(task),
-                }
-            )
-    if len({c["id"] for c in result}) != len(result):
-        raise ValueError("task expansion produced duplicate identifiers")
-    return result
-
-
-def cell_tasks(cell, membership):
-    for suite in cell["tasks"]:
-        selected = [membership[suite][1]] if suite in membership else tasks_for(suite)
-        for task in selected:
-            yield (
-                task,
-                membership[task.metadata.name][0] if task.metadata.name in membership else suite,
-            )
+from _quality.guard import admit
+from _quality.identity import execution, model_files, training_relation
+from _quality.suites import filters_for, task_of
 
 
 def loader(cell, context):
@@ -87,8 +36,13 @@ def loader(cell, context):
         return context["loaded"]
     context.pop("loaded", None)
     __import__("gc").collect()
+    context.pop("identity", None)
     model = native_model(cell, fit)
     adapter = make_adapter(cell, model)
+    context["identity"] = {
+        "execution": execution(cell, model),
+        "model_files": None if fit else model_files(cell),
+    }
     context["loaded_key"], context["loaded"] = key, adapter
     return adapter
 
@@ -119,11 +73,9 @@ def native_model(cell, fit):
                 truncate_dim=cell.get("truncate_dim", "model"),
             )
     elif backend == "model2vec":
-        from model2vec import StaticModel
+        from _quality.identity import model2vec_pinned
 
-        model = StaticModel.from_pretrained(
-            cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
-        )
+        model = model2vec_pinned(cell["model"])
     elif backend == "st":
         from sentence_transformers import SentenceTransformer
 
@@ -189,19 +141,66 @@ def make_adapter(cell, model):
 
 
 def evaluate(cell, context):
-    import mteb
-
     package = {"fse": "fse", "model2vec": "model2vec", "st": "sentence-transformers"}[
         cell["backend"]
     ]
     before = package_identity(package)
     model = loader(cell, context)
-    candidates = tasks_for(cell["benchmark"])
-    task = next(t for t in candidates if t.metadata.name == cell["task"])
+    task = task_of(cell["benchmark"], cell["task"])
     if filters_for(task) != cell["evaluation_filters"]:
         raise ValueError("configured task filters changed after expansion")
+    kept = False
+    try:
+        estimate = admit(
+            task, context["identity"]["execution"]["output_dim"], context.get("rss_limit_bytes")
+        )
+        record = scored(cell, context, model, task)
+        # A local run in task order keeps the data for the next cell of the same task.
+        kept = context.get("next_task") == (cell["benchmark"], cell["task"])
+    finally:
+        if not kept:
+            release(task)
+    if package_identity(package) != before:
+        raise ValueError("executing quality backend changed")
+    return {
+        **record,
+        "status": "valid",
+        "benchmark": cell["benchmark"],
+        "model_revision": MODEL_PINS[cell["model"]],
+        "backend_identity": before,
+        "mteb_version": version("mteb"),
+        "table_dtype": stored_dtype(cell, model.native),
+        "output_dim": getattr(model.native, "output_dim", None),
+        "normalization": True,
+        "timing_scope": "diagnostic only, never inference throughput",
+        "fit_id": cell.get("fit"),
+        "fit": context["fits"].get(cell.get("fit")),
+        **context["identity"],
+        "training_relation": training_relation(cell["model"], task.metadata.name),
+        "memory_estimate_bytes": estimate,
+    }
+
+
+def release(task):
+    """Free the data of ``task``, also after a refusal or a partly failed load. MTEB unloads
+    only data it loaded itself, and the benchmark instance is cached by MTEB, so without this
+    every task's data stays in memory."""
+    if task.data_loaded:
+        task.unload_data()
+    elif getattr(task, "dataset", None) is not None:
+        task.dataset = None
+        task.__dict__.pop("metadata", None)  # as unload_data: back to the published metadata
+
+
+def scored(cell, context, model, task):
+    """Load, evaluate and record one task. Everything read from the task (metadata, filters)
+    is taken before its data is unloaded, which restores the unfiltered metadata."""
+    import mteb
+
     load_started = time.perf_counter()
-    task.load_data()
+    reused = task.data_loaded
+    if not reused:
+        task.load_data()
     load_seconds = time.perf_counter() - load_started
     started = time.perf_counter()
     result = mteb.evaluate(
@@ -217,28 +216,19 @@ def evaluate(cell, context):
     value = result.task_results[0].get_score()
     if not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError("MTEB did not produce a finite score")
-    if package_identity(package) != before:
-        raise ValueError("executing quality backend changed")
+    if filters_for(task) != cell["evaluation_filters"]:
+        raise ValueError("task filters changed during evaluation")
     raw = context["results"] / (cell["id"] + "-mteb.json")
     atomic(raw, result.task_results[0].model_dump(mode="json"))
     return {
-        "status": "valid",
         "main_score": value,
         "task": task.metadata.name,
         "task_metadata": task.metadata.model_dump(mode="json"),
         "evaluation_filters": filters_for(task),
-        "benchmark": cell["benchmark"],
-        "model_revision": MODEL_PINS[cell["model"]],
-        "backend_identity": before,
-        "mteb_version": version("mteb"),
-        "table_dtype": stored_dtype(cell, model.native),
-        "output_dim": getattr(model.native, "output_dim", None),
-        "normalization": True,
+        "raw_result_sha256": sha256(raw),
         "load_seconds": load_seconds,
+        "data_reused": reused,
         "evaluation_seconds": time.perf_counter() - started,
-        "timing_scope": "diagnostic only, never inference throughput",
-        "fit_id": cell.get("fit"),
-        "fit": context["fits"].get(cell.get("fit")),
     }
 
 
@@ -246,11 +236,3 @@ def stored_dtype(cell, model):
     """The dtype the table is stored in: a model that stores float16 (bekko) says so."""
     table = getattr(model, "word_vectors", None)
     return table.dtype if table is not None else cell.get("dtype", "float32")
-
-
-def filters_for(task):
-    return {
-        "hf_subsets": list(task.hf_subsets),
-        "eval_splits": list(task.eval_splits),
-        "seed": task.seed,
-    }

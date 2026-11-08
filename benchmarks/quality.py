@@ -102,7 +102,7 @@ def specification(args):
         }:
             raise ValueError("unknown or duplicate requested cells")
     validate_prerequisites(spec["cells"])
-    from _quality.mteb import expand
+    from _quality.suites import expand
 
     spec["cells"] = expand(spec["cells"])
     if not spec["cells"]:
@@ -115,7 +115,9 @@ def specification(args):
 
 def run(args):
     from _quality.fit import fit, mean, recall, sts
-    from _quality.mteb import MIND_REASON, evaluate
+    from _quality.mteb import evaluate
+    from _quality.probe import probe
+    from _quality.suites import MIND_REASON
 
     spec = specification(args)
     args.results.mkdir(parents=True, exist_ok=False)
@@ -142,6 +144,7 @@ def run(args):
         "sts": sts,
         "mteb": evaluate,
         "recall": recall,
+        "probe": probe,
     }
     try:
         args.work.mkdir(parents=True, exist_ok=False)
@@ -203,6 +206,29 @@ def _parser():
     )
     parser.add_argument(
         "--local-budget-seconds", type=float, default=3600, help="wall-time budget of --local-run"
+    )
+    parser.add_argument(
+        "--local-order",
+        choices=("cells", "task"),
+        default="cells",
+        help="--local-run order: as configured, or all cells of one task in a row (loads once)",
+    )
+    parser.add_argument(
+        "--local-deadline-unix",
+        type=float,
+        help="shared end of a staged study; cuts the budget of this --local-run to what is left",
+    )
+    parser.add_argument(
+        "--local-min-free-gb",
+        type=float,
+        default=40,
+        help="--local-run stops at the next task when any watched file system has less free",
+    )
+    parser.add_argument(
+        "--local-rss-limit-gb",
+        type=float,
+        default=12,
+        help="--local-run aborts at once above this resident set and refuses larger estimates",
     )
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
