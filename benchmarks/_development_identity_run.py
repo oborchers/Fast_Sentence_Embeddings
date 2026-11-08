@@ -1,6 +1,6 @@
 """Source identity of a resumed run (DR-248): the controller and the measuring child.
 
-Class D, candidate build only, one worker. The timed call is
+Class descriptive, candidate build only, one worker. The timed call is
 ``fse._encoder._resume.identify(source, None)``: the fingerprint, the row count and the
 line marks of an opened source. Opening the source (``FileSource`` or ``StringSource``),
 reading the file into the page cache before the call, the probe and the checks are outside
@@ -26,7 +26,7 @@ from _harness.records import append, atomic
 def run(args, cell, prepared, ledger):
     """One cell of the stage, as a descriptive result (no comparison, no decision gate)."""
     if args.local_phase != "descriptive":
-        raise ValueError(f"{STAGE} is class D: use --local-phase descriptive")
+        raise ValueError(f"{STAGE} is class descriptive: use --local-phase descriptive")
     corpus = prepared["corpora"][cell["corpus"]]
     plan = admission(cell, corpus, args.work, args.memory_limit_bytes)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": "descriptive", **plan})

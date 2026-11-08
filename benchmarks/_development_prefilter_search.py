@@ -1,6 +1,6 @@
 """Profile int8-prefilter-search@1: the speed cells of the int8 prefilter in the exact search.
 
-Class O (DR-278, plan v2 of DR-168, section 7). The store is the WikiText-103 training
+Class optimization (DR-278, plan v2 of DR-168, section 7). The store is the WikiText-103 training
 paragraphs (859,346 rows, ``wikitext-train``) as int8 rows of one model; the queries are 256
 fixed STS-B test texts that are not in the store (PCG64 seed 0), encoded outside every timer.
 Every call of a group searches the next block of ``queries`` of them, round and round, and a

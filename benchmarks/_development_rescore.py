@@ -1,6 +1,6 @@
-"""Profile rescore-cost@1: cell contract and the child of the D cost study of VectorStore.rescore.
+"""Profile rescore-cost@1: cell contract and the child of the descriptive cost study of VectorStore.rescore.
 
-Class D, one arm: absolute median and IQR of public ``store.rescore`` calls on synthetic
+Class descriptive, one arm: absolute median and IQR of public ``store.rescore`` calls on synthetic
 stores (PCG64 seed 0, 1,048,576 rows, 256 dimensions) and a CPU and memory profile of one
 call. It gives a signal for priorities (DR-169 plan, section 7), never a comparison.
 """

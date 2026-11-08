@@ -1,6 +1,6 @@
 {
   "format": "quality-study-v1",
-  "description": "DR-277 study, class K: NDCG@10 and recall of fse first stages, BM25, Reciprocal Rank Fusion and local cross-encoder rerankers on the 13 NanoBEIR tasks, with all-MiniLM-L6-v2 as the transformer reference. Run with --run --local-run --input. Reranker seconds are a local diagnostic, never a speed result.",
+  "description": "DR-277 study, class correctness: NDCG@10 and recall of fse first stages, BM25, Reciprocal Rank Fusion and local cross-encoder rerankers on the 13 NanoBEIR tasks, with all-MiniLM-L6-v2 as the transformer reference. Run with --run --local-run --input. Reranker seconds are a local diagnostic, never a speed result.",
   "first_stages": {
     "bekko-1024": {
       "kind": "dense",

@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "length-report@1 (DR-163: Sichtbar machen, was beim Tokenisieren gekürzt wurde). Class D: absolute cost of lengths='summary', 'per_row', 'per_row' with count_truncated and on_truncation='raise' on documents that the length rule cuts, against the call without a report (absolute context, no comparison claim). Local development only, candidate build only.",
+  "description": "length-report@1 (DR-163: Sichtbar machen, was beim Tokenisieren gekürzt wurde). Class descriptive: absolute cost of lengths='summary', 'per_row', 'per_row' with count_truncated and on_truncation='raise' on documents that the length rule cuts, against the call without a report (absolute context, no comparison claim). Local development only, candidate build only.",
   "defaults": {
     "profile": "length-report@1",
     "workers": 2,

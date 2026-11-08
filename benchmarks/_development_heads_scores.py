@@ -61,9 +61,7 @@ def validate(cell):
             "linear-heads-scores@1 has the stages head-group-score-sink and head-group-folded"
         )
     if cell["decision_gate"] or cell["practical_saving"] is not None:
-        raise ValueError(
-            "linear-heads-scores@1 cells are descriptive (class D), not decision cells"
-        )
+        raise ValueError("linear-heads-scores@1 cells are of class descriptive, not decision cells")
     if (cell["sinks"] == "scores") == bool(cell["return_vectors"]):
         raise ValueError(
             "linear-heads-scores@1 with sinks=scores stores the folded path, without vectors; "

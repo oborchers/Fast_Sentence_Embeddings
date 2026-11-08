@@ -56,24 +56,31 @@ cannot fit. Escalate exhausted budgets to the owner instead of extending them.
 
 | Class | Question and protocol | Planning starting point |
 | :--- | :--- | :--- |
-| K, correctness | Does it work? Small reference probes, full applicable bits/conformance/quality gates. No speed decision. | No measurement minutes |
-| D, descriptive costs | What does this feature cost? One arm, fixed repetitions, absolute median/IQR, no A/A or confirmation. | About 15 minutes per cell |
-| R, regression | Could existing work become meaningfully slower? Paired builds and a predeclared relevant slowdown. A short screen can expose concerns or require escalation. | About 30 to 45 minutes total |
-| O, optimization | Keep or reject? Full v2 tuning, independent A/A validation, comparison and confirmation. | Up to about 120 minutes after estimating costs |
-| P, publication | What public claim can we support? Existing pinned Linux publication protocol and release evidence. | Separately agreed budget |
+| correctness | Does it work? Small reference probes, full applicable bits/conformance/quality gates. No speed decision. | No measurement minutes |
+| descriptive | What does this feature cost? One arm, fixed repetitions, absolute median/IQR, no A/A or confirmation. | About 15 minutes per cell |
+| regression | Could existing work become meaningfully slower? Paired builds and a predeclared relevant slowdown. A short screen can expose concerns or require escalation. | About 30 to 45 minutes total |
+| optimization | Keep or reject? Full v2 tuning, independent A/A validation, comparison and confirmation. | Up to about 120 minutes after estimating costs |
+| publication | What public claim can we support? Existing pinned Linux publication protocol and release evidence. | Separately agreed budget |
 
-These are planning suggestions, not empirical fse runtime guarantees. D never
-establishes a speedup or absence of regression. Comparing two D medians does not
-establish an optimization. A small R median, including a value within one percent,
+New results write the class by its name. Results written before DR-294 (Messklassen mit lesbaren
+Namen statt Einzelbuchstaben benennen) keep their former one-letter value unchanged.
+`benchmarks/_measurement_claims.py` holds the only aliases: readers map an explicit class value
+to its name and group old and new rows of one configuration together, without joining
+machines, protocols or configurations. A row without a class stays without one, and a decision
+label such as `descriptive_only` never determines a class.
+
+These are planning suggestions, not empirical fse runtime guarantees. A descriptive result never
+establishes a speedup or absence of regression. Comparing two descriptive medians does not
+establish an optimization. A small regression median, including a value within one percent,
 does not prove equivalence. This suite supplies no new equivalence test or screen
-PASS heuristic. Short screens remain preliminary or inconclusive. O screens never
-return keep. Only the full O protocol can justify that local decision.
+PASS heuristic. Short screens remain preliminary or inconclusive. Optimization screens never
+return keep. Only the full optimization protocol can justify that local decision.
 
-Class P requires Linux publication evidence through the existing pinned protocol.
+The class publication requires Linux publication evidence through the existing pinned protocol.
 The only other case that requires a paired Linux comparison is an explicit approval
 by the maintainer of a Linux machine for the ticket. Such an approved comparison can
-also serve class R or O. Voluntary Linux comparisons remain allowed. Local speed
-results for K, D, R and O are development indications with `publishable: false`.
+also serve class regression or optimization. Voluntary Linux comparisons remain allowed. Local speed
+results of the classes correctness, descriptive, regression and optimization are development indications with `publishable: false`.
 Local correctness and quality results keep their validity. The PR states the
 classes used and its actual Linux comparison status, and says explicitly when no
 Linux comparison was run. Approval of a Linux machine does not approve paid
@@ -127,7 +134,7 @@ python benchmarks/quality.py --diagnose \
   --worker-name feature-owner --results /external/quality-01 --work /external/quality-work-01
 ```
 
-For class D, select the explicit candidate-only phase:
+For class descriptive, select the explicit candidate-only phase:
 
 ```sh
 python benchmarks/speed.py --diagnose --local-phase descriptive \
@@ -137,27 +144,27 @@ python benchmarks/speed.py --diagnose --local-phase descriptive \
   --results /external/costs-01 --work /external/costs-work-01
 ```
 
-D uses the declared `resident_cycles` and `iterations` without sizing or A/A.
+The descriptive phase uses the declared `resident_cycles` and `iterations` without sizing or A/A.
 It runs exactly `warmup_calls` warmups per repetition, without a duration-driven
 warmup loop, then one measured group. All measured repetitions enter the absolute
 seconds median and IQR. It checks the candidate's complete direct/store quality
 outputs and independently probes the selected adapter. No base interpreter, paired
-factor, confirmation or optimization decision is used. D refuses reused controls.
+factor, confirmation or optimization decision is used. The descriptive phase refuses reused controls.
 `decision_gate: false` in an existing v2 contract retains its original paired
 behavior and label. Only the new explicit phase selects this one-arm protocol.
 
-For a short R screen, use `--local-phase regression-screen --regression-limit 0.02`
+For a short regression screen, use `--local-phase regression-screen --regression-limit 0.02`
 with both interpreters. The limit is the predeclared relevant slowdown fraction,
 not a statistical acceptance rule. This phase sizes common fixed inputs once and
 runs five alternating pairs without A/A or confirmation. It always reports
 `screen_requires_full_evidence`, status `inconclusive`, and a nonzero DONE, unless
 it is a functional rehearsal. Inspect the raw pairs before requesting further work.
-The existing O `screen` phase retains controls but cannot return keep.
+The existing optimization `screen` phase retains controls but cannot return keep.
 
 Both local entries accept `--wall-time-seconds` and optional `--estimated-seconds`.
 A declared estimate exceeding the budget, or a known measured-group lower bound
 that cannot fit, is refused before result directories are created. This lower bound
-excludes setup and warmups and never promises that a plan will finish. Defaults are 900 seconds for D and 7200 seconds for other local phases,
+excludes setup and warmups and never promises that a plan will finish. Defaults are 900 seconds for the descriptive phase and 7200 seconds for other local phases,
 shared by the entire invocation, never multiplied by selected cells. Set an
 explicit budget appropriate to the declared claim and workload. The monotonic
 clock starts when the local session opens, before directory/environment capture.
@@ -242,7 +249,7 @@ confirmation with positive saving and at least half the main effect.
 Active decision gates cannot lower the noise multiplier below three, minimum saving
 below two percent or confirmation fraction below one half. Weaker configurations
 require `decision_gate: false` and retain the legacy paired `descriptive_only` label.
-They do not select the new one-arm D phase.
+They do not select the new one-arm descriptive phase.
 Maximum factor and maximum distance from one remain descriptive. Required cells cannot offset one
 another. `--local-phase` selects `prepare`, `descriptive`, `regression-screen`, `calibrate`,
 `aa`, `screen`, `compare` or `confirm`; the default `compare` includes controls and confirmation. A screen cannot
@@ -548,7 +555,7 @@ Use `--cells` with explicit data IDs for a bounded selection. Include prerequisi
 python benchmarks/quality.py --summarize /quality-results > /external/quality-summary.json
 ```
 
-### Local quality run (class K)
+### Local quality run (class correctness)
 
 `--run` needs the pinned Linux Python. For a quality question that is no publication (a development decision, a comparison of models), `--run --local-run` evaluates MTEB cells on any Unix machine:
 
@@ -559,9 +566,9 @@ python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
   --results /external/quality-01 --work /external/quality-work-01
 ```
 
-The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class K, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder has the same `manifest.json`, `progress.json` and `DONE` as every other result and is collectable with `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: K` of the rows. The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart. Numbers of a local run never go into the README or a model card; those come from the Linux protocol above. The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
+The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class correctness, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder has the same `manifest.json`, `progress.json` and `DONE` as every other result and is collectable with `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: correctness` of the rows (rows written before DR-294 (Messklassen mit lesbaren Namen statt Einzelbuchstaben benennen) keep their former one-letter value, which the summary groups as the same class). The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart. Numbers of a local run never go into the README or a model card; those come from the Linux protocol above. The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
 
-### Multilingual quality (class K)
+### Multilingual quality (class correctness)
 
 MTEB(Multilingual, v2) (131 tasks) and NanoBEIR-multilingual (13 tasks) are pinned benchmarks of MTEB 2.26.25 like MTEB(eng, v2) and NanoBEIR. A configured entry is a pinned benchmark, the explicit form `"MTEB(Multilingual, v2)/STS17"`, or a task name. Every task keeps the benchmark it was resolved from, because one name can hold different language subsets in two benchmarks (STS17 is English only in MTEB(eng, v2) and holds eleven language pairs in MTEB(Multilingual, v2)); a name that several pinned benchmarks hold is refused. MindSmallReranking is excluded from MTEB(eng, v2) only; it is no task of the others. Each task's data is unloaded after its evaluation, also after a failure; MTEB caches benchmark instances and does not unload data it did not load itself.
 
@@ -573,7 +580,7 @@ Each MTEB row records the MTEB training relation of the model for the task (`zer
 
 ### Reranker study (`rerank` cells, DR-277)
 
-The study of DR-277 (Rezept und Experiment für fse-Kandidaten mit nachgelagertem Reranker erstellen) is class K and measures how much a local reranker on the top N candidates of an fse search recovers. It runs through the local quality run with its own study file:
+The study of DR-277 (Rezept und Experiment für fse-Kandidaten mit nachgelagertem Reranker erstellen) is class correctness and measures how much a local reranker on the top N candidates of an fse search recovers. It runs through the local quality run with its own study file:
 
 ```sh
 python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
@@ -699,7 +706,7 @@ It adds two stages to the same `speed.py --diagnose` controller, without another
 
 Both arms run the candidate build (pass its interpreter as `--base-python` and `--candidate-python`, as for `document-search-cost@1`). The arm `separate` (`base_heads_mode`) calls every head on its own with `predict_proba`; the arm `one-pass` (`candidate_heads_mode`) calls `fse.Heads.predict(output="proba")` once. An A/A control runs `base_heads_mode` in both arms. The heads are fixed without training (float32 PCG64, seed 17 plus the index of the head, four ordered classes each). The folded tables and the plan of the group are made before any timer. The output proof of the controller is the checksum of the probabilities of every head (and of the vectors, with `return_vectors`), in head order, so both arms must be byte-identical per head; the untimed probe also compares both modes with the numpy backend.
 
-The cell `heads-multi-folded-4` is the one decision cell (class O). Its `practical_saving` of 0.40 is fixed before the run: the product claim "significantly faster" holds only if the controller decision is `keep` and the time saving (`1 - 1 / factor`) of the comparison and of the confirmation are both at least 0.40, in addition to the existing threshold (`max(3 x A/A IQR, 0.02)`). Without both, the cell is `rejected` and the claim is not made. `stop_session_on_reject` ends the session at the first cell that is neither valid nor a passed screen, so later cells stay `not_started`. A screen only decides whether the full evidence is worth running (`--local-phase screen`); the practical saving is part of its threshold, and a screen never decides `keep`. The cells `heads-multi-folded-2-*` and `heads-multi-mixed-4-*` are descriptive (class D, one arm, `--local-phase descriptive`, once per mode): absolute medians and IQR, no comparison and no factor. `heads-multi-mixed-4-vectors` exists for the `profile-head` job with `return_vectors` (`postprocess_pooled`, the normalized copy and their memory).
+The cell `heads-multi-folded-4` is the one decision cell (class optimization). Its `practical_saving` of 0.40 is fixed before the run: the product claim "significantly faster" holds only if the controller decision is `keep` and the time saving (`1 - 1 / factor`) of the comparison and of the confirmation are both at least 0.40, in addition to the existing threshold (`max(3 x A/A IQR, 0.02)`). Without both, the cell is `rejected` and the claim is not made. `stop_session_on_reject` ends the session at the first cell that is neither valid nor a passed screen, so later cells stay `not_started`. A screen only decides whether the full evidence is worth running (`--local-phase screen`); the practical saving is part of its threshold, and a screen never decides `keep`. The cells `heads-multi-folded-2-*` and `heads-multi-mixed-4-*` are of class descriptive (one arm, `--local-phase descriptive`, once per mode): absolute medians and IQR, no comparison and no factor. `heads-multi-mixed-4-vectors` exists for the `profile-head` job with `return_vectors` (`postprocess_pooled`, the normalized copy and their memory).
 
 The claim of every result is limited to this workload (POTION-8M, WikiText, `workers: 2`, four softmax outputs per head, the output `proba`) on the M1, as a local indication; no README number follows from it. The single-head path is checked with the existing `linear-heads@1` cells against the base build, which is a different, paired base/candidate run.
 
@@ -713,14 +720,14 @@ python benchmarks/speed.py --diagnose \
   --results /external/dr161/results-01 --work /external/dr161/work-01
 ```
 
-Lesson of the first run (DR-161): the A/A control of `heads-multi-folded-4` runs the slow arm (four separate calls) in both arms. At the 6 s tier one group already took about 27 s, so the A/A tune, the validation block and the sizing used the whole active calibration limit of 3600 s; the cell ended `inconclusive_noise` before its screen, and a single-head cell on a loaded machine ended the same way. A noisy machine (load near 5, a foreign process with high CPU) needs a quiet window or a larger limit that is agreed before the run; a result is never repeated until it is favourable. The D cells fix `iterations` and use `target_seconds` and `minimum_seconds` of 2 so that every group lasts at least two seconds. The cell `heads-multi-folded-1` (DR-239, Mehraufwand des einzelnen gefalteten Kopfs nach DR-161 finden und beheben) is a regression screen of a group of one head: both arms run `fse.Heads` once, so pass a base interpreter of the build before the change as `--base-python` and a candidate interpreter as `--candidate-python`, with `--cells heads-multi-folded-1 --local-phase regression-screen --regression-limit 0.02`.
+Lesson of the first run (DR-161): the A/A control of `heads-multi-folded-4` runs the slow arm (four separate calls) in both arms. At the 6 s tier one group already took about 27 s, so the A/A tune, the validation block and the sizing used the whole active calibration limit of 3600 s; the cell ended `inconclusive_noise` before its screen, and a single-head cell on a loaded machine ended the same way. A noisy machine (load near 5, a foreign process with high CPU) needs a quiet window or a larger limit that is agreed before the run; a result is never repeated until it is favourable. The descriptive cells fix `iterations` and use `target_seconds` and `minimum_seconds` of 2 so that every group lasts at least two seconds. The cell `heads-multi-folded-1` (DR-239, Mehraufwand des einzelnen gefalteten Kopfs nach DR-161 finden und beheben) is a regression screen of a group of one head: both arms run `fse.Heads` once, so pass a base interpreter of the build before the change as `--base-python` and a candidate interpreter as `--candidate-python`, with `--cells heads-multi-folded-1 --local-phase regression-screen --regression-limit 0.02`.
 
 
 The regression screen of DR-162 (Scores und Vorhersagen dauerhaft speichern) uses the cell `heads-multi-folded-2-r`: two heads, both arms in one-pass mode (`base_heads_mode` and `candidate_heads_mode` are `one-pass`; the cell `heads-multi-folded-2-one-pass` inherits `separate` for its base and would compare different call paths), the base interpreter built from the commit before the change, `--local-phase regression-screen`, `--regression-limit 0.03`. A screen without sufficient evidence of uncertainty stays preliminary.
 
 ## Text to a durably closed ScoreSink: `linear-heads-scores@1`
 
-`benchmarks/config/linear-heads-scores-local.json` defines `linear-heads-scores@1` for DR-162 (Scores und Vorhersagen dauerhaft speichern), class D: one arm, fixed repetitions, absolute median and IQR, no comparison and no decision. It reuses the adapter of `linear-heads-multi@1` (`benchmarks/_development_heads_multi.py`, with the stage in `benchmarks/_development_heads_scores.py`) and adds the stage `head-group-score-sink`:
+`benchmarks/config/linear-heads-scores-local.json` defines `linear-heads-scores@1` for DR-162 (Scores und Vorhersagen dauerhaft speichern), class descriptive: one arm, fixed repetitions, absolute median and IQR, no comparison and no decision. It reuses the adapter of `linear-heads-multi@1` (`benchmarks/_development_heads_multi.py`, with the stage in `benchmarks/_development_heads_scores.py`) and adds the stage `head-group-score-sink`:
 
 - Two fixed softmax heads of four outputs each on raw means (the folded path), stored as logits, so eight columns and no second output; ordered document IDs, `durability="full"`.
 - The continuous timer covers a fresh `ScoreSink`, the complete `Heads.predict_batches(score_sink=...)` run over all rows and `close`. The sum from the first read to the close is a component, never a substitute.
@@ -742,7 +749,7 @@ The claim of the result is limited to this workload (POTION-8M, WikiText with 1,
 
 ### Vectors and scores in one run (DR-229)
 
-`benchmarks/config/linear-heads-vector-scores-local.json` adds the cell field `sinks` (`scores`, `vectors`, `both`; default `scores`) to the stage `head-group-score-sink` for DR-229 (Vektoren und Scores in einem Lauf in zwei Stores schreiben), class D, three absolute costs from text to durably closed stores, each with its median, IQR and peak RSS and **no comparison, factor or sum**:
+`benchmarks/config/linear-heads-vector-scores-local.json` adds the cell field `sinks` (`scores`, `vectors`, `both`; default `scores`) to the stage `head-group-score-sink` for DR-229 (Vektoren und Scores in einem Lauf in zwei Stores schreiben), class descriptive, three absolute costs from text to durably closed stores, each with its median, IQR and peak RSS and **no comparison, factor or sum**:
 
 - `heads-sinks-both`: a `ShardSink` (float32, ordered document IDs, `durability="full"`) and a `ScoreSink` in one `Heads.predict_batches(return_vectors=True, vector_sink=..., score_sink=...)` run. With vectors, the heads on raw means take the unfolded path.
 - `heads-sinks-vectors`: only the `ShardSink`, the same call without `score_sink`.
@@ -764,7 +771,7 @@ The claim is limited to this workload on the M1 as a local indication; no README
 
 ## Length report (`length-report@1`, DR-163)
 
-Study `benchmarks/config/length-report-local.json`, class D, candidate build only (`--local-phase descriptive`). The profile `length-report@1` measures the stage `encode-memory` (and `tokenizer`) with the new cell field `candidate_lengths`: `none` (the call without a report, absolute context only), `summary`, `per_row`, `per_row-count` (`lengths="per_row", count_truncated=True`) or `raise` (`on_truncation="raise"`). The base arm and every older cell run as before. Three data cases are built from the pinned WikiText test split by the length rule of `minishlab/potion-base-8M` (512 ids of the first 3072 code points), outside the timer, with their statistics declared in `preparation.json` (`source.declared`: rows, code points, shares and sums the rule cuts, the share of rows that end exactly at `max_tokens`):
+Study `benchmarks/config/length-report-local.json`, class descriptive, candidate build only (`--local-phase descriptive`). The profile `length-report@1` measures the stage `encode-memory` (and `tokenizer`) with the new cell field `candidate_lengths`: `none` (the call without a report, absolute context only), `summary`, `per_row`, `per_row-count` (`lengths="per_row", count_truncated=True`) or `raise` (`on_truncation="raise"`). The base arm and every older cell run as before. Three data cases are built from the pinned WikiText test split by the length rule of `minishlab/potion-base-8M` (512 ids of the first 3072 code points), outside the timer, with their statistics declared in `preparation.json` (`source.declared`: rows, code points, shares and sums the rule cuts, the share of rows that end exactly at `max_tokens`):
 
 - `wikitext-docs-m2v`: non-empty rows (after `str.strip()`), whitespace-normalized like every timing text and joined with one space until more than `max_chars` code points; the incomplete rest is dropped. Every document is cut by both rules, so the flags are known without reading beyond the cut.
 - `wikitext-docs-at-cut`: the same documents, each cut after the word at which it has exactly `max_tokens` ids (documents that never have exactly that many are dropped). The rule cuts none of them, but every flag reads one more word beyond the cut, which the cells `m2v-at-cut-none` and `m2v-at-cut-summary` compare in absolute seconds.
@@ -774,7 +781,7 @@ No pinned sentence-transformers `tokenizer.json` has a truncation rule (`static-
 
 ## Source identity (`source-identity@1`, DR-248)
 
-Study `benchmarks/config/resume-identity-local.json`, class D, candidate build only (`--local-phase descriptive`), no comparison claim and no decision gate. The stage `source-identity` answers what the identity of a source costs per GiB: the time from an opened source until `fse._encoder._resume.identify(source, None)` has the fingerprint, the row count and the line marks. Opening the source, reading the file into the page cache, the probe and every check are outside the timer; encoding and writing are not part of the stage. The cells need no model (`model` is absent) and do not run the quality gate or the tokenizer preflight; the stage has its own admission and probe.
+Study `benchmarks/config/resume-identity-local.json`, class descriptive, candidate build only (`--local-phase descriptive`), no comparison claim and no decision gate. The stage `source-identity` answers what the identity of a source costs per GiB: the time from an opened source until `fse._encoder._resume.identify(source, None)` has the fingerprint, the row count and the line marks. Opening the source, reading the file into the page cache, the probe and every check are outside the timer; encoding and writing are not part of the stage. The cells need no model (`model` is absent) and do not run the quality gate or the tokenizer preflight; the stage has its own admission and probe.
 
 - `identity-file-1gib`: a text file of 1 GiB (`source_bytes`) of the pinned WikiText-103 training sentences (`Salesforce/wikitext` at the revision of `pins.json`, `wikitext-103-raw-v1`, split `train`, the sentence preparation of the speed studies), in pinned order, one per line, repeated until the size is reached. The last line is cut at a UTF-8 character boundary, so the file is up to three bytes short of 1 GiB. The file lives in the work directory, outside the checkout, and its sha256 is in `inputs.json` (`corpora.wikitext-train-file`) and checked before every child. The cell opens a `FileSource` before each call and closes it after. Immediately before every call, outside the timer, the whole file is read once, so the page cache is warm: the cell measures CPU and memory bandwidth, not the disk.
 - `identity-strings-1m`: the first 10^6 lines (`source_rows`) of the same file as a list of `str`, form `strings`. A `StringSource` is built from the list before each call and stays outside the timer; the timer covers `identify` alone, including what the call computes lazily on that source.
@@ -794,16 +801,16 @@ A rehearsal uses a separately named configuration that sets `source_bytes`, `sou
 
 ## Rows a provable int8 prefilter keeps: `int8-prefilter@1`
 
-The gate of DR-168 (Suche mit int8-Vorfilter und beweisbarer Fehlerschranke beschleunigen) is class K and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/int8-prefilter-local.json` counts, for an int8 store built from the WikiText-103 training paragraphs, how many rows survive the filter `a + E >= T`. `a = s_q * (codes . qi) * inverse norm` is exact integer arithmetic in float64, `E = 1.003 * ||u - s_q * qi|| + 2^-14` bounds the quantization of the unit query `u` plus all roundings of the kernel (d up to 1024), and `T` is the k-th largest `a - E`. Every top-k row and every tie at the k-th value survives, so the exact rescoring of the survivors returns the same ids and bits.
+The gate of DR-168 (Suche mit int8-Vorfilter und beweisbarer Fehlerschranke beschleunigen) is class correctness and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/int8-prefilter-local.json` counts, for an int8 store built from the WikiText-103 training paragraphs, how many rows survive the filter `a + E >= T`. `a = s_q * (codes . qi) * inverse norm` is exact integer arithmetic in float64, `E = 1.003 * ||u - s_q * qi|| + 2^-14` bounds the quantization of the unit query `u` plus all roundings of the kernel (d up to 1024), and `T` is the k-th largest `a - E`. Every top-k row and every tie at the k-th value survives, so the exact rescoring of the survivors returns the same ids and bits.
 
 - Checks (any failure ends the study as `failed`): V1 `a - E <= c <= a + E` for every counted pair, with `c` from `CpuBackend.cosines`; V2 the ids of `store.search(..., mode="exact")` lie in the survivors; V3 the top-k over the survivors gives the same ids and score bits; V4 stored inverse norms and the backend equal the numpy reference, codes lie in [-127, 127].
 - Cells: `prefilter-probe` (synthetic arrays with zero rows, ties across the block edge 65,536, cancellation, a negated and a subnormal query, invalid queries; plus 4,096 real rows and 8 queries, no decision), then `prefilter-potion` and `prefilter-retrieval` on 65,536 and 859,346 rows. Queries: 256 of STS-B test and 256 of WikiText-103 test (PCG64 seed 0, texts that are stored or duplicated are excluded and counted), only stand-ins for retrieval queries.
-- Decision (fixed before the run): the median survivor share at k=10, one query, 859,346 rows, scheme A, the worse query set per model. At most 10 % for both models keeps DR-168 in 2.1 as a candidate (next a class D prototype). Otherwise it moves to 2.2. 10 % is a prioritisation limit, not a proof of a speed-up.
+- Decision (fixed before the run): the median survivor share at k=10, one query, 859,346 rows, scheme A, the worse query set per model. At most 10 % for both models keeps DR-168 in 2.1 as a candidate (next a class descriptive prototype). Otherwise it moves to 2.2. 10 % is a prioritisation limit, not a proof of a speed-up.
 - Outputs: `prefilter.jsonl` (median, p10, p90, max, mean per k and scheme; groups of eight queries as union and pair share), `queries.jsonl`, `checks.jsonl`, `memory.jsonl`, `decision.json`. Scheme `A_unslacked` is not a proof. Rotation and 4-bit copies are separate later studies.
 
 ## Recall of sign-bit candidates with exact rescoring: `binary-recall@1`
 
-The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbieten) is class K and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/binary-recall-local.json` builds a float32 store of 100,000 texts of the pinned AG News train split (`fancyzhx/ag_news`, PCG64 seed 0, sampled without replacement, whitespace collapsed) for each of two models (`minishlab/potion-base-8M`, 256 dimensions, and `sentence-transformers/static-retrieval-mrl-en-v1`, 1,024 dimensions). The queries are the first 1,000 unique AG News test texts outside the corpus (seeded order) that encode to a finite nonzero vector.
+The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbieten) is class correctness and measures no time. `benchmarks/quality.py --diagnose --development-input benchmarks/config/binary-recall-local.json` builds a float32 store of 100,000 texts of the pinned AG News train split (`fancyzhx/ag_news`, PCG64 seed 0, sampled without replacement, whitespace collapsed) for each of two models (`minishlab/potion-base-8M`, 256 dimensions, and `sentence-transformers/static-retrieval-mrl-en-v1`, 1,024 dimensions). The queries are the first 1,000 unique AG News test texts outside the corpus (seeded order) that encode to a finite nonzero vector.
 
 - Truth: `store.search(queries, 10, mode="exact")`. Candidates: the stored positions in the order of the Hamming distance of the sign bits (bit 1 for a value above zero, `np.bitwise_count`, ties by position), 10 and 40 times k. Result: `store.rescore(queries, candidates, 10)`.
 - Checks (any failure ends the study as `failed`): every rescored hit is a candidate; the rescore of the first 16 queries equals `search(mode="exact", rows=sorted(candidates))` in ids and score bits.
@@ -813,14 +820,14 @@ The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbiete
 
 ## Cost of rescoring candidates: `rescore-cost@1`
 
-Class D, one arm, no comparison: `benchmarks/speed.py --diagnose --local-phase descriptive --development-input benchmarks/config/rescore-cost-local.json` times public `VectorStore.rescore` calls (k = 10) on synthetic stores of 1,048,576 rows with 256 dimensions (PCG64; int8 and float32, written with `ShardSink`). Eight cells: int8 with (queries, candidates) of (1, 1000), (100, 1000) and (10,000, 100), each with disjoint uniform lists and with one shared list, float32 with (10,000, 100) disjoint, and int8 (1, 1000) with `workers=1`. Each cell runs two warmups and seven timed calls and reports the absolute median and IQR; before timing, 16 queries are checked bit for bit against the filtered exact search. One call of the cell (10,000, 100) runs under `cProfile` with `workers=1` (the profile sees only the calling thread) and under `tracemalloc`; the process peak RSS is recorded. It is a signal for a follow-up ticket (a pair kernel or a dense path), never the proof of an optimization.
+Class descriptive, one arm, no comparison: `benchmarks/speed.py --diagnose --local-phase descriptive --development-input benchmarks/config/rescore-cost-local.json` times public `VectorStore.rescore` calls (k = 10) on synthetic stores of 1,048,576 rows with 256 dimensions (PCG64; int8 and float32, written with `ShardSink`). Eight cells: int8 with (queries, candidates) of (1, 1000), (100, 1000) and (10,000, 100), each with disjoint uniform lists and with one shared list, float32 with (10,000, 100) disjoint, and int8 (1, 1000) with `workers=1`. Each cell runs two warmups and seven timed calls and reports the absolute median and IQR; before timing, 16 queries are checked bit for bit against the filtered exact search. One call of the cell (10,000, 100) runs under `cProfile` with `workers=1` (the profile sees only the calling thread) and under `tracemalloc`; the process peak RSS is recorded. It is a signal for a follow-up ticket (a pair kernel or a dense path), never the proof of an optimization.
 
 - The study takes the timing lock itself and starts only when the one-minute load is below 4; after 15 minutes of waiting it ends as inconclusive. The controller must run at nice 0, only `--candidate-python` is given (descriptive mode takes no base interpreter) and the study is not wrapped in `--local-heavy`. The wall-time budget is 15 minutes including preparation and waiting, with no extension and no automatic retry.
 - Outputs: `rescore.jsonl` (raw seconds, median, quartiles per cell), `profile.json`, `load.jsonl`, `coordination.jsonl`, `decision.json`. The seconds are local development indications and are never published.
 
 ## Speed of the int8 prefilter in the exact search: `int8-prefilter-search@1`
 
-Class O for the enabling decision of DR-278 (int8-Vorfilter in die exakte Suche einbinden), slimmed by DR-281 (Datendatei der O-Messung für den int8-Vorfilter auf drei Zellen und 2-Sekunden-Gruppen verschlanken); local development indication on one machine, never published, run only in a window that the coordinator grants. `benchmarks/speed.py --diagnose --development-input benchmarks/config/int8-prefilter-search-local.json` compares public `VectorStore.search` of a base build (master, which has the same pool changes as the candidate) with a candidate build that has the prefilter and the variant enabled for the measurement. The store is the 859,346 WikiText-103 training paragraphs (`wikitext-train`) as one model's rows (`output_dtype: int8`, `workers: 2`, `k: 10`). The queries are 256 STS-B test texts outside the store (the rule of the count above: PCG64 seed 0, valid encodings only), encoded outside the timer; their SHA-256 and the exclusion counts are in every record, as is the share of duplicate texts in the store (a property of the workload). Every call searches the next block of 8 (or 1) queries of the pool in turn, and each group of calls starts at the first block, so both builds run the same calls and the output of a group (that of its last call) must be bit-identical between them; the paired blocks check this for every group. Both arms run the same number of calls. The sizing aims at 1.25 times `target_seconds` (2.0, the floor of the rules, so 2.5 s) for the faster observed arm; every later measured group must reach at least `target_seconds`. With the candidate faster, the base group is longer by the factor of the speed-up. Never a call of a few milliseconds.
+Class optimization for the enabling decision of DR-278 (int8-Vorfilter in die exakte Suche einbinden), slimmed by DR-281 (Datendatei der O-Messung für den int8-Vorfilter auf drei Zellen und 2-Sekunden-Gruppen verschlanken); local development indication on one machine, never published, run only in a window that the coordinator grants. `benchmarks/speed.py --diagnose --development-input benchmarks/config/int8-prefilter-search-local.json` compares public `VectorStore.search` of a base build (master, which has the same pool changes as the candidate) with a candidate build that has the prefilter and the variant enabled for the measurement. The store is the 859,346 WikiText-103 training paragraphs (`wikitext-train`) as one model's rows (`output_dtype: int8`, `workers: 2`, `k: 10`). The queries are 256 STS-B test texts outside the store (the rule of the count above: PCG64 seed 0, valid encodings only), encoded outside the timer; their SHA-256 and the exclusion counts are in every record, as is the share of duplicate texts in the store (a property of the workload). Every call searches the next block of 8 (or 1) queries of the pool in turn, and each group of calls starts at the first block, so both builds run the same calls and the output of a group (that of its last call) must be bit-identical between them; the paired blocks check this for every group. Both arms run the same number of calls. The sizing aims at 1.25 times `target_seconds` (2.0, the floor of the rules, so 2.5 s) for the faster observed arm; every later measured group must reach at least `target_seconds`. With the candidate faster, the base group is longer by the factor of the speed-up. Never a call of a few milliseconds.
 
 - Cells (`--cells o1-d256-q8 o2-d1024-q8 r5-int8-d1024-q1-rows`, the whole file): `o1-d256-q8` (typical: POTION, 256 values, 8 queries), `o2-d1024-q8` (large: `static-retrieval-mrl-en-v1`, 1024 values, 8 queries; the only d1024 cell with the decision gate) and the edge cell `r5-int8-d1024-q1-rows` (`rows=` spread over 50 % of the rows, 1024 values, one query; `decision_gate: false`).
 - Example (a window granted by the coordinator; builds and the base and candidate interpreters as for any local run): `python benchmarks/speed.py --diagnose --development-input benchmarks/config/int8-prefilter-search-local.json --base-python /external/base/bin/python --candidate-python /external/candidate/bin/python --worker-name <name> --wall-time-seconds 28800 --estimated-seconds 19400 --results /external/dr281/results-01 --work /external/dr281/work-01`.

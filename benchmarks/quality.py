@@ -183,7 +183,7 @@ def _parser():
     parser.add_argument(
         "--local-run",
         action="store_true",
-        help="with --run: MTEB cells on a Unix machine, class K, publishable false, no speed value",
+        help="with --run: MTEB cells on a Unix machine, class correctness, publishable false, no speed value",
     )
     parser.add_argument(
         "--local-budget-seconds", type=float, default=3600, help="wall-time budget of --local-run"
@@ -230,7 +230,7 @@ def _resolve_paths(args):
 
 
 def _local(parser, args):
-    """``--run --local-run``: MTEB cells on a Unix machine, class K, never publishable."""
+    """``--run --local-run``: MTEB cells on a Unix machine, class correctness, never publishable."""
     if not args.run:
         parser.error("--local-run goes with --run")
     for path in (args.results, args.work, args.cache):

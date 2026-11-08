@@ -1,4 +1,4 @@
-"""Cells of kind ``rerank``: first stages and local rerankers on NanoBEIR, class K.
+"""Cells of kind ``rerank``: first stages and local rerankers on NanoBEIR, class correctness.
 
 A cell names first stages from the study's ``first_stages`` and optionally one reranker with
 candidate depths. It expands into one cell per NanoBEIR task like an MTEB cell. Rankings of a

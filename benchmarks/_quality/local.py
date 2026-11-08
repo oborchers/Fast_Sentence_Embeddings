@@ -1,4 +1,4 @@
-"""Local Unix run of MTEB and rerank cells: class K, never publishable, never a speed value."""
+"""Local Unix run of MTEB and rerank cells: class correctness, never publishable, never a speed value."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def budget_of(args, started_unix):
     return budget
 
 
-LABEL_K = {**LABEL, "class": "K"}
+LABEL_K = {**LABEL, "class": "correctness"}
 
 
 class Ledger:

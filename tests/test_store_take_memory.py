@@ -1,4 +1,4 @@
-"""Claim class K: what ``take_vectors`` and ``take_doc_ids`` allocate and which thread reads.
+"""Claim class correctness: what ``take_vectors`` and ``take_doc_ids`` allocate and which thread reads.
 
 Not a speed claim. Besides its output a take holds the sorted positions, their order, the
 copy of a list or of a non-contiguous array, and the buffers of one block.
