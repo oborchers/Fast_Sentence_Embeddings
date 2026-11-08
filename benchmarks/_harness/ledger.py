@@ -95,9 +95,9 @@ class Ledger:
             if cell["id"] not in done:
                 self.result(cell, time.monotonic(), status="not_started", reason=reason, **extra)
 
-    def done(self):
+    def done(self, additional_exit_code=0):
         self.progress(terminal=True)
-        code = exit_code(self.finished, len(self.contract["cells"]), self.root)
+        code = max(additional_exit_code, exit_code(self.finished, len(self.contract["cells"]), self.root))
         seal(self.root, code, len(self.finished), self.label)
         return code
 

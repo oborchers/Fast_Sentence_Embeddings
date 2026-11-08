@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-278 and DR-281 class optimization (kernel plan v2 of DR-168, section 7, slimmed): public store.search of int8 stores with and without the int8 prefilter, base against candidate, on the 859,346 WikiText-103 training paragraphs (wikitext-train, int8 rows, 2 workers, k 10). Three cells: o1-d256-q8 (typical, d256), o2-d1024-q8 (large, d1024) and the edge cell r5-int8-d1024-q1-rows (rows= spread over 50 percent of the rows, d1024, one query). The queries are 256 fixed STS-B test texts outside the store (PCG64 seed 0, digest in every record), encoded outside the timer; every call searches the next block of queries and a group starts at the first block, so both builds run the same calls and their outputs must be bit-identical. The sizing aims at 2.5 s (1.25 times target_seconds 2.0, the floor of the rules) for the faster observed arm, and every later measured group must reach at least target_seconds; both arms run the same number of calls, so with the candidate faster the base group is longer by the factor of the speed-up. 15 pairs, A/A tuning, A/A validation, comparison and confirmation unchanged. Rule, fixed before the measurement: the variant neon-sdot is enabled only if o1 and o2 are each at least 10 percent faster (saving at least max(3 * A/A IQR, 0.02), confirmed with at least half of it, read from the report by hand because the tool applies only the noise rule) and r5 does not get slower (median of the paired factor base/candidate at least 0.98 and the confirmation not below it; r5 has decision_gate false and is assessed explicitly from the paired factor, not from the descriptive_only tool label). Otherwise nothing is enabled and no range is cut afterwards; the data go to the maintainer. A missing cell is inconclusive. Budget 8 h wall time, set by --wall-time-seconds 28800 (without it the tool takes 7200 s), never extended, never repeated. active_calibration_seconds per cell (sizing, A/A tuning and validation): o1 4500, o2 5400, r5 3600. Expected duration at the first tier (2 s) about 5.4 h (4.4 to 6.5 h); a second tier (4 s) is planned at about 9.8 h, over the budget; the first limit reached (wall budget: inconclusive_budget, calibration cap: inconclusive_noise) decides the status, and stopping before the second tier is a manual rule. Local development indication on one machine, no publication. Measure only in a window that fse-main grants.",
+  "description": "DR-278 and DR-281 class optimization (kernel plan v2 of DR-168, section 7, slimmed): public store.search of int8 stores with and without the int8 prefilter, base against candidate, on the 859,346 WikiText-103 training paragraphs (wikitext-train, int8 rows, 2 workers, k 10). Three cells: o1-d256-q8 (typical, d256), o2-d1024-q8 (large, d1024) and the edge cell r5-int8-d1024-q1-rows (rows= spread over 50 percent of the rows, d1024, one query). The queries are 256 fixed STS-B test texts outside the store (PCG64 seed 0, digest in every record), encoded outside the timer; every call searches the next block of queries and a group starts at the first block, so both builds run the same calls and their outputs must be bit-identical. The sizing aims at 2.5 s (1.25 times target_seconds 2.0, the floor of the rules) for the faster observed arm, and every later measured group must reach at least target_seconds; both arms run the same number of calls, so with the candidate faster the base group is longer by the factor of the speed-up. 15 pairs, A/A tuning, A/A validation, comparison and confirmation unchanged. Rule, fixed before the measurement: the variant neon-sdot is enabled only if o1 and o2 are each at least 10 percent faster (saving at least max(3 * A/A IQR, 0.02), confirmed with at least half of it, evaluated by the cells@1 decision block) and r5 does not get slower (median of the paired factor base/candidate at least 0.98 and the confirmation not below it; r5 has decision_gate false and is assessed explicitly from the paired factor, not from the descriptive_only tool label). Otherwise nothing is enabled and no range is cut afterwards; the data go to the maintainer. A missing cell is inconclusive. Budget 8 h wall time, set by --wall-time-seconds 28800 (without it the tool takes 7200 s), never extended, never repeated. active_calibration_seconds per cell (sizing, A/A tuning and validation): o1 4500, o2 5400, r5 3600. Expected duration at the first tier (2 s) about 5.4 h (4.4 to 6.5 h); a second tier (4 s) is planned at about 9.8 h, over the budget; the first limit reached (wall budget: inconclusive_budget, calibration cap: inconclusive_noise) decides the status, and stopping before the second tier is a manual rule. Local development indication on one machine, no publication. Measure only in a window that fse-main grants.",
   "defaults": {
     "profile": "int8-prefilter-search@1",
     "base_doc_ids": "none",
@@ -51,5 +51,19 @@
       "decision_gate": false,
       "active_calibration_seconds": 3600.0
     }
-  ]
+  ],
+  "decision": {
+    "rule": "cells@1",
+    "practical_saving": 0.1,
+    "main": [
+      "o1-d256-q8",
+      "o2-d1024-q8"
+    ],
+    "edge": {
+      "r5-int8-d1024-q1-rows": {
+        "min_factor": 0.98
+      }
+    },
+    "stop_early": false
+  }
 }

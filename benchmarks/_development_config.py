@@ -12,6 +12,7 @@ from _development_identity import validate as validate_identity
 from _development_lengths import CORPORA
 from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
+from _harness.decide import validate as validate_decision
 from _harness.records import document
 from _measurement_config import CONFIG, MODEL_PINS
 
@@ -237,7 +238,7 @@ def _bounds(cell):
 def load(path=None, selected=None):
     require_unix()
     spec = document(path or CONFIG / "development.json")
-    allowed = {"format", "description", "defaults", "cells"}
+    allowed = {"format", "description", "defaults", "cells", "decision"}
     if (
         not isinstance(spec, dict)
         or spec.keys() - allowed
@@ -250,6 +251,8 @@ def load(path=None, selected=None):
     if not isinstance(spec.get("cells"), list) or not spec["cells"]:
         raise ValueError("nonempty development cells required")
     cells = [validate_cell(cell, defaults) for cell in spec["cells"]]
+    if "decision" in spec:
+        validate_decision(spec["decision"], cells)
     return {**spec, **LABEL, "cells": _select(cells, selected)}
 
 

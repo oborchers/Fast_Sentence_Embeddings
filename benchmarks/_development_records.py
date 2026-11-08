@@ -104,6 +104,7 @@ def session(args, spec):
                 else "stop or earlier failure",
                 **LABEL,
                 decision="not_run",
+                **({"stopped_after": ledger.stopped_after} if hasattr(ledger, "stopped_after") else {}),
             )
 
 
