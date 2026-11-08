@@ -26,7 +26,6 @@ class Runner:
     def __init__(self, spec, state, deadline):
         self.spec, self.state, self.deadline = spec, state, deadline
         self.root = Path(spec["output"])
-        self.last = None
         self.probes = 0
 
     def notify(self, value):
@@ -52,7 +51,6 @@ class Runner:
                 env=env,
                 stdout=log,
             )
-        self.last = meta
         atomic(self.root / (name + "-execution.json"), {"status": status, **meta})
         if meta["deadline"]:
             raise WallBudgetExpiredError("profile process group exceeded its deadline")
@@ -93,7 +91,20 @@ class Runner:
             # Reader runs in the profile interpreter; the controller has no optional imports.
             value = self.probe("memray-metadata", profile=str(folder / "mem.bin"))
             atomic(folder / "memray-metadata.json", value)
-        result = coverage(self.spec, folder, receipt, meta["leader_pid"], profiler)
+        try:
+            result = coverage(self.spec, folder, receipt, meta["leader_pid"], profiler)
+        except (KeyError, ValueError, TypeError, OSError) as error:
+            atomic(
+                folder / "coverage.json",
+                {
+                    "requested": self.spec["requested"],
+                    "observed": None,
+                    "valid": False,
+                    "reason": "unparsed",
+                    "error": str(error),
+                },
+            )
+            raise ValueError("unparsed profiler coverage") from error
         atomic(folder / "coverage.json", result)
         if not result["valid"]:
             raise ValueError("profile coverage does not prove child attribution and data")
@@ -104,7 +115,7 @@ class Runner:
         folder.mkdir()
         file, receipt = folder / "check.py", folder / "receipt.json"
         access_program(file, receipt)
-        target = [self.spec["python"], str(file)]
+        target = [self.spec["python"], "-I", str(file)]
         meta = self.launch(command(self.spec, executable, folder, target), "access")
         result = self.inspect(folder, document(receipt), meta, profiler)
         atomic(self.root / "check.json", result)
@@ -123,8 +134,9 @@ def _operations(runner, check_only, result):
         if spec["extra_lock"] is not None:
             profiler.update(extra_lock_sha256=sha256(Path(spec["extra_lock"])), packages=extra)
         atomic(runner.root / "profiler.json", profiler)
-        before = identity(runner.probe("identity"), "development")
+        before = None
         if origin is not None:
+            before = identity(runner.probe("identity"), "development")
             same_identity(origin["identity"], before, extra)
         if spec["tool"] == "memray" and profiler["version"] != extra["memray"]:
             raise ValueError("installed memray differs from profile lock")
@@ -134,9 +146,10 @@ def _operations(runner, check_only, result):
         result["phase"] = "execution"
         job = rewrite(spec, origin["job"], runner.deadline, origin["job_sha256"])
         if spec["entry"] == "speed":
-            from _speed_profile import rebuild
+            from _speed_profile import rebuild, verify_rebuilt
 
             rebuild(spec, origin, job, runner.launch)
+            verify_rebuilt(spec, job)
         file = runner.root / "job.json"
         atomic(file, job)
         flag = "--development-job" if spec["entry"] == "development" else "--child-job"
@@ -146,6 +159,8 @@ def _operations(runner, check_only, result):
         current = identity(receipt, spec["entry"])
         same_identity(origin["identity"], current, extra)
         verify_again(spec, origin)
+        if spec["entry"] == "speed":
+            verify_rebuilt(spec, job)
         result["coverage"] = runner.inspect(runner.root, receipt, meta, profiler)
         result["provenance"] = {
             "origin": origin["identity"],

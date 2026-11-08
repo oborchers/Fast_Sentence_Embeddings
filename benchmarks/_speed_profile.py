@@ -33,6 +33,8 @@ def resolve(spec, job, root):
         or row.get("artifact_sha256") != job.get("artifact_sha256")
     ):
         raise ValueError("speed origin lacks matching input or execution evidence")
+    if row["model"] != job["model"]:
+        raise ValueError("origin speed model differs")
     verify_artifact(job)
     single(r for r in read_rows(root, "inputs.jsonl") if r["cell_id"] == job["id"])
     return row
@@ -93,3 +95,17 @@ def rebuild(spec, origin, job, run_child):
         sample_file=rebuilt["sample_file"],
         vectors_file=str(work / "sample"),
     )
+
+
+def verify_rebuilt(spec, job):
+    from _development_profile_origin import single
+
+    expected = single(
+        r
+        for r in read_rows(Path(spec["source_results"]), "inputs.jsonl")
+        if r["cell_id"] == job["id"]
+    )
+    if sha256(Path(job["input_file"])) != job["input_sha256"]:
+        raise ValueError("rebuilt speed input changed")
+    if document(Path(job["sample_file"])) != expected["sample_rows"]:
+        raise ValueError("rebuilt speed sample rows changed")

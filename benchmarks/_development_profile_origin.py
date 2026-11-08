@@ -58,8 +58,16 @@ def _development(spec, job, root, members):
         == (job["id"], phase, int(pair), int(position))
     )
     receipt_name = spec["job"] + ".json"
-    if receipt_name not in members or row["identity"] != document(root / receipt_name)["identity"]:
-        raise ValueError("origin receipt and operation identity differ")
+    if receipt_name not in members:
+        raise ValueError("origin receipt is absent from sealed inventory")
+    receipt = document(root / receipt_name)
+    if any(row.get(key) != value for key, value in receipt.items()):
+        raise ValueError("origin receipt and operation differ")
+    for key in ("texts", "profile"):
+        if row[key] != job[key]:
+            raise ValueError("origin job and operation workload differ")
+    if row["requested_workers"] != job["workers"]:
+        raise ValueError("origin worker count differs")
     if row["arm"] != spec["nominal_arm"] or job["action"] != "measure":
         raise ValueError("nominal arm or origin action differs")
     if job["tag"] != spec["job"]:

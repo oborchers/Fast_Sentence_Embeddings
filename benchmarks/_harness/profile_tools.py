@@ -25,13 +25,14 @@ def command(spec, executable, folder, target):
     if tool == "memray":
         return [
             spec["python"],
+            *(["-I"] if target[1] == "-I" else []),
             "-m",
             "memray",
             "run",
             "--native",
             "-o",
             str(folder / "mem.bin"),
-            *target[1:],
+            *target[2 if target[1] == "-I" else 1 :],
         ]
     if tool == "samply":
         return [
@@ -89,7 +90,11 @@ def _samply(folder, pid):
     return {
         "processes": sorted({int(t["pid"]) for t in threads}),
         "threads": [{k: t[k] for k in ("pid", "tid", "name")} for t in threads],
-        "samples": sum(t["samples"]["length"] for t in threads if int(t["pid"]) == pid),
+        "samples": sum(
+            sum(stack is not None for stack in t["samples"]["stack"])
+            for t in threads
+            if int(t["pid"]) == pid
+        ),
     }
 
 
