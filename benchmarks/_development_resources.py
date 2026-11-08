@@ -57,7 +57,7 @@ def _score_sink_disk(cell, count, dim):
     return count * row * cell["iterations"] * 2
 
 
-def admission(cell, prepared, count, work, requested_limit=None, kind="production"):
+def admission(cell, prepared, count, work, requested_limit, kind):
     corpus = prepared["corpora"][cell["corpus"]]
     model = prepared["models"][cell["model"]]
     limit = resources.require_limit(requested_limit)

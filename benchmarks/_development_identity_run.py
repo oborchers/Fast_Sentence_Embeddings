@@ -28,7 +28,8 @@ def run(args, cell, prepared, ledger):
     if args.local_phase != "descriptive":
         raise ValueError(f"{STAGE} is class descriptive: use --local-phase descriptive")
     corpus = prepared["corpora"][cell["corpus"]]
-    plan = admission(cell, corpus, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, corpus, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": "descriptive", **plan})
     if not plan["admitted"]:
         raise MemoryError("source-identity workload exceeds RAM or disk admission")

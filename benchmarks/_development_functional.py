@@ -13,11 +13,13 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from _development_budget import stopped
 from _development_identity import STAGE
+from _development_locks import coordinated
 from _development_process import checked, launch
-from _development_system import LABEL
+from _development_system import LABEL, mark_functional
 from _harness import functional
-from _harness.records import atomic, document, sha256
+from _harness.records import append, atomic, document, sha256
 from _quality.prefilter_inputs import corpus_names, search_enabled
 
 DEFAULT_ROWS = 12_000
@@ -30,7 +32,14 @@ def floor_rows(cell):
     if not search_enabled(cell):
         return 0
     share = cell["filter_fraction"] if cell["filter_kind"] == "rows" else 1.0
-    return math.ceil(PREFILTER_MIN_ROWS / share) + 1
+    if share <= 0:  # an empty selection never enters the prefilter, whatever the rows
+        return 0
+    rows = math.ceil(PREFILTER_MIN_ROWS / share)
+    while int(rows * share) < PREFILTER_MIN_ROWS:  # the selected rows are rounded down
+        rows += 1
+    while rows > 1 and int((rows - 1) * share) >= PREFILTER_MIN_ROWS:
+        rows -= 1
+    return rows
 
 
 def validate(cell):
@@ -105,7 +114,7 @@ def reduce_child(job):
     }
 
 
-def reduce_prepared(args, cells, prepared):
+def reduce_prepared(args, ledger, cells, prepared):
     """The prepared inputs with every reducible corpus replaced by its reduced file."""
     corpora, records = dict(prepared["corpora"]), {}
     for name, (rows, floor) in sorted(targets(cells).items()):
@@ -117,7 +126,7 @@ def reduce_prepared(args, cells, prepared):
             continue
         job = {"action": "functional-reduce", "name": name, "corpus": corpus}
         job.update(rows=rows, floor=floor)
-        receipt = launch(args, job, args.base_python, "functional-" + name)
+        receipt = _reduce(args, ledger, job)
         records[name] = receipt["reduction"]
         if receipt["reduction"]["reduced"]:
             corpora[name] = {**corpus, **receipt["corpus"], "functional": receipt["reduction"]}
@@ -128,9 +137,23 @@ def reduce_prepared(args, cells, prepared):
     }
 
 
-def stage(args, cells, prepared, planner, reducible=True):
+def _reduce(args, ledger, job):
+    """The child runs under the heavy role, so it never overlaps a timing window."""
+
+    def notify(row):
+        append(args.results / "coordination.jsonl", row)
+
+    with coordinated(
+        "heavy", args.worker_name, "reduce the input", notify, lambda: stopped(ledger)
+    ):
+        return launch(args, job, args.base_python, "functional-" + job["name"])
+
+
+def stage(args, ledger, cells, prepared, planner, reducible=True):
     """Write the production plan; under ``--functional`` reduce the input, write the plan of the
     run and return the inputs the run uses. Without it the inputs come back unchanged."""
+    if args.functional:
+        mark_functional()
     production = {
         **LABEL,
         "kind": "production",
@@ -141,7 +164,7 @@ def stage(args, cells, prepared, planner, reducible=True):
     atomic(args.results / "production-plan.json", production)
     if not args.functional:
         return prepared
-    used = reduce_prepared(args, cells, prepared) if reducible else prepared
+    used = reduce_prepared(args, ledger, cells, prepared) if reducible else prepared
     atomic(
         args.results / "functional-plan.json",
         {

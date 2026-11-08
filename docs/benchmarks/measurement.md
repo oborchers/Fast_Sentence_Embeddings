@@ -833,15 +833,21 @@ paths. The published speed study keeps `--rehearse`, which already reduces its i
   search call after its measurement, outside every timer, with the `store.prefilter` debug
   record captured. `operations.jsonl` and the block result (`path_evidence`, per arm) hold the
   backend and instruction set, the prefilter variant the backend enables (`null`: none,
-  `unavailable`: the build has no such API), whether the prefilter was entered, the fallback
-  reason (`none`, `query_range`, `unsafe_row`, `overflow`, `budget`) and the record fields. A
-  path that changes between rounds of one arm is an error.
+  `unavailable`: the build has no such API), the calls observed (as many as one group makes,
+  at most 64, block after block), how many entered the prefilter, the distinct fallback
+  reasons (`none`, `query_range`, `unsafe_row`, `overflow`, `budget`) and the record of each
+  call. A path that changes between rounds of one arm is an error.
 - **No load wait, still no disturbance.** Functional work takes the heavy lock (the role of
   builds and checks, so it never overlaps a timing window), starts its children with
   `nice -n 10` and does not wait for the one-minute load or for a peer's heavy lock. Wrap it in
   `--local-heavy` only for builds, never the controller itself.
-- **Not reducible.** `binary-recall@1` (100,000 texts) and `rescore-cost@1` (1,048,576
-  synthetic rows) have a fixed size in code. They get the production plan only.
+- **Not reducible.** `binary-recall@1` (100,000 texts) and the prefilter count have a fixed
+  size in code and get the production plan only. `rescore-cost@1` (1,048,576 synthetic rows)
+  prepares no input and has no plan; under `--functional` it takes the heavy role, ignores the
+  load, starts its child at nice 10 and ends with the decision `functional_only`.
+- **Every record is labelled.** A functional controller and each of its children add
+  `evidence_stage: functional` and the note to every record, receipt and call line they write
+  (through the shared `LABEL`), so no timing of a functional run can be read as a measurement.
 
 ## Rows a provable int8 prefilter keeps: `int8-prefilter@1`
 

@@ -186,7 +186,7 @@ def verify(corpus):
     checked(corpus["path"], corpus["sha256"])
 
 
-def admission(cell, corpus, work, requested_limit, kind="production"):
+def admission(cell, corpus, work, requested_limit, kind):
     """Estimated memory and disk: the mapped file is page cache, the list is resident."""
     limit = resources.require_limit(requested_limit)
     rows = corpus["rows"]

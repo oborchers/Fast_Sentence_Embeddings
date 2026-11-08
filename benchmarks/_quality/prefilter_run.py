@@ -24,7 +24,7 @@ from _quality.prefilter_inputs import PROFILE, corpus_names
 BLOCK_ROWS, QUERY_BLOCK = 16_384, 32
 
 
-def admission(cell, prepared, work, requested_limit, kind="production"):
+def admission(cell, prepared, work, requested_limit, kind):
     """Peak bytes of every phase against 85 percent of RAM, and the disk of the stores."""
     limit = resources.require_limit(requested_limit)
     corpus = prepared["corpora"][cell["corpus"]]
@@ -94,7 +94,8 @@ def _write(args, cell, receipt):
 
 
 def count_cell(args, cell, prepared, ledger):
-    plan = admission(cell, prepared, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, prepared, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "prefilter", **plan})
     if not plan["admitted"]:
         raise MemoryError("the prefilter count exceeds RAM or disk admission")
@@ -132,7 +133,7 @@ def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
         _preflight(args, cells)
-        prepared = stage(args, cells, prepare(args, cells, ledger), plans, reducible=False)
+        prepared = stage(args, ledger, cells, prepare(args, cells, ledger), plans, reducible=False)
         check_args(args)
         done = {}
         for cell in cells:

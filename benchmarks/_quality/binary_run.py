@@ -22,7 +22,7 @@ from _quality.binary_decision import decide
 from _quality.binary_inputs import CORPUS, CORPUS_ROWS, PROFILE
 
 
-def admission(cell, prepared, work, requested_limit, kind="production"):
+def admission(cell, prepared, work, requested_limit, kind):
     """Peak bytes of the child (store, its float32 copy, Hamming words) against 85 percent of RAM."""
     limit = resources.require_limit(requested_limit)
     dim = prepared["models"][cell["model"]]["dimensions"]
@@ -58,7 +58,8 @@ def _job(cell, prepared):
 
 
 def count_cell(args, cell, prepared, ledger):
-    plan = admission(cell, prepared, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, prepared, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "binary", **plan})
     if not plan["admitted"]:
         raise MemoryError("the binary recall probe exceeds RAM or disk admission")
@@ -99,7 +100,7 @@ def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
         _preflight(args)
-        prepared = stage(args, cells, prepare(args, cells, ledger), plans, reducible=False)
+        prepared = stage(args, ledger, cells, prepare(args, cells, ledger), plans, reducible=False)
         check_args(args)
         for cell in cells:
             if ledger.stopping:

@@ -14,6 +14,7 @@ import logging
 
 from _quality.prefilter_inputs import search_enabled
 
+MAX_CALLS = 64  # the untimed calls of one arm; a group never reaches more query blocks
 EVENT = "store.prefilter"
 FIELDS = ("queries", "k", "rows", "pairs", "fallback", "workers")
 
@@ -22,10 +23,12 @@ class _Capture(logging.Handler):
     def __init__(self):
         super().__init__(logging.DEBUG)
         self.events = []
+        self.call = 0
 
     def emit(self, record):
         if getattr(record, "fse_event", None) == EVENT:
-            self.events.append({name: getattr(record, "fse_" + name, None) for name in FIELDS})
+            fields = {name: getattr(record, "fse_" + name, None) for name in FIELDS}
+            self.events.append({"call": self.call, **fields})
 
 
 def _variant(backend):
@@ -42,9 +45,11 @@ def observe(operation, job):
     level = logger.level
     logger.setLevel(logging.DEBUG)
     logger.addHandler(capture)
+    calls = max(1, min(job["iterations"], MAX_CALLS))
     try:
         operation.restart()
-        operation()
+        for capture.call in range(calls):  # the calls of one group, block after block
+            operation()
     finally:
         logger.removeHandler(capture)
         logger.setLevel(level)
@@ -55,8 +60,10 @@ def observe(operation, job):
         "backend": getattr(backend, "name", None),
         "isa": getattr(backend, "isa", None),
         "prefilter_variant": _variant(backend),
+        "calls": calls,
         "entered": bool(capture.events),
-        "fallback": capture.events[-1]["fallback"] if capture.events else None,
+        "entered_calls": len(capture.events),
+        "fallbacks": sorted({event["fallback"] for event in capture.events}),
         "events": capture.events,
     }
 

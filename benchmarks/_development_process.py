@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from _development_budget import check_args
-from _development_system import LABEL, configure_child, require_unix
+from _development_system import LABEL, configure_child, mark_functional, require_unix
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.records import atomic, document, sha256
 from _measurement import package_identity
@@ -34,6 +34,7 @@ def interpreter(value):
 def launch(args, job, python, tag, timed=False):
     check_args(args)
     job = {
+        "functional_only": bool(getattr(args, "functional", False)),
         **job,
         "wall_deadline": getattr(args, "wall_deadline", None),
         **LABEL,
@@ -90,6 +91,8 @@ def identity():
 def child(file):
     require_unix()
     job = document(file)
+    if job.get("functional_only"):
+        mark_functional()
     workers = job.get("workers", 1)
     configure_child(workers)
     try:

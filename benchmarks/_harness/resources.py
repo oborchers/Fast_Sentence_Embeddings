@@ -25,12 +25,14 @@ CGROUP_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit
 
 
 def _cgroup():
+    """The smallest numeric limit of the cgroup files (``max`` and missing files do not limit)."""
+    found = []
     for name in CGROUP_FILES:
         with suppress(OSError):
             value = Path(name).read_text().strip()
             if value.isdecimal() and int(value) > 0:
-                return int(value)
-    return None
+                found.append(int(value))
+    return min(found, default=None)
 
 
 def _physical():

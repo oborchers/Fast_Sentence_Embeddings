@@ -55,7 +55,8 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
 
 
 def _admit(args, cell, prepared, count, step):
-    plan = admission(cell, prepared, count, args.work, args.memory_limit_bytes)
+    kind = "functional" if args.functional else "production"
+    plan = admission(cell, prepared, count, args.work, args.memory_limit_bytes, kind)
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "step": step, **plan})
     if not plan["admitted"]:
         raise MemoryError("fixed resident workload or repeated disk output exceeds admission")

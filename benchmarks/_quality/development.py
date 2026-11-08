@@ -104,6 +104,7 @@ def quality_gate(args, cell, prepared, ledger, tag):
         corpus["texts"],
         args.work,
         args.memory_limit_bytes,
+        "functional" if args.functional else "production",
     )
     append(args.results / "memory.jsonl", {"cell_id": cell["id"], "phase": "quality", **plan})
     if not plan["admitted"]:
@@ -184,7 +185,7 @@ def run(args):
             cells.append(cell)
     spec["cells"] = cells
     with session(args, spec) as ledger:
-        prepared = stage(args, cells, prepare(args, cells, ledger), plans)
+        prepared = stage(args, ledger, cells, prepare(args, cells, ledger), plans)
         check_args(args)
         for cell in cells:
             if ledger.stopping:

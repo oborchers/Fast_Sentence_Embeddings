@@ -11,9 +11,16 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
-from _harness import resources
+from _harness import functional, resources
 
 LABEL = {"mode": "local-development", "publishable": False}
+
+
+def mark_functional():
+    """Label every record this process writes from now on as a functional run. ``LABEL`` is
+    spread into every record, so no result, receipt or call line of the process can be read as
+    a timing."""
+    LABEL.update(evidence_stage="functional", note=functional.NOTE)
 
 
 def apply_affinity(affinity):
