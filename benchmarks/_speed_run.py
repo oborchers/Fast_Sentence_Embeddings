@@ -306,6 +306,7 @@ def study_contract(args):
     if not contract["cells"]:
         raise ValueError("study has no matching cells")
     protocols.validate(contract["cells"])
+    protocols.require(contract["cells"], args.base_python)
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")

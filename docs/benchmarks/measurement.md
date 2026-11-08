@@ -525,7 +525,7 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 
 ### Protocol variants
 
-`benchmarks/_speed_protocol.py` names the variant of each cell from its `kind` and `reference`, refuses a combination it does not list, and records the variant name in the cell result. The variants stay separate and versioned; the tolerances are those of `speed.json` `rules` and no variant widens them.
+`benchmarks/_speed_protocol.py` names the variant of each cell from its `kind` and `reference`, refuses a combination it does not list, and records the variant name in the cell result. The variants stay separate and versioned; the tolerances are the constants of `check_output` in `_speed_cells.py` (rtol 3e-5, atol 3e-6; they equal the `speed.json` `rules` values, which the code does not read) and no variant widens them. A study is refused before any download when it has `fse-base` cells and no `--base-python`, or head cells and an fse without `fse.Heads`.
 
 | Variant | Cells | Output check | A/A control |
 | :--- | :--- | :--- | :--- |
@@ -540,7 +540,7 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 - Stage `bekko`: a Sentence Transformers repository other than the `sentence-transformers/` namespace is read in that format when `speed.json` lists it under `model_formats`. The cell sets `table_dtype: float16` for fse (a float16 table, float32 output) and `widen_weights: true` for the Sentence Transformers arm, which widens its table to float32 before any timer so that no arm measures a half-precision path the other does not share. The receipt records `widened_weights`, and the memory plan adds the float16 original that exists while the table is widened.
 - Stage `paragraphs`: `corpus: paragraphs` draws whole WikiText-103 paragraphs (the pinned 832,318, cut by the common character limit) instead of sentences, with the same seed and sampling. The planned byte counts of these cells are fixed like all others.
 - Stage `heads`: the workload is the fixed head of the development study (`linear-heads@1`, four softmax outputs, float32 PCG64 seed 17; four heads for `linear-heads-multi@1`). Every arm returns the probabilities (output `proba`) of the heads in the order `head_0` to `head_3`, for raw means (the encoder never normalizes), as one float32 matrix of `dimensions` columns (4, or 16 for four heads). Folding the head into the table is outside every timer. Three pairs: folded `predict_proba` against Model2Vec `encode(normalize=False)` followed by the affine map and the softmax in NumPy; folded against unfolded (`predict_batches` with `return_vectors=True`); four heads in one `Heads.predict` against four single `predict_proba` calls (bits).
-- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. Search cells (time per request, output checked against exact) are not part of this entry yet.
+- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. The standard allocation has no base environment, so this stage needs one added to the allocation and passed on first. Search cells (time per request, output checked against exact) are not part of this entry yet.
 
 The sizes of these cells mirror the existing cells of the same model; the study for a release sets its own sizes and budget before any paid run.
 

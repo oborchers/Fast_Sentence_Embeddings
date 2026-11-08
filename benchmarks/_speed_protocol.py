@@ -3,7 +3,8 @@
 Each variant fixes how the arms of a pair are compared: whether the output is checked by bits
 or by the shared tolerance, and whether a fse-against-fse control (A/A) bounds the noise. The
 variant of a cell follows from its kind and its reference; an unknown combination is refused.
-The tolerances are those of ``speed.json`` and are not changed here. Standard library only.
+The tolerances are the constants of ``_speed_cells.check_output`` and are not changed here.
+Standard library only (the head check imports fse).
 """
 
 from __future__ import annotations
@@ -37,3 +38,16 @@ def validate(cells):
     """Refuse a study with a cell no variant covers, before anything runs."""
     for cell in cells:
         protocol(cell)
+
+
+def require(cells, base_python):
+    """Refuse, before any download or input, a study whose environment cannot run its cells."""
+    if any(c["reference"] == "fse-base" for c in cells) and not base_python:
+        raise ValueError("fse-base cells need --base-python, the installed base fse")
+    if any(c["kind"] == "heads" for c in cells):
+        import fse
+
+        if not hasattr(fse, "Heads"):
+            raise ValueError(
+                "head cells need an fse revision with fse.Heads; the pin in pins.json is older"
+            )
