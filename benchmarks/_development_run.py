@@ -9,6 +9,7 @@ from _development_calibrate import calibrate
 from _development_config import load
 from _development_data import prepare
 from _development_descriptive import describe, regression_screen
+from _development_functional import stage
 from _development_heads import nonregression
 from _development_heads_multi import practical
 from _development_identity import STAGE
@@ -17,6 +18,7 @@ from _development_locks import coordinated
 from _development_pairs import block
 from _development_preflight import preflight
 from _development_records import record_result, session
+from _development_resources import plans
 from _development_reuse import context, load_control
 from _development_statistics import decide, decision_enabled
 from _development_system import LABEL, observations, require_timing_priority
@@ -36,10 +38,13 @@ def _locked(args, cell, prepared, ledger, quality):
         append(args.results / "coordination.jsonl", row)
 
     def admitted():
-        return observations(args.work)["load"][0] < 5
+        return args.functional or observations(args.work)["load"][0] < 5
 
+    # Functional work is untimed: it takes the role of builds and checks, so a timing window of
+    # another worker is never disturbed by it.
+    role = "heavy" if args.functional else "timing"
     with coordinated(
-        "timing", args.worker_name, cell["id"], notify, lambda: stopped(ledger), admitted
+        role, args.worker_name, cell["id"], notify, lambda: stopped(ledger), admitted
     ) as owner:
         if args.local_phase == "descriptive":
             return describe(args, cell, prepared, ledger, owner, quality["identities"])
@@ -54,16 +59,16 @@ def _locked(args, cell, prepared, ledger, quality):
 def _control(args, cell, prepared, ledger, quality, stamp, owner):
     if args.comparison_results:
         previous = load_control(
-            args.comparison_results, cell["id"], "comparison", stamp, args.diagnostic_rehearsal
+            args.comparison_results, cell["id"], "comparison", stamp, args.functional
         )
         ledger.reused_completed_at[cell["id"]] = previous["last_operation_at_unix"]
         return previous["control"]
     if args.aa_results:
-        previous = load_control(args.aa_results, cell["id"], "aa", stamp, args.diagnostic_rehearsal)
+        previous = load_control(args.aa_results, cell["id"], "aa", stamp, args.functional)
         ledger.reused_completed_at[cell["id"]] = previous["last_operation_at_unix"]
         return previous
     control = calibrate(args, cell, prepared, ledger, owner, quality["identities"])
-    control.update(context=stamp, functional_only=args.diagnostic_rehearsal)
+    control.update(context=stamp, functional_only=args.functional)
     atomic(args.results / (cell["id"] + "-aa.json"), control)
     return control
 
@@ -74,7 +79,7 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
     options = dict(identities=quality["identities"], batch=control["batch"])
     if args.comparison_results:
         previous = load_control(
-            args.comparison_results, cell["id"], "comparison", stamp, args.diagnostic_rehearsal
+            args.comparison_results, cell["id"], "comparison", stamp, args.functional
         )
         main = previous["main"]
     else:
@@ -84,7 +89,7 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
             {
                 **LABEL,
                 "context": stamp,
-                "functional_only": args.diagnostic_rehearsal,
+                "functional_only": args.functional,
                 "main": main,
                 "control": control,
             },
@@ -92,7 +97,7 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
     if args.local_phase == "screen":
         if main["output"] != control["aa"]["output"]:
             raise ValueError("screen output differs from its A/A control")
-        if args.diagnostic_rehearsal:
+        if args.functional:
             return dict(status="valid", decision="functional_only", comparison=main)
         if not decision_enabled(cell):
             return dict(status="valid", decision="descriptive_only", comparison=main)
@@ -112,12 +117,12 @@ def _comparison(args, cell, prepared, ledger, quality, stamp, owner, control):
     result = practical(
         current, nonregression(current, decide(current, control["aa"], main, confirmation))
     )
-    if args.diagnostic_rehearsal:
+    if args.functional:
         result["decision"] = "functional_only"
     gate = result.get("practical")
     if gate and not gate["passed"] and result["decision"] == "keep":
         result["decision"] = "keep_below_practical_saving"  # decision.json must not say keep
-    valid = _valid(result, args.diagnostic_rehearsal)
+    valid = _valid(result, args.functional)
     return dict(status="valid" if valid else "rejected", **result)
 
 
@@ -135,13 +140,13 @@ def run(args):
     spec = load(args.development_input, args.cells)
     _arguments(args)
     require_timing_priority(args)
-    spec["functional_only"] = args.diagnostic_rehearsal
+    spec["functional_only"] = args.functional
     from _development_rescore_run import run_cells, selected
 
     if selected(spec["cells"]):
         return run_cells(args, spec)
     with session(args, spec) as ledger:
-        prepared = prepare(args, spec["cells"], ledger)
+        prepared = stage(args, spec["cells"], prepare(args, spec["cells"], ledger), plans)
         check_args(args)
         for cell in spec["cells"]:
             if ledger.stopping:
@@ -163,7 +168,7 @@ def run(args):
             args.results / "decision.json",
             {
                 **LABEL,
-                "functional_only": args.diagnostic_rehearsal,
+                "functional_only": args.functional,
                 "cells": {
                     row["cell_id"]: row.get("decision", "not_run") for row in ledger.finished
                 },

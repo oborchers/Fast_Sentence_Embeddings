@@ -14,7 +14,7 @@ def size(args, cell, prepared, ledger, owner, target, step, remaining):
         )
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete search sizing outputs differ")
-        if args.diagnostic_rehearsal or all(row["seconds"] >= target * 1.25 for row in rows):
+        if args.functional or all(row["seconds"] >= target * 1.25 for row in rows):
             return count, None, 1
         _grow(cell, rows, target)
         attempt += 1

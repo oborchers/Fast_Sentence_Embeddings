@@ -9,6 +9,7 @@ from _development_budget import check_args
 from _development_heads_multi import configure as configure_heads
 from _development_lengths import mode_for as lengths_for
 from _development_locks import busy, lock_paths
+from _development_path_evidence import per_arm
 from _development_process import launch
 from _development_search import configure
 from _development_statistics import order, paired
@@ -36,6 +37,13 @@ def job_for(cell, prepared, count, tag, owner, batch=None):
 
 def wait_for_arm(args, ledger, cell_id):
     _, heavy = lock_paths()
+    if args.functional:
+        # No timing: the load and a peer's lock decide nothing; telemetry is still recorded.
+        check_args(args)
+        if ledger.stopping:
+            raise InterruptedError("stopped before next development arm")
+        append(args.results / "preflights.jsonl", {**observations(args.work), "load_ignored": True})
+        return
     while True:
         check_args(args)
         if ledger.stopping:
@@ -66,16 +74,16 @@ def arm(
     configure(job, cell, name, control)
     configure_heads(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
-    job["functional_only"] = args.diagnostic_rehearsal
+    job["functional_only"] = args.functional
     job["descriptive_only"] = phase == "descriptive"
     job["sizing_only"] = phase.startswith("size-")
     if job["sizing_only"]:
         job["warmup_seconds"] = 0
-    if args.diagnostic_rehearsal:
+    if args.functional:
         job.update(warmup_calls=1, warmup_seconds=0)
     python = args.base_python if control or name == "base" else args.candidate_python
     job["session_last_operation_at_unix"] = _session_gap(args, cell["id"], ledger)
-    record = launch(args, job, python, tag, timed=True)
+    record = launch(args, job, python, tag, timed=not args.functional)
     record.update(
         phase=phase,
         pair=pair,
@@ -84,9 +92,7 @@ def arm(
         texts=count,
         completed_at_unix=time.time(),
         sizing_only=job["sizing_only"],
-        valid_for_comparison=not (
-            job["sizing_only"] or job["descriptive_only"] or args.diagnostic_rehearsal
-        ),
+        valid_for_comparison=not (job["sizing_only"] or job["descriptive_only"] or args.functional),
     )
     append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     return record
@@ -137,12 +143,18 @@ def block(
                 control,
                 batch,
             )
-            _validate(row, name, identities, control, cell, args.diagnostic_rehearsal)
+            _validate(row, name, identities, control, cell, args.functional)
             proofs.add(json.dumps(row["output"], sort_keys=True))
             rows.append(row)
     if len(proofs) != 1:
         raise ValueError("complete paired stage output differs between builds or rounds")
-    return {**LABEL, **paired(cell, rows), "output": rows[0]["output"]}
+    paths = per_arm(rows)
+    return {
+        **LABEL,
+        **paired(cell, rows),
+        "output": rows[0]["output"],
+        **({"path_evidence": paths} if paths else {}),
+    }
 
 
 def _budget(remaining):

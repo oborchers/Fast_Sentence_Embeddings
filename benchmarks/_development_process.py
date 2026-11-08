@@ -165,6 +165,11 @@ def _other_action(job):
         from _development_rescore import cost_job
 
         return cost_job(job)
+    return _late_action(job)
+
+
+def _late_action(job):
+    action = job["action"]
     if action == "binary-recall":
         from _quality.binary_child import count_job as binary_job
 
@@ -177,6 +182,10 @@ def _other_action(job):
         from _development_filter_memory import profile
 
         return profile(job)
+    if action == "functional-reduce":
+        from _development_functional import reduce_child
+
+        return reduce_child(job)
     raise ValueError("unknown development child action")
 
 

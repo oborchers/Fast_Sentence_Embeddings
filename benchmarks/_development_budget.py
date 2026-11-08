@@ -17,7 +17,7 @@ def stopped(ledger):
 def minimum_measured_seconds(args, cells):
     """A lower bound only: known measured groups, excluding setup and warmups."""
     phase = getattr(args, "local_phase", "quality")
-    if args.diagnostic_rehearsal or phase in ("prepare", "descriptive", "quality"):
+    if args.functional or phase in ("prepare", "descriptive", "quality"):
         return 0.0
     if phase == "regression-screen":
         return sum(5 * (4 if c["order"] == "abba" else 2) * c["target_seconds"] for c in cells)

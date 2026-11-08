@@ -10,6 +10,7 @@ import shutil
 import time
 from pathlib import Path
 
+from _harness import resources
 from _harness.records import append, atomic, sha256
 
 
@@ -62,7 +63,7 @@ def parquet_texts(part):
                 yield text
 
 
-def memory_plan(job, input_bytes, model_bytes, limit):
+def memory_plan(job, input_bytes, model_bytes, limit, kind="production"):
     n, d, w = job["texts"], job["dimensions"], job["workers"]
     components = {
         "controller_libraries_reserve": (2 if job.get("functional_only") else 8) * 1024**3,
@@ -73,14 +74,7 @@ def memory_plan(job, input_bytes, model_bytes, limit):
         "model_copies": model_bytes * (w + 1),
         "sample_buffers": min(n, 10000) * d * 4 * 3,
     }
-    total = sum(components.values())
-    return {
-        "components": components,
-        "estimated_peak_bytes": total,
-        "limit_bytes": limit,
-        "safety_fraction": 0.85,
-        "admitted": total <= limit * 0.85,
-    }
+    return resources.assess(components, limit=limit, kind=kind)
 
 
 def collect_sentences(source, text, functional):

@@ -48,7 +48,7 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete calibration outputs differ between builds")
         fastest = min(row["seconds"] for row in rows)
-        if fastest >= target * 1.25 or args.diagnostic_rehearsal:
+        if fastest >= target * 1.25 or args.functional:
             return count, batch, iterations
         iterations = max(iterations + 1, math.ceil(iterations * target * 1.25 / fastest))
         attempt += 1
@@ -119,7 +119,7 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
         )
         if validation is not None:
             attempt["validation"] = validation
-            if validation["factor"]["iqr"] < cell["target_aa_iqr"] or args.diagnostic_rehearsal:
+            if validation["factor"]["iqr"] < cell["target_aa_iqr"] or args.functional:
                 result = {
                     **LABEL,
                     "cell": current,
@@ -144,7 +144,7 @@ def calibrate(args, cell, prepared, ledger, owner, identities):
 def _validation(
     args, cell, prepared, ledger, count, owner, step, identities, batch, remaining, tuning
 ):
-    if not args.diagnostic_rehearsal and tuning["factor"]["iqr"] >= cell["target_aa_iqr"]:
+    if not args.functional and tuning["factor"]["iqr"] >= cell["target_aa_iqr"]:
         return None
     if remaining() <= 0:
         raise CalibrationLimitError("active calibration budget exhausted before validation")

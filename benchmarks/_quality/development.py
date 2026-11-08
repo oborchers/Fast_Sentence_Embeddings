@@ -8,6 +8,7 @@ import time
 from _development_budget import check_args, stopped
 from _development_config import load
 from _development_data import prepare
+from _development_functional import stage
 from _development_ids import mode_for
 from _development_locks import coordinated
 from _development_process import checked, launch
@@ -80,6 +81,20 @@ def _score_bits(first, second):
     return result
 
 
+def plans(args, cells, prepared, kind):
+    return {
+        cell["id"]: admission(
+            {**cell, "stage": "encode-memory"},
+            prepared,
+            prepared["corpora"][cell["corpus"]]["texts"],
+            args.work,
+            args.memory_limit_bytes,
+            kind,
+        )
+        for cell in cells
+    }
+
+
 def quality_gate(args, cell, prepared, ledger, tag):
     model = prepared["models"][cell["model"]]
     corpus = prepared["corpora"][cell["corpus"]]
@@ -140,7 +155,7 @@ def quality_gate(args, cell, prepared, ledger, tag):
 
 def run(args):
     spec = load(args.development_input, args.cells)
-    spec["functional_only"] = args.diagnostic_rehearsal
+    spec["functional_only"] = args.functional
     from _quality.binary_run import run_cells as run_binary
     from _quality.binary_run import selected as binary_selected
     from _quality.prefilter_run import run_cells, selected
@@ -169,7 +184,7 @@ def run(args):
             cells.append(cell)
     spec["cells"] = cells
     with session(args, spec) as ledger:
-        prepared = prepare(args, cells, ledger)
+        prepared = stage(args, cells, prepare(args, cells, ledger), plans)
         check_args(args)
         for cell in cells:
             if ledger.stopping:

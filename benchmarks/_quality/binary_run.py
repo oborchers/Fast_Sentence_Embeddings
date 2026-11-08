@@ -9,10 +9,12 @@ from pathlib import Path
 
 from _development_budget import check_args, stopped
 from _development_data import prepare
+from _development_functional import stage
 from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
-from _development_system import LABEL, memory_limit
+from _development_system import LABEL
+from _harness import resources
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
@@ -20,28 +22,28 @@ from _quality.binary_decision import decide
 from _quality.binary_inputs import CORPUS, CORPUS_ROWS, PROFILE
 
 
-def admission(cell, prepared, work, requested_limit):
+def admission(cell, prepared, work, requested_limit, kind="production"):
     """Peak bytes of the child (store, its float32 copy, Hamming words) against 85 percent of RAM."""
-    limit = memory_limit()
-    if requested_limit is not None:
-        limit = min(limit, requested_limit) if limit else requested_limit
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit = resources.require_limit(requested_limit)
     dim = prepared["models"][cell["model"]]["dimensions"]
     corpus = prepared["corpora"][CORPUS]
     table = Path(prepared["models"][cell["model"]]["artifacts"]["float32"]["path"]).stat().st_size
-    rows = CORPUS_ROWS * (4 * dim) * 3 + CORPUS_ROWS * dim // 8 * 2  # store, copy, bits and xor
-    peak = 2 * 1024**3 + 3 * table + rows + corpus["timing_utf8_bytes"] * 8
+    components = {
+        "reserve": 2 * 1024**3,
+        "model_copies": 3 * table,
+        "store_copy_bits_and_xor": CORPUS_ROWS * (4 * dim) * 3 + CORPUS_ROWS * dim // 8 * 2,
+        "python_texts": corpus["timing_utf8_bytes"] * 8,
+    }
     disk = CORPUS_ROWS * 4 * dim + corpus["timing_utf8_bytes"] * 4 + 3 * table
-    free = shutil.disk_usage(work).free
+    return resources.assess(
+        components, limit=limit, work=work, disk=disk, disk_fraction=0.85, kind=kind, **LABEL
+    )
+
+
+def plans(args, cells, prepared, kind):
     return {
-        **LABEL,
-        "estimated_peak_bytes": peak,
-        "memory_limit_bytes": limit,
-        "safety_fraction": 0.85,
-        "required_disk_bytes": disk,
-        "available_disk_bytes": free,
-        "admitted": peak <= limit * 0.85 and free * 0.85 >= disk,
+        cell["id"]: admission(cell, prepared, args.work, args.memory_limit_bytes, kind)
+        for cell in cells
     }
 
 
@@ -79,11 +81,7 @@ def count_cell(args, cell, prepared, ledger):
 
 def _preflight(args):
     """A conservative check before the preparation downloads and exports anything."""
-    limit = memory_limit()
-    if args.memory_limit_bytes is not None:
-        limit = min(limit, args.memory_limit_bytes) if limit else args.memory_limit_bytes
-    if not limit:
-        raise ValueError("RAM cannot be detected; supply --memory-limit-bytes")
+    limit, _ = resources.require_limit(args.memory_limit_bytes)
     free = shutil.disk_usage(args.work.parent).free
     if limit * 0.85 < 4 * 1024**3 or free * 0.85 < 4 * 1024**3:
         raise MemoryError("less than 4 GiB RAM or 4 GiB disk for the preparation and the probe")
@@ -101,7 +99,7 @@ def run_cells(args, spec):
     cells = spec["cells"]
     with session(args, spec) as ledger:
         _preflight(args)
-        prepared = prepare(args, cells, ledger)
+        prepared = stage(args, cells, prepare(args, cells, ledger), plans, reducible=False)
         check_args(args)
         for cell in cells:
             if ledger.stopping:
