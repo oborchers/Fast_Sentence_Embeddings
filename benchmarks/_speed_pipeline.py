@@ -201,10 +201,38 @@ def widened_snapshot(snapshot, folder):
     return folder
 
 
+def load_encoder(root, contract, repo, snapshot):
+    """The float32 encoder of a pinned model, read in its own format."""
+    from fse import Encoder, StaticModel
+
+    cells = [c for c in contract["cells"] if c["model"] == repo]
+    if any(c.get("widen_weights") for c in cells):
+        snapshot = widened_snapshot(snapshot, root / "widened" / repo.rsplit("/", 1)[-1])
+    sentence_transformers = (
+        repo.startswith("sentence-transformers/")
+        or contract.get("model_formats", {}).get(repo) == "sentence-transformers"
+    )
+    if sentence_transformers:
+        return Encoder.from_pretrained(snapshot, normalize=True, truncate=False)
+    return StaticModel.from_pretrained(snapshot, normalize=True).encoder
+
+
+def save_artifacts(root, contract, repo, encoder):
+    """One artifact per table dtype the cells of the model need (float32 always)."""
+    cells = [c for c in contract["cells"] if c["model"] == repo]
+    dtypes = {"float32"}
+    dtypes.update(c["dtype"] for c in cells if c["kind"] == "dtype")
+    dtypes.update(c["table_dtype"] for c in cells if "table_dtype" in c)
+    artifacts = {}
+    for dtype in sorted(dtypes):
+        artifact = root / (repo.rsplit("/", 1)[-1] + "-" + dtype + ".safetensors")
+        (encoder if dtype == "float32" else encoder.quantize(dtype)).save(artifact)
+        artifacts[dtype] = str(artifact)
+    return artifacts
+
+
 def prepare_models(root, contract, reuse=None):
     from huggingface_hub import snapshot_download
-
-    from fse import Encoder, StaticModel
 
     result = {}
     needed = {c["model"] for c in contract["cells"]}
@@ -220,32 +248,8 @@ def prepare_models(root, contract, reuse=None):
             local_files_only=reuse is not None,
             allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
-        source = (
-            widened_snapshot(snapshot, root / "widened" / repo.rsplit("/", 1)[-1])
-            if any(c["model"] == repo and c.get("widen_weights") for c in contract["cells"])
-            else snapshot
-        )
-        encoder = (
-            Encoder.from_pretrained(source, normalize=True, truncate=False)
-            if repo.startswith("sentence-transformers/")
-            or contract.get("model_formats", {}).get(repo) == "sentence-transformers"
-            else StaticModel.from_pretrained(snapshot, normalize=True).encoder
-        )
-        artifacts = {}
-        dtypes = {
-            "float32",
-            *(c["dtype"] for c in contract["cells"] if c["model"] == repo and c["kind"] == "dtype"),
-            *(
-                c["table_dtype"]
-                for c in contract["cells"]
-                if c["model"] == repo and "table_dtype" in c
-            ),
-        }
-        for dtype in sorted(dtypes):
-            artifact = root / (repo.rsplit("/", 1)[-1] + "-" + dtype + ".safetensors")
-            current = encoder if dtype == "float32" else encoder.quantize(dtype)
-            current.save(artifact)
-            artifacts[dtype] = str(artifact)
+        encoder = load_encoder(root, contract, repo, snapshot)
+        artifacts = save_artifacts(root, contract, repo, encoder)
         result[repo] = {
             "snapshot": snapshot,
             "artifact": artifacts["float32"],
