@@ -116,7 +116,7 @@ A store of sentence vectors may hold, beside each shard, the **sign bits** of it
 
 The allocation model distinguishes call-owned input from additional running-task workspace.
 Let m be candidates without gaps, u unique positions, d dimensions, s bytes per stored value,
-p = max(1, floor(16 MiB / (d*s + 20))) rows per part, and h = min(k, u).
+p = max(1, floor(16 MiB / (d*s + 20))) rows per part, S shards, and h = min(k, u).
 The public candidate input is borrowed; `rescore` builds its own CSR of 8 times the total
 candidate count in bytes. Building it also uses a one-byte mask per input entry and query
 offsets. Binary search and the int8 prefilter supply freshly owned CSR arrays too.
@@ -127,21 +127,26 @@ offsets. Binary search and the int8 prefilter supply freshly owned CSR arrays to
 | Unique positions | `np.unique`: version-dependent workspace and 8u-byte result | In-place sort, m-byte mask; 8u-byte copy only with duplicates |
 | Stored vectors of a part | 2*p*d*s transient bytes | p*d*s bytes |
 | Gather position order and ordered positions | 16p bytes per column | None |
+| Shard starts, search boundaries and their conversion | O(S) per gather | O(S) per gather |
 | Local shard indices | 8p bytes | 8p bytes, released after each shard block |
 | Inverse norms | Output 4p plus gather indices and temporary 4p copy | Output 4p, no second value copy |
 | Document IDs with `max_per_doc=1` | Output 8p plus gather indices and temporary 8p copy | Output 8p, no second value copy |
 | Cosine scores | 4p bytes | 4p bytes |
 | Ungrouped part selection | About 32p bytes plus selected winners | Same |
 | Winner merge | O(h) positions, scores, optional labels, ordering and selection | Same |
-| Winner document IDs without grouping | General gather on score-ordered winners, O(h) | Same |
+| Winner document IDs without grouping | General gather on score-ordered winners, O(h + S) | Same |
 
 The deduplication mask dies before gathering. Without duplicates the sorted section is a
 view of the call-owned CSR. With duplicates its compact copy lives through the query.
-Thus the dominant additional workspace is max(m, p*d*s + O(p)) without duplicates, or
-max(m + 8u, 8u + p*d*s + O(p)) with duplicates, plus O(h) winners and merge buffers.
+For the CPU backend the dominant additional workspace is
+max(m, p*d*s + O(p + S)) without duplicates, or
+max(m + 8u, 8u + p*d*s + O(p + S)) with duplicates, plus O(h) winners and merge buffers.
 Multiply running-task workspace by active workers, not by all queries. Keep the CSR,
 finished results and final padded output separate. Grouped selection has its own O(p)
-document-ordering workspace. These are allocation terms, not a strict total RSS limit.
+document-ordering workspace. The NumPy reference backend additionally converts int8 and
+float16 rows to float32 (4*p*d bytes), with further arithmetic temporaries in `dot16`.
+These CPU workspace formulas therefore do not bound the reference backend. Neither is
+a strict total RSS limit.
 
 `gather_sorted` assumes ascending unique positions and validates the whole range before
 accessing tensors. It uses `np.take(..., out=..., mode="clip")` on each shard block with
