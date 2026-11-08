@@ -144,7 +144,8 @@ def test_a_store_written_with_bits_opens_without_the_warning(tmp_path):
     write(path, sign_bits=True)
     with captured() as records, fse.VectorStore.open(path) as store:
         assert len(store) == 40
-    assert not [r for r in records if r.fse_event == "store.sign_bits_missing"]
+    (opened,) = [r for r in records if r.fse_event == "store.opened"]
+    assert opened.fse_sign_bits_shards == 5
 
 
 # --- the bounds of the failures: the rows of the shard are never counted wrongly ----------------

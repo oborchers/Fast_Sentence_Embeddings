@@ -46,6 +46,7 @@ from ._bits_writer import BitsColumn
 from ._columns import Entry, MemoryColumn, StreamColumn
 from ._id_writer import IdColumn
 from ._kind import shard_name
+from ._layout import failed_cleanup
 from ._position_format import SourcePosition
 from ._vectors_format import StoreInfo, shard_metadata
 
@@ -198,8 +199,8 @@ class ShardWriter(ShardBase):
         if sign_bits:
             try:
                 self.bits = BitsColumn(store, info, first_row, capacity, created_by)
-            except BaseException:  # the temporary directory exists already and nobody owns it
-                remove_temporary(self.tmp)
+            except BaseException as error:  # the directory exists already and nobody owns it
+                failed_cleanup(self.tmp, remove_temporary(self.tmp), error)
                 raise
         self.dtype = np.dtype(_codes.STORAGE_TYPES[info.dtype])
         # vectors.npy is created at the first write, so the shards reserved ahead of their
