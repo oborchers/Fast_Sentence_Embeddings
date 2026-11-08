@@ -22,6 +22,19 @@ def source_file(tmp_path):
     return path
 
 
+def public_result(encoder, head, path, call, pool):
+    if call == "encode":
+        return encoder.encode(path, workers=3, pool=pool)
+    if call == "head":
+        return head.predict_proba(path, workers=3, pool=pool)
+    if call == "heads":
+        return fse.Heads(a=head).predict(path, workers=3, pool=pool)
+    import pyarrow as pa
+
+    batch = pa.array([TEXT] * 5000)
+    return [batch.rows for batch in encoder.encode_batches([batch], workers=3, pool=pool)]
+
+
 @pytest.mark.parametrize("call", ["encode", "head", "heads", "batches"])
 def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
     path = source_file(tmp_path)
@@ -48,24 +61,12 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
     def no_executor(**_kwargs):
         raise AssertionError("scan started extra threads")
 
-    def invoke(pool):
-        if call == "encode":
-            return encoder.encode(path, workers=3, pool=pool)
-        if call == "head":
-            return head.predict_proba(path, workers=3, pool=pool)
-        if call == "heads":
-            return fse.Heads(a=head).predict(path, workers=3, pool=pool)
-        import pyarrow as pa
-
-        batch = pa.array([TEXT] * 5000)
-        return [batch.rows for batch in encoder.encode_batches([batch], workers=3, pool=pool)]
-
-    wanted = exact(invoke(None))
+    wanted = exact(public_result(encoder, head, path, call, None))
     monkeypatch.setattr(_pipeline, "run", run)
     monkeypatch.setattr(scan_class, "_scanner", scanner)
     monkeypatch.setattr(_scan, "ThreadPoolExecutor", no_executor)
     with fse.Pool(3, max_tasks=1) as pool:
-        assert exact(invoke(pool)) == wanted
+        assert exact(public_result(encoder, head, path, call, pool)) == wanted
         assert calls
         assert all(p is pool for p in calls)
         assert names
@@ -73,7 +74,9 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
     if call == "batches":
         calls.clear()
         names.clear()
-        assert exact(invoke(None)) == wanted  # its iteration owns one pool for scans too
+        assert (
+            exact(public_result(encoder, head, path, call, None)) == wanted
+        )  # its iteration owns one pool for scans too
         assert calls
         assert all(p is not None for p in calls)
         assert all(name.startswith("fse-worker") for name in names)

@@ -107,66 +107,76 @@ def test_backfill_waits_for_a_shared_place(tmp_path, monkeypatch):
         pool.release()
 
 
+class HeldWriters:
+    """Hold one writer of each of two calls and fail the first writer of one call."""
+
+    def __init__(self, other_path, monkeypatch, error_type):
+        self.other_path, self.error_type = other_path, error_type
+        self.condition = threading.Condition()
+        self.released = False
+        self.started = threading.Event()
+        self.independent = threading.Event()
+        self.done = threading.Event()
+        self.other_waits, self.waiting, self.owners = [], [], []
+        self.real_write = _bits_write._write
+        real_init = _search_run._Own.__init__
+
+        def init(owner, pool):
+            real_init(owner, pool)
+            if threading.current_thread().name == "backfill":
+                self.owners.append((owner.ended, blocked_in_wait(owner.ended, "backfill")))
+
+        monkeypatch.setattr(_search_run._Own, "__init__", init)
+        monkeypatch.setattr(_bits_write, "_write", self.write)
+
+    def write(self, tmp, *args, **kwargs):
+        if tmp.parent == self.other_path:
+            if "0000000000000000" in tmp.name:
+                self.other_waits.append(
+                    blocked_in_wait(self.done._cond, threading.current_thread().name)
+                )
+                self.independent.set()
+                assert self.done.wait(10)
+            return self.real_write(tmp, *args, **kwargs)
+        if "0000000000000000" in tmp.name:
+            assert self.started.wait(10)
+            assert arrived(self.waiting[0], self.condition)
+            tmp.mkdir()
+            raise self.error_type("failed writer")
+        if "0000000000000005" in tmp.name:
+            self.waiting.append(blocked_in_wait(self.condition, threading.current_thread().name))
+            with self.condition:
+                self.started.set()
+                assert self.condition.wait_for(lambda: self.released, 10)
+        return self.real_write(tmp, *args, **kwargs)
+
+    def release_own(self):
+        with self.condition:
+            self.released = True
+            self.condition.notify_all()
+
+
 @pytest.mark.parametrize("error_type", [ValueError, KeyboardInterrupt])
 def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monkeypatch, error_type):
-    path = tmp_path / "store"
+    path, other_path = tmp_path / "store", tmp_path / "other"
     signed_store(path, sizes=(5, 3, 2, 4))
-    other_path = tmp_path / "other"
     signed_store(other_path, sizes=(5, 3))
-    condition = threading.Condition()
-    release = False
-    started = threading.Event()
-    independent = threading.Event()
-    done = threading.Event()
-    other_waits = []
-    waiting = []
-    owners = []
-    real_write = _bits_write._write
-    real_init = _search_run._Own.__init__
-
-    def init(self, pool):
-        real_init(self, pool)
-        if threading.current_thread().name == "backfill":
-            owners.append((self.ended, blocked_in_wait(self.ended, "backfill")))
-
-    def write(tmp, *args, **kwargs):
-        if tmp.parent == other_path:
-            if "0000000000000000" in tmp.name:
-                other_waits.append(blocked_in_wait(done._cond, threading.current_thread().name))
-                independent.set()
-                assert done.wait(10)
-            return real_write(tmp, *args, **kwargs)
-        if "0000000000000000" in tmp.name:
-            assert started.wait(10)
-            assert arrived(waiting[0], condition)
-            tmp.mkdir()
-            raise error_type("failed writer")
-        if "0000000000000005" in tmp.name:
-            waiting.append(blocked_in_wait(condition, threading.current_thread().name))
-            with condition:
-                started.set()
-                assert condition.wait_for(lambda: release, 10)
-        return real_write(tmp, *args, **kwargs)
-
-    monkeypatch.setattr(_search_run._Own, "__init__", init)
-    monkeypatch.setattr(_bits_write, "_write", write)
+    held = HeldWriters(other_path, monkeypatch, error_type)
     with fse.Pool(4) as pool:
         other = Readers(
             {"other": lambda: fse.add_sign_bits(other_path, workers=2, pool=pool)}
         ).start()
-        assert independent.wait(10)
-        assert arrived(other_waits[0], done._cond)
+        assert held.independent.wait(10)
+        assert arrived(held.other_waits[0], held.done._cond)
         readers = Readers(
             {"backfill": lambda: fse.add_sign_bits(path, workers=2, pool=pool)}
         ).start()
         try:
-            assert started.wait(10)
-            cond, event = owners[0]
+            assert held.started.wait(10)
+            cond, event = held.owners[0]
             assert arrived(event, cond)
         finally:
-            with condition:
-                release = True
-                condition.notify_all()
+            held.release_own()
             readers.wait()
         try:
             with pytest.raises(error_type, match="failed writer"):
@@ -176,7 +186,7 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
             assert pool.try_acquire()
             pool.release()
         finally:
-            done.set()
+            held.done.set()
             assert other.join() == {"other": 2}
     monkeypatch.undo()
     assert fse.add_sign_bits(path, workers=1) >= 1
