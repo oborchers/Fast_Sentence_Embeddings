@@ -361,6 +361,7 @@ def test_holder_snapshot_is_nonblocking_and_bounded(locks, tmp_path, kind):
 @pytest.mark.parametrize("roles", [("timing", "heavy"), ("legacy", "heavy")])
 def test_barrier_started_contenders_do_not_overlap(roles):
     import selectors
+    import time
 
     script = CONTENDER.with_name("lock_racer.py")
     children = []
@@ -382,9 +383,12 @@ def test_barrier_started_contenders_do_not_overlap(roles):
             for child in children:
                 selector.register(child.stdout, selectors.EVENT_READ, child)
             winner = None
+            deadline = time.monotonic() + 10
             while winner is None:
-                ready = selector.select(10)
-                assert ready, "neither contender entered payload"
+                remaining = deadline - time.monotonic()
+                assert remaining > 0, "neither contender entered payload before deadline"
+                ready = selector.select(remaining)
+                assert ready, "neither contender entered payload before deadline"
                 for key, _ in ready:
                     child = key.data
                     message = announced(child.stdout, lambda _: True)
