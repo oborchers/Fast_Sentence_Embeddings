@@ -208,7 +208,8 @@ def test_second_admission_retains_head_ticket(locks):
     assert [m["event"] for m in messages] == ["waiting_for_lock", "lock_acquired", "lock_released"]
 
 
-def test_paused_head_is_not_reaped(locks):
+@pytest.mark.usefixtures("locks")
+def test_paused_head_is_not_reaped():
     with contender() as holder:
         event(holder, "lock_acquired")
         with contender() as head:
@@ -256,7 +257,8 @@ def test_peer_appearing_after_claim_releases_own_lock(locks, monkeypatch):
     assert [m["event"] for m in messages] == ["waiting_for_lock", "lock_acquired", "lock_released"]
 
 
-def test_legacy_waiter_preserves_exclusion(locks):
+@pytest.mark.usefixtures("locks")
+def test_legacy_waiter_preserves_exclusion():
     # Use the pre-queue mkdir protocol in another process, sharing only private paths.
     script = """
 import json, sys
