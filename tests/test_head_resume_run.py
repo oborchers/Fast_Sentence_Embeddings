@@ -49,7 +49,7 @@ def test_a_shard_must_name_a_part(tmp_path, shard):
 
 @pytest.mark.parametrize(
     "keywords",
-    [{"shard": (0, 1)}, {"return_vectors": True}, {"doc_ids": [1, 2]}],
+    [{"shard": (0, 1)}, {"doc_ids": [1, 2]}],
 )
 def test_the_resume_keywords_need_a_sink(keywords):
     with pytest.raises(ValueError, match="need a vector_sink or a score_sink made with resume"):

@@ -31,7 +31,7 @@ from fse._store import VectorStore
 from ._outputs import HeadsBatch
 from ._positions_run import Stream, stream_batches
 from ._positions_run import start as start_stream
-from ._run import RUNTIME, check_backend, finish
+from ._run import RUNTIME, check_backend, finish, predict_result
 from ._sink_run import SinkRun, run_batches, start
 
 METHOD = "Heads.predict_batches"
@@ -125,15 +125,19 @@ def infer(
     workers: Any,
     backend: Any,
     settings: LengthSettings | None = None,
+    *,
+    return_vectors: bool = False,
 ) -> Any:
     """The outputs of every head for every text of ``texts``, in head order; with a level
     of ``settings`` the pair of them and the ``LengthReport``."""
     check_group_call(workers, backend, texts)
     outputs = resolve_outputs(rules_of(heads), output)
-    pipeline = heads._pipeline(backend, with_vectors=False)
+    if return_vectors and heads._standalone:
+        raise ValueError("a standalone group has no vectors: its table is folded")
+    pipeline = heads._pipeline(backend, with_vectors=return_vectors)
     collector = None if settings is None else settings.collector(0, _rule(heads))
     with opened(texts, heads._tokenizer) as source:
-        rows, _ = pipeline.infer(
+        rows, vectors = pipeline.infer(
             source,
             outputs=tuple(RUNTIME[o] for o in outputs),
             workers=workers,
@@ -141,7 +145,7 @@ def infer(
             collector=collector,
         )
     found = _outputs(heads, rows, outputs)
-    return found if collector is None else (found, collector.report())
+    return predict_result(found, vectors, return_vectors, collector)
 
 
 def _rule(heads: Any) -> tuple[int | None, int | None]:

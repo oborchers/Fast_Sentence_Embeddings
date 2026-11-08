@@ -146,13 +146,89 @@ class Heads(Mapping):
         lengths: None = None,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
-        return_vectors: bool = False,
+        return_vectors: Literal[False] = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
     ) -> Mapping[str, ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[True],
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[Mapping[str, ndarray], ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: bool = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> Mapping[str, ndarray] | tuple[Mapping[str, ndarray], ndarray]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Literal["summary", "per_row"],
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[False] = False,
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        output: Any = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: Literal["summary", "per_row"],
+        count_truncated: Any = False,
+        on_truncation: Any = "keep",
+        return_vectors: Literal[True],
+        vector_sink: None = None,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: Any = None,
+        pool: Pool | None = None,
+    ) -> tuple[Mapping[str, ndarray], ndarray, LengthReport]: ...
 
     @overload
     def predict(
@@ -171,7 +247,7 @@ class Heads(Mapping):
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[Mapping[str, ndarray], LengthReport]: ...
+    ) -> tuple[Mapping[str, ndarray], LengthReport] | tuple[Mapping[str, ndarray], ndarray, LengthReport]: ...
 
     @overload
     def predict(
@@ -253,17 +329,26 @@ class Heads(Mapping):
         ``vector_sink`` needs; without a ``vector_sink`` the vectors are dropped. A report of
         ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
         source. The outputs are not returned, so the memory of the call does not grow with the
-        rows of the source; ``output`` is checked and changes nothing the stores hold."""
+        rows of the source; ``output`` is checked and changes nothing the stores hold.
+
+        Without sinks, ``return_vectors=True`` returns ``(outputs, vectors)`` or, with
+        ``lengths``, ``(outputs, vectors, fse.LengthReport)``. Otherwise the result is
+        ``outputs`` or ``(outputs, fse.LengthReport)``. Vectors are the encoder's float32
+        rows, bit for bit as in ``predict_batches(return_vectors=True)``. Raw-mean heads
+        then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
+        Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
+        Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
+        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors."""
         threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
-        if _resume_run.wanted(
-            vector_sink, score_sink, doc_ids, shard, return_vectors=return_vectors
-        ):
+        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard):
             return _resume_run.predict_heads(
                 self, texts, output, return_vectors, threads, backend,
                 vector_sink, score_sink, doc_ids, shard, settings,
             )  # fmt: skip
-        return _heads_run.infer(self, texts, output, threads, backend, settings)
+        return _heads_run.infer(
+            self, texts, output, threads, backend, settings, return_vectors=return_vectors
+        )
 
     @validate_arguments
     def predict_batches(

@@ -99,11 +99,9 @@ class _Phase:
 # --- the arguments, checked before a text is read -----------------------------------------
 
 
-def wanted(*given: Any, return_vectors: bool) -> bool:
-    """Whether a call to ``predict`` runs as a resumed run: it gave a sink, ``shard=`` or
-    ``doc_ids=`` (any value but None, so that a wrong one is checked), or
-    ``return_vectors=True``."""
-    return return_vectors or any(value is not None for value in given)
+def wanted(*given: Any) -> bool:
+    """Whether resume sinks or source coordinates were given."""
+    return any(value is not None for value in given)
 
 
 def _members(vector_sink: Any, score_sink: Any) -> list[_Member]:
@@ -111,7 +109,7 @@ def _members(vector_sink: Any, score_sink: Any) -> list[_Member]:
     members = [_Member(role, sink) for role, sink in given if sink is not None]
     if not members:
         raise ValueError(
-            "shard=, doc_ids= and return_vectors= of predict need a vector_sink or a score_sink "
+            "shard= and doc_ids= of predict need a vector_sink or a score_sink "
             "made with resume=True, such as fse.ScoreSink(path, heads, resume=True)"
         )
     for member in members:
