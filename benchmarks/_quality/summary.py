@@ -9,6 +9,7 @@ from pathlib import Path
 from _measurement import sha256
 
 from _quality.languages import MULTILINGUAL, multilingual
+from _quality.rerank_summary import rerank_summary
 
 
 def summarize(folder):
@@ -54,6 +55,7 @@ def summarize(folder):
         "rows": result,
         "artifact_scores": artifact_scores(rows),
         "multilingual": multilingual(folder, rows),
+        "rerank": rerank_summary(rows),
         "note": "No existing README or model-card value is updated by this command. Missing coverage has no mean.",
     }
 

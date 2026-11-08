@@ -1,4 +1,4 @@
-"""Local Unix run of quality cells: class K, never publishable, never a speed value."""
+"""Local Unix run of MTEB and rerank cells: class K, never publishable, never a speed value."""
 
 from __future__ import annotations
 
@@ -24,12 +24,18 @@ def specification(args):
     if len(set(args.cells)) != len(args.cells) or not set(args.cells) <= set(known):
         raise ValueError("unknown or duplicate requested cells")
     spec["cells"] = [known[i] for i in args.cells]
-    if any(c["kind"] not in ("mteb", "probe") or c.get("fit") for c in spec["cells"]):
-        raise ValueError("a local run takes MTEB and probe cells of pinned models without a fit")
+    if any(c["kind"] not in ("mteb", "probe", "rerank") or c.get("fit") for c in spec["cells"]):
+        raise ValueError(
+            "a local run takes MTEB, probe or rerank cells of pinned models without a fit"
+        )
     validate_prerequisites(spec["cells"])
+    from _quality import rerank
     from _quality.suites import expand
 
-    spec["cells"] = expand(spec["cells"])
+    for cell in spec["cells"]:
+        if cell["kind"] == "rerank":
+            rerank.validate(cell, spec.get("first_stages", {}))
+    spec["cells"] = rerank.expand(expand(spec["cells"]))
     if args.local_order == "task":
         # Every model of one task in a row: its data is loaded once. Probes come first.
         first = {}
@@ -148,7 +154,7 @@ def run(args):
     ledger = Ledger(args.results, spec["cells"], environment)
     guard = Guard(args.results, [args.results, args.work, *folders.values()], limits, ledger.abort)
     guard.start()
-    stopped = passes(spec["cells"], args, ledger, guard, environment, (started_at, budget))
+    stopped = passes(spec, args, ledger, guard, environment, (started_at, budget))
     resources = guard.close()
     resources["cache_bytes_after"] = {n: size_of(p) for n, p in folders.items()}
     elapsed = time.monotonic() - started_at
@@ -170,12 +176,14 @@ def size_of(path):
     return size_bytes(path)
 
 
-def passes(cells, args, ledger, guard, environment, clock):
+def passes(spec, args, ledger, guard, environment, clock):
     started_at, budget = clock
+    cells = spec["cells"]
     context = {
         "results": args.results,
         "work": args.work,
         "fits": {},
+        "study": spec,
         "rss_limit_bytes": guard.limits["rss_limit_bytes"],
     }
     stopped, signalled = None, []
@@ -200,12 +208,14 @@ def passes(cells, args, ledger, guard, environment, clock):
 def attempt(cell, row, context):
     """Run one cell into ``row``; the stop reason after a failure, else None. A refused task
     is no failure: it never started."""
+    from _quality import rerank
     from _quality.guard import RefusedError
     from _quality.mteb import evaluate
     from _quality.probe import probe
 
+    actions = {"mteb": evaluate, "probe": probe, "rerank": rerank.evaluate}
     try:
-        row.update((probe if cell["kind"] == "probe" else evaluate)(cell, context))
+        row.update(actions[cell["kind"]](cell, context))
     except RefusedError as error:
         row.update(status="refused", reason=str(error))
     except Exception as error:

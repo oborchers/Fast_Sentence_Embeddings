@@ -1,0 +1,5 @@
+# Additions to quality.in for the rerank cells of rerank-local.json (DR-277), 2026-11-07.
+# The local run uses quality.in with these two packages. On macOS, torch==2.15.0 replaces
+# 2.15.0+cpu so that the reranker can use the Apple GPU (MPS); fse itself never imports them.
+bm25s==0.3.16
+PyStemmer==3.1.0
