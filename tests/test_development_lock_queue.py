@@ -206,3 +206,85 @@ def test_second_admission_retains_head_ticket(locks):
     with locks.coordinated("heavy", "test", "test", notify, admitted=admitted, poll=0.001):
         assert calls == 4
     assert [m["event"] for m in messages] == ["waiting_for_lock", "lock_acquired", "lock_released"]
+
+
+def test_paused_head_is_not_reaped(locks):
+    with contender() as holder:
+        event(holder, "lock_acquired")
+        with contender() as head:
+            event(head, "waiting_for_lock")
+            head.send_signal(signal.SIGSTOP)
+            try:
+                with contender() as later:
+                    assert event(later, "waiting_for_lock")["position"] == 2
+                    later.terminate()
+                    event(later, "stopped")
+                    assert later.wait(timeout=10) == 0
+            finally:
+                head.send_signal(signal.SIGCONT)
+            head.terminate()
+            event(head, "stopped")
+            assert head.wait(timeout=10) == 0
+        finish(holder)
+
+
+def test_peer_appearing_after_claim_releases_own_lock(locks, monkeypatch):
+    bench, heavy = locks.lock_paths()
+    real = locks._claim
+    first = True
+    messages = []
+
+    def claim(path, owner):
+        nonlocal first
+        result = real(path, owner)
+        if first:
+            bench.mkdir()
+            first = False
+        return result
+
+    def notify(message):
+        messages.append(message)
+        if message["event"] == "waiting_for_lock":
+            assert not heavy.exists()
+            assert message["position"] == 1
+            bench.rmdir()
+
+    monkeypatch.setattr(locks, "_claim", claim)
+    with locks.coordinated("heavy", "test", "test", notify, poll=0.001):
+        assert heavy.exists()
+        assert not bench.exists()
+    assert [m["event"] for m in messages] == ["waiting_for_lock", "lock_acquired", "lock_released"]
+
+
+def test_legacy_waiter_preserves_exclusion(locks):
+    # Use the pre-queue mkdir protocol in another process, sharing only private paths.
+    script = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from _development_locks import _claim, _release, lock_paths
+path = lock_paths()[1]
+owner = {"worker": "legacy", "pid": -1, "purpose": "test", "token": "legacy"}
+assert _claim(path, owner)
+print(json.dumps({"event": "legacy_acquired"}), flush=True)
+sys.stdin.buffer.read(1)
+_release(path, owner)
+"""
+    with subprocess.Popen(
+        [sys.executable, "-u", "-c", script, str(BENCHMARKS)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as old:
+        try:
+            event(old, "legacy_acquired")
+            with contender() as new:
+                assert event(new, "waiting_for_lock")["holder"]["worker"] == "legacy"
+                old.stdin.write(b"x")
+                old.stdin.flush()
+                assert old.wait(timeout=10) == 0
+                event(new, "lock_acquired")
+                finish(new)
+        finally:
+            if old.poll() is None:
+                old.kill()
+            old.communicate(timeout=10)
