@@ -21,8 +21,7 @@ def source(request, tmp_path):
         with FileSource(path) as src:
             yield src
     elif request.param == "arrow":
-        import pyarrow as pa
-
+        pa = pytest.importorskip("pyarrow")
         yield ArrowSource(pa.array(rows))
     elif request.param == "encoded":
         yield StringSource.encoded([row.encode() for row in rows])
