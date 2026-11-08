@@ -205,7 +205,7 @@ def exact_sets(
     *,
     one_per_doc: bool = False,
     with_doc_ids: bool = False,
-    workers: int,
+    workers: Any,
 ) -> tuple[list[tuple[ndarray, ndarray, ndarray | None]], int]:
     """The best ``k`` rows (documents) of every query among its own positions
     ``positions[offsets[q]:offsets[q + 1]]`` (already checked against the rows of
@@ -241,7 +241,7 @@ def check_grouping(has_doc_ids: bool, max_per_doc: int | None) -> None:
     _selection.plan(has_doc_ids, None, None, max_per_doc, 0)
 
 
-def log(queries: int, k: int, pairs: int, read_rows: int, workers: int, grouped: bool) -> None:
+def log(queries: int, k: int, pairs: int, read_rows: int, workers: Any, grouped: bool) -> None:
     fields: dict[str, Any] = {"max_per_doc": 1} if grouped else {}
     _log.emit(
         "store.rescore",
@@ -252,6 +252,6 @@ def log(queries: int, k: int, pairs: int, read_rows: int, workers: int, grouped:
         k=k,
         pairs=pairs,
         read_rows=read_rows,
-        workers=workers,
+        workers=_search.count(workers),
         **fields,
     )

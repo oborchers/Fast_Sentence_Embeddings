@@ -43,7 +43,7 @@ def search(
     values: np.ndarray,
     kind: str,
     *,
-    workers: int,
+    workers: Any,
     exact: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
     _search.check_queries(backend, queries)
@@ -78,7 +78,7 @@ def search(
         k=k,
         mode="exact" if exact else "blas",
         rows=count[0],
-        workers=workers,
+        workers=_search.count(workers),
     )
     return candidates.result(min(k, count[0]))
 

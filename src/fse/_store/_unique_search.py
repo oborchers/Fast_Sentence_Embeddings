@@ -54,7 +54,7 @@ def search(
     values: Any,
     kind: str,
     *,
-    workers: int,
+    workers: Any,
     exact: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """The rows (int64), scores (float32) and document IDs (int64) of the ``k`` best
@@ -93,7 +93,7 @@ def search(
         k=k,
         mode="exact" if exact else "blas",
         rows=count[0],
-        workers=workers,
+        workers=_search.count(workers),
         max_per_doc=1,
     )
     return candidates.result()

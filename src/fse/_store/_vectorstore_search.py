@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fse._cpus import usable_cpus
+from fse._runtime import Pool, workers_of
 
 from . import _filtered, _prefilter, _rescore, _search, _selection, _unique_search
 from ._recovery import rows_in
@@ -32,14 +32,15 @@ def search_store(
     doc_ids: Any,
     rows: Any,
     max_per_doc: int | None,
+    pool: Pool | None = None,
 ) -> SearchResult:
+    threads = workers_of(workers, pool)  # before anything is read
     store._check_open()
     matrix, single = _search.queries(store._backend, store.dim, queries, "queries")
     with store._using() as shards:
         values, kind = _selection.plan(
             store._info.has_doc_ids, doc_ids, rows, max_per_doc, rows_in(shards)
         )
-        workers = workers or usable_cpus()
         exact = _search.is_exact(mode, len(matrix))
         if max_per_doc is not None:
             found = _unique_search.search(
@@ -49,7 +50,7 @@ def search_store(
                 k,
                 values,
                 kind,
-                workers=workers,
+                workers=threads,
                 exact=exact,
             )
             ids, scores, labels = (a[0] if single else a for a in found)
@@ -61,7 +62,7 @@ def search_store(
             k,
             values,
             kind,
-            workers=workers,
+            workers=threads,
             exact=exact,
             grouped=False,
         )
@@ -69,7 +70,7 @@ def search_store(
             ids, scores = fast
         elif values is None:
             ids, scores = _search.search(
-                store._backend, shards, matrix, k, workers=workers, exact=exact
+                store._backend, shards, matrix, k, workers=threads, exact=exact
             )
         else:
             ids, scores = _filtered.search(
@@ -79,7 +80,7 @@ def search_store(
                 k,
                 values,
                 kind,
-                workers=workers,
+                workers=threads,
                 exact=exact,
             )
         if single:
@@ -97,7 +98,9 @@ def rescore_store(
     *,
     workers: int | None,
     max_per_doc: int | None,
+    pool: Pool | None = None,
 ) -> SearchResult:
+    threads = workers_of(workers, pool)  # before anything is read
     store._check_open()
     matrix, single = _search.queries(store._backend, store.dim, queries, "queries")
     array = _rescore.candidates(candidates, len(matrix), single)
@@ -105,7 +108,6 @@ def rescore_store(
     with store._using() as shards:
         _rescore.check_values(array, rows_in(shards))
         positions, offsets = _rescore.csr(array)
-        workers = workers or usable_cpus()
         found, read = _rescore.exact_sets(
             store._backend,
             shards,
@@ -115,9 +117,9 @@ def rescore_store(
             k,
             one_per_doc=max_per_doc is not None,
             with_doc_ids=store._info.has_doc_ids,
-            workers=workers,
+            workers=threads,
         )
-    _rescore.log(len(matrix), k, read, read, workers, max_per_doc is not None)
+    _rescore.log(len(matrix), k, read, read, threads, max_per_doc is not None)
     if single:
         ids, scores, labels = found[0]
     else:

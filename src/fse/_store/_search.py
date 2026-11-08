@@ -32,10 +32,7 @@ to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 
 from __future__ import annotations
 
-import itertools
-from collections import deque
-from collections.abc import Iterable, Iterator, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import numpy as np
@@ -43,6 +40,9 @@ from numpy import ndarray
 
 from fse import _log, _reference
 from fse._contract import Normalize
+
+from ._search_run import count
+from ._search_run import run as _run
 
 F32 = np.float32
 _TASK_SCORES = 1 << 20  # scores of one task: rows times queries
@@ -241,7 +241,7 @@ def search(
     queries: ndarray,
     k: int,
     *,
-    workers: int,
+    workers: Any,
     exact: bool,
 ) -> tuple[ndarray, ndarray]:
     """The ids (int64) and scores (float32) of the ``k`` best rows for every query, each
@@ -254,12 +254,12 @@ def search(
         k,
         "exact" if exact else "blas",
         sum(shard.rows for shard, _ in shards),
-        workers,
+        count(workers),
         queries=len(queries),
         k=k,
         mode="exact" if exact else "blas",
         rows=sum(shard.rows for shard, _ in shards),
-        workers=workers,
+        workers=count(workers),
     )
     # The tolerance mode normalizes in numpy: its results are not bit-defined anyway.
     normalized = None if exact else _reference.postprocess(queries, [Normalize()])
@@ -284,7 +284,7 @@ def score(
     weights: ndarray,
     bias: Any,
     *,
-    workers: int,
+    workers: Any,
     exact: bool,
 ) -> ndarray:
     """The linear score of every stored row with every weight vector, (rows, vectors)."""
@@ -310,7 +310,7 @@ def score_blocks(
     weights: ndarray,
     bias: Any,
     *,
-    workers: int,
+    workers: Any,
     then: Any = None,
 ) -> Iterator[tuple[int, Any]]:
     """The linear scores of the stored rows with every weight vector by the contract, block
@@ -353,25 +353,6 @@ def _tasks(shards: Sequence[tuple[Any, dict]], n_queries: int, decode: int) -> I
     for block in blocks(shards, n_queries, decode):
         for qb in query_slices:
             yield block, qb
-
-
-def _run(fn, tasks: Iterable[Any], workers: int, name: str) -> Iterator[Any]:
-    """The results of ``fn`` on every task, in task order: in this thread, or in a pool
-    with at most two tasks per worker in flight, so finished results stay bounded and a
-    task starts with the floors merged so far."""
-    tasks = iter(tasks)
-    head = list(itertools.islice(tasks, 2))
-    if workers == 1 or len(head) < 2:
-        yield from map(fn, itertools.chain(head, tasks))
-        return
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=name) as pool:
-        pending: deque = deque()
-        for task in itertools.chain(head, tasks):
-            pending.append(pool.submit(fn, task))
-            if len(pending) >= 2 * workers:
-                yield pending.popleft().result()
-        while pending:
-            yield pending.popleft().result()
 
 
 def _biases(backend: Any, bias: Any, n: int) -> ndarray:

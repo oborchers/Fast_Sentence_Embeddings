@@ -24,7 +24,6 @@ from numpy import ndarray
 
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._contract import Link
-from fse._cpus import usable_cpus
 from fse._encoder._batches import (
     _named,
     batch_size,
@@ -35,7 +34,7 @@ from fse._encoder._batches import (
 )
 from fse._encoder._doc_ids import own_id_sink, refuse_score_sink
 from fse._encoder._sources import opened
-from fse._runtime import LengthSettings, check_workers, rule_of, streaming
+from fse._runtime import LengthSettings, check_workers, rule_of, streaming, workers_of
 from fse._store import ShardSink, VectorStore
 from fse._store._search import score_blocks
 
@@ -308,7 +307,7 @@ def _store_blocks(
             now if shards is None else shards,
             head.weight,
             head.bias,
-            workers=check_workers(workers) or usable_cpus(),
+            workers=workers_of(workers),  # with the pool of the call, if it has one
             then=outputs,
         )
 
