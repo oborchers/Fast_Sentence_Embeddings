@@ -7,7 +7,7 @@ import pytest
 
 import fse
 from fse._runtime import _pipeline
-from fse._text import _scan
+from fse._text import ArrowSource, _scan
 from support.concurrent import Readers, exact
 from support.encoder import finished
 from support.pool import make_head, no_fse_threads_left  # noqa: F401
@@ -29,7 +29,8 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
     head = make_head(encoder)
     calls, names = [], []
     real_run = _pipeline.run
-    real_scan = _scan._Buffered._scanner
+    scan_class = ArrowSource if call == "batches" else _scan._Buffered
+    real_scan = scan_class._scanner
 
     def run(*args, **kwargs):
         calls.append(kwargs.get("pool"))
@@ -54,11 +55,14 @@ def test_public_paths_pass_pool_to_scan(tmp_path, monkeypatch, call):
             return head.predict_proba(path, workers=3, pool=pool)
         if call == "heads":
             return fse.Heads(a=head).predict(path, workers=3, pool=pool)
-        return [batch.rows for batch in encoder.encode_batches([path], workers=3, pool=pool)]
+        import pyarrow as pa
+
+        batch = pa.array([TEXT] * 5000)
+        return [batch.rows for batch in encoder.encode_batches([batch], workers=3, pool=pool)]
 
     wanted = exact(invoke(None))
     monkeypatch.setattr(_pipeline, "run", run)
-    monkeypatch.setattr(_scan._Buffered, "_scanner", scanner)
+    monkeypatch.setattr(scan_class, "_scanner", scanner)
     monkeypatch.setattr(_scan, "ThreadPoolExecutor", no_executor)
     with fse.Pool(3, max_tasks=1) as pool:
         assert exact(invoke(pool)) == wanted
