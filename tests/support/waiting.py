@@ -28,3 +28,29 @@ def arrived(reached: threading.Event, condition: threading.Condition, timeout: f
         return False
     condition.release()
     return True
+
+
+def announced(stream, predicate, timeout=10):
+    """Read unbuffered JSON lines until a process announces the required state."""
+    import json
+    import os
+    import selectors
+    import time
+
+    deadline = time.monotonic() + timeout
+    data = bytearray()
+    with selectors.DefaultSelector() as selector:
+        selector.register(stream, selectors.EVENT_READ)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not selector.select(remaining):
+                raise AssertionError(f"process did not announce state; partial output: {data!r}")
+            chunk = os.read(stream.fileno(), 1)
+            if not chunk:
+                raise AssertionError(f"process reached EOF before announcement: {data!r}")
+            data.extend(chunk)
+            if chunk == b"\n":
+                event = json.loads(data)
+                if predicate(event):
+                    return event
+                data.clear()

@@ -26,7 +26,7 @@ Use uv and the Makefile; CI calls the same targets.
 
 For measurement planning, rehearsal and audits, use the shared [fse-benchmark skill](.agents/skills/fse-benchmark/SKILL.md). Claude Code discovers the same source through `.claude/skills/fse-benchmark`.
 
-Use the two central measurement entries, `benchmarks/quality.py` and `benchmarks/speed.py`, and follow [the measurement guide](docs/benchmarks/measurement.md). Studies, source pins and dependency locks live in `benchmarks/config/`. Add a data cell or native adapter instead of another runner. Do not add tests for measurement scripts. Existing 1.1.0 numerical and quality baselines stay in `benchmarks/baseline/`.
+Use the two central measurement entries, `benchmarks/quality.py` and `benchmarks/speed.py`, and follow [the measurement guide](docs/benchmarks/measurement.md). Studies, source pins and dependency locks live in `benchmarks/config/`. Add a data cell or native adapter instead of another runner. Do not add tests for measurement scripts, except for the cross-process coordination of the shared locks (`bench.lock`, `heavy.lock`). Existing 1.1.0 numerical and quality baselines stay in `benchmarks/baseline/`.
 
 Before an experiment, declare its question, claim class, resulting decision, workload, relevant effect boundary, total wall-time budget, estimated cost and stop rule. Choose the least costly protocol that can support that claim:
 
