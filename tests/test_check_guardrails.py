@@ -168,6 +168,24 @@ def test_only_the_log_module_imports_logging(tool, tmp_path):
     ]
 
 
+def test_an_isolated_package_imports_only_the_standard_library_and_itself(tool, tmp_path):
+    cfg = _fse_tree(
+        tmp_path,
+        {
+            "benchmarks/_harness/_a.py": "import json\nfrom _harness import _b\nfrom . import _b\n",
+            "benchmarks/_harness/_b.py": "import numpy\nfrom _measurement import atomic\n",
+            "benchmarks/_harness/_c.py": "from importlib import metadata\nimport _harness.x\n",
+            "benchmarks/_other.py": "import numpy\n",
+        },
+    )
+    cfg["isolated-packages"] = ["benchmarks/_harness"]
+    errors = tool["IMPORTS"]["import_errors"](tmp_path, cfg)
+    assert sorted(errors) == [
+        "benchmarks/_harness/_b.py imports _measurement; benchmarks/_harness is isolated",
+        "benchmarks/_harness/_b.py imports numpy; benchmarks/_harness is isolated",
+    ]
+
+
 def test_every_module_needs_a_test_file(tool, tmp_path):
     cfg = _fse_tree(
         tmp_path,

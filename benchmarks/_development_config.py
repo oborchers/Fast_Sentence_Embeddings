@@ -12,7 +12,7 @@ from _development_identity import validate as validate_identity
 from _development_lengths import CORPORA
 from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
-from _measurement import document
+from _harness.records import document
 from _measurement_config import CONFIG, MODEL_PINS
 
 STAGES = (

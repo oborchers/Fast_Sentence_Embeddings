@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from _development_budget import check
+from _harness.budget import check
 
 from _quality import prefilter as bound
 

@@ -13,7 +13,7 @@ from _development_process import launch
 from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
-from _measurement import append
+from _harness.records import append
 from _quality.prefilter_inputs import corpus_names
 
 

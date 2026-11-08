@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from _development_budget import check
 from _development_encode import output_identity
 from _development_search import enabled as search_cost
 from _development_search_reference import check as check_search
 from _development_search_reference import complete
 from _development_store import StoreOperation
+from _harness.budget import check
 
 
 def probe_store(model, texts, job, verify_payload):

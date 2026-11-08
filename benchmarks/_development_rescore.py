@@ -17,7 +17,7 @@ import tracemalloc
 from pathlib import Path
 
 import numpy as np
-from _development_budget import check
+from _harness.budget import check
 
 PROFILE = "rescore-cost@1"
 STAGE = "store-rescore"
@@ -180,6 +180,6 @@ def cost_job(job):
 
 
 def _keep(job, row):
-    from _measurement import append
+    from _harness.records import append
 
     append(Path(job["receipt"]).with_suffix(".partial.jsonl"), row)

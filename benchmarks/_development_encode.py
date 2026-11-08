@@ -153,7 +153,7 @@ def _store_identity(folder, doc_ids, id_chunks, metrics_path):
 
 
 def _store_bytes(folder, mode, rows, metrics_path):
-    from _measurement import append
+    from _harness.records import append
 
     files = [path for path in folder.rglob("*") if path.is_file()]
     append(

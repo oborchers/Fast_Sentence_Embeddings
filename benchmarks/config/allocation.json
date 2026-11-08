@@ -1,0 +1,160 @@
+{
+  "speed": {
+    "format": "allocation@1",
+    "machine_check": {
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
+      "required_flags": [
+        "avx2",
+        "fma",
+        "f16c"
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 4294967296
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "environments": [
+      {
+        "name": "main",
+        "role": "candidate",
+        "lock": "speed-main.lock.txt",
+        "revision": "pins"
+      },
+      {
+        "name": "reference",
+        "role": "reference",
+        "lock": "speed-reference.lock.txt",
+        "revision": null
+      }
+    ],
+    "steps": [
+      {
+        "name": "speed",
+        "environment": "main",
+        "estimate_seconds": 60,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "{mode}",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--reference-python",
+          "{python_reference}",
+          "--study",
+          "{study}"
+        ]
+      }
+    ],
+    "toolchains": [
+      "rust"
+    ]
+  },
+  "quality": {
+    "format": "allocation@1",
+    "machine_check": {
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
+      "required_flags": [
+        "avx2",
+        "fma",
+        "f16c"
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 4294967296
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "environments": [
+      {
+        "name": "main",
+        "role": "candidate",
+        "lock": "quality.lock.txt",
+        "revision": "pins"
+      }
+    ],
+    "steps": [
+      {
+        "name": "quality",
+        "environment": "main",
+        "estimate_seconds": 60,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/quality.py",
+          "{mode}",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}"
+        ]
+      }
+    ],
+    "toolchains": []
+  }
+}

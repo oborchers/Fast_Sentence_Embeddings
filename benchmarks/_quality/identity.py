@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from _measurement import sha256
+from _harness.records import sha256
 from _measurement_config import MODEL_PINS
 
 UNKNOWN, OVERLAP, ZERO_SHOT = "unknown", "training_overlap", "zero_shot"

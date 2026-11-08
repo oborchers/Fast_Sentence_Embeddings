@@ -13,12 +13,14 @@ A new study adds data. A new Python library adds a native factory and a registry
 
 `benchmarks/config/pins.json` holds source revisions, model revisions, the corpus revision and the Linux image digest. The same directory holds dependency locks, study definitions and one bootstrap template. Review a changed pin as a new configuration. Never silently resolve `main` in place of a recorded revision.
 
-Both entries write:
+Every kind of result writes the same four files through the lifecycle core `benchmarks/_harness/` (published studies, local development runs and the local quality run alike):
 
 - `cells.jsonl`: one terminal record per requested cell, immediately flushed and synchronized.
-- `progress.json`: current stage, cell, counts and estimated remaining time.
+- `progress.json`: current stage, cell, counts and remaining time (the local quality run writes it too, with its wall-time budget).
 - `manifest.json`: every result member's relative path, size and SHA256.
 - `DONE`: exit status and the manifest SHA256. Its presence means finished, including failure.
+
+The core owns the durable record writer, manifest and DONE, `--collect`, the machine check, the time and money budget and the steps of an allocation. It imports only the standard library and itself; `tools/guardrails_imports.py` enforces that (`isolated-packages` in `pyproject.toml`), so the bootstrap script can run it on a bare interpreter. The entries and the local runs use it directly; no older path is left beside it.
 
 Additional files retain per-round operations, correctness checks, input identities, fitted state and diagnostic telemetry. Models and full output matrices belong in the external work directory, never in Git or its evidence branch. No single Git file may exceed 10 MB without the coordinator's approval. Before every push inspect `git diff --stat` and new file sizes.
 
@@ -474,7 +476,29 @@ python benchmarks/quality.py --bootstrap --source-revision FULL_COMMIT_SHA > /ex
 
 The lifecycle owner uses `/bin/bash` as entrypoint with the generated script. Enable SSH injection and `22/tcp` when remote collection needs SSH. `PUBLIC_KEY` is read directly by the script. Set `MEASURE_ALLOCATED_AT`. Optional `MEASURE_INPUT` selects another reviewed study file. `MEASURE_STUDY` selects `libraries`, `dtypes`, `headline` or `all` for speed. No provider API is called by either entry.
 
-The bootstrap starts SSH before setup, claims one persistent start marker and preserves existing results on restart. The default result/work/environment paths are `/speed-results`, `/speed-work`, `/speed-env` or their `quality` equivalents. Cache paths are outside the checkout. Never copy a credential into a study or result file.
+The bootstrap starts SSH before setup, claims one persistent start marker and preserves existing results on restart. It then runs the allocation lifecycle (see "Allocation lifecycle" below). The default result/work/environment paths are `/speed-results`, `/speed-work`, `/speed-env` or their `quality` equivalents. Cache paths are outside the checkout. Never copy a credential into a study or result file.
+
+## Allocation lifecycle
+
+`benchmarks/config/allocation.json` (`allocation@1`, one section per entry) declares what one rented machine must be, which environments to install and the steps to run:
+
+- `machine_check`: what the machine must be. Fields: `cpu_model` (exact), `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_hard_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
+- `environments`: `base`, `candidate` and `reference` environments, each with its own lock and a product revision (`"pins"` for the revision of `pins.json`, a full commit, or none). The candidate's source is `fse-source`; any other role gets `fse-source-<name>`.
+- `steps`: ordered; each names an environment, a command with `{field}` placeholders (`{python}`, `{results}`, `{work}`, `{allocated_at}`, `{source}`, `{python_<environment>}` and `--param` values) and an `estimate_seconds`.
+
+The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _harness.allocation`, from `benchmarks/`).
+
+1. `begin` checks the machine before anything is installed. A deviation starts no step: every step folder and the allocation record are sealed with exit status 1 and the deviations as the reason, and the bootstrap stops.
+2. `run` takes each step in order. Before every step the shared budget (`Budget`, counted from `--allocated-at`, the smaller of planned minutes and planned balance, with the collection reserve) must admit its estimate. A step that does not fit, or that follows a stop signal, is sealed as `not_started`.
+3. Each step has its own result folder `<step>-results`, its own `DONE`, its own PID (`<step>-logs/measurement.pid`) and its own restart guard (`step-state/<step>`, claimed once; a second start is refused with status 77). The bootstrap keeps its allocation-level guard beside it.
+4. A failed step does not hide the next one: step 2 runs after step 1 fails, and the allocation ends with status 1. SIGTERM goes to the running step and stops every later step.
+5. The record `allocation-results/` holds `allocation.json`, `machine-check.json`, `steps.jsonl` and its own manifest and `DONE`.
+
+`speed.py --collect ALLOCATION_ROOT --archive DIR` verifies and archives the record and every step folder; a single result folder (published, local development or local quality) takes `--collect FOLDER --archive FILE.tar.gz` as before.
+
+The core holds no limit. The values live in the data of the allocation. Those of the published studies come from the 2.0 evidence (`sentence-speed-2026-11`, `environment.json`: `AMD EPYC 9575F 64-Core Processor`, 32 allowed CPUs, `memory.max` 128000000000), the kernel contract (`avx2`, `fma`, `f16c`) and the Linux plan (free disk at least 120 GB on pod 1, hard `nofile` at least 524288). Not evidenced yet, and marked as placeholders for the maintainer: `shm_bytes` (1 GiB, the rehearsal rule; the 2.0 archive does not record `/dev/shm`) and `cpu_quota_cpus` (at least 32; the 2.0 run did not record `cpu.max`).
+
+`python -m _harness.controls --out DIR` (from `benchmarks/`) runs the lifecycle controls without any environment: normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1, SIGTERM and budget end of an allocation. Every rehearsal runs them too (below).
 
 ## Rehearse before allocation
 
@@ -489,7 +513,7 @@ Use the exact image digest from `pins.json`, Linux amd64, at most two CPU quota 
   --allocated-at "$MEASURE_ALLOCATED_AT"
 ```
 
-The speed rehearsal runs all configured pairs, dtype controls and writing with reduced sizes. The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler and budget gate. The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
+The speed rehearsal runs all configured pairs, dtype controls and writing with reduced sizes. The quality rehearsal exercises deterministic tiny SIF calculations, the real FineWeb sampling algorithm on eight local fixture shards, historical STS evaluation, neighbor recall and an entire small MTEB task. Functional records are labelled and excluded from publication summaries. Control proofs are written inside `controls/` in the result directory, before its final manifest and DONE. A failed control produces a nonzero outer completion. They exercise the real result writer, signal handler, budget gate and allocation runner (normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1). The bootstrap restart proof executes the actual restart guard with only its setup leaf disabled. Keep this scope distinct from a full container restart, which the lifecycle owner should also check before a fresh launch.
 
 Do not add repository tests for these measurement tools. Run the functional modes and the ordinary repository gates. These tools do not change the fse hot path, so no local performance result is required for moving them.
 
@@ -542,7 +566,7 @@ python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
   --results /external/quality-01 --work /external/quality-work-01
 ```
 
-The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class correctness, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder is read in place and is not an archive for `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: correctness` of the rows (rows written before DR-294 (Messklassen mit lesbaren Namen statt Einzelbuchstaben benennen) keep their former one-letter value, which the summary groups as the same class). The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart. Numbers of a local run never go into the README or a model card; those come from the Linux protocol above. The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
+The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class correctness, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder has the same `manifest.json`, `progress.json` and `DONE` as every other result and is collectable with `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: correctness` of the rows (rows written before DR-294 (Messklassen mit lesbaren Namen statt Einzelbuchstaben benennen) keep their former one-letter value, which the summary groups as the same class). The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart. Numbers of a local run never go into the README or a model card; those come from the Linux protocol above. The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
 
 ### Multilingual quality (class correctness)
 
@@ -601,7 +625,7 @@ The original audit is preserved inside [the source-evidence bundle at `608cf02a`
 
 ## Monitor, collect and retain
 
-Monitor `progress.json`, `cells.jsonl` and `DONE` at the agreed interval. SIGTERM prevents new cells after the current safe boundary. A failed cell remains failed. No automatic retry relaxes a requirement. A missing or nonzero completion is never success.
+Monitor `progress.json`, `cells.jsonl` and `DONE` of each step at the agreed interval. SIGTERM prevents new cells after the current safe boundary. A failed cell remains failed. No automatic retry relaxes a requirement. A missing or nonzero completion is never success.
 
 After read-only transfer, verify and bundle locally:
 

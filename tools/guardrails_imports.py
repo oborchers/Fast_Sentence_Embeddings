@@ -7,12 +7,16 @@ Guardrails), for tools/check_guardrails.py, which loads this file beside it:
 - that only ``hash-importers`` import a hash library (``hash-modules``) and only
   ``log-importers`` the logging modules (``log-modules``: logging, warnings), in Python
   and Cython sources;
+- that every module of an ``isolated-packages`` folder (the lifecycle core of the
+  measurement tools) imports only the standard library and its own package, so that it runs
+  on a bare interpreter.
 """
 
 from __future__ import annotations
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 # On code without strings, comments and line continuations: an import statement may
@@ -156,9 +160,36 @@ def exclusive_import_errors(root: Path, cfg: dict, kind: str) -> list[str]:
     return errors
 
 
+def _outside_imports(tree: ast.AST, package: str) -> set[str]:
+    """The top-level modules a module imports that are neither standard library nor the
+    package itself; a relative import stays inside the package."""
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            found.add((node.module or "").split(".")[0])
+    return found - set(sys.stdlib_module_names) - {package}
+
+
+def isolated_package_errors(root: Path, cfg: dict) -> list[str]:
+    """Modules of an isolated package that import something besides the standard library
+    and the package itself."""
+    errors = []
+    for folder in cfg.get("isolated-packages", []):
+        for path in sorted((root / folder).rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for name in sorted(_outside_imports(tree, Path(folder).name)):
+                errors.append(
+                    f"{path.relative_to(root).as_posix()} imports {name}; {folder} is isolated"
+                )
+    return errors
+
+
 def import_errors(root: Path, cfg: dict) -> list[str]:
     """Every error of the import rules of this module."""
     return [
+        *isolated_package_errors(root, cfg),
         *native_import_errors(root, cfg),
         *exclusive_import_errors(root, cfg, "hash"),
         *exclusive_import_errors(root, cfg, "log"),

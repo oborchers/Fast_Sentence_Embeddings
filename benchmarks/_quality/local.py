@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import signal
 import threading
@@ -10,7 +9,8 @@ import time
 from pathlib import Path
 
 from _development_system import LABEL, machine, observations, require_unix
-from _measurement import append, atomic, sha256
+from _harness.ledger import beating
+from _harness.records import append, atomic, exit_code, read_rows, seal, sha256
 from _measurement_config import contract, validate_prerequisites
 
 GIB = 1024**3
@@ -63,22 +63,48 @@ def budget_of(args, started_unix):
     return budget
 
 
-class Ledger:
-    """The rows of one local run. An emergency abort from the guard thread writes the
-    active task as aborted and the rest as not started, then ends the process, also when
-    writing fails."""
+LABEL_K = {**LABEL, "class": "correctness"}
 
-    def __init__(self, results, cells, environment):
+
+class Ledger:
+    """The rows and the progress of one local run. An emergency abort from the guard thread
+    writes the active task as aborted and the rest as not started, then ends the process,
+    also when writing fails."""
+
+    def __init__(self, results, cells, environment, budget=None, started=None):
         self.results, self.cells, self.environment = results, cells, environment
-        self.lock = threading.Lock()
+        self.lock, self.progress_lock = threading.Lock(), threading.Lock()
         self.written = 0
         self.active = None
+        self.started, self.budget = started or time.monotonic(), budget
+        self.closed = False
+
+    def progress(self, terminal=False):
+        """progress.json, like every other result kind (the heartbeat calls it too)."""
+        elapsed = time.monotonic() - self.started
+        fields = {
+            "stage": "collection" if terminal else "tasks",
+            "cell": "DONE" if terminal else (self.active or {}).get("cell_id"),
+            "finished": self.written,
+            "planned": len(self.cells),
+            "elapsed_seconds": elapsed,
+            "wall_time_budget_seconds": self.budget,
+            "wall_time_remaining_seconds": None
+            if self.budget is None
+            else max(0.0, self.budget - elapsed),
+        }
+        with self.progress_lock:  # the heartbeat and an emergency abort never write at once
+            if self.closed:  # the terminal progress is written; the manifest hashes it
+                return
+            self.closed = terminal
+            atomic(self.results / "progress.json", {**LABEL_K, **fields})
 
     def write(self, row):
         with self.lock:
             append(self.results / "cells.jsonl", row)
             self.written += 1
             self.active = None
+        self.progress()
 
     def abort(self, reason):
         with self.lock:
@@ -99,6 +125,8 @@ class Ledger:
                 self.results / "cells.jsonl",
                 {**base(cell, self.environment), "status": "not_started", "reason": reason},
             )
+            self.written += 1
+        self.progress(terminal=True)
         finish_files(self.results, len(self.cells), {"emergency_abort": reason})
 
 
@@ -106,8 +134,7 @@ def base(cell, environment=None):
     # The local labels come last: no field of a cell can claim to be publishable.
     return {
         **cell,
-        **LABEL,
-        "class": "correctness",
+        **LABEL_K,
         "cell_id": cell["id"],
         "machine_environment_sha256": environment,
     }
@@ -136,8 +163,7 @@ def run(args):
     atomic(
         args.results / "environment.json",
         {
-            **LABEL,
-            "class": "correctness",
+            **LABEL_K,
             "contract": spec,
             "budget_seconds": budget,
             "order": args.local_order,
@@ -151,13 +177,15 @@ def run(args):
     )
     atomic(args.results / "exclusions.json", {"MindSmallReranking": MIND_REASON})
     environment = sha256(args.results / "environment.json")
-    ledger = Ledger(args.results, spec["cells"], environment)
+    ledger = Ledger(args.results, spec["cells"], environment, budget, started_at)
     guard = Guard(args.results, [args.results, args.work, *folders.values()], limits, ledger.abort)
     guard.start()
-    stopped = passes(spec, args, ledger, guard, environment, (started_at, budget))
+    with beating(ledger.progress):
+        stopped = passes(spec, args, ledger, guard, environment, (started_at, budget))
     resources = guard.close()
     resources["cache_bytes_after"] = {n: size_of(p) for n, p in folders.items()}
     elapsed = time.monotonic() - started_at
+    ledger.progress(terminal=True)
     return finish_files(
         args.results,
         len(spec["cells"]),
@@ -235,19 +263,8 @@ def reason_to_stop(signalled, guard, elapsed, budget):
 
 
 def finish_files(results: Path, planned: int, extra) -> int:
-    rows = [json.loads(line) for line in (results / "cells.jsonl").read_text().splitlines()]
-    code = int(len(rows) != planned or any(r["status"] != "valid" for r in rows))
-    if "emergency_abort" in extra:
-        code = 3
-    atomic(
-        results / "DONE",
-        {
-            **LABEL,
-            "class": "correctness",
-            "exit_status": code,
-            "cells": len(rows),
-            "planned": planned,
-            **extra,
-        },
-    )
+    """Seal the folder like every result kind: manifest.json over the files, DONE over it."""
+    rows = read_rows(results)
+    code = 3 if "emergency_abort" in extra else exit_code(rows, planned, results)
+    seal(results, code, len(rows), LABEL_K, {"planned": planned, **extra})
     return code

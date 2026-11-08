@@ -10,9 +10,11 @@ import sys
 import time
 from pathlib import Path
 
-from _development_budget import WallBudgetExpiredError, check, check_args
+from _development_budget import check_args
 from _development_system import LABEL, configure_child, require_unix
-from _measurement import atomic, document, package_identity, sha256
+from _harness.budget import WallBudgetExpiredError, check
+from _harness.records import atomic, document, sha256
+from _measurement import package_identity
 
 ENTRY = Path(__file__).with_name("speed.py").resolve()
 
