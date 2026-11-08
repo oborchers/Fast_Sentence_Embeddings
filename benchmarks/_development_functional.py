@@ -17,7 +17,7 @@ from _development_budget import stopped
 from _development_identity import STAGE
 from _development_locks import coordinated
 from _development_process import checked, launch
-from _development_system import LABEL, mark_functional
+from _development_system import LABEL
 from _harness import functional
 from _harness.records import append, atomic, document, sha256
 from _quality.prefilter_inputs import corpus_names, search_enabled
@@ -152,8 +152,6 @@ def _reduce(args, ledger, job):
 def stage(args, ledger, cells, prepared, planner, reducible=True):
     """Write the production plan; under ``--functional`` reduce the input, write the plan of the
     run and return the inputs the run uses. Without it the inputs come back unchanged."""
-    if args.functional:
-        mark_functional()
     production = {
         **LABEL,
         "kind": "production",

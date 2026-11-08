@@ -12,9 +12,9 @@ from __future__ import annotations
 import json
 import logging
 
+from _development_prefilter_search import POOL
 from _quality.prefilter_inputs import search_enabled
 
-MAX_CALLS = 64  # the untimed calls of one arm; a group never reaches more query blocks
 EVENT = "store.prefilter"
 FIELDS = ("queries", "k", "rows", "pairs", "fallback", "workers")
 
@@ -45,7 +45,7 @@ def observe(operation, job):
     level = logger.level
     logger.setLevel(logging.DEBUG)
     logger.addHandler(capture)
-    calls = max(1, min(job["iterations"], MAX_CALLS))
+    calls = max(1, min(job["iterations"], POOL // job["queries"]))  # the blocks a group reaches
     try:
         operation.restart()
         for capture.call in range(calls):  # the calls of one group, block after block

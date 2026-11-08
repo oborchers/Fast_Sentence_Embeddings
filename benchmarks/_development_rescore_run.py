@@ -9,7 +9,7 @@ from _development_locks import coordinated
 from _development_process import launch
 from _development_records import record_result, session
 from _development_rescore import PROFILE, STAGE
-from _development_system import mark_functional, observations
+from _development_system import LABEL, observations
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
@@ -52,8 +52,6 @@ def _measure(args, cell, ledger):
 
 def run_cells(args, spec):
     cells = spec["cells"]
-    if args.functional:
-        mark_functional()
     with session(args, spec) as ledger:
         for cell in cells:
             ledger.current, ledger.stage = cell["id"], "rescore_cost"
@@ -75,10 +73,14 @@ def run_cells(args, spec):
                 record_result(ledger, cell, started, status="failed", reason=repr(error))
                 break
             for row in receipt["records"]:
-                append(args.results / "rescore.jsonl", {"cell_id": cell["id"], **row})
+                append(args.results / "rescore.jsonl", {"cell_id": cell["id"], **LABEL, **row})
             atomic(
                 args.results / "profile.json",
-                {"profile": receipt["profile"], "peak_rss_bytes": receipt["peak_rss_bytes"]},
+                {
+                    **LABEL,
+                    "profile": receipt["profile"],
+                    "peak_rss_bytes": receipt["peak_rss_bytes"],
+                },
             )
             record_result(
                 ledger,

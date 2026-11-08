@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from _development_budget import minimum_measured_seconds
-from _development_system import LABEL, machine, observations, source_identity
+from _development_system import LABEL, machine, mark_functional, observations, source_identity
 from _harness.budget import WallBudgetExpiredError
 from _harness.ledger import Ledger, watching
 from _harness.records import append, atomic, sha256
@@ -43,6 +43,8 @@ class LocalLedger(Ledger):
 
 @contextmanager
 def session(args, spec):
+    if getattr(args, "functional", False):
+        mark_functional()  # before preparation and environment: every record carries it
     started = time.monotonic()
     seconds = args.wall_time_seconds
     if seconds is None:
