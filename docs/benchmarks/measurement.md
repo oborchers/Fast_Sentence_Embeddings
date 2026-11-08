@@ -276,6 +276,34 @@ published benchmark values. Quality and stage-specific correctness precede speed
 `FSE_BENCH_LOCK` and `FSE_HEAVY_LOCK` configure shared mkdir locks across worktrees.
 Defaults share a user-specific temporary directory. Each acquisition checks the peer
 before and after mkdir. Never take over an existing owner, even if its PID disappeared.
+Each lock has a separate sibling `<lock>.queue` directory. A nonblocking file
+lock on its persistent `.guard` serializes registration. Monotonically numbered
+tickets define FIFO order by successful registration, not process start time or
+wall clock. Only the first live waiter attempts mkdir and the admission checks.
+A head waiting for load or its peer blocks later tickets in that same queue.
+There is no ordering guarantee between the two queues.
+
+Every `waiting_for_lock` heartbeat reports `position` (starting at 1), `waiting`
+(live tickets including itself), and `holder` / `peer_holder` (best-effort owner
+snapshots, not liveness claims). While the guard is busy, position and count are
+null. No notification or payload runs under the guard. SIGINT/SIGTERM, budget
+expiry and exceptions remove the waiter's own ticket. Aborting takes at most the
+poll interval (one second by default) plus one short guard section. A kernel file
+lock, not a PID or timestamp, proves a waiter is still alive. After a crash,
+including SIGKILL during registration, the next scanner removes its unlocked
+ticket. A paused waiter stays alive and may block the queue. Resume or stop that
+process explicitly. Never remove live tickets, replace the queue directory, or
+remove `.guard`. Manual ticket cleanup is only for dead processes. Unknown
+entries, symlinks and overlapping lock/queue paths are errors. These locks are
+for local Unix filesystems; host/container shared file-lock behavior is not
+established for Docker Desktop bind mounts. Separate coordination directories
+mean separate queues.
+
+For rollout, stop or drain all old waiting controllers and heavy wrappers, then
+restart them from updated code. Existing holders may finish normally. Old waiters
+still respect exclusion but may jump the queue, so mixed versions promise no FIFO
+order. Holder recovery stays manual, including after a holder's PID disappears.
+
 Timing holds bench.lock for a complete cell and rechecks heavy.lock before each arm.
 Reused cells carry their last completed operation into the next run. The first wait
 and the measurement child recheck that age before beginning work.
