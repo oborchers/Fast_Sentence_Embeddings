@@ -144,7 +144,7 @@ class Regressor(LinearModel):
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> ndarray | None | tuple[ndarray, ndarray]: ...
+    ) -> ndarray | tuple[ndarray, ndarray] | None: ...
 
     @overload
     def predict(

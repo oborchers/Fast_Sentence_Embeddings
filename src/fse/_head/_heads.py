@@ -247,7 +247,10 @@ class Heads(Mapping):
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[Mapping[str, ndarray], LengthReport] | tuple[Mapping[str, ndarray], ndarray, LengthReport]: ...
+    ) -> (
+        tuple[Mapping[str, ndarray], LengthReport]
+        | tuple[Mapping[str, ndarray], ndarray, LengthReport]
+    ): ...
 
     @overload
     def predict(
@@ -330,7 +333,6 @@ class Heads(Mapping):
         ``lengths`` covers the rows run by this call, its ``first_row`` is their row in the
         source. The outputs are not returned, so the memory of the call does not grow with the
         rows of the source; ``output`` is checked and changes nothing the stores hold.
-
         Without sinks, ``return_vectors=True`` returns ``(outputs, vectors)`` or, with
         ``lengths``, ``(outputs, vectors, fse.LengthReport)``. Otherwise the result is
         ``outputs`` or ``(outputs, fse.LengthReport)``. Vectors are the encoder's float32

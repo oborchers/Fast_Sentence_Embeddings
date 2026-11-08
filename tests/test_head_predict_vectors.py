@@ -97,7 +97,9 @@ def test_flat_tuple_has_the_reference_length_report(monkeypatch, kind, level, co
     without_vectors = head.predict(ls.TEXTS, lengths=level, count_truncated=count)
     assert len(without_vectors) == 2
     for field in fields(report):
-        np.testing.assert_equal(getattr(report, field.name), getattr(without_vectors[1], field.name))
+        np.testing.assert_equal(
+            getattr(report, field.name), getattr(without_vectors[1], field.name)
+        )
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -129,9 +131,11 @@ def test_store_input_refused(tmp_path, kind):
     enc = sh.encoder()
     with fse.ShardSink(tmp_path / "v", enc) as sink:
         enc.encode(sh.texts(3), sink=sink)
-    with fse.VectorStore.open(tmp_path / "v") as store:
-        with pytest.raises(ValueError, match="get_vectors|group of heads reads texts"):
-            model(kind, enc).predict(store, return_vectors=True)
+    with (
+        fse.VectorStore.open(tmp_path / "v") as store,
+        pytest.raises(ValueError, match=r"get_vectors|group of heads reads texts"),
+    ):
+        model(kind, enc).predict(store, return_vectors=True)
 
 
 def test_regressor_value_sink_with_vectors_refused_before_reading():
