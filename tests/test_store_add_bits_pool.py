@@ -166,19 +166,20 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
         other = Readers(
             {"other": lambda: fse.add_sign_bits(other_path, workers=2, pool=pool)}
         ).start()
-        assert held.independent.wait(10)
-        assert arrived(held.other_waits[0], held.done._cond)
-        readers = Readers(
-            {"backfill": lambda: fse.add_sign_bits(path, workers=2, pool=pool)}
-        ).start()
+        readers = None
         try:
-            assert held.started.wait(10)
-            cond, event = held.owners[0]
-            assert arrived(event, cond)
-        finally:
-            held.release_own()
-            readers.wait()
-        try:
+            assert held.independent.wait(10)
+            assert arrived(held.other_waits[0], held.done._cond)
+            readers = Readers(
+                {"backfill": lambda: fse.add_sign_bits(path, workers=2, pool=pool)}
+            ).start()
+            try:
+                assert held.started.wait(10)
+                cond, event = held.owners[0]
+                assert arrived(event, cond)
+            finally:
+                held.release_own()
+                readers.wait()
             with pytest.raises(error_type, match="failed writer"):
                 readers.join()
             assert other.threads[0].is_alive()  # the independent call still owns its writer
@@ -186,7 +187,10 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
             assert pool.try_acquire()
             pool.release()
         finally:
+            held.release_own()
             held.done.set()
+            if readers is not None:
+                readers.wait()
             assert other.join() == {"other": 2}
     monkeypatch.undo()
     assert fse.add_sign_bits(path, workers=1) >= 1

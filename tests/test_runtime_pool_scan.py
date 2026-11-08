@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import fse
-from fse._runtime import _pipeline
+from fse._runtime import _executor, _pipeline
 from fse._text import ArrowSource, _scan
 from support.concurrent import Readers, exact
 from support.encoder import finished
@@ -150,6 +150,12 @@ def test_scan_interrupt_settles_tasks_and_gives_back_places(tmp_path, monkeypatc
     started = threading.Event()
     waiting = []
     real_scan = _scan._Buffered._scanner
+    real_drain = _executor._Run._wait_for_own
+    draining = threading.Event()
+
+    def drain(self):
+        draining.set()  # the caller reached error cleanup while its sibling is still held
+        return real_drain(self)
 
     def scanner(self, *args):
         fn = real_scan(self, *args)
@@ -171,12 +177,14 @@ def test_scan_interrupt_settles_tasks_and_gives_back_places(tmp_path, monkeypatc
         return scan
 
     monkeypatch.setattr(_scan._Buffered, "_scanner", scanner)
+    monkeypatch.setattr(_executor._Run, "_wait_for_own", drain)
     with fse.Pool(3, max_tasks=max_tasks) as pool:
         readers = Readers({"encode": lambda: encoder.encode(path, pool=pool)}).start()
         try:
             if max_tasks > 1:
                 assert started.wait(10)
                 assert arrived(waiting[0], condition)
+            assert draining.wait(10)
         finally:
             with condition:
                 release = True
