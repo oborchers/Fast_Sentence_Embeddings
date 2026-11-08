@@ -28,7 +28,7 @@ def inputs(job):
         else Encoder.load(path, mmap=True)
     )
     data = document(checked(corpus["path"], corpus["sha256"]))
-    source = data.get("timing_texts", data["texts"])
+    source = data["timing_texts"] if "timing_texts" in data else data["texts"]
     if not source or job["texts"] % len(source):
         raise ValueError("timing rows must repeat complete corpus cycles")
     texts = source * (job["texts"] // len(source))
