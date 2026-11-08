@@ -113,6 +113,10 @@ All notable changes to this project are documented in this file. The format is b
 
 - Add a shared `fse-benchmark` skill for Codex and Claude Code, with measurement planning, validity checks and sourced lessons.
 
+### Changed
+
+- Avoid a second stored-row copy when rescoring candidates, including stage 2 of binary search (DR-310: Doppelte Zeilenkopie beim exakten Nachrechnen in rescore und der binären Suche vermeiden). Sort private candidate sections in place and gather ascending parts directly into their output. Scores, IDs and tie order keep the same bits. Public candidate arrays remain unchanged.
+
 ## [2.0.0] - 2026-11-02
 
 - Consolidate classic Hub publication under `tools/hub/run.py`, regenerate the published cards including `normalize=False`, and rebuild prepared payloads with exact manifest checks and explicit upload opt-in.
