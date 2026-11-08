@@ -1,4 +1,4 @@
-"""The bound of a provable int8 prefilter and the checks V1 to V4 (DR-168 gate, class K).
+"""The bound of a provable int8 prefilter and the checks V1 to V4 (DR-168 gate, class correctness).
 
 A row survives when even its best case reaches the k-th lower bound. Nothing here times
 anything or computes a kernel: the integer products are exact float64 BLAS products.

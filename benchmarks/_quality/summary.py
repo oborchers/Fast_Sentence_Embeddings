@@ -7,6 +7,7 @@ import statistics
 from pathlib import Path
 
 from _measurement import sha256
+from _measurement_claims import grouping_fields
 
 from _quality.languages import MULTILINGUAL, multilingual
 from _quality.rerank_summary import rerank_summary
@@ -39,7 +40,7 @@ def summarize(folder):
             "fit_id",
             "fit",
         )
-        key = json.dumps({k: row.get(k) for k in keys}, sort_keys=True)
+        key = json.dumps(grouping_fields(row, keys), sort_keys=True)
         task_key = (row["benchmark"], row["task"])
         if task_key in groups.setdefault(key, {}):
             raise ValueError("duplicate task results in one quality configuration")
