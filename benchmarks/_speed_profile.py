@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from _harness.records import atomic, document, read_rows, sha256
+from _measurement import child_record
 
 
 def verify_artifact(job):
@@ -60,7 +61,12 @@ def input_child(job):
         raise ValueError("rebuilt speed input differs from origin")
     atomic(
         Path(job["receipt"]),
-        {"input_file": str(path), "sample_file": str(sample), "identity": value},
+        {
+            **child_record(job),
+            "input_file": str(path),
+            "sample_file": str(sample),
+            "identity": value,
+        },
     )
 
 
@@ -75,6 +81,7 @@ def rebuild(spec, origin, job, run_child):
     )
     request = {
         "kind": "profile-input",
+        "diagnostic_profile": True,
         "original": origin["job"],
         "contract": origin["environment"]["contract"],
         "datasets": spec["datasets"],

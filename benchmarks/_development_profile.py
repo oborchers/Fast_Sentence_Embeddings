@@ -15,7 +15,7 @@ from _development_system import LABEL, machine, mark_diagnostic, mark_functional
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.ledger import beating
 from _harness.profile import identity, lock_packages, rewrite, same_identity, sources, validate
-from _harness.profile_tools import command, coverage
+from _harness.profile_tools import LIMITS, SOURCES, command, coverage
 from _harness.records import append, atomic, document, seal_unstarted, sha256
 from _measurement_setup import outside_checkout
 
@@ -56,11 +56,21 @@ class Runner:
             raise WallBudgetExpiredError("profile process group exceeded its deadline")
         if self.state.number is not None:
             raise InterruptedError("profile interrupted")
+        if status and name == "profile":
+            self.child_failure()
         if status or meta["escalated"]:
             raise RuntimeError(
                 f"{name} exited with status {status}; escalation {meta['escalated']}"
             )
         return meta
+
+    def child_failure(self):
+        job = document(self.root / "job.json")
+        receipt = Path(job["receipt"])
+        if receipt.is_file():
+            error = document(receipt)
+            if error.get("error") == "wall_budget":
+                raise WallBudgetExpiredError(error["reason"])
 
     def probe(self, action, **extra):
         self.probes += 1
@@ -87,18 +97,26 @@ class Runner:
         }
 
     def inspect(self, folder, receipt, meta, profiler):
-        if self.spec["tool"] == "memray":
-            # Reader runs in the profile interpreter; the controller has no optional imports.
-            value = self.probe("memray-metadata", profile=str(folder / "mem.bin"))
-            atomic(folder / "memray-metadata.json", value)
         try:
+            if self.spec["tool"] == "memray":
+                # Read in the profile interpreter, without controller dependencies.
+                value = self.probe("memray-metadata", profile=str(folder / "mem.bin"))
+                atomic(folder / "memray-metadata.json", value)
             result = coverage(self.spec, folder, receipt, meta["leader_pid"], profiler)
-        except (KeyError, ValueError, TypeError, OSError) as error:
+        except (WallBudgetExpiredError, InterruptedError):
+            raise
+        except Exception as error:
+            tool = self.spec["tool"]
             atomic(
                 folder / "coverage.json",
                 {
                     "requested": self.spec["requested"],
                     "observed": None,
+                    "assured": {
+                        "limits": LIMITS[tool],
+                        "source": SOURCES[tool],
+                        "version": profiler["version"],
+                    },
                     "valid": False,
                     "reason": "unparsed",
                     "error": str(error),
@@ -140,7 +158,7 @@ def _operations(runner, check_only, result):
             same_identity(origin["identity"], before, extra)
         if spec["tool"] == "memray" and profiler["version"] != extra["memray"]:
             raise ValueError("installed memray differs from profile lock")
-        result["coverage"] = runner.access(profiler["path"], profiler)
+        result["access_coverage"] = runner.access(profiler["path"], profiler)
         if check_only:
             return
         result["phase"] = "execution"
@@ -172,7 +190,13 @@ def _operations(runner, check_only, result):
 
 
 def _attempt(runner, check_only):
-    result = {"status": "valid", "causes": [], "coverage": None, "provenance": None}
+    result = {
+        "status": "valid",
+        "causes": [],
+        "coverage": None,
+        "access_coverage": None,
+        "provenance": None,
+    }
     try:
         _operations(runner, check_only, result)
     except (Exception, KeyboardInterrupt) as error:

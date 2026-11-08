@@ -90,8 +90,8 @@ def held(state, worker, purpose, notify, deadline=None):
 
 
 def _alive(child):
-    child.poll()
-    _reap(child.pid)
+    if child.poll() is not None:
+        _reap(child.pid)
     try:
         os.killpg(child.pid, 0)
     except ProcessLookupError:

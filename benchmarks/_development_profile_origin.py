@@ -66,6 +66,7 @@ def _development(spec, job, root, members):
     for key in ("texts", "profile"):
         if row[key] != job[key]:
             raise ValueError("origin job and operation workload differ")
+    _workload(job, receipt)
     if row["requested_workers"] != job["workers"]:
         raise ValueError("origin worker count differs")
     if row["arm"] != spec["nominal_arm"] or job["action"] != "measure":
@@ -73,6 +74,15 @@ def _development(spec, job, root, members):
     if job["tag"] != spec["job"]:
         raise ValueError("origin tag differs")
     return row
+
+
+def _workload(job, receipt):
+    if any(receipt["input"][key] != job["corpus"][key] for key in ("path", "sha256")):
+        raise ValueError("origin corpus differs between job and receipt")
+    if receipt["operation_repetitions"] != job["iterations"]:
+        raise ValueError("origin iteration count differs between job and receipt")
+    if receipt["heads_mode"] != job.get("heads_mode"):
+        raise ValueError("origin frozen heads mode differs between job and receipt")
 
 
 def check_work_paths(spec):
