@@ -156,10 +156,25 @@ def test_a_pool_gives_the_same_bits(tmp_path):
         np.testing.assert_array_equal(rs.bits(plain.scores), rs.bits(pooled.scores))
 
 
+@pytest.mark.parametrize("dtype", ["float32", "int8"])
+def test_a_pool_runs_both_stages_and_equals_exact_on_the_candidates(tmp_path, dtype):
+    docs = np.random.default_rng(3).integers(0, 9, N).astype(np.int64)
+    codes = bn.make(tmp_path / "s", dtype, N, docs=docs)
+    qs = rs.queries(7)
+    with fse.VectorStore.open(tmp_path / "s") as store, fse.Pool(3) as pool:
+        bn.assert_binary_is_exact_on_candidates(store, qs, 3, 12, codes=codes, pool=pool)
+        bn.assert_binary_is_exact_on_candidates(
+            store, qs, 3, 12, list(range(5, 50)), codes, rows=list(range(5, 50)), pool=pool
+        )
+        bn.assert_binary_is_exact_on_candidates(
+            store, qs, 3, 12, codes=codes, pool=pool, max_per_doc=1
+        )
+
+
 def test_the_log_record(tmp_path):
     bn.make(tmp_path / "s", "float32", N)
     with fse.VectorStore.open(tmp_path / "s") as store:
-        with expect_log("store.binary", queries=3, k=2, oversample=4, rows=N, derived_shards=0):
+        with expect_log("store.binary", queries=3, k=2, oversample=4, rows=N, missing_shards=0):
             store.search(rs.queries(3), 2, mode="binary", oversample=4)
         with (
             expect_log("store.binary", max_per_doc=1)
@@ -179,21 +194,64 @@ def test_the_default_oversample_is_one_constant(tmp_path):
     assert _binary_search.DEFAULT_OVERSAMPLE == 40
 
 
-def test_stage_one_holds_blocks_not_the_store(tmp_path):
-    """Peak memory of the call grows with the candidates, not with the rows."""
-    n = 40_000
-    codes = np.random.default_rng(0).standard_normal((n, 64)).astype(np.float32)
+def _peak(path, n, dim=64):
     from support.take_store import write_rows
 
-    write_rows(tmp_path / "s", "float32", codes, shard_rows=8192)
-    fse.add_sign_bits(tmp_path / "s")
-    qs = np.random.default_rng(1).standard_normal((4, 64)).astype(np.float32)
-    with fse.VectorStore.open(tmp_path / "s") as store:
+    codes = np.random.default_rng(0).standard_normal((n, dim)).astype(np.float32)
+    write_rows(path, "float32", codes, shard_rows=8192)
+    fse.add_sign_bits(path)
+    qs = np.random.default_rng(1).standard_normal((4, dim)).astype(np.float32)
+    with fse.VectorStore.open(path) as store:
         store.search(qs, 5, mode="binary", oversample=4, workers=1)  # warm up
         tracemalloc.start()
         try:
             store.search(qs, 5, mode="binary", oversample=4, workers=1)
-            peak = tracemalloc.get_traced_memory()[1]
+            return tracemalloc.get_traced_memory()[1]
         finally:
             tracemalloc.stop()
-    assert peak < 24 << 20  # the float32 rows alone are 10 MiB, the scores of all rows 0.6 MiB
+
+
+def test_stage_one_holds_blocks_not_the_store(tmp_path):
+    """With the same candidates, twice the rows do not raise the peak of the call."""
+    small, large = _peak(tmp_path / "a", 30_000), _peak(tmp_path / "b", 60_000)
+    assert large < 1.25 * small + (1 << 20)
+    assert large < 12 << 20  # the float32 rows of the larger store alone are 15 MiB
+
+
+def test_the_candidates_are_those_of_the_reference_over_many_blocks(tmp_path):
+    codes = bn.make(tmp_path / "s", "float32", N)
+    qs = rs.queries(300)  # more than one block of queries
+    selection = list(range(3, 58, 2))
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        for rows in (None, selection):
+            values = None if rows is None else np.array(rows, np.int64)
+            positions, offsets, selected, _ = _binary_search.candidates(
+                store, store._shards, qs, 7, values, "rows", workers=3
+            )
+            assert selected == (N if rows is None else len(rows))
+            want = bn.candidates(codes, qs, 7, rows)
+            for q, cand in enumerate(want):
+                np.testing.assert_array_equal(np.sort(positions[offsets[q] : offsets[q + 1]]), cand)
+
+
+def test_padding_of_documents_with_different_counts(tmp_path):
+    docs = np.repeat(np.arange(6), 10).astype(np.int64)  # six documents of ten rows
+    bn.make(tmp_path / "s", "float32", N, docs=docs)
+    qs = rs.queries(4)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        got = store.search(qs, 5, mode="binary", oversample=1, max_per_doc=1)
+        counts = (got.ids != -1).sum(axis=1)
+        assert counts.min() < counts.max() or got.ids.shape[1] == counts.max()
+        pad = got.ids == -1
+        assert (got.scores[pad] == -np.inf).all()
+        assert (got.doc_ids[pad] == -1).all()
+        assert got.ids.shape == got.scores.shape == got.doc_ids.shape
+
+
+def test_an_empty_document_filter_ignores_the_budget(tmp_path, monkeypatch):
+    docs = np.arange(N, dtype=np.int64) % 5
+    bn.make(tmp_path / "s", "float32", N, docs=docs)
+    monkeypatch.setattr(_binary_search, "_HELD_BYTES", 1000)
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        got = store.search(rs.queries(4), 3, mode="binary", doc_ids=[])
+        assert got.ids.shape == (4, 0)

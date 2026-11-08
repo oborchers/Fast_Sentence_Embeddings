@@ -76,14 +76,20 @@ def _warn_once(store: Any, shards: Any) -> int:
     return missing
 
 
+def _width(shards: Any) -> int:
+    """The values per row of the store, which bounds the rows copied per block."""
+    return int(shards[0][1]["vectors"].shape[1]) if shards else 0
+
+
 def _tasks(shards: Any, n_queries: int, values: Any, kind: str, count: list[int]):
     """(shard index, slice or local positions) of every block of the selection."""
     if values is None:
-        for index, begin, end, _ in _search.blocks(shards, n_queries):
+        for index, begin, end, _ in _search.blocks(shards, n_queries, _width(shards)):
             count[0] += end - begin
             yield index, slice(begin, end)
         return
     size = max(1, min(65_536, (1 << 20) // min(n_queries, 256)))
+    size = min(size, max(1, _search._DECODE_BYTES // (4 * max(1, _width(shards)))))
     for index, local in _selection.blocks(shards, values, kind, size):
         count[0] += len(local)
         yield index, local
@@ -110,7 +116,7 @@ class _Keep:
             [*([self.kept[start]] if start in self.kept else []), *self.pending[start]]
         )
         if len(keys) > self.m:
-            keys = np.partition(keys, self.m - 1, axis=0)[: self.m]
+            keys = np.partition(keys, self.m - 1, axis=0)[: self.m].copy()
         self.kept[start], self.pending[start], self.size[start] = keys, [], 0
 
     def positions(self, n_queries: int) -> tuple[ndarray, ndarray]:
@@ -137,8 +143,8 @@ def candidates(
     workers: Any,
 ) -> tuple[ndarray, ndarray, int, int]:
     """Stage 1: the CSR candidates (positions, offsets) of every query, the number of rows
-    selected and the number of shards whose bits were derived."""
-    derived = _warn_once(store, shards)
+    selected and the number of shards of the store without sign bits."""
+    missing = _warn_once(store, shards)
     query_bits = _reference_bits.query_bits(queries)
     slices = _search.query_blocks(len(queries))
     keep, count = _Keep(m), [0]
@@ -156,7 +162,7 @@ def candidates(
             distance = _reference_bits.hamming(bits, query_bits[qb])
             keys = (distance.astype(np.int64) << POSITION_BITS) | physical
             if len(keys) > m:
-                keys = np.partition(keys, m - 1, axis=0)[:m]
+                keys = np.partition(keys, m - 1, axis=0)[:m].copy()  # not a view of the whole
             found.append((qb.start, keys))
         return found
 
@@ -165,7 +171,7 @@ def candidates(
     ):
         keep.add(found)
     positions, offsets = keep.positions(len(queries))
-    return positions, offsets, count[0], derived
+    return positions, offsets, count[0], missing
 
 
 def search(
@@ -185,10 +191,12 @@ def search(
     total = sum(shard.rows for shard, _ in shards)
     if total > MAX_ROWS:
         raise ValueError(f"binary search holds at most {MAX_ROWS} rows, the store has {total}")
-    rows = total if values is None or kind != "rows" else len(values)
+    rows = total
+    if values is not None and (kind == "rows" or not len(values)):
+        rows = len(values)
     m = check_budget(len(queries), k, oversample, rows)
     _search.check_queries(store._backend, queries)
-    positions, offsets, selected, derived = candidates(
+    positions, offsets, selected, missing = candidates(
         store, shards, queries, m, values, kind, workers=workers
     )
     found, _ = _rescore.exact_sets(
@@ -215,7 +223,7 @@ def search(
         oversample=oversample,
         candidates=len(positions),
         rows=selected,
-        derived_shards=derived,
+        missing_shards=missing,
         workers=_search.count(workers),
         **({"max_per_doc": 1} if max_per_doc is not None else {}),
     )
