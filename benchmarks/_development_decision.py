@@ -149,6 +149,16 @@ def _replay_stop(results, contract, rows):
     rule = contract["decision"]
     if not rule["stop_early"] or contract.get("functional_only", False):
         raise ValueError("replay stop is inconsistent with the contract")
+    index = _stop_position(rows, marker)
+    selected = [c["id"] for c in contract["cells"]]
+    before = evaluate(rule, rows[:index], selected, phase=contract["local_phase"])
+    after = evaluate(rule, rows[: index + 1], selected, phase=contract["local_phase"])
+    if before["decision"] == "reject" or after["decision"] != "reject":
+        raise ValueError("replay stop does not address the first final rejection")
+    return marker
+
+
+def _stop_position(rows, marker):
     positions = [i for i, row in enumerate(rows) if row["cell_id"] == marker]
     if len(positions) != 1:
         raise ValueError("replay stop cell is missing or duplicated")
@@ -156,9 +166,4 @@ def _replay_stop(results, contract, rows):
     later = rows[index + 1 :]
     if any(r["status"] != "not_started" or r.get("stopped_after") != marker for r in later):
         raise ValueError("replay contains work after the recorded stop")
-    selected = [c["id"] for c in contract["cells"]]
-    before = evaluate(rule, rows[:index], selected, phase=contract["local_phase"])
-    after = evaluate(rule, rows[: index + 1], selected, phase=contract["local_phase"])
-    if before["decision"] == "reject" or after["decision"] != "reject":
-        raise ValueError("replay stop does not address the first final rejection")
-    return marker
+    return index
