@@ -74,7 +74,18 @@ def memory_plan(job, input_bytes, model_bytes, limit, kind="production"):
         "model_copies": model_bytes * (w + 1),
         "sample_buffers": min(n, 10000) * d * 4 * 3,
     }
+    if job.get("widen_weights"):
+        # The stored float16 table and its float32 copy exist together while it is widened.
+        components["widened_weights_original"] = model_bytes // 2
+    if job.get("vector_dimensions"):
+        # Heads on raw means: the means (and the Model2Vec arm's logits) before the head.
+        components["raw_mean_vectors"] = n * job["vector_dimensions"] * 4 * 2
     return resources.assess(components, limit=limit, kind=kind)
+
+
+def collect_paragraphs(source, text, functional):
+    if not functional or len(source) < 1024:
+        source.append(text)
 
 
 def collect_sentences(source, text, functional):
@@ -99,6 +110,7 @@ def corpus_sources(contract, cache):
     )
     wanted = {r["source_position"]: r for r in contract["unknown_cases"]}
     source, mandatory, paragraphs, sentences = [], {}, 0, 0
+    whole, wanted_paragraphs = [], any(c.get("corpus") == "paragraphs" for c in contract["cells"])
     parts = sorted((folder / spec["configuration"]).glob("train-*.parquet"))
     texts = (text for part in parts for text in parquet_texts(pq.ParquetFile(part)))
     for text in texts:
@@ -107,6 +119,8 @@ def corpus_sources(contract, cache):
                 raise ValueError("mandatory unknown-token source changed")
             mandatory[paragraphs] = text
         paragraphs += 1
+        if wanted_paragraphs:
+            collect_paragraphs(whole, text, contract.get("functional_only", False))
         sentences += collect_sentences(source, text, contract.get("functional_only", False))
     if (
         paragraphs != spec["expected_paragraphs"]
@@ -114,10 +128,12 @@ def corpus_sources(contract, cache):
         or set(mandatory) != set(wanted)
     ):
         raise ValueError("pinned sentence corpus or mandatory cases changed")
-    return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]]
+    return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]], whole
 
 
-def write_input(path, source, mandatory, count, seed, token_counts=None, admission=None):
+def write_input(
+    path, source, mandatory, count, seed, token_counts=None, admission=None, unit="sentences"
+):
     import numpy as np
 
     if count < len(mandatory) or path.exists():
@@ -168,7 +184,7 @@ def write_input(path, source, mandatory, count, seed, token_counts=None, admissi
         "sha256": sha256(path),
         "file_bytes": path.stat().st_size,
         "source_positions": len(source),
-        "sampling": "sampled and shuffled WikiText-103 sentences",
+        "sampling": f"sampled and shuffled WikiText-103 {unit}",
         "mandatory_prefix_note": "unchanged historical paragraph UNK cases" if mandatory else None,
         "mandatory_prefix_rows": len(mandatory),
         "sample_rows": sample.tolist(),

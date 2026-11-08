@@ -16,6 +16,7 @@ from _harness.records import atomic, sha256
 from _measurement import package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
+from _speed_heads import fse_head, model2vec_head
 from _speed_write import headline_child
 
 RUST_SOURCE = r"""
@@ -43,8 +44,10 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
 def fse_encoder(job):
     from fse import Encoder
 
+    if job["kind"] == "heads":
+        return fse_head(job)
     model = Encoder.load(job["artifact"], mmap=True)
-    if model.word_vectors.dtype != job["dtype"]:
+    if model.word_vectors.dtype != job.get("table_dtype", job["dtype"]):
         raise ValueError("finished table dtype differs from the requested cell")
     return lambda texts: model.encode(texts, workers=job["workers"])
 
@@ -52,6 +55,8 @@ def fse_encoder(job):
 def model2vec_encoder(job):
     from model2vec import StaticModel
 
+    if job["kind"] == "heads":
+        return model2vec_head(job)
     model = StaticModel.from_pretrained(job["snapshot"], normalize=True)
     return lambda texts: model.encode(texts, use_multiprocessing=job["workers"] > 1)
 
@@ -194,12 +199,18 @@ def prepare_models(root, contract, reuse=None):
         encoder = (
             Encoder.from_pretrained(snapshot, normalize=True, truncate=False)
             if repo.startswith("sentence-transformers/")
+            or contract.get("model_formats", {}).get(repo) == "sentence-transformers"
             else StaticModel.from_pretrained(snapshot, normalize=True).encoder
         )
         artifacts = {}
         dtypes = {
             "float32",
             *(c["dtype"] for c in contract["cells"] if c["model"] == repo and c["kind"] == "dtype"),
+            *(
+                c["table_dtype"]
+                for c in contract["cells"]
+                if c["model"] == repo and "table_dtype" in c
+            ),
         }
         for dtype in sorted(dtypes):
             artifact = root / (repo.rsplit("/", 1)[-1] + "-" + dtype + ".safetensors")
@@ -268,6 +279,7 @@ def measure_child(job):
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "workers": job["workers"],
                 "worker_path": adapter["factory"].__name__,
+                "widened_weights": bool(job.get("widen_weights")),
             },
         )
     finally:
@@ -293,6 +305,8 @@ def st_encoder(job):
         st_file_limits()
     torch.set_num_threads(1 if workers > 1 else workers)
     model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
+    if job.get("widen_weights"):
+        widen_weights(model)
     if workers == 1:
         return lambda texts: model.encode(
             texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
@@ -320,6 +334,19 @@ def st_encoder(job):
 
     encode.close = lambda: model.stop_multi_process_pool(pool)
     return encode
+
+
+def widen_weights(model):
+    """Widen the table to float32 before any timer: the stored float16 weights would make
+    Sentence Transformers measure a half-precision path no fse cell shares."""
+    import torch
+
+    weight = model[0].embedding.weight
+    if weight.dtype not in (torch.float16, torch.float32):
+        raise ValueError("the table to widen is float16 or float32")
+    weight.data = weight.data.to(torch.float32)
+    if model[0].embedding.weight.dtype != torch.float32:
+        raise ValueError("Sentence Transformers weights were not widened to float32")
 
 
 def st_file_limits():

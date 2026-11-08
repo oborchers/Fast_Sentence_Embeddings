@@ -20,7 +20,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=CONFIG / "speed.json")
     parser.add_argument(
-        "--study", choices=("all", "libraries", "headline", "dtypes"), default="libraries"
+        "--study",
+        choices=(
+            "all",
+            "libraries",
+            "headline",
+            "dtypes",
+            "bekko",
+            "paragraphs",
+            "heads",
+            "versions",
+        ),
+        default="libraries",
     )
     parser.add_argument("--workers", type=int, choices=(16, 32))
     parser.add_argument("--reuse-work", type=Path)

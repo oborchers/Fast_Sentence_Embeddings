@@ -13,6 +13,7 @@ from pathlib import Path
 import _measurement as records
 import _speed_cells as inputs
 import _speed_pipeline as engines
+import _speed_protocol as protocols
 import _speed_write as writing
 from _harness import records as durable
 from _harness.ledger import Ledger, watching
@@ -43,7 +44,7 @@ def prepare(args, contract, ledger):
     require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
-    paragraphs, unknown = inputs.corpus_sources(
+    sentences, unknown, paragraphs = inputs.corpus_sources(
         contract, (args.reuse_work or args.work) / "datasets"
     )
     require_budget(ledger, 60)
@@ -56,7 +57,8 @@ def prepare(args, contract, ledger):
         "work": args.work,
         "ledger": ledger,
         "models": models,
-        "paragraphs": paragraphs,
+        "paragraphs": sentences,
+        "paragraph_texts": paragraphs,
         "unknown": unknown,
         "rust": rust,
         "reference_python": args.reference_python,
@@ -65,7 +67,8 @@ def prepare(args, contract, ledger):
 
 
 def prepare_input(context, cell):
-    source, mandatory = context["paragraphs"], []
+    paragraphs = cell.get("corpus", "sentences") == "paragraphs"
+    source, mandatory = context["paragraph_texts" if paragraphs else "paragraphs"], []
     if cell["reference"] == "st":
         mandatory = context["unknown"]
     else:
@@ -77,7 +80,8 @@ def prepare_input(context, cell):
         limit = model.max_length * model.median_token_length
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
-    identity = inputs.write_input(path, source, mandatory, cell["texts"], 0)
+    unit = "paragraphs" if paragraphs else "sentences"
+    identity = inputs.write_input(path, source, mandatory, cell["texts"], 0, unit=unit)
     if (
         not cell.get("functional_only")
         and cell.get("planned_input_bytes") is not None
@@ -172,7 +176,7 @@ def round_pair(context, cell, number, path, sample, identity):
     ]
     a = next(row for row in rows if row["label"] == "fse")
     b = next(row for row in rows if row["label"] != "fse")
-    delta = inputs.check_output(sample_array(a), sample_array(b), cell["kind"] == "dtype")
+    delta = inputs.check_output(sample_array(a), sample_array(b), protocols.protocol(cell)["exact"])
     durable.append(
         context["ledger"].root / "checks.jsonl",
         {
@@ -209,6 +213,7 @@ def summarize_pair(cell, observations, identity):
     ]
 
     return {
+        "protocol": protocols.protocol(cell)["name"],
         "status": "invalid" if short or noisy else "valid",
         "aa": {"status": "measured", "symmetric_upper": aa_upper}
         if aa_upper is not None
@@ -300,6 +305,7 @@ def study_contract(args):
         contract["cells"] = [c for c in contract["cells"] if c["stage"] == args.study]
     if not contract["cells"]:
         raise ValueError("study has no matching cells")
+    protocols.validate(contract["cells"])
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")
@@ -386,6 +392,7 @@ def run_headline(context, contract):
     ledger.result(
         cell,
         started,
+        protocol=protocols.protocol(cell)["name"],
         status="failed" if error else ("valid" if complete else "partial"),
         input_identity=identity,
         rounds_completed=len(rows),
@@ -407,7 +414,7 @@ def run_headline(context, contract):
 def pair_validity(cell, observations, arms):
     measured_fse = observations if cell["reference"].startswith("fse-") else arms["fse"]
     short = not cell.get("functional_only") and min(r["seconds"] for r in measured_fse) < 2
-    if cell["reference"] != "fse-control":
+    if not protocols.protocol(cell)["control"]:
         return short, None, False
     a = records.spread([r["seconds"] for r in arms["fse"]])
     b = records.spread([r["seconds"] for r in arms[cell["reference"]]])
