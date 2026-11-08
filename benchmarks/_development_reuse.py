@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from _development_system import machine, source_identity
-from _measurement import document, sha256
+from _harness.records import document, sha256
 
 
 def context(cell, prepared, identities):

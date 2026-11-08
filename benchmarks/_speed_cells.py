@@ -10,7 +10,7 @@ import shutil
 import time
 from pathlib import Path
 
-from _measurement import append, atomic, sha256
+from _harness.records import append, atomic, sha256
 
 
 def configure(workers, native_threads=None):

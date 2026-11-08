@@ -4,34 +4,32 @@ entry=@ENTRY@
 revision=@REVISION@
 root="${MEASURE_ROOT:-}"
 state="$root/$entry-state"
-results="$root/$entry-results"
 source="$root/measurement-source"
 environment="$root/$entry-env"
 work="$root/$entry-work"
+results="$root/$entry-results"
 mkdir -p "$root/$entry-logs" "$state"
 exec > >(tee -a "$root/$entry-logs/bootstrap.log") 2>&1
 finish() {
-  export MEASURE_EXIT_STATUS="$?" MEASURE_RESULTS="$results"
+  export MEASURE_EXIT_STATUS="$?" MEASURE_ROOT_PATH="$root" MEASURE_ENTRY="$entry" MEASURE_SOURCE="$source"
   set +e
   trap - EXIT
   /usr/local/bin/python - <<'FINISH_RECORD'
-import hashlib,json,os,pathlib,time
-root=pathlib.Path(os.environ['MEASURE_RESULTS'])
-if not (root/'DONE').exists():
-    root.mkdir(parents=True,exist_ok=True)
-    def write(name,value):
-        temp=root/(name+'.pending')
-        with temp.open('w') as stream:
-            json.dump(value,stream);stream.write('\n');stream.flush();os.fsync(stream.fileno())
-        os.replace(temp,root/name)
-    status=int(os.environ['MEASURE_EXIT_STATUS'])
-    if not os.environ.get('MEASURE_CONTROL_PROBE'): status=status or 1
-    (root/'cells.jsonl').touch(exist_ok=True)
-    rows=sum(1 for _ in (root/'cells.jsonl').open())
-    write('progress.json',dict(stage='terminal',finished=rows,exit_status=status))
-    files=[dict(path=str(p.relative_to(root)),bytes=p.stat().st_size,sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob('*')) if p.is_file() and p.name not in ('DONE','manifest.json')]
-    write('manifest.json',dict(files=files))
-    write('DONE',dict(exit_status=status,cells=rows,completed_at=time.time(),manifest_sha256=hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest()))
+@RECORDS@
+import json, os, pathlib
+root = pathlib.Path(os.environ["MEASURE_ROOT_PATH"])
+entry = os.environ["MEASURE_ENTRY"]
+status = int(os.environ["MEASURE_EXIT_STATUS"])
+if not os.environ.get("MEASURE_CONTROL_PROBE"):
+    status = status or 1
+names = [entry]
+allocation = pathlib.Path(os.environ["MEASURE_SOURCE"]) / "benchmarks/config/allocation.json"
+if allocation.exists():
+    names = [s["name"] for s in json.loads(allocation.read_text())[entry]["steps"]]
+for name in names:
+    seal_unstarted(root / (name + "-results"), status)
+if (root / "allocation-results").exists():
+    seal_unstarted(root / "allocation-results", status)
 FINISH_RECORD
   if test "${MEASURE_CONTROL_PROBE:-0}" != 1; then sleep infinity; fi
 }
@@ -67,13 +65,18 @@ export RUSTUP_HOME=/root/.rustup CARGO_HOME=/root/.cargo LC_ALL=C.UTF-8
 /usr/bin/git clone --filter=blob:none --no-checkout https://github.com/oborchers/Fast_Sentence_Embeddings.git "$source"
 /usr/bin/git -C "$source" checkout --detach "$revision"
 input="${MEASURE_INPUT:-$source/benchmarks/config/$entry.json}"
-/usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocated-at "$MEASURE_ALLOCATED_AT"
+allocation="${MEASURE_ALLOCATION:-$source/benchmarks/config/allocation.json}"
 mode=--run
-if test "${MEASURE_REHEARSAL:-0}" = 1; then mode=--rehearse; fi
-extra=()
-if test "$entry" = speed; then
-  extra=(--reference-python "$environment/reference/bin/python" --study "${MEASURE_STUDY:-libraries}")
-fi
-"$environment/main/bin/python" "$source/benchmarks/$entry.py" "$mode" --input "$input" --results "$results" --work "$work" --allocated-at "$MEASURE_ALLOCATED_AT" "${extra[@]}" &
-printf '%s\n' "$!" > "$root/$entry-logs/measurement.pid"
+rehearsal=()
+if test "${MEASURE_REHEARSAL:-0}" = 1; then mode=--rehearse; rehearsal=(--rehearsal); fi
+profile=()
+if test "$entry" = speed && test "${MEASURE_STUDY:-libraries}" = headline; then profile=(--billing-profile headline_billing); fi
+export PYTHONPATH="$source/benchmarks"
+lifecycle=(/usr/local/bin/python -m _harness.allocation)
+common=(--spec "$allocation" --entry "$entry" --root "$root" --allocated-at "$MEASURE_ALLOCATED_AT" --study-file "$input" --pins-file "$source/benchmarks/config/pins.json" "${profile[@]}")
+# The machine check comes before any installation: a rejected machine starts no step.
+"${lifecycle[@]}" begin "${common[@]}" "${rehearsal[@]}"
+/usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocation "$allocation" --allocated-at "$MEASURE_ALLOCATED_AT"
+"${lifecycle[@]}" run "${common[@]}" --param "mode=$mode" --param "input=$input" --param "study=${MEASURE_STUDY:-libraries}" &
+printf '%s\n' "$!" > "$root/$entry-logs/allocation.pid"
 wait "$!"

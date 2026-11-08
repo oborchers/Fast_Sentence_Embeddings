@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from _development_process import checked
-from _measurement import document, sha256
+from _harness.records import document, sha256
 
 
 def inputs(job):

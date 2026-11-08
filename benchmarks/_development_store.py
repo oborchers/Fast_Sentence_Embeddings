@@ -6,7 +6,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from _development_budget import check
+from _harness.budget import check
 from _development_encode import _sync, _sync_directory, output_identity
 from _development_ids import check_store, values
 from _development_search import enabled as search_cost

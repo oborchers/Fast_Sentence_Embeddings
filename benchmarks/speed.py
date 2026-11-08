@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 from _development_config import add_arguments, dispatch
-from _measurement import document, rehearsal_limits
+from _harness.records import document
+from _measurement import rehearsal_limits
 from _measurement_config import CONFIG, contract
 from _measurement_setup import outside_checkout, setup, utility
 from _speed_pipeline import measure_child
@@ -32,6 +33,7 @@ def main():
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
     parser.add_argument("--source-revision")
+    parser.add_argument("--allocation", type=Path, default=CONFIG / "allocation.json")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--results", type=Path, default=Path("/speed-results"))
     parser.add_argument("--work", type=Path, default=Path("/speed-work"))
@@ -59,7 +61,7 @@ def main():
     if args.setup:
         if os.getenv("MEASURE_REHEARSAL") == "1":
             rehearsal_limits()
-        setup(args.setup, specification, args.allocated_at)
+        setup(args.setup, specification, args.allocated_at, "speed", args.allocation)
         return 0
     for path in (args.results, args.work):
         outside_checkout(path)

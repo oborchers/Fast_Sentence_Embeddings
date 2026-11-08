@@ -7,7 +7,8 @@ import math
 import time
 from importlib.metadata import version
 
-from _measurement import atomic, package_identity, sha256
+from _harness.records import atomic, sha256
+from _measurement import package_identity
 from _measurement_config import MODEL_PINS
 
 from _quality.guard import admit

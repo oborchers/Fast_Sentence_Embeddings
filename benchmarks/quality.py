@@ -5,22 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
 import sys
-import threading
 import time
 from pathlib import Path
 
 from _development_config import add_arguments, dispatch
-from _measurement import (
-    Ledger,
-    append,
-    atomic,
-    finalize_rehearsal,
-    heartbeat,
-    rehearsal_limits,
-    write_environment,
-)
+from _harness.records import append, atomic
+from _harness.ledger import Ledger, watching
+from _measurement import finalize_rehearsal, rehearsal_limits, write_environment
 from _measurement_config import CONFIG, contract, validate_cell, validate_prerequisites
 from _measurement_setup import outside_checkout, setup, utility
 
@@ -133,11 +125,6 @@ def run(args):
         "fits": {},
         "finished": ledger.finished,
     }
-    stop = threading.Event()
-    watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
-    watcher.start()
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
     actions = {
         "fit": fit,
         "mean": mean,
@@ -146,36 +133,30 @@ def run(args):
         "recall": recall,
         "probe": probe,
     }
-    try:
-        args.work.mkdir(parents=True, exist_ok=False)
-        from nltk import download
+    with watching(ledger):
+        try:
+            args.work.mkdir(parents=True, exist_ok=False)
+            from nltk import download
 
-        if not download("punkt_tab", quiet=True):
-            raise RuntimeError("pinned NLTK tokenizer resources unavailable")
-        for cell in spec["cells"]:
-            ledger.stage, ledger.current = cell["kind"], cell["id"]
-            started = time.monotonic()
-            if not ledger.admit(cell["estimated_seconds"]):
-                ledger.result(
-                    cell, started, status="not_started", reason="soft budget or stop signal"
-                )
-                continue
-            try:
-                result = actions[cell["kind"]](cell, context)
-                ledger.result(cell, started, **result)
-            except Exception as error:
-                ledger.result(cell, started, status="failed", reason=repr(error))
-    except Exception as error:
-        append(args.results / "fatal.jsonl", {"error": repr(error)})
-    finally:
-        finished = {r["cell_id"] for r in ledger.finished}
-        for cell in spec["cells"]:
-            if cell["id"] not in finished:
-                ledger.result(
-                    cell, time.monotonic(), status="not_started", reason="preparation failed"
-                )
-        stop.set()
-        watcher.join()
+            if not download("punkt_tab", quiet=True):
+                raise RuntimeError("pinned NLTK tokenizer resources unavailable")
+            for cell in spec["cells"]:
+                ledger.stage, ledger.current = cell["kind"], cell["id"]
+                started = time.monotonic()
+                if not ledger.admit(cell["estimated_seconds"]):
+                    ledger.result(
+                        cell, started, status="not_started", reason="soft budget or stop signal"
+                    )
+                    continue
+                try:
+                    result = actions[cell["kind"]](cell, context)
+                    ledger.result(cell, started, **result)
+                except Exception as error:
+                    ledger.result(cell, started, status="failed", reason=repr(error))
+        except Exception as error:
+            append(args.results / "fatal.jsonl", {"error": repr(error)})
+        finally:
+            ledger.fill_missing("preparation failed")
     finalize_rehearsal(ledger, "quality")
     return ledger.done()
 
@@ -232,6 +213,7 @@ def _parser():
     )
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
+    parser.add_argument("--allocation", type=Path, default=CONFIG / "allocation.json")
     add_arguments(parser, mode, quality=True)
     return parser
 
@@ -282,7 +264,7 @@ def main():
     if args.setup:
         if os.getenv("MEASURE_REHEARSAL") == "1":
             rehearsal_limits()
-        setup(args.setup, spec, args.allocated_at, quality=True)
+        setup(args.setup, spec, args.allocated_at, "quality", args.allocation)
         return 0
     for path in (args.results, args.work, args.cache):
         outside_checkout(path)

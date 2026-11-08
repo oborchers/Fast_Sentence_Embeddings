@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from _development_budget import check
+from _harness.budget import check
 from _development_encode import output_identity
 from _development_search import enabled as search_cost
 from _development_search_reference import check as check_search

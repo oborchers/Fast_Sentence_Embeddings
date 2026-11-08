@@ -6,7 +6,7 @@ import json
 import statistics
 from pathlib import Path
 
-from _measurement import sha256
+from _harness.records import sha256
 
 from _quality.languages import MULTILINGUAL, multilingual
 from _quality.rerank_summary import rerank_summary

@@ -26,7 +26,7 @@ def _sources():
     """SHA-256 of the study modules that computed the row."""
     from pathlib import Path
 
-    from _measurement import sha256
+    from _harness.records import sha256
 
     here = Path(__file__).parent
     # mteb.py evaluates through suites.py (tasks), identity.py and guard.py (admission).

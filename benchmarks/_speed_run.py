@@ -5,18 +5,18 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
 import _measurement as records
+from _harness import records as durable
 import _speed_cells as inputs
 import _speed_pipeline as engines
 import _speed_write as writing
-from _measurement import heartbeat, write_environment
+from _harness.ledger import Ledger, watching
+from _measurement import write_environment
 from _measurement_config import CONFIG
 from _measurement_config import contract as load_contract
 
@@ -25,7 +25,6 @@ ENTRY = Path(__file__).resolve().with_name("speed.py")
 HERE = Path(__file__).resolve().parent
 
 
-Ledger = records.Ledger
 
 
 def require_budget(ledger, estimate):
@@ -35,10 +34,10 @@ def require_budget(ledger, estimate):
 
 def prepare(args, contract, ledger):
     args.work.mkdir(parents=True, exist_ok=False)
-    records.sync_directory(args.work.parent)
-    records.atomic(
+    durable.sync_directory(args.work.parent)
+    durable.atomic(
         args.work / "owner.json",
-        {"script_sha256": records.sha256(ENTRY), "results": str(args.results.resolve())},
+        {"script_sha256": durable.sha256(ENTRY), "results": str(args.results.resolve())},
     )
     setup_record = Path(sys.executable).parents[2] / "setup.json"
     if setup_record.exists():
@@ -89,8 +88,8 @@ def prepare_input(context, cell):
         raise ValueError("prepared input differs from the fixed production byte count")
     identity["common_character_limit"] = None if mandatory else limit
     sample = path.with_suffix(".sample.json")
-    records.atomic(sample, identity["sample_rows"])
-    records.append(context["ledger"].root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
+    durable.atomic(sample, identity["sample_rows"])
+    durable.append(context["ledger"].root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     return path, sample, identity
 
 
@@ -98,7 +97,7 @@ def launch(context, cell, label, number, path, sample, identity):
     root, work = context["ledger"].root, context["work"]
     folder = work / f"{cell['id']}-{number}-{label}"
     folder.mkdir()
-    records.sync_directory(work)
+    durable.sync_directory(work)
     model = context["models"][cell["model"]]
     job = dict(
         cell,
@@ -119,9 +118,9 @@ def launch(context, cell, label, number, path, sample, identity):
         job.update(context["rust"], rust_revision=context["rust"]["revision"])
     if cell["kind"] == "write":
         job["sample_texts_file"] = str(path.with_suffix(".sample-texts.json"))
-        job["sample_texts_sha256"] = records.sha256(Path(job["sample_texts_file"]))
+        job["sample_texts_sha256"] = durable.sha256(Path(job["sample_texts_file"]))
     spec = root / f"{cell['id']}-{number}-{label}.job.json"
-    records.atomic(spec, job)
+    durable.atomic(spec, job)
     python = engines.interpreter(job["backend"], context["reference_python"])
     if label == "fse-base":
         if not context["base_python"]:
@@ -137,7 +136,7 @@ def launch(context, cell, label, number, path, sample, identity):
             time.sleep(0.25)
     if child.returncode:
         raise RuntimeError(f"{label} failed with status {child.returncode}; see {spec.name}")
-    record = records.document(folder / "receipt.json")
+    record = durable.document(folder / "receipt.json")
     record.update(
         label=label,
         round=number,
@@ -145,9 +144,9 @@ def launch(context, cell, label, number, path, sample, identity):
         model=cell["model"],
         revision=model["revision"],
         sample_file=str(folder / "sample"),
-        adapter_sha256={p.name: records.sha256(p) for p in [*sorted(HERE.glob("_*.py")), ENTRY]},
+        adapter_sha256={p.name: durable.sha256(p) for p in [*sorted(HERE.glob("_*.py")), ENTRY]},
     )
-    records.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
+    durable.append(root / "operations.jsonl", dict(cell_id=cell["id"], **record))
     return record
 
 
@@ -176,7 +175,7 @@ def round_pair(context, cell, number, path, sample, identity):
     a = next(row for row in rows if row["label"] == "fse")
     b = next(row for row in rows if row["label"] != "fse")
     delta = inputs.check_output(sample_array(a), sample_array(b), cell["kind"] == "dtype")
-    records.append(
+    durable.append(
         context["ledger"].root / "checks.jsonl",
         {
             "cell_id": cell["id"],
@@ -245,7 +244,7 @@ def memory_preflight(context, contract):
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
         plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
-    records.atomic(
+    durable.atomic(
         context["ledger"].root / "preflight-memory.json",
         {"production_limit_bytes": target, "actual_cgroup_limit": int(maximum), "rows": rows},
     )
@@ -260,7 +259,7 @@ def pair(context, cell):
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
     budget = inputs.memory_plan(cell, identity["file_bytes"], model_bytes, int(maximum))
-    records.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
+    durable.append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **budget))
     if not budget["admitted"]:
         raise MemoryError("fixed input exceeds the declared memory budget")
     observations = []
@@ -280,7 +279,7 @@ def quiet(context, contract):
         row = launch(context, cell, "fse", len(observations), path, sample, identity)
         observations.append(row["seconds"])
         cleanup(context, [Path(row["sample_file"])])
-    records.atomic(
+    durable.atomic(
         context["ledger"].root / "quiet.json",
         {
             "seconds": observations,
@@ -325,27 +324,16 @@ def run(args):
     ledger = Ledger(args.results, contract, args.allocated_at)
     os.environ["MEASURE_WORK"] = str(args.work)
     write_environment(args, contract)
-    stop = threading.Event()
-    watcher = threading.Thread(target=heartbeat, args=(ledger, stop), daemon=True)
-    watcher.start()
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(signum, lambda *_: setattr(ledger, "stopping", True))
     context = None
-    try:
-        require_budget(ledger, 60)
-        context = prepare(args, contract, ledger)
-        run_cells(context, contract)
-    except Exception as error:
-        records.append(args.results / "fatal.jsonl", {"error": repr(error)})
-    finally:
-        finished = {r["cell_id"] for r in ledger.finished}
-        for cell in contract["cells"]:
-            if cell["id"] not in finished:
-                ledger.result(
-                    cell, time.monotonic(), status="not_started", reason="preparation failed"
-                )
-        stop.set()
-        watcher.join()
+    with watching(ledger):
+        try:
+            require_budget(ledger, 60)
+            context = prepare(args, contract, ledger)
+            run_cells(context, contract)
+        except Exception as error:
+            durable.append(args.results / "fatal.jsonl", {"error": repr(error)})
+        finally:
+            ledger.fill_missing("preparation failed")
     records.finalize_rehearsal(ledger, "speed")
     return ledger.done()
 
@@ -388,9 +376,9 @@ def run_headline(context, contract):
     tokens = writing.headline_tokens(context["models"][cell["model"]]["snapshot"], source)
     path = work / "headline-input.txt"
     identity = inputs.write_input(path, source, [], cell["texts"], 0, tokens, ledger.admit)
-    records.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
+    durable.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
-    records.atomic(sample, identity["sample_rows"])
+    durable.atomic(sample, identity["sample_rows"])
     rows, error = inputs.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
     complete = len(rows) == cell["rounds"] and error is None
     ledger.result(

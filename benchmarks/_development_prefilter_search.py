@@ -45,7 +45,7 @@ def pool(model, job, store_set):
     encodings only, PCG64 seed 0; the same rule as the prefilter count (DR-168 gate)."""
     import numpy as np
     from _development_process import checked
-    from _measurement import document
+    from _harness.records import document
     from _quality.prefilter_queries import SETS, _candidates, _valid
 
     corpus, select = SETS["stsb-test"]

@@ -6,7 +6,7 @@ from _development_budget import check_args
 from _development_calibrate import _active_seconds, _admit, _batch, _size
 from _development_pairs import arm, block
 from _development_statistics import summary
-from _measurement import atomic
+from _harness.records import atomic
 
 
 def describe(args, cell, prepared, ledger, owner, identities):

@@ -12,7 +12,8 @@ import tomllib
 from importlib.metadata import distributions
 from pathlib import Path
 
-from _measurement import atomic, package_identity, sha256, telemetry
+from _harness.records import atomic, sha256
+from _measurement import package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
 from _speed_write import headline_child

@@ -7,7 +7,7 @@ import tempfile
 from importlib.metadata import version
 from pathlib import Path
 
-from _measurement import atomic, sha256
+from _harness.records import atomic, sha256
 from _measurement_config import MODEL_PINS, PINS
 
 

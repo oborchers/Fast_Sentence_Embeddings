@@ -8,7 +8,7 @@ comparison of a report with the independent mode."""
 
 from __future__ import annotations
 
-from _development_budget import check
+from _harness.budget import check
 
 MODES = ("none", "summary", "per_row", "per_row-count", "raise")
 PROFILE = "length-report@1"

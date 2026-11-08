@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 from _development_process import checked
-from _measurement import document
+from _harness.records import document
 
 
 def _stsb_test(data):

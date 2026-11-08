@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from _measurement import atomic
+from _harness.records import atomic
 from _measurement_config import PINS
 
 

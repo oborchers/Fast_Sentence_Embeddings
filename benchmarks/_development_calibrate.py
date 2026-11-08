@@ -12,7 +12,7 @@ from _development_process import launch
 from _development_resources import admission
 from _development_search import enabled as search_cost
 from _development_system import LABEL
-from _measurement import append, atomic, document
+from _harness.records import append, atomic, document
 
 
 class CalibrationLimitError(TimeoutError):

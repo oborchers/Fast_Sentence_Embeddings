@@ -278,7 +278,7 @@ def _vectors_identity(folder, value):
 
 
 def _store_bytes(folder, rows, metrics_path):
-    from _measurement import append
+    from _harness.records import append
 
     files = [path for path in folder.rglob("*") if path.is_file()]
     append(
