@@ -11,6 +11,7 @@ The layout is in ``_layout``, the writing of one shard in ``_shard``, the search
 in ``_search``.
 """
 
+from ._add_bits import add_sign_bits
 from ._repair import repair_store
 from ._result import DocumentSearchResult
 from ._sink import ShardSink
@@ -23,5 +24,6 @@ __all__ = [
     "ShardSink",
     "VectorBatch",
     "VectorStore",
+    "add_sign_bits",
     "repair_store",
 ]

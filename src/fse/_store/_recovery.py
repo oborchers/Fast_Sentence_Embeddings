@@ -12,6 +12,7 @@ from numpy import ndarray
 
 from fse._container import CorruptArtifactError, checksum
 
+from ._bits_format import attached, bits_name, first_orphan, has_bits
 from ._kind import SHARD_PREFIX, Kind, Shard, shard_name
 from ._kinds import kind_of
 from ._layout import open_shard
@@ -61,6 +62,7 @@ def _extend(path: Path, info: Any, old: list, *, verify: bool) -> Snapshot:
         found.append((shard, tensors))
         row += shard.rows
     check_gaps(path, [*old, *found], row)
+    check_bits_orphans(path, info, [*old, *found], row)
     return Snapshot(found, unsynced, verified_bytes, seconds)
 
 
@@ -84,7 +86,30 @@ def _next_shard(
         raise damaged(path, shard_name(row), row, str(error)) from error
     if reason is not None:
         raise damaged(path, shard_name(row), row, reason)
-    return shard, tensors, current, (verified_bytes, seconds)
+    shard, hashed, spent = with_bits(path, info, shard, verify)
+    return shard, tensors, current, (verified_bytes + hashed, seconds + spent)
+
+
+def with_bits(path: Path, info: Any, shard: Shard, verify: bool) -> tuple[Shard, int, float]:
+    """``shard`` with its sign bits mapped (when the artifact exists), the bytes hashed for
+    them and the seconds that took. Damage is that of the artifact, which it names."""
+    start = time.perf_counter()
+    try:
+        shard, hashed = attached(path, info, shard, verify=verify)
+    except CorruptArtifactError as error:
+        raise damaged(path, bits_name(shard.first_row), shard.first_row, str(error)) from error
+    return shard, hashed, time.perf_counter() - start if hashed else 0.0
+
+
+def check_bits_orphans(path: Path, info: Any, found: list, end: int) -> None:
+    """Reject a sign-bits artifact without a shard in the chain (a shard published after the
+    snapshot by a writer that follows it is passed over)."""
+    if not has_bits(info):
+        return
+    orphan = first_orphan(path, {shard.first_row for shard, _ in found}, end)
+    if orphan is not None:
+        row, name = orphan
+        raise damaged(path, name, row, "a sign-bits artifact has no shard in the published chain")
 
 
 def rows_in(shards: list) -> int:

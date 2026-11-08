@@ -39,10 +39,11 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `scores.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `ScoreStore.refresh`, once per call, also when it adds nothing |
 | `scores.view_opened` | INFO | `fse.store` | stores, rows, shards, mode (`source_rows@1`, `list`) | `ScoreStore.open_view`, after its stores are checked; each store logs `scores.opened` before |
 | `store.cleanup_failed` | WARNING | `fse.store` | error, errno | a temporary shard or store directory that could not be removed while an error is raised |
-| `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.open` |
+| `store.opened` | INFO | `fse.store` | rows, shards, dim, dtype, backend, unsynced_shards, verified_bytes, verify_seconds, sign_bits_shards, sign_bits_bytes | `VectorStore.open` |
 | `store.verified` | INFO | `fse.store` | rows, shards, seconds | `VectorStore.verify` |
-| `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_rows, seconds | `repair_store`, in the calling thread |
-| `store.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.refresh`, once per call, also when it adds nothing |
+| `store.repaired` | INFO | `fse.store` | kind (`sentence_vectors`, `prediction_scores`), rows, moved_shards, moved_sign_bits, moved_rows, seconds | `repair_store`, in the calling thread |
+| `store.sign_bits_added` | INFO | `fse.store` | shards, rows, bytes, durability (`full`, `none`), seconds | `fse.add_sign_bits`, once per call that finishes, in the calling thread |
+| `store.refreshed` | DEBUG | `fse.store` | rows, added_rows, added_shards, added_sign_bits, unsynced_shards, verified_bytes, verify_seconds | `VectorStore.refresh`, once per call, also when it adds nothing |
 | `store.view_opened` | INFO | `fse.store` | stores, rows, shards, mode (`source_rows@1`, `list`), dtype | `VectorStore.open_view`, after its stores are checked; each store logs `store.opened` before |
 | `store.search` | DEBUG | `fse.store` | queries, k, mode (`exact`, `blas`), rows, workers; `max_per_doc` (`1`, only on the best-hit-per-document path) | `VectorStore.search`, once per call |
 | `store.rescore` | DEBUG | `fse.store` | queries, k, pairs (candidate pairs after dropping duplicates and gaps), read_rows (rows gathered; equal to pairs while every query gathers its own rows), workers; `max_per_doc` (`1`, only with grouping) | `VectorStore.rescore`, once per call, in the calling thread |
@@ -53,8 +54,10 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
-For `store.opened`, `unsynced_shards` counts shards tagged `fse.durability=none`. `verified_bytes` counts their mapped tensor data bytes, excluding headers and manifests. `verify_seconds` covers their checksum and value checks. All three fields are zero for an untagged snapshot.
+For `store.opened`, `unsynced_shards` counts shards tagged `fse.durability=none`. `verified_bytes` counts their mapped tensor data bytes, excluding headers and manifests. `verify_seconds` covers their checksum and value checks. All three fields are zero for an untagged snapshot; a sign-bits artifact tagged `fse.durability=none` adds its bytes and its seconds to them. `sign_bits_shards` counts the shards with a sign-bits artifact and `sign_bits_bytes` the bytes of their bits.
 
-For `store.refreshed` and `scores.refreshed`, `rows` is the length after the call; `unsynced_shards`, `verified_bytes` and `verify_seconds` count the new shards only, as `store.opened` counts them for all.
+For `store.refreshed` and `scores.refreshed`, `rows` is the length after the call; `added_sign_bits` counts the artifacts attached in the call, those of new shards and those that appeared for old ones; `unsynced_shards`, `verified_bytes` and `verify_seconds` count the new shards only, as `store.opened` counts them for all.
 
-For `store.repaired`, `rows` is the kept prefix length. `moved_rows` sums the row counts of moved entries whose structure was readable; it is `None` if any moved entry has an unknown row count. It is zero when nothing moved. A failed repair raises without also emitting this event.
+For `store.repaired`, `rows` is the kept prefix length. `moved_rows` sums the row counts of moved entries whose structure was readable; it is `None` if any moved entry has an unknown row count. It is zero when nothing moved. `moved_sign_bits` counts the moved sign-bits artifacts, besides those of moved shards. A failed repair raises without also emitting this event.
+
+For `store.sign_bits_added`, `shards` counts the artifacts this call published (not those another writer published first), `rows` their rows and `bytes` the bytes of their bits. A failed call raises without the event.

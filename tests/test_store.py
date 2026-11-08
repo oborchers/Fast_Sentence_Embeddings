@@ -11,6 +11,7 @@ def test_the_package_exports_the_shard_sink():
         "ShardSink",
         "VectorBatch",
         "VectorStore",
+        "add_sign_bits",
         "repair_store",
     ]
     assert fse.ShardSink is _store.ShardSink

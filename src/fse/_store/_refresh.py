@@ -24,8 +24,9 @@ from typing import Any
 
 from fse._container import FINGERPRINT_KEY, CorruptArtifactError, NpyContainer
 
+from ._bits_format import canonical_bits, has_bits
 from ._layout import read_store
-from ._recovery import Snapshot, clear_exception_frames, extend
+from ._recovery import Snapshot, clear_exception_frames, extend, with_bits
 
 
 def refreshed(path: Path, info: Any, shards: list) -> Snapshot:
@@ -42,6 +43,23 @@ def refreshed(path: Path, info: Any, shards: list) -> Snapshot:
     except BaseException as error:
         clear_exception_frames(error)
         raise
+
+
+def with_new_bits(path: Path, info: Any, shards: list) -> tuple[list, int]:
+    """``shards`` with the sign bits that appeared for them since the snapshot (a new list of
+    new ``Shard`` objects where they did; the tensors are the same), and their number. A shard
+    keeps the bits it has. An artifact that does not fit its shard is a
+    ``CorruptArtifactError``."""
+    if not has_bits(info):
+        return shards, 0
+    rows = {row for row, _ in canonical_bits(path)}
+    out, added = [], 0
+    for shard, tensors in shards:
+        if shard.sign_bits is None and shard.first_row in rows:
+            shard, _, _ = with_bits(path, info, shard, True)
+            added += shard.sign_bits is not None
+        out.append((shard, tensors))
+    return out, added
 
 
 def _check_last(path: Path, last: Any) -> None:

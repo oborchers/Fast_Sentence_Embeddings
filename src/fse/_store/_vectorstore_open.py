@@ -73,6 +73,10 @@ def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
         unsynced_shards=checked.unsynced_shards,
         verified_bytes=checked.verified_bytes,
         verify_seconds=checked.verify_seconds,
+        sign_bits_shards=sum(shard.sign_bits is not None for shard, _ in out._shards),
+        sign_bits_bytes=sum(
+            shard.sign_bits.nbytes for shard, _ in out._shards if shard.sign_bits is not None
+        ),
     )
     return out
 

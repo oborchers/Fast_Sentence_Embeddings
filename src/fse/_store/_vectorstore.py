@@ -33,12 +33,13 @@ from fse._runtime import Pool, workers_of
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _search, _take, _vector_batches
+from ._bits_format import bits_name, check_content
 from ._id_stats import check_removed
 from ._kind import Shard
 from ._kinds import kind_of
 from ._layout import read_store
 from ._recovery import check_chain, rows_in, stop_row
-from ._refresh import refreshed
+from ._refresh import refreshed, with_new_bits
 from ._result import SearchResult
 from ._vector_batches import VectorBatch
 from ._vectors_format import VECTORS, StoreInfo
@@ -346,6 +347,10 @@ class VectorStore(MemberReaders):
                 check_removed(NpyContainer().metadata(self._root / shard.name), file)
                 NpyContainer().verify(self._root / shard.name)
                 kind.check_values(shard, tensors)
+                if shard.sign_bits is not None:
+                    check_content(
+                        self._root / bits_name(shard.first_row), shard, tensors["vectors"]
+                    )
             check_chain(self._root, kind, shards)
         _log.emit(
             "store.verified",
@@ -371,10 +376,11 @@ class VectorStore(MemberReaders):
             raise ValueError("a view does not refresh; open it again")
         with self._refreshing, self._using() as shards:
             checked = refreshed(self._root, self._info, shards)
+            older, added_bits = with_new_bits(self._root, self._info, shards)
             added = rows_in(checked.shards)
             total = rows_in(shards) + added
             with self._lock:
-                self._shards = [*shards, *checked.shards]
+                self._shards = [*older, *checked.shards]
         _log.emit(
             "store.refreshed",
             "fse store: refreshed to %d rows: %d rows in %d shards added",
@@ -384,6 +390,7 @@ class VectorStore(MemberReaders):
             rows=total,
             added_rows=added,
             added_shards=len(checked.shards),
+            added_sign_bits=added_bits + sum(s.sign_bits is not None for s, _ in checked.shards),
             unsynced_shards=checked.unsynced_shards,
             verified_bytes=checked.verified_bytes,
             verify_seconds=checked.verify_seconds,

@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         ShardSink,
         VectorBatch,
         VectorStore,
+        add_sign_bits,
         repair_store,
     )
 del TYPE_CHECKING  # not a name of fse
@@ -55,6 +56,7 @@ _LAZY = {
             "ShardSink",
             "VectorBatch",
             "VectorStore",
+            "add_sign_bits",
             "repair_store",
         ),
         "fse._store",
@@ -136,6 +138,7 @@ __all__ = [
     "VectorStore",
     "WordVectors",
     "__version__",
+    "add_sign_bits",
     "disable_logging",
     "enable_logging",
     "repair_store",
