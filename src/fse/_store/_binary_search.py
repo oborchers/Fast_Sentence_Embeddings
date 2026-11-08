@@ -33,7 +33,9 @@ POSITION_BITS = 41  # a key is (distance << POSITION_BITS) | position; distances
 MAX_ROWS = 1 << POSITION_BITS
 _MASK = np.int64(MAX_ROWS - 1)
 _HELD_BYTES = 256 << 20  # what the keys of stage 1 and the candidates of stage 2 may hold
-_HELD_PER_CANDIDATE = 32  # key, pending copy, merge copy, position in the candidate set
+_HELD_PER_CANDIDATE = (
+    64  # 7 copies of the key while merging (kept, pending, joined, partition, copy), the position
+)
 _warn_lock = threading.Lock()
 
 

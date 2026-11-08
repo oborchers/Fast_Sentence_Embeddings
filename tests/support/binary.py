@@ -50,6 +50,9 @@ def assert_binary_is_exact_on_candidates(store, qs, k, m, selection=None, codes=
         np.testing.assert_array_equal(got.ids[q, :t], w.ids)
         np.testing.assert_array_equal(rs.bits(got.scores[q, :t]), rs.bits(w.scores))
         assert (got.ids[q, t:] == -1).all()
+        assert (got.scores[q, t:] == -np.inf).all()
+        if hasattr(got, "doc_ids"):
+            assert (got.doc_ids[q, t:] == -1).all()
         if hasattr(w, "doc_ids"):
             np.testing.assert_array_equal(got.doc_ids[q, :t], w.doc_ids)
     return got

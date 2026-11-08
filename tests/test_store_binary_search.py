@@ -234,20 +234,6 @@ def test_the_candidates_are_those_of_the_reference_over_many_blocks(tmp_path):
                 np.testing.assert_array_equal(np.sort(positions[offsets[q] : offsets[q + 1]]), cand)
 
 
-def test_padding_of_documents_with_different_counts(tmp_path):
-    docs = np.repeat(np.arange(6), 10).astype(np.int64)  # six documents of ten rows
-    bn.make(tmp_path / "s", "float32", N, docs=docs)
-    qs = rs.queries(4)
-    with fse.VectorStore.open(tmp_path / "s") as store:
-        got = store.search(qs, 5, mode="binary", oversample=1, max_per_doc=1)
-        counts = (got.ids != -1).sum(axis=1)
-        assert counts.min() < counts.max() or got.ids.shape[1] == counts.max()
-        pad = got.ids == -1
-        assert (got.scores[pad] == -np.inf).all()
-        assert (got.doc_ids[pad] == -1).all()
-        assert got.ids.shape == got.scores.shape == got.doc_ids.shape
-
-
 def test_an_empty_document_filter_ignores_the_budget(tmp_path, monkeypatch):
     docs = np.arange(N, dtype=np.int64) % 5
     bn.make(tmp_path / "s", "float32", N, docs=docs)
@@ -255,3 +241,23 @@ def test_an_empty_document_filter_ignores_the_budget(tmp_path, monkeypatch):
     with fse.VectorStore.open(tmp_path / "s") as store:
         got = store.search(rs.queries(4), 3, mode="binary", doc_ids=[])
         assert got.ids.shape == (4, 0)
+
+
+def test_wide_filtered_rows_without_bits_are_copied_in_bounded_blocks(tmp_path):
+    from support.take_store import write_rows
+
+    n, dim = 16_000, 1024
+    codes = np.random.default_rng(0).standard_normal((n, dim)).astype(np.float32)
+    write_rows(tmp_path / "s", "float32", codes, shard_rows=n)  # no bits: derived per call
+    qs = np.random.default_rng(1).standard_normal((2, dim)).astype(np.float32)
+    rows = list(range(0, n, 1))
+    with fse.VectorStore.open(tmp_path / "s") as store:
+        with expect_log("store.bits_derived"):
+            store.search(qs, 3, mode="binary", oversample=2, rows=rows, workers=1)
+        tracemalloc.start()
+        try:
+            store.search(qs, 3, mode="binary", oversample=2, rows=rows, workers=1)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+    assert peak < 40 << 20  # one copy of the selected rows would be 62 MiB
