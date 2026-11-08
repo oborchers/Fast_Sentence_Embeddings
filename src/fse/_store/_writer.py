@@ -28,7 +28,7 @@ import threading
 from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Literal
 
 # Work waiting for the writer thread (not counting the piece it runs): at most this many
 # pieces and, with the piece running, this many bytes of rows, unless the thread is idle
@@ -68,6 +68,7 @@ class WriterFailure:
 class WriterThread:
     """Runs callables in one thread, in the order they were submitted.
 
+    Starts at its first submission, so an unused sink owns no running thread.
     A daemon thread, so a sink that is never closed cannot keep the interpreter from
     exiting (its shard in progress then stays a temporary directory, which readers
     ignore). An error of the thread is raised at the next ``submit``, ``check`` or
@@ -89,10 +90,10 @@ class WriterThread:
         self._abandoned = False
         self._accepting = True  # until the thread ends
         self._stopping = False
-        self._ended = threading.Event()  # set by the thread itself, as its last step
+        self._ended = threading.Event()  # set at thread exit, or stop if never launched
         self._running = -1  # the bytes of the piece running, -1 for none
+        self._launch_state: Literal["new", "launching", "started"] = "new"
         self._thread = threading.Thread(target=self._run, name=name, daemon=True)
-        self._thread.start()
 
     def submit(
         self, work: Callable[..., Any], *args: Any, nbytes: int = 0, report: bool = True
@@ -110,6 +111,8 @@ class WriterThread:
             self.check(report)
             if not self._accepting or self._abandoned:
                 raise RuntimeError("the writer thread of the sink is stopped")
+            if self._launch_state == "new":
+                self._launch(report)
             # The thread wakes only once this releases the lock, so the piece is queued by
             # then; an interrupt between the two leaves nothing queued and nothing changed.
             self._state.notify_all()
@@ -151,14 +154,47 @@ class WriterThread:
     def stop(self) -> None:
         """Finish the work handed over (unless an error or ``abandon`` drops it) and end
         the thread; returns once the thread has ended its last piece, which has no time
-        bound while a piece blocks (a write to a hanging drive)."""
-        if not self._stopping:
-            with self._state:
-                self._state.notify_all()
-                self._items.append(None)
-            self._stopping = True
+        bound while a piece blocks (a write to a hanging drive). An uncertain failed
+        start has taken no work: stop abandons it without waiting for a bootstrap that
+        might never happen. A late bootstrap only ends this writer, touching no file.
+        """
+        with self._state:
+            if not self._stopping:
+                self._accepting = False
+                if self._launch_state == "new":
+                    self._ended.set()  # no thread exists to set it
+                elif self._launch_state == "launching":
+                    self._abandoned = True  # no work was handed over before start failed
+                else:
+                    self._state.notify_all()
+                    self._items.append(None)
+                self._stopping = True  # an interrupted handover can be retried
+            if self._launch_state == "launching":
+                return
         while not self._ended.wait(_POLL):
             pass
+
+    def _launch(self, report: bool) -> None:
+        """Start under the queue lock, deferring standard Ctrl+C until the outcome is
+        known. If start raises after creating a thread, stop must still end that thread.
+        As with close, a program's own signal handler is not deferred.
+        """
+        with deferred_interrupts(lambda: None):
+            self._launch_state = "launching"
+            try:
+                self._thread.start()
+            except BaseException as error:
+                # No work has been queued. With an unknown outcome, a late bootstrap
+                # must end before taking anything, even if close already cleaned up.
+                self._accepting = False
+                self._abandoned = True
+                self._error = error
+                self._failure.record(error)
+                if self._thread.ident is not None:
+                    self._launch_state = "started"
+                self.check(report)
+            else:
+                self._launch_state = "started"
 
     def _full(self, nbytes: int) -> bool:
         busy = sum(item[2] for item in self._items if item is not None) + max(self._running, 0)
@@ -167,6 +203,10 @@ class WriterThread:
 
     def _run(self) -> None:
         try:
+            with self._state:
+                self._launch_state = "started"  # bootstrap confirms an uncertain start
+                if self._abandoned:
+                    return  # no work was taken, so only this writer's state is touched
             while self._step(self._take()):
                 pass
         finally:

@@ -263,7 +263,8 @@ def _shard_threads(sink):
     thread itself is gone, which a loaded machine makes visible."""
     threads = [t._thread for t in (sink._hash, sink._io, sink._publisher)]
     for thread in threads:
-        thread.join(10)
+        if thread.ident is not None:
+            thread.join(10)
     return [t.name for t in threads if t.is_alive()]
 
 
