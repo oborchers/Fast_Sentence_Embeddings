@@ -139,7 +139,7 @@ class ShardSink(ShardSinkBase):
         synced = durability == "full"
         info, first_row, stream = _open_store(path, info, new=new, resume=resume, synced=synced)
 
-        created_by = _created_by()  # before the threads start
+        created_by = _created_by()  # before the sink is initialized
         super().__init__(
             path,
             synced=synced,

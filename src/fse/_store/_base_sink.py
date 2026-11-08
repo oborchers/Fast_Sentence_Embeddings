@@ -14,7 +14,7 @@ the part that does not depend on what a row holds:
 - the reservation of rows over shards, with a buffer of its own for a task that crosses
   the end of a shard (split over the shards at its commit);
 - the three threads (hashing in order, writing, publishing with syncs and a rename), with
-  one shared first failure;
+  one shared first failure; each starts only with its first work;
 - ``seal``, ``publish``, ``flush`` and ``close``, with the deferred interrupt (Ctrl+C) of a
   close and the clean-up of the shards that were not published.
 
