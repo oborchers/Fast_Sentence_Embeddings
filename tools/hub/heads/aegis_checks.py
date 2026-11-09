@@ -23,7 +23,7 @@ def folded_bound(encoder, model, estimator, texts):
     x = encoder.encode(texts, workers=1)
     a64, b64 = exact_head(estimator, None)
     a, b = model.coef_, model.intercept_
-    z = model.decision_function(texts, workers=1)
+    z = model.decision_function(texts, workers=1).reshape(len(texts), -1)
     pool = spec.pool_input()
     table = ref.fold(pool.vectors, pool.scales, a)
     source = StringSource(texts)
@@ -74,10 +74,11 @@ def import_check(encoder, model, estimator, texts, binary):
         texts, output="decision", return_vectors=True, workers=1
     )
     bits(returned, x)
-    other_bound = module.unfolded(x, a64, b64, model.coef_, model.intercept_, unfolded["head"])
-    if not (np.abs(unfolded["head"] - exact) <= other_bound).all():
+    unfolded_z = unfolded["head"].reshape(len(texts), -1)
+    other_bound = module.unfolded(x, a64, b64, model.coef_, model.intercept_, unfolded_z)
+    if not (np.abs(unfolded_z - exact) <= other_bound).all():
         raise AssertionError("unfolded logits exceed the repository bound")
-    if not (np.abs(z - unfolded["head"]) <= bound + other_bound).all():
+    if not (np.abs(z - unfolded_z) <= bound + other_bound).all():
         raise AssertionError("folded versus unfolded exceeds combined bounds")
     return {
         "rows": len(texts),
@@ -98,7 +99,7 @@ def equality(encoder):
     multi = fse.Classifier.from_arrays(encoder, zero, labels=["category"], link="multilabel")
     assert binary.predict(texts).tolist() == ["safe"]
     assert not multi.predict(texts).any()
-    bits(binary.decision_function(texts), np.zeros((1, 1), dtype=np.float32))
+    bits(binary.decision_function(texts), np.zeros(1, dtype=np.float32))
     return {"binary_zero_is_safe": True, "multilabel_equality_is_false": True}
 
 
@@ -123,21 +124,25 @@ def group_and_store(work, models, texts):
     return {"group_single_bits": True, "store_rows": len(texts), "store_ids_scores_verified": True}
 
 
-def verify(work, encoder, estimators, models, texts, config, *, export):
+def verify(work, encoder, estimators, models, texts, config, budget, *, export):
+    budget.check()
     result = {"equality": equality(encoder)}
     for name, model in models.items():
+        budget.check()
         result[name] = import_check(encoder, model, estimators[name], texts, name == "safety")
         np.testing.assert_array_equal(model.classes_, config["labels"][name])
+    budget.check()
     result["group"] = group_and_store(work, models, texts)
     if export:
-        result["persistence"] = persist(work, models, texts, config)
+        result["persistence"] = persist(work, models, texts, config, budget)
     write(work / "verification.json", result)
     return result
 
 
-def persist(work, models, texts, config):
+def persist(work, models, texts, config, budget):
     result = {}
     for name, model in models.items():
+        budget.check()
         folder = work / (name + "-complete")
         model.save_pretrained(
             folder, language=["en"], license="mit", model_name="Prepared Aegis " + name

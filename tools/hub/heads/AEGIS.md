@@ -41,6 +41,12 @@ from heavy-lock acquisition, excluding queue wait, by maintainer decision on
 verification count toward that budget. Check it at safe operation boundaries.
 Stop as inconclusive on exhaustion. Never extend or automatically retry.
 
+The `night` command can run missing synthetic probes before fitting, inside the
+same 90-minute budget and held lock. Earlier preparation and failed small API
+probes are separate preflight work, not additional training attempts. The budget
+uses the acquired lock owner's immutable file timestamp, including child startup,
+imports and an intervening uv rebuild. Use a `dr318-` worker name for this recipe.
+
 `run` selects, verifies and freezes both complete artifacts. It checks a fresh
 PyPI fse 2.0.0 environment on validation probes, then evaluates test once using
 saved fse heads. It writes group-bootstrap AP intervals for all three subsets,
@@ -49,6 +55,8 @@ Exclusive selection and test markers prevent automatic repeat evaluation.
 
 Only a successful run creates `prepared/`, containing complete artifacts, cards,
 receipts and `manifest.sha256`. An incomplete staging folder is not a deliverable.
+Frozen weight files use hard links during staging to avoid doubling their disk
+space. Cards remain separate copies. Never modify a frozen weight file in place.
 Copy only small text-free reports and cards to `benchmarks/baseline/dr318/`.
 Raw inputs, score matrices, estimators and weights must never enter Git.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 import shutil
 import time
 from dataclasses import asdict
@@ -22,6 +23,18 @@ import fse
 
 class AegisBudget(Budget):
     """The reviewed 90 minutes start inside the acquired heavy lock."""
+
+    def __init__(self, work, config):
+        stamp = work / "started.json"
+        if not stamp.exists():
+            owner_file = Path(os.environ["FSE_HEAVY_LOCK"]) / "owner"
+            owner = json.loads(owner_file.read_text())
+            if not owner["worker"].startswith("dr318-"):
+                raise RuntimeError("Aegis needs its own acquired heavy wrapper")
+            # The owner file is written once by _claim, immediately on acquisition.
+            # Its timestamp includes child startup/imports and any uv rebuild.
+            write(stamp, {"unix": owner_file.stat().st_mtime, "lock_owner": owner})
+        super().__init__(work, config)
 
     def remaining(self):
         return self.config["budget_seconds"] - (time.time() - self.started)

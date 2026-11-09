@@ -48,17 +48,17 @@ def probe(work, config, budget):
         directory = probe_root / spec["name"]
         directory.mkdir()
         result[spec["name"]] = verify(
-            directory, encoder, estimators, models, texts, config, export=False
+            directory, encoder, estimators, models, texts, config, budget, export=False
         )
     write(work / "probe.json", result)
 
 
-def run(work, config):
+def run(work, config, *, ensure_probe=False):
     if json.loads((work / "config.json").read_text()) != config:
         raise ValueError("configuration changed after preparation")
     if not (work / "sample-reviewed.json").exists():
         raise ValueError("train annotation sample must be reviewed before fitting")
-    if not (work / "probe.json").exists():
+    if not ensure_probe and not (work / "probe.json").exists():
         raise ValueError("both small encoder probes must pass before training")
     for name, files in json.loads((work / "encoder-sources.json").read_text()).items():
         for filename, expected in files.items():
@@ -66,6 +66,8 @@ def run(work, config):
                 raise ValueError("encoder changed after probe")
     budget = AegisBudget(work, config)
     with budget.monitor(), threadpool_limits(limits=1):
+        if ensure_probe and not (work / "probe.json").exists():
+            probe(work, config, budget)
         select(work, config, budget)
         finalize(work, config, budget)
     write(work / "DONE.json", {"status": "complete", "peak_rss_bytes": budget.rss()})
@@ -73,7 +75,7 @@ def run(work, config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("preflight", "prepare", "probe", "run"))
+    parser.add_argument("command", choices=("preflight", "prepare", "probe", "run", "night"))
     parser.add_argument("--work", type=external, required=True)
     parser.add_argument(
         "--config", type=Path, default=Path(__file__).with_name("aegis-prompts.json")
@@ -97,7 +99,7 @@ def main():
         with budget.monitor(), threadpool_limits(limits=1):
             probe(args.work, config, budget)
     else:
-        run(args.work, config)
+        run(args.work, config, ensure_probe=args.command == "night")
     print(args.command + ": complete", flush=True)
 
 

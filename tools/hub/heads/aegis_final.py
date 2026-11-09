@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import asdict
@@ -57,15 +58,23 @@ def text_scan(work, cards):
                 raise ValueError("source prompt substring found in a deliverable")
 
 
+def artifact_member(source, target):
+    """Frozen weights share storage; cards remain independently writable copies."""
+    if Path(source).name == "model.safetensors":
+        os.link(source, target)
+    else:
+        shutil.copyfile(source, target)
+    return target
+
+
 def publish(work, record, budget):
     budget.check()
     pending = work / "pending"
     pending.mkdir()
     cards = {name: render(record, name) for name in record["config"]["labels"]}
-    text_scan(work, [*cards.values(), (ROOT / "CHANGELOG.md").read_text()])
     for name, card in cards.items():
         folder = pending / (name + "-complete")
-        shutil.copytree(work / (name + "-complete"), folder)
+        shutil.copytree(work / (name + "-complete"), folder, copy_function=artifact_member)
         (folder / "README.md").write_text(card)
         shutil.copyfile(ROOT / "LICENSE", folder / "LICENSE")
     for name in (
@@ -76,19 +85,44 @@ def publish(work, record, budget):
         "compatibility.json",
         "encoder-sources.json",
         "frozen.json",
+        "started.json",
     ):
         shutil.copyfile(work / name, pending / name)
+    for pattern in ("*-lengths.json", "*-memory-plan.json"):
+        for path in work.glob(pattern):
+            shutil.copyfile(path, pending / path.name)
+    inputs = [work / (split + "-prepared.json") for split in ("train", "validation", "test")]
+    inputs.extend((work / "raw").iterdir())
+    for spec in record["config"]["encoders"]:
+        inputs.extend((work / spec["name"] / name) for name in spec["files"])
+    write(
+        pending / "input-checksums.json",
+        {
+            str(path.relative_to(work)): {"bytes": path.stat().st_size, "sha256": sha256(path)}
+            for path in sorted(inputs)
+            if path.is_file()
+        },
+    )
     write(pending / "metrics.json", record)
+    shutil.copyfile(ROOT / "benchmarks/baseline/dr318/licenses.json", pending / "licenses.json")
+    text_scan(
+        work,
+        [
+            *(p.read_text() for p in pending.rglob("*") if p.suffix in (".md", ".json")),
+            (ROOT / "CHANGELOG.md").read_text(),
+        ],
+    )
     manifest(pending)
     budget.check()
     pending.rename(work / "prepared")
 
 
 def finalize(work, config, budget):
+    budget.check()
     encoder, estimators, models = selected_models(work, config)
     valid_rows, valid_targets = dataset(work, config, "validation")
     texts = [r["prompt"] for r in valid_rows[:256]]
-    checks = verify(work, encoder, estimators, models, texts, config, export=True)
+    checks = verify(work, encoder, estimators, models, texts, config, budget, export=True)
     compat = compatibility(work, models, texts, budget)
     saved = {name: fse.Classifier.from_pretrained(work / (name + "-complete")) for name in models}
     hashes = {name: sha256(work / (name + "-complete/model.safetensors")) for name in models}
