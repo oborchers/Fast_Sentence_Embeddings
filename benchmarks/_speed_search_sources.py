@@ -41,8 +41,15 @@ def sources(context, cell):
     if len(positions) != cell["texts"]:
         raise ValueError("search store size exceeds the pinned source")
     hashes, selected_bytes, full_bytes = inventory(folder, spec, set(positions))
-    if full_bytes > contract["search_queries"]["source_utf8_bound_bytes"]:
-        raise ValueError("search source exceeds the declared memory bound")
+    append(
+        context["ledger"].root / "search-inventory.jsonl",
+        dict(
+            cell_id=cell["id"],
+            train_paragraphs=count,
+            train_utf8_bytes=full_bytes,
+            selected_utf8_bytes=selected_bytes,
+        ),
+    )
     candidates, counts = test_candidates(folder, spec, hashes)
     context["search_selected_bytes"] = selected_bytes
     context["search_total_bytes"] = full_bytes

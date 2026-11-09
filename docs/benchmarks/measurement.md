@@ -622,6 +622,8 @@ after each operation and between rounds. Diagnostic profiles cannot enter search
 summaries. Plans report numeric peak `phases`, their `phase_components` and total
 additional disk for both stores and temporary files. Inventory scanning precedes
 text materialization so the functional plan uses measured selected-source bytes.
+The inventory records selected and total UTF-8 bytes before later preparation can
+fail; no guessed corpus-byte ceiling replaces the actual phase admission.
 Source inventory, model preparation, each store build, reference formation,
 calibration and each whole round have budget admission boundaries. Refused work
 is `not_started` or `partial`; raw files remain. Only successful groups remove

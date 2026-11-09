@@ -701,7 +701,6 @@
     "split": "test",
     "pool_size": 256,
     "seed": 0,
-    "expected_test_sentences": null,
-    "source_utf8_bound_bytes": 400000000
+    "expected_test_sentences": null
   }
 }
