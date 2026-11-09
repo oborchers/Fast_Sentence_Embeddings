@@ -424,3 +424,20 @@ def test_word_vectors_are_made_with_from_arrays_or_load():
     with pytest.raises(TypeError, match=r"from_arrays or WordVectors\.load"):
         WordVectors({}, {})
     assert "_copy" not in inspect.signature(WordVectors.from_arrays).parameters
+
+
+@pytest.mark.parametrize(
+    "indices", [[True, 1], [np.bool_(True), 1], np.ma.array([0, 1], mask=[False, True])]
+)
+def test_get_vectors_refuses_bool_elements_and_masks(indices):
+    with pytest.raises(TypeError, match=r"bool|masked"):
+        _wv().get_vectors(indices)
+
+
+def test_get_vectors_valid_lists_and_arrays_keep_bits():
+    wv = _wv()
+    expected = wv.get_vectors(np.array([0, 1], dtype=np.int64))
+    for indices in ([0, 1], np.array([0, 1], dtype=np.int32)):
+        np.testing.assert_array_equal(
+            wv.get_vectors(indices).view(np.uint32), expected.view(np.uint32)
+        )

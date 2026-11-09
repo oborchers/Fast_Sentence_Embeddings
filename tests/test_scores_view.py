@@ -165,3 +165,20 @@ def test_the_parts_of_a_resumable_score_run_are_read_in_the_order_of_the_source(
         assert partial.source is None
         assert [dict(m["source"])["shard"] for m in partial.members] == [[0, 3], [1, 3]]
         assert len(partial) == 2 * 16_384
+
+
+def test_one_label_multilabel_view_keeps_its_column(tmp_path):
+    paths = [tmp_path / "a", tmp_path / "b"]
+    for path in paths:
+        sc.make_scores(path, sc.info(sc.toxic(labels=("one",))), sizes=(3,))
+    with ScoreStore.open_view(paths) as view:
+        assert view.get_scores("toxic", "decision").shape == (6, 1)
+        assert view.get_scores("toxic", "decision", start=2, stop=2).shape == (0, 1)
+        for method in (view.iter_batches, view.predict_batches):
+            batches = list(
+                method(
+                    block_rows=2,
+                    **({"output": "decision"} if method == view.predict_batches else {}),
+                )
+            )
+            assert all(b.outputs["toxic"].shape == (b.n_rows, 1) for b in batches)

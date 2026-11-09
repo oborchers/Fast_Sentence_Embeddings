@@ -21,6 +21,7 @@ from numpy import ndarray
 
 from fse._backends import get_backend
 from fse._contract import Link
+from fse._validation import refuse_lost_input
 
 from . import _content
 
@@ -67,6 +68,7 @@ def _checked(value: Any, name: str) -> ndarray:
     """``value`` as an array of numbers, checked by the type before any conversion: bools
     and wider floats raise, and so do integers beyond 2**53 (exact in float64 up to there),
     also among the floats of a list, where numpy would round them silently."""
+    refuse_lost_input(value, name)
     if not isinstance(value, ndarray):
         for item in np.asarray(value, dtype=object).ravel():
             _check_item(item, name)
