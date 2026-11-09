@@ -210,11 +210,7 @@
         "seed": 17,
         "labels": [
           "toxicity",
-          "obscene",
-          "threat",
-          "insult",
-          "identity_attack",
-          "sexual_explicit"
+          "insult"
         ]
       },
       "warmup_texts": 20000000,
@@ -240,11 +236,7 @@
         "seed": 17,
         "labels": [
           "toxicity",
-          "obscene",
-          "threat",
-          "insult",
-          "identity_attack",
-          "sexual_explicit"
+          "insult"
         ]
       },
       "warmup_texts": 20000000,

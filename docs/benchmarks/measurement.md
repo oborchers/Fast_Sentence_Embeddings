@@ -584,10 +584,10 @@ Writing cells record first native-file read through ShardSink close. They use a 
 
 The classification headlines `headline-100m-predict` (labels) and
 `headline-100m-predict-proba` (probabilities) use the same seeded WikiText sentence
-file as `headline-100m`, POTION-8M, and six ordered toxicity labels. Their timer
+file as `headline-100m`, POTION-8M, and the configured ordered head labels. The default labels are `toxicity` and `insult`. Their timer
 covers one `Classifier.predict(Path)` or `predict_proba(Path)` call, from native
 file opening through the complete output in memory. Labels are a boolean matrix
-(600 MB for 100 million rows), probabilities a float32 matrix (2.4 GB). There is
+(200 MB for 100 million rows and two labels), probabilities a float32 matrix (800 MB). There is
 no output sink, Python text reading, or batching loop inside this timer.
 
 Before building input, each cell records a declared production resource plan and
@@ -605,7 +605,7 @@ sample must match cpu and numpy bit for bit. Output hashes and runtime/head
 identities must match across all three rounds. Owned input and warmup files are
 removed on success, rejection, and preparation failure.
 
-`head` declares the head's kind and ordered labels. `toxicity-placeholder@1` is
+`head` declares the head's kind and ordered labels (1 to 16 unique nonempty strings). The label count controls weights, output shapes, checks, and memory planning. `toxicity-placeholder@1` is
 an untrained multilabel head (PCG64 seed 17, float32 weights and bias, raw means,
 folded path, cutoffs 0.5). Receipts record its parameter hashes and fingerprint.
 It is allowed only with `--rehearse`, never as publication evidence. A future

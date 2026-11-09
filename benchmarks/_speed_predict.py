@@ -20,16 +20,24 @@ from _harness.records import append, atomic, document, sha256, sync_directory
 from _measurement import package_identity, spread, telemetry
 from _speed_write import headline_tokens
 
-LABELS = ("toxicity", "obscene", "threat", "insult", "identity_attack", "sexual_explicit")
 PROFILE = "toxicity-placeholder@1"
+
+
+def _validate_labels(labels):
+    if (
+        not isinstance(labels, list)
+        or not 1 <= len(labels) <= 16
+        or not all(isinstance(label, str) and label for label in labels)
+        or len(set(labels)) != len(labels)
+    ):
+        raise ValueError("head labels must be 1 to 16 unique nonempty strings")
 
 
 def validate(cell):
     head = cell["head"]
     if cell["output"] not in ("labels", "proba"):
         raise ValueError("predict output must be labels or proba")
-    if head["labels"] != list(LABELS):
-        raise ValueError("headline requires the six ordered toxicity labels")
+    _validate_labels(head.get("labels"))
     if head["kind"] not in ("placeholder", "artifact"):
         raise ValueError("head kind must be placeholder or artifact")
     if head["kind"] == "placeholder" and (head["profile"] != PROFILE or head["seed"] != 17):
@@ -51,20 +59,21 @@ def classifier(job):
     if not job.get("functional_only"):
         raise ValueError("placeholder heads are only allowed in functional probes")
     encoder = Encoder.from_pretrained(job["artifact"], normalize=False, mmap=True)
+    labels = tuple(job["head"]["labels"])
     rng = np.random.default_rng(job["head"]["seed"])
-    weight = rng.standard_normal((len(LABELS), encoder.output_dim)).astype(np.float32)
-    bias = rng.standard_normal(len(LABELS)).astype(np.float32)
+    weight = rng.standard_normal((len(labels), encoder.output_dim)).astype(np.float32)
+    bias = rng.standard_normal(len(labels)).astype(np.float32)
     model = Classifier.from_arrays(
         encoder,
         weight,
         bias,
-        labels=LABELS,
+        labels=labels,
         link="multilabel",
         normalized=False,
     )
-    if model.path() != "folded" or tuple(model.classes_) != LABELS:
+    if model.path() != "folded" or tuple(model.classes_) != labels:
         raise ValueError("headline head must be folded with the ordered labels")
-    if dict(model.thresholds) != dict.fromkeys(LABELS, 0.5):
+    if dict(model.thresholds) != dict.fromkeys(labels, 0.5):
         raise ValueError("placeholder thresholds must be 0.5")
     provenance = dict(
         job["head"],
@@ -244,7 +253,7 @@ def summarize(cell, rows, identity, matches):
         sample_checked=bool(rows),
         sample_cpu_bitwise_equal=bool(rows),
         sample_numpy_bitwise_equal=bool(rows),
-        label_count=len(LABELS),
+        label_count=len(cell["head"]["labels"]),
         head=rows[0]["head"] if rows else cell["head"],
         output_sha256=rows[0]["output_sha256"] if rows else None,
         output_bytes=rows[0]["output_bytes"] if rows else None,
@@ -304,11 +313,11 @@ def run_predict(context, cell, launch, cleanup):
         )
 
 
-def checked_output(output, rows, mode):
+def checked_output(output, rows, mode, label_count):
     import numpy as np
 
     dtype = np.bool_ if mode == "labels" else np.float32
-    if output.shape != (rows, len(LABELS)) or output.dtype != dtype:
+    if output.shape != (rows, label_count) or output.dtype != dtype:
         raise ValueError("predict output shape or dtype differs")
     if mode == "proba":
         for start in range(0, rows, 100000):
@@ -330,7 +339,7 @@ def sample_check(job, predict, output):
     actual = output[indices]
     for backend in ("cpu", "numpy"):
         reference = predict(texts, workers=job["workers"], backend=backend)
-        checked_output(reference, len(texts), job["output"])
+        checked_output(reference, len(texts), job["output"], len(job["head"]["labels"]))
         if not np.array_equal(actual.view(np.uint8), reference.view(np.uint8)):
             raise ValueError(f"predict sample differs bitwise from {backend}")
     return len(indices)
@@ -347,7 +356,7 @@ def predict_child(job):
     warm_started = time.perf_counter()
     warm = predict(Path(job["warmup_file"]), workers=job["workers"])
     warm_seconds = time.perf_counter() - warm_started
-    checked_output(warm, job["warmup_rows"], job["output"])
+    checked_output(warm, job["warmup_rows"], job["output"], len(job["head"]["labels"]))
     del warm
     gc.collect()
     if not job.get("functional_only") and warm_seconds < 2:
@@ -358,7 +367,7 @@ def predict_child(job):
     seconds = time.perf_counter() - started
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     after = telemetry()
-    checked_output(output, job["texts"], job["output"])
+    checked_output(output, job["texts"], job["output"], len(job["head"]["labels"]))
     checked_rows = sample_check(job, predict, output)
     if package_identity("fse") != identity:
         raise ValueError("predict executing package identity changed")
