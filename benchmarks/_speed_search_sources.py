@@ -45,6 +45,7 @@ def sources(context, cell):
         raise ValueError("search source exceeds the declared memory bound")
     candidates, counts = test_candidates(folder, spec, hashes)
     context["search_selected_bytes"] = selected_bytes
+    context["search_total_bytes"] = full_bytes
     from _speed_search_plan import admit
 
     admit(context, context["search_group_cells"])

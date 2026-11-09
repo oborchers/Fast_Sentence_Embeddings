@@ -17,10 +17,14 @@ def adapters():
 
 def store_identity(path):
     path = Path(path)
-    manifests = [path / "store.json", *sorted(path.glob("*/manifest.json"))]
-    if len(manifests) < 2:
+    if not (path / "store.json").is_file() or not list(path.glob("shard-*/manifest.json")):
         raise ValueError("search store has no shard manifests")
-    return {str(p.relative_to(path)): sha256(p) for p in manifests}
+    members = sorted(path.rglob("*"))
+    if path.is_symlink() or any(p.is_symlink() for p in members):
+        raise ValueError("search store contains a symlink")
+    # Bind payloads too, including each sign-bit companion. A changed vector outside
+    # the checked top-k must fail even after the last measured round.
+    return {str(p.relative_to(path)): sha256(p) for p in members if p.is_file()}
 
 
 def identity(job):

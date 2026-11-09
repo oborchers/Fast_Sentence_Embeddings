@@ -616,7 +616,7 @@ reported as mean and minimum, without a quality gate. Every shard must have a
 valid sign-bit companion. Separate untimed calls capture the actual prefilter
 variant, instruction set, entered calls and fallback reasons.
 
-Jobs and receipts bind store manifests, query and reference hashes, model
+Jobs and receipts bind every store file (manifests, vectors and sign bits), query and reference hashes, model
 artifact, installed package contents and adapter code. Check them before and
 after each operation and between rounds. Diagnostic profiles cannot enter search
 summaries. Plans report numeric peak `phases`, their `phase_components` and total
@@ -632,7 +632,7 @@ Prior art (source inspection, 2026-11-09):
 divides batch search time by query count, and
 [FAISS HNSW benchmark](https://github.com/facebookresearch/faiss/blob/main/benchs/bench_hnsw.py)
 reports search batch time per query alongside recall.
-[VectorDBBench serial runner](https://github.com/zilliztech/VectorDBBench/blob/master/vectordb_bench/backend/runner/serial_runner.py)
+[VectorDBBench serial runner](https://github.com/zilliztech/VectorDBBench/blob/main/vectordb_bench/backend/runner/serial_runner.py)
 uses individual request durations and latency percentiles. This protocol adopts
 whole-pool normalization, adds warmup and rotating rounds, and reports block
 variation rather than percentiles of individually timed millisecond calls.
