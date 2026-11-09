@@ -122,6 +122,11 @@ class LengthReport:
     The arrays of one value per row exist for ``lengths="per_row"`` and are read-only;
     ``truncated_tokens`` and ``truncated_chars`` (and their totals) exist for
     ``count_truncated=True``. ``first_row`` is the row of the run where the report starts.
+
+    ``dropped_unknown_total`` is the sum of ``dropped_unknown``: the unknown ids removed
+    after the length cut by ``fse.unknown=drop``, and without FastText the unknown words of
+    ``fse_words@1`` and ``external``; with FastText an unknown word counts as a token and
+    does not raise it. Tokens cut by the length rule are ``truncated_tokens_total``.
     """
 
     first_row: int
