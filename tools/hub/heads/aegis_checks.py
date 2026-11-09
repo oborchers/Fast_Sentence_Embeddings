@@ -62,7 +62,8 @@ def import_check(encoder, model, estimator, texts, binary):
     if not (probability_error <= tolerance).all():
         raise AssertionError("probabilities exceed the derived sigmoid bound")
     wanted = ref.labels(z) if binary else ref.multilabel(z, np.full(model.n_outputs, 0.5))
-    np.testing.assert_array_equal(model.predict(texts, workers=1), wanted)
+    expected_predictions = model.classes_[wanted] if binary else wanted
+    np.testing.assert_array_equal(model.predict(texts, workers=1), expected_predictions)
     bits(probabilities, ref.proba(z, Link.SIGMOID if binary else Link.MULTILABEL))
     changed = wanted != estimator.predict(x.astype(np.float64))
     ambiguous = (np.abs(exact) <= bound)[:, 0] if binary else np.abs(exact) <= bound
@@ -95,7 +96,7 @@ def equality(encoder):
     zero = np.zeros((1, encoder.output_dim), dtype=np.float32)
     binary = fse.Classifier.from_arrays(encoder, zero, labels=["safe", "unsafe"], link="sigmoid")
     multi = fse.Classifier.from_arrays(encoder, zero, labels=["category"], link="multilabel")
-    assert binary.predict(texts).tolist() == [0]
+    assert binary.predict(texts).tolist() == ["safe"]
     assert not multi.predict(texts).any()
     bits(binary.decision_function(texts), np.zeros((1, 1), dtype=np.float32))
     return {"binary_zero_is_safe": True, "multilabel_equality_is_false": True}

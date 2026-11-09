@@ -80,6 +80,10 @@ def summarize(y, scores, predicted, rows, labels, config, budget, *, bootstrap):
 
 
 def evaluate(targets, scores, binary_predictions, rows, config, budget, *, bootstrap):
+    labels = config["labels"]["safety"]
+    if not np.isin(binary_predictions, labels).all():
+        raise ValueError("binary predictions must be configured class names")
+    binary_predictions = (binary_predictions == labels[1]).astype(np.int64)
     subsets = {
         "all": np.ones(len(rows), dtype=bool),
         "prompt_only": np.array([not r["has_response"] for r in rows]),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,8 @@ def probe(work, config, budget):
     rows, _ = dataset(work, config, "validation")
     texts = [r["prompt"] for r in rows[:32]]
     result = {}
+    probe_root = work / ("probes-" + str(time.time_ns()))
+    probe_root.mkdir()
     for spec in config["encoders"]:
         budget.check()
         encoder = fse.Encoder.from_pretrained(work / spec["name"], normalize=False)
@@ -42,7 +45,7 @@ def probe(work, config, budget):
             name: fse.Classifier.from_sklearn(encoder, model, labels=config["labels"][name])
             for name, model in estimators.items()
         }
-        directory = work / (spec["name"] + "-probe")
+        directory = probe_root / spec["name"]
         directory.mkdir()
         result[spec["name"]] = verify(
             directory, encoder, estimators, models, texts, config, export=False
@@ -88,9 +91,9 @@ def main():
         write(args.work / "config.json", config)
         prepare(args.work, config)
     elif args.command == "probe":
-        probe_root = args.work / "probe-budget"
+        probe_root = args.work / ("probe-budget-" + str(time.time_ns()))
         probe_root.mkdir()
-        budget = AegisBudget(probe_root, config)
+        budget = AegisBudget(probe_root, {**config, "budget_seconds": 900})
         with budget.monitor(), threadpool_limits(limits=1):
             probe(args.work, config, budget)
     else:
