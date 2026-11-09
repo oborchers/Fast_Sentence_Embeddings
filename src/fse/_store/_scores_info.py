@@ -79,12 +79,15 @@ SHARED = (
 
 @dataclass(frozen=True)
 class ScoreHead:
-    """One head of a score store: its model, what it stores in which columns of ``scores``
-    ``labels`` names the output columns, or is None for a regressor. ``columns`` is
-    the half-open range in the stored score matrix, and ``width`` its size. ``flat``
-    records whether a single output is returned as a vector. ``model`` identifies
-    the model, ``task``, ``rule``, ``link`` and ``stored`` describe its outputs,
-    and the path (``folded``, ``normalized``, ``unfolded``, ``standalone``) its run took."""
+    """One head of a score store and the half-open ``columns`` range it occupies.
+
+    ``name`` is the head's name and ``model`` its model fingerprint. ``task`` names
+    classification or regression, ``rule`` the label rule, ``link`` the probability
+    link and ``stored`` the stored output. ``path`` records the inference path
+    (folded, normalized, unfolded or standalone). ``labels`` names the outputs,
+    or is None for a regressor. ``width`` is the number of stored columns and
+    ``flat`` records whether one output is returned as a vector.
+    """
 
     name: str
     model: str

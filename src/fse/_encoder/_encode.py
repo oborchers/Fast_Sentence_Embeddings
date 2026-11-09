@@ -13,7 +13,7 @@ and does not import the encoder.
 
 from __future__ import annotations
 
-from collections.abc import Generator, Iterator
+from collections.abc import Generator
 from typing import Any, Literal, overload
 
 from numpy.typing import NDArray
@@ -256,7 +256,7 @@ class _Encoding:
         on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[EncodedBatch]: ...
+    ) -> Generator[EncodedBatch, None, None]: ...
 
     @overload
     def encode_batches(
@@ -273,7 +273,7 @@ class _Encoding:
         on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[tuple[EncodedBatch, LengthReport]]: ...
+    ) -> Generator[tuple[EncodedBatch, LengthReport], None, None]: ...
 
     def encode_batches(
         self,

@@ -13,7 +13,7 @@ classifier offers (``_check_proba``) and does not import the classifier.
 
 from __future__ import annotations
 
-from collections.abc import Generator, Iterator
+from collections.abc import Generator
 from typing import Any, Literal, overload
 
 import numpy as np
@@ -319,7 +319,7 @@ class _Predicting:
         on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[PredictedBatch]: ...
+    ) -> Generator[PredictedBatch, None, None]: ...
 
     @overload
     def predict_batches(
@@ -339,7 +339,7 @@ class _Predicting:
         on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
+    ) -> Generator[tuple[PredictedBatch, LengthReport], None, None]: ...
 
     @validate_arguments
     def predict_batches(

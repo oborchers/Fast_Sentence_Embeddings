@@ -125,6 +125,8 @@ vectors = model.encode(["the cat sleeps", "a dog runs"])
 ```
 
 The supported API is similar, but conversion can change float32 rounding.
+`model.tokenizer` has the public type `fse.typing.Tokenizer`; its `encode` and `encode_batch` return `fse.typing.Encoding` objects with token IDs. Import these types to annotate caller code.
+
 `save_pretrained` and `push_to_hub` export fse folders. Reload them with `fse.StaticModel.from_pretrained`.
 They are not Model2Vec 0.10.0 export files.
 
