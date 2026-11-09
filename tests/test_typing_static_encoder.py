@@ -1,5 +1,6 @@
 """Caller-facing encoder types, checked by mypy and executed by pytest."""
 
+import inspect
 import json
 from collections.abc import Generator
 from pathlib import Path
@@ -152,6 +153,7 @@ def test_encoded_batch_fields_and_generators() -> None:
     encoder = _encoder()
     gen = encoder.encode_batches([TEXTS])
     assert_type(gen, Generator[fse.EncodedBatch, None, None])
+    assert inspect.isgenerator(gen)
     batch = next(gen)
     assert_type(batch.rows, NDArray[Any] | fse.QuantizedRows | None)
     assert_type(batch.vectors, NDArray[Any] | fse.QuantizedRows | None)
@@ -160,14 +162,17 @@ def test_encoded_batch_fields_and_generators() -> None:
     gen.close()
     for dtype in ("int8", "float16"):
         with_rows = encoder.encode_batches([TEXTS], dtype=dtype)
+        assert inspect.isgenerator(with_rows)
         item = next(with_rows)
         assert isinstance(item.rows, fse.QuantizedRows if dtype == "int8" else np.ndarray)
         with_rows.close()
     no_rows = encoder.encode_batches([TEXTS], sink=fse.MemorySink(3))
+    assert inspect.isgenerator(no_rows)
     assert next(no_rows).rows is None
     no_rows.close()
     reports = encoder.encode_batches([TEXTS], lengths="per_row")
     assert_type(reports, Generator[tuple[fse.EncodedBatch, fse.LengthReport], None, None])
+    assert inspect.isgenerator(reports)
     assert isinstance(next(reports)[1], fse.LengthReport)
     reports.close()
 

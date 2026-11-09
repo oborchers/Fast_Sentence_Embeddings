@@ -67,6 +67,12 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         assert inspect.isgenerator(predicted)
         assert next(predicted).outputs is not None
         predicted.close()
+        classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+        classified = classifier.predict_batches(store)
+        assert_type(classified, Generator[fse.PredictedBatch, None, None])
+        assert inspect.isgenerator(classified)
+        assert next(classified).outputs is not None
+        classified.close()
 
 
 def test_score_store_types(tmp_path: Path) -> None:

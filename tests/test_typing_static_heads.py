@@ -1,5 +1,6 @@
 """Caller-facing head types, checked without importing optional integrations."""
 
+import inspect
 from collections.abc import Generator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, assert_type
@@ -245,6 +246,7 @@ def test_predicted_batches_are_generators_with_typed_fields() -> None:
     r = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
     classifier_batches = c.predict_batches([TEXTS], return_vectors=True)
     assert_type(classifier_batches, Generator[fse.PredictedBatch, None, None])
+    assert inspect.isgenerator(classifier_batches)
     item = next(classifier_batches)
     assert_type(item.outputs, NDArray[Any] | None)
     assert_type(item.vectors, NDArray[np.float32] | None)
@@ -254,22 +256,27 @@ def test_predicted_batches_are_generators_with_typed_fields() -> None:
     classifier_batches.close()
     reported = c.predict_batches([TEXTS], lengths="summary")
     assert_type(reported, Generator[tuple[fse.PredictedBatch, fse.LengthReport], None, None])
+    assert inspect.isgenerator(reported)
     assert isinstance(next(reported)[1], fse.LengthReport)
     reported.close()
     regressor_batches = r.predict_batches([TEXTS])
     assert_type(regressor_batches, Generator[fse.PredictedBatch, None, None])
+    assert inspect.isgenerator(regressor_batches)
     assert next(regressor_batches).outputs is not None
     regressor_batches.close()
     rreported = r.predict_batches([TEXTS], lengths="per_row")
     assert_type(rreported, Generator[tuple[fse.PredictedBatch, fse.LengthReport], None, None])
+    assert inspect.isgenerator(rreported)
     assert isinstance(next(rreported)[1], fse.LengthReport)
     rreported.close()
     taken = r.predict_batches([TEXTS], sink=fse.MemorySink(1))
+    assert inspect.isgenerator(taken)
     assert next(taken).outputs is None
     taken.close()
     heads = fse.Heads(c=c, r=r)
     grouped = heads.predict_batches([TEXTS], output={"c": "proba"}, lengths="per_row")
     assert_type(grouped, Generator[fse.HeadsBatch, None, None])
+    assert inspect.isgenerator(grouped)
     assert isinstance(next(grouped).lengths, fse.LengthReport)
     grouped.close()
 
