@@ -109,7 +109,7 @@ def group_and_store(work, models, texts):
     for name, model in models.items():
         bits(wanted[name], model.decision_function(texts, workers=1))
     ids = np.arange(len(texts), dtype=np.int64)
-    sink = fse.ScoreSink(work / "scores", heads, stored="decision", doc_ids=True)
+    sink = fse.ScoreSink(work / "scores", heads, stored="decision", doc_ids=True, resume=True)
     try:
         heads.predict(texts, score_sink=sink, doc_ids=ids, workers=1)
     finally:
