@@ -1005,7 +1005,7 @@ paths. The published speed study keeps `--rehearse`, which already reduces its i
   builds and checks, so it never overlaps a timing window), starts its children with
   `nice -n 10` and does not wait for the one-minute load or for a peer's heavy lock. Wrap it in
   `--local-heavy` only for builds, never the controller itself.
-- **Not reducible.** `binary-recall@1` (100,000 texts) and the prefilter count have a fixed
+- **Not reducible.** `binary-recall@1` and `@2` (100,000 texts) and the prefilter count have a fixed
   size in code and get the production plan only. `rescore-cost@1` (1,048,576 synthetic rows)
   prepares no input and has no plan; under `--functional` it takes the heavy role, ignores the
   load, starts its child at nice 10 and ends with the decision `functional_only`.
@@ -1031,6 +1031,17 @@ The probe of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbiete
 - Outputs: `binary.jsonl` (mean recall@10 with a 95 % bootstrap interval of 1,000 resamples over the queries, and the recall of the Hamming order alone), `checks.jsonl`, `memory.jsonl`, `decision.json`.
 - Decision (fixed before the run, at 40-fold oversampling, mean recall): at least 0.95 for both models speaks for a symmetric 1-bit draft. Below 0.90 for POTION, asymmetric or centered variants come first. In between there is no decision.
 - The cell takes the heavy lock itself and starts its children with `nice -n 10`; do not wrap it in `--local-heavy`.
+
+## Recall of the variants with exact rescoring: `binary-recall@2`
+
+Step K of DR-264 (Recall der Varianten und Kosten der Bitsuche gegen den int8-Vorfilter messen), part of DR-255 (Binäre Vorsuche mit exaktem Nachrechnen als Opt-in anbieten). Class correctness, no timing. It uses the corpus, the models, the queries, the bootstrap and the checks of `binary-recall@1` and adds the asymmetric variant, more factors and an int8 store. `benchmarks/quality.py --diagnose --development-input benchmarks/config/binary-recall-2-local.json` (1,000 queries) or `binary-recall-2-probe-local.json` (the first 64 queries, one block, for the run-time estimate).
+
+- Variants: A ranks by the Hamming distance of the sign bits (the symmetric rule of `sign_bits@1`). B ranks by the largest sum `S` of the int4 codes of the query (`fse._reference_bits.int4_codes`, values from -7 to 7) over the set bits of the row. Both break ties by the smaller position. Factors: 10, 20, 40 and 80 times k = 10 from one candidate order of 800 positions per query.
+- Stores: float32 and int8, both written with `ShardSink(durability="none")` from the same 100,000 texts. Truth for a store is `store.search(queries, 10, mode="exact")` on that store; the recall of the int8 store is therefore the recall against its own exact search, and `checks.jsonl` also holds the recall of the int8 exact search against the float32 exact search. Candidates are rescored with `store.rescore(queries, candidates, 10)`.
+- Checks (any failure ends the study as `failed`): the packed bits of the whole store and of the queries equal `fse._reference_bits.sign_bits` and `query_bits`; the first 16 candidate orders of A and B equal `_reference_bits.candidates` and `candidates_signed` (the study itself ranks with `np.bitwise_count` and an exact float32 matrix product to stay within the budget); every rescored hit is a candidate; the rescore of the first 16 queries equals `search(mode="exact", rows=sorted(candidates))` in ids and score bits; for variant A the public `search(mode="binary", oversample=)` of the first 16 queries equals the rescore in ids and score bits at every factor, on both stores (the int8 store derives its bits from the rows).
+- Outputs: `binary.jsonl` (per model, store, variant and factor: mean recall@10, 95 % bootstrap interval of 1,000 resamples, and the recall of the ranking alone), `checks.jsonl` (including the phase seconds, which give the estimate), `memory.jsonl`, `decision.json`.
+- Rule (fixed before the run, applied by `_quality/binary2_decision.py`): (1) every required cell is valid and every record exists, else `inconclusive`. (2) For each variant, in the order A, then B, the smallest factor at which both models reach a mean recall@10 of at least 0.95 on the float32 store. (3) The variant with the smaller such factor wins, A on a tie. (4) The int8 store must reach 0.95 for both models at the chosen factor; otherwise the next larger factor is tried, for the chosen variant only, and it needs both stores at 0.95. (5) With no match the outcome is `no_variant_meets_threshold`; the default of 40 then stays a set value without a reached threshold. (6) The bootstrap interval is reported and does not decide. (7) The choice holds for this sample only; a confirmation on an independent corpus is a separate step. A run with 64 queries ends as `probe` and decides nothing.
+- Budget: 45 minutes of wall time including preparation and the wait for the lock, from the moment the lock is held. The estimate comes from the probe: the stores and the setup count once per model, the orders and the rescore scale with the queries (1,000 / 64). If the estimate is above the budget, the full run does not start. Never extended, never repeated. The cell takes the heavy lock itself and starts its children with `nice -n 10`; do not wrap it in `--local-heavy`.
 
 ## Cost of rescoring candidates: `rescore-cost@1`
 

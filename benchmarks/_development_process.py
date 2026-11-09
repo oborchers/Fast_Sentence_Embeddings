@@ -190,6 +190,10 @@ def _late_action(job):
         from _quality.binary_child import count_job as binary_job
 
         return binary_job(job)
+    if action == "binary-recall-2":
+        from _quality.binary2_child import count_job as binary_2_job
+
+        return binary_2_job(job)
     if action == "pooling-input":
         from _development_stages import prepare_batch
 
