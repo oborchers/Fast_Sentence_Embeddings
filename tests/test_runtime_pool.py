@@ -25,6 +25,12 @@ def test_a_pool_has_workers_and_a_task_limit():
     assert Pool().workers >= 1
 
 
+def test_the_public_surface_of_a_pool_has_no_way_around_max_tasks():
+    public = {name for name in dir(Pool) if not name.startswith("_")}
+    assert public == {"workers", "max_tasks", "closed", "close"}
+    assert not hasattr(Pool, "submit")
+
+
 @pytest.mark.parametrize("workers", [0, -1, True, 1.5, "2"])
 def test_workers_of_a_pool_must_be_a_positive_int(workers):
     with pytest.raises(ValueError, match="workers must be a positive int"):
@@ -214,8 +220,8 @@ def test_an_error_of_commit_cancels_the_calls_tasks_and_waits_for_the_running_on
             run(range(100), work, commit, workers=2, pool=pool)
         assert seen["started"] == seen["finished"]  # nothing of the call runs on
         assert seen["started"] < 100  # the tasks that had not started were cancelled
-        assert pool.try_acquire()  # every place the call held is back
-        pool.release()
+        assert pool._try_acquire()  # every place the call held is back
+        pool._release()
         done = []
         run(range(5), lambda i: i, lambda _t, r: done.append(r), workers=2, pool=pool)
         assert done == list(range(5))  # the pool still works
@@ -239,10 +245,10 @@ def test_places_are_given_back_after_a_failed_task():
                     pool=pool,
                 )
         for _ in range(4):
-            assert pool.try_acquire()
-        assert not pool.try_acquire()
+            assert pool._try_acquire()
+        assert not pool._try_acquire()
         for _ in range(4):
-            pool.release()
+            pool._release()
 
 
 # --- life: close, collection, streams, fork ---------------------------------------------
@@ -332,7 +338,7 @@ def test_a_child_of_fork_starts_the_threads_again():
 
 def test_the_fork_hook_forgets_the_threads_and_the_places():
     pool = Pool(2, start=True)
-    assert pool.try_acquire()  # a place held by a call that does not exist in the child
+    assert pool._try_acquire()  # a place held by a call that does not exist in the child
     pool._after_fork()
     assert pool._executor is None
     done = []
@@ -418,9 +424,9 @@ def test_the_places_of_tasks_that_still_run_return_when_those_tasks_end(monkeypa
     with Pool(2, max_tasks=2) as pool:
         with pytest.raises(KeyboardInterrupt):
             run(range(10), work, commit, workers=2, pool=pool)
-        assert pool.try_acquire()  # the place of the committed task is free
-        assert not pool.try_acquire()  # the place of the running task is not
-        pool.release()
+        assert pool._try_acquire()  # the place of the committed task is free
+        assert not pool._try_acquire()  # the place of the running task is not
+        pool._release()
         release.set()
-        pool.acquire()  # it returns when that task ends
-        pool.release()
+        pool._acquire()  # it returns when that task ends
+        pool._release()
