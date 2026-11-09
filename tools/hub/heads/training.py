@@ -7,6 +7,7 @@ import warnings
 
 import joblib
 import numpy as np
+from checks import import_bound
 from civil_comments import dataset
 from inputs import coverage, digest_positions, read, sample, vectors, write
 from metrics import metrics
@@ -135,6 +136,13 @@ def select(work, config, budget):
     gain = bekko["validation"]["macro"]["roc_auc"] - potion["validation"]["macro"]["roc_auc"]
     selected = bekko if gain >= config["bekko_minimum_gain"] else potion
     selected = {**selected, "variant": "small", "train_rows": len(positions)}
+    encoder = fse.Encoder.from_pretrained(work / selected["encoder"], normalize=False)
+    estimator = joblib.load(work / (selected["encoder"] + "-best.joblib"))
+    head = fse.Classifier.from_sklearn(encoder, estimator, labels=config["labels"])
+    small_checks = import_bound(head, encoder, estimator, valid_texts[:256])
+    write(work / "small-verification.json", small_checks)
+    del encoder, estimator, head
+    gc.collect()
     # No metric from test can influence this decision.
     medium_result, medium_status = medium(
         work,
@@ -169,6 +177,7 @@ def select(work, config, budget):
         "excluded_labels": read(work / "excluded-labels.json"),
         "validation": validation,
         "bekko_gain": gain,
+        "small_verification": small_checks,
     }
     budget.check()
     write(work / "selection.json", receipt)

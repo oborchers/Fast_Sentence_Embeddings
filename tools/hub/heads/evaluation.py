@@ -7,6 +7,7 @@ import importlib.metadata
 import platform
 import shutil
 import subprocess
+import time
 
 import numpy as np
 from cards import render
@@ -60,12 +61,14 @@ def probe(work, config, budget):
     texts = texts[:32]
     y = np.array([[(i + j) % 2 for j in range(len(config["labels"]))] for i in range(len(texts))])
     results = {}
+    probe_root = work / "probes" / str(time.time_ns())
+    probe_root.mkdir(parents=True)
     for spec in config["encoders"]:
         budget.check()
         encoder = fse.Encoder.from_pretrained(work / spec["name"], normalize=False)
         estimator = fit(encoder.encode(texts), y, config["C"][0], config, budget)
         model = fse.Classifier.from_sklearn(encoder, estimator, labels=config["labels"])
-        directory = work / (spec["name"] + "-probe")
+        directory = probe_root / spec["name"]
         directory.mkdir()
         results[spec["name"]] = {
             "dimension": encoder.output_dim,

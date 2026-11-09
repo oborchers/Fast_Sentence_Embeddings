@@ -145,15 +145,19 @@ def check_store(path, heads, ids, wanted):
 
 def store_roundtrip(work, model, encoder, texts):
     heads = fse.Heads(toxic=model)
-    ids = np.arange(len(texts), dtype=np.uint64) + 100
+    ids = np.arange(len(texts), dtype=np.int64) + 100
     result = {}
     for combined in (False, True):
         mode = "combined" if combined else "scores"
         path = work / mode
         expected = heads.predict(texts, output="decision", return_vectors=combined)
         wanted = expected[0] if combined else expected
-        sink = fse.ScoreSink(path, heads, stored="decision", doc_ids=True)
-        vector_sink = fse.ShardSink(work / "vectors", encoder, doc_ids=True) if combined else None
+        sink = fse.ScoreSink(path, heads, stored="decision", doc_ids=True, resume=True)
+        vector_sink = (
+            fse.ShardSink(work / "vectors", encoder, doc_ids=True, resume=True)
+            if combined
+            else None
+        )
         try:
             heads.predict(
                 texts,
