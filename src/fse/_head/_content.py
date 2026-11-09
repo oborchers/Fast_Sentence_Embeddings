@@ -15,6 +15,7 @@ must be finite after it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,6 +25,7 @@ from numpy import ndarray
 from fse._backends import get_backend
 from fse._contract import LINK_NONE, Head, Link
 from fse._runtime._head_spec import head_rule
+from fse._validation import refuse_lost_input
 
 TASKS = ("classification", "regression")
 # The links a caller names, and what "auto" takes for k outputs.
@@ -51,7 +53,7 @@ class HeadContent:
     link: Link | None
     labels: tuple | None
     standalone: bool = False
-    # One output gives (n,) rather than (n, 1): always for classification (as scikit-learn's
+    # One output gives (n,) rather than (n, 1): for single-label classification (as scikit-learn's
     # decision_function), for regression when the head was one vector (coef_ of shape (d,)).
     flat: bool = True
     thresholds: ndarray | None = None
@@ -103,6 +105,7 @@ def weights(weight: Any, bias: Any, dim: int) -> tuple[ndarray, ndarray]:
 
 
 def _numbers(value: Any, name: str) -> ndarray:
+    refuse_lost_input(value, name)
     array = np.asarray(value)
     if array.dtype.kind not in "fiu" or array.dtype == np.bool_:
         raise TypeError(f"{name} must be numbers (float or int), not {array.dtype}")
@@ -124,6 +127,10 @@ def labels(values: Any, k: int, *, multilabel: bool = False) -> tuple:
     all int or all str, unique."""
     if isinstance(values, str | bytes) or not hasattr(values, "__len__"):
         raise TypeError(f"labels must be a sequence of int or str, not {type(values).__name__}")
+    if isinstance(values, set | frozenset):
+        raise TypeError("labels must be ordered; a set has no order to keep, pass a list")
+    if isinstance(values, Mapping):
+        raise TypeError("labels must be a sequence; mapping values would be discarded, pass a list")
     items = [_label(v) for v in (values.tolist() if isinstance(values, ndarray) else values)]
     want = 2 if k == 1 and not multilabel else k
     if len(items) != want:

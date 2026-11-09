@@ -117,3 +117,22 @@ def test_the_note_names_the_temperature():
     assert (
         _calibration.note(1.7) == "Softmax temperature T = 1.7, folded into the weights and bias."
     )
+
+
+@pytest.mark.parametrize("field", ["weight", "bias"])
+def test_public_temperature_import_refuses_masked_arrays(field):
+    import fse
+    from support.encoder import finished
+
+    enc = finished(normalize=False)
+    values = {"weight": np.ones((2, enc.output_dim)), "bias": np.zeros(2)}
+    values[field] = np.ma.array(values[field], mask=False)
+    with pytest.raises(TypeError, match="masked"):
+        fse.Classifier.from_arrays(
+            enc,
+            values["weight"],
+            values["bias"],
+            labels=["a", "b"],
+            link="softmax",
+            temperature=1.7,
+        )

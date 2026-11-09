@@ -118,3 +118,16 @@ ThresholdInput: TypeAlias = (
     | _ThresholdVector
     | None
 )
+
+
+def refuse_lost_input(value: Any, name: str) -> None:
+    """Refuse masks and boolean elements before numpy can discard their types.
+
+    Numeric ndarrays need no element scan: their dtype still identifies boolean input.
+    """
+    if isinstance(value, np.ma.MaskedArray):
+        raise TypeError(f"{name} must not be a masked array")
+    if not isinstance(value, np.ndarray):
+        for item in np.asarray(value, dtype=object).ravel():
+            if isinstance(item, bool | np.bool_):
+                raise TypeError(f"{name} must be numbers (float or int), not bool")

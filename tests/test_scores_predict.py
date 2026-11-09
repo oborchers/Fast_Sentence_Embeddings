@@ -218,3 +218,71 @@ def test_a_misaligned_block_of_several_heads_still_derives_the_bits(decision):
     want = heads.predict(texts, output={"topic": "proba", "flag": "proba", "toxic": "proba"})
     for name in got:
         _same(got[name], np.asarray(want[name]))
+
+
+# Stored decision: decision, labels, and proba where a link exists. Stored proba:
+# proba, plus labels only with linear@2. Regression: values only. Shape: single-label
+# decision (n,) at k=1, regression follows flat, proba/multilabel always (n, k).
+_CASES = [
+    ("sigmoid", 1, "decision", ["decision", "labels", "proba"]),
+    ("sigmoid", 1, "proba", ["proba"]),
+    ("none", 1, "decision", ["decision", "labels"]),
+    ("softmax", 1, "decision", ["decision", "labels", "proba"]),
+    ("softmax", 1, "proba", ["proba"]),
+    ("softmax", 3, "decision", ["decision", "labels", "proba"]),
+    ("softmax", 3, "proba", ["proba"]),
+    ("multilabel", 1, "decision", ["decision", "labels", "proba"]),
+    ("multilabel", 1, "proba", ["proba", "labels"]),
+    ("multilabel", 3, "decision", ["decision", "labels", "proba"]),
+    ("multilabel", 3, "proba", ["proba", "labels"]),
+    ("vector", 1, "values", ["values"]),
+    ("matrix", 1, "values", ["values"]),
+    ("linear2", 1, "decision", ["decision", "labels", "proba"]),
+    ("linear2", 1, "proba", ["proba", "labels"]),
+    ("temperature", 3, "decision", ["decision", "labels", "proba"]),
+    ("temperature", 3, "proba", ["proba", "labels"]),
+]
+
+
+def _surface_model(kind, k):
+    enc = sh.encoder()
+    if kind in ("vector", "matrix"):
+        return sh.regressor(enc, vector=kind == "vector")
+    if kind in ("linear2", "temperature"):
+        return fse.Classifier.from_arrays(
+            enc,
+            np.ones((k, enc.output_dim), F32),
+            labels=list(range(max(2, k))),
+            link="softmax",
+            temperature=1.7 if kind == "temperature" else 1.0,
+        )
+    labels = ["one"] if kind == "multilabel" and k == 1 else None
+    return sh.classifier(enc, k, link=kind, labels=labels)
+
+
+@pytest.mark.parametrize(("kind", "k", "stored", "outputs"), _CASES)
+def test_store_outputs_match_heads_in_shape_dtype_and_bits(tmp_path, kind, k, stored, outputs):
+    heads, texts = fse.Heads(m=_surface_model(kind, k)), sh.texts(6)
+    sc.write_store(tmp_path / "s", heads, texts, stored=stored)
+    with fse.ScoreStore.open(tmp_path / "s") as store:
+        for output in outputs:
+            got = _joined(store, output=output, block_rows=2)["m"]
+            want = heads.predict(texts, output=output)["m"]
+            assert got.dtype == want.dtype
+            _same(got, want)
+        raw = store.get_scores("m", stored)
+        _same(raw, heads.predict(texts, output=stored)["m"])
+        assert store.get_scores("m", stored, start=3, stop=3).shape == (0, *raw.shape[1:])
+        batches = list(store.iter_batches(block_rows=2))
+        _same(np.concatenate([b.outputs["m"] for b in batches]), raw)
+
+
+@pytest.mark.parametrize("key", [True, 1.0])
+def test_integer_threshold_keys_are_checked_before_any_rows(tmp_path, key):
+    enc = sh.encoder()
+    heads = fse.Heads(
+        m=sh.classifier(enc, 2, link="multilabel", labels=[1, 2], thresholds=[0.3, 0.7])
+    )
+    sc.write_store(tmp_path / "s", heads, sh.texts(6))
+    with fse.ScoreStore.open(tmp_path / "s") as store, pytest.raises(TypeError, match="a label"):
+        store.predict_batches(thresholds={"m": {key: 0.9}})

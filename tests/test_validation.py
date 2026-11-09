@@ -105,3 +105,20 @@ def test_threshold_input_rejects_coercion(value):
     )
     with pytest.raises(ValidationError):
         adapter.validate_python(value)
+
+
+@pytest.mark.parametrize(
+    "value", [[True, 1], [[0.5, np.bool_(True)]], np.ma.array([1], mask=False)]
+)
+def test_refuse_lost_input_rejects_boolean_elements_and_masks(value):
+    from fse._validation import refuse_lost_input
+
+    with pytest.raises(TypeError, match=r"bool|masked"):
+        refuse_lost_input(value, "input")
+
+
+@pytest.mark.parametrize("value", [[1, 0.5], (1, 2), np.array([1, 2], dtype=np.int32), []])
+def test_refuse_lost_input_accepts_numbers(value):
+    from fse._validation import refuse_lost_input
+
+    assert refuse_lost_input(value, "input") is None
