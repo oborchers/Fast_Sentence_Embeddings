@@ -1,6 +1,7 @@
 """A leader whose descendant announces readiness before outliving it."""
 
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -14,7 +15,11 @@ def main():
         child = subprocess.Popen([sys.executable, __file__, str(root), "descendant", sys.argv[3]])
         while not (root / "ready.json").exists():
             time.sleep(0.01)
-        (root / "descendant.pid").write_text(str(child.pid))
+        # Readers poll for the file's existence; write_text truncates in place, so they
+        # could see it empty. A rename publishes the complete content in one step.
+        pending = root / "descendant.pid.tmp"
+        pending.write_text(str(child.pid))
+        os.replace(pending, root / "descendant.pid")
         return
     if sys.argv[3] == "ignore":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
