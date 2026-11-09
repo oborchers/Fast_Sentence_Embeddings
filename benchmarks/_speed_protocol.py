@@ -11,35 +11,39 @@ from __future__ import annotations
 
 LIBRARIES = ("model2vec", "rust", "fastembed", "st")
 
-# (kind, reference) -> (name, output check, A/A control). A reference not listed is refused.
+# (kind, reference) -> name, check, A/A, paired, own memory plan, needs quiet.
 VARIANTS = {
-    **{("encode", name): ("library-compare@1", "tolerance", False) for name in LIBRARIES},
-    ("dtype", "fse-control"): ("dtype-control@1", "bits", True),
-    ("dtype", "fse-base"): ("version-compare@1", "bits", False),
-    ("heads", "model2vec"): ("heads-compare@1", "tolerance", False),
-    ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False),
-    ("heads", "fse-separate"): ("heads-compare@1", "bits", False),
-    ("write", None): ("write@1", "bits", False),
-    ("predict", None): ("predict@1", "bits", False),
+    **{
+        ("encode", name): ("library-compare@1", "tolerance", False, True, False, True)
+        for name in LIBRARIES
+    },
+    ("dtype", "fse-control"): ("dtype-control@1", "bits", True, True, False, True),
+    ("dtype", "fse-base"): ("version-compare@1", "bits", False, True, False, True),
+    ("heads", "model2vec"): ("heads-compare@1", "tolerance", False, True, False, True),
+    ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False, True, False, True),
+    ("heads", "fse-separate"): ("heads-compare@1", "bits", False, True, False, True),
+    ("write", None): ("write@1", "bits", False, False, True, False),
+    ("predict", None): ("predict@1", "bits", False, False, True, False),
 }
 
 
 def protocol(cell):
     """The variant of one cell: ``name``, ``exact`` (compare bits) and ``control`` (A/A)."""
     try:
-        name, check, control = VARIANTS[(cell["kind"], cell["reference"])]
+        name, check, control, paired, own_memory, needs_quiet = VARIANTS[
+            (cell["kind"], cell["reference"])
+        ]
     except KeyError:
         raise ValueError(
             f"no protocol for kind {cell['kind']!r} against reference {cell['reference']!r}"
         ) from None
-    single = name in ("write@1", "predict@1")
     return {
         "name": name,
         "exact": check == "bits",
         "control": control,
-        "paired": not single,
-        "own_memory_plan": single,
-        "needs_quiet": not single,
+        "paired": paired,
+        "own_memory_plan": own_memory,
+        "needs_quiet": needs_quiet,
     }
 
 
