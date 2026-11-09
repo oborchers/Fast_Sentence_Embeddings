@@ -8,7 +8,8 @@ from sklearn.metrics import average_precision_score, precision_recall_fscore_sup
 
 
 def metrics(y, scores, labels):
-    if y.ndim == 1:
+    binary = y.ndim == 1
+    if binary:
         if set(np.unique(y)) != {0, 1} or scores.shape != (len(y), 2):
             raise ValueError("binary targets need both classes and two probability columns")
         y = np.column_stack([y == 0, y == 1])
@@ -17,9 +18,15 @@ def metrics(y, scores, labels):
     coverage(y)
     if scores.shape != y.shape or not np.isfinite(scores).all():
         raise ValueError("invalid classifier scores")
+    if ((scores < 0) | (scores > 1)).any():
+        raise ValueError("classifier scores must lie in [0, 1]")
+    predicted = scores > 0.5
+    if binary:
+        index = scores.argmax(axis=1)
+        predicted = np.column_stack([index == 0, index == 1])
     precision, recall, f1, _ = precision_recall_fscore_support(
         y,
-        scores > 0.5,
+        predicted,
         average=None,
         zero_division=0,
     )
