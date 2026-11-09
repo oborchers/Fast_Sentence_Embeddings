@@ -165,7 +165,7 @@ Record rejected components. Do not call a preflight rejection an observed out-of
 Check disk for inputs, caches, overlapping outputs and collection. Keep generated files outside the checkout.
 
 Rehearse every selected cell and lifecycle control in the exact pinned Linux image before a paid run.
-Use the same entry's `--rehearse` mode with at most two CPU quota units and four GiB RAM (six GiB for the speed rehearsal, because of the bekko cells).
+Use the same entry's `--rehearse` mode with at most two CPU quota units and four GiB RAM (six GiB for the speed rehearsal, because of the bekko cells; `quality.py --rehearse` reads the same speed limit).
 Follow the guide's shared-memory and descriptor limits for ST.
 Small inputs prove function, not full-size memory capacity or speed.
 On a developer Mac or Mac mini, run only functional probes inside bounded Linux containers.
