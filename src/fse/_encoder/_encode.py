@@ -13,7 +13,7 @@ and does not import the encoder.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Any, Literal, overload
 
 from numpy.typing import NDArray
@@ -289,7 +289,7 @@ class _Encoding:
         on_truncation: Any = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[Any]:
+    ) -> Generator[Any, None, None]:
         """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
         (or token lists), as a queue consumer polls them, and every batch gives one
         ``EncodedBatch`` once its rows are finished. With a ``sink`` the rows go there,

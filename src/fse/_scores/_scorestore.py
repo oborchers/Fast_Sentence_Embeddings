@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -130,7 +130,7 @@ class ScoreStore(MemberReaders):
         block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
         start: NonNegativeInt = 0,
         stop: NonNegativeInt | None = None,
-    ) -> Iterator[ScoreBatch]:
+    ) -> Generator[ScoreBatch, None, None]:
         """The stored values of the rows ``start`` to ``stop - 1`` (all by default) in
         blocks of at most ``block_rows`` rows, never over the end of a shard: for each head
         a read-only view of the mapped shard (the stored decision, probabilities or values;
@@ -149,7 +149,7 @@ class ScoreStore(MemberReaders):
         thresholds: Any = None,
         block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
         backend: str | None = None,
-    ) -> Iterator[ScoreBatch]:
+    ) -> Generator[ScoreBatch, None, None]:
         """Labels or values for every row, in blocks, as ``Heads.predict_batches`` gives
         them: by default the labels of a classifier and the values of a regressor,
         ``output`` as for ``Heads`` (one name or a mapping of head names to names). What a

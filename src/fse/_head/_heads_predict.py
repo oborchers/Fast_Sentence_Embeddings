@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from typing import Any, Literal, overload
 
 from numpy import ndarray
@@ -264,7 +264,7 @@ class _HeadsPredicting:
         on_truncation: Any = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[HeadsBatch]:
+    ) -> Generator[HeadsBatch, None, None]:
         """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
         head and, with ``return_vectors=True``, the ``vectors`` (the rows of the encoder; the

@@ -15,7 +15,7 @@ is read. With a sink, every batch is committed to it, numbered on from the rows 
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager
 from typing import Any, NamedTuple
 
@@ -245,7 +245,7 @@ def batches(
     doc_ids: bool = False,
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
     lists) or an Arrow string column each; with ``lengths`` of a level, the pair of it and
     the ``LengthReport`` of its rows (``rule`` is the encoder's)."""

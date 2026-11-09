@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from pathlib import Path
 from typing import Any, Literal
 
@@ -305,7 +305,7 @@ class VectorStore(MemberReaders):
         block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
         start: NonNegativeInt = 0,
         stop: NonNegativeInt | None = None,
-    ) -> Iterator[VectorBatch]:
+    ) -> Generator[VectorBatch, None, None]:
         """The stored rows ``start`` to ``stop - 1`` (all by default) in blocks of at most
         ``block_rows`` rows, never over the end of a shard: ``VectorBatch`` objects whose
         ``vectors`` (and ``doc_ids`` and ``inv_norms``) are read-only views of the mapped shards, in the stored

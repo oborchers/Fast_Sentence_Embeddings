@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Any, Literal, overload
 
 from numpy import ndarray
@@ -291,7 +291,7 @@ class _RegressorPredicting:
         on_truncation: Any = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[Any]:
+    ) -> Generator[Any, None, None]:
         """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
         ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
         threads = workers_of(workers, pool)  # before anything is read

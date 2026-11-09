@@ -13,7 +13,7 @@ classifier offers (``_check_proba``) and does not import the classifier.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import Any, Literal, overload
 
 from numpy import ndarray
@@ -284,7 +284,7 @@ class _Predicting:
         on_truncation: Any = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[Any]:
+    ) -> Generator[Any, None, None]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
         rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
