@@ -113,6 +113,7 @@ def launch(context, cell, label, number, path, sample, identity):
         artifact=model.get("artifacts", {}).get(
             cell.get("table_dtype", cell["dtype"]), model["artifact"]
         ),
+        artifact_sha256=model["artifact_sha256"][cell.get("table_dtype", cell["dtype"])],
         vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
@@ -143,6 +144,7 @@ def launch(context, cell, label, number, path, sample, identity):
         label=label,
         round=number,
         input_sha256=identity["sha256"],
+        artifact_sha256=job["artifact_sha256"],
         model=cell["model"],
         revision=model["revision"],
         sample_file=str(folder / "sample"),
@@ -377,7 +379,6 @@ def run_cells(context, contract):
 
 
 def run_headline(context, contract):
-
     ledger, work = context["ledger"], context["work"]
     cell = contract["cells"][0]
     ledger.stage, ledger.current = "headline", cell["id"]
@@ -430,6 +431,8 @@ def pair_validity(cell, observations, arms):
 
 def validate_pair_arms(arms):
     for rows in arms.values():
+        if any(row.get("diagnostic_profile") for row in rows):
+            raise ValueError("diagnostic profiles cannot enter paired comparisons")
         if [row["round"] for row in rows] != [0, 1, 2]:
             raise ValueError("missing or duplicate paired rounds")
         if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:

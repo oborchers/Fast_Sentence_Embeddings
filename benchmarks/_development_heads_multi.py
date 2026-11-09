@@ -240,7 +240,9 @@ def profile(job):
 
     policy = {"affinity": apply_affinity(job.get("cpu_affinity"))}
     encoder, texts = inputs(job)
-    predict = operation(encoder, texts, {**job, "heads_mode": job["candidate_heads_mode"]})
+    predict = operation(
+        encoder, texts, {**job, "heads_mode": job.get("heads_mode", job["candidate_heads_mode"])}
+    )
     iterations = job["iterations"]
     if type(iterations) is not int or iterations < 1:
         raise ValueError("positive integral profile iterations required")
@@ -259,7 +261,7 @@ def profile(job):
         "profile": job["profile"],
         "head_spec": {**SPEC, "heads": job["heads"], "return_vectors": job["return_vectors"]},
         "worker_path": job["stage"],
-        "heads_mode": job["candidate_heads_mode"],
+        "heads_mode": job.get("heads_mode", job["candidate_heads_mode"]),
         "policy": policy,
         "operation_repetitions": iterations,
         "output": output_identity(output),

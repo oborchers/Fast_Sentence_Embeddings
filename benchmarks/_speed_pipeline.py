@@ -14,7 +14,7 @@ from pathlib import Path
 
 import _speed_protocol as protocols
 from _harness.records import atomic, sha256
-from _measurement import package_identity, telemetry
+from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
 from _speed_heads import fse_head, model2vec_head
@@ -175,7 +175,7 @@ def rust_child(job):
         telemetry_before=before,
         telemetry_after=telemetry(),
     )
-    atomic(Path(job["receipt"]), record)
+    atomic(Path(job["receipt"]), {**record, **child_record(job)})
 
 
 def widened_snapshot(snapshot, folder):
@@ -255,6 +255,7 @@ def prepare_models(root, contract, reuse=None):
             "snapshot": snapshot,
             "artifact": artifacts["float32"],
             "artifacts": artifacts,
+            "artifact_sha256": {dtype: sha256(Path(path)) for dtype, path in artifacts.items()},
             "revision": revision,
         }
     return result
@@ -306,6 +307,7 @@ def measure_child(job):
         atomic(
             Path(job["receipt"]),
             {
+                **child_record(job),
                 "identity": identity,
                 "versions": {d.metadata["Name"]: d.version for d in distributions()},
                 "seconds": seconds,

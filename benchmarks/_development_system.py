@@ -16,6 +16,15 @@ from _harness import functional, resources
 LABEL = {"mode": "local-development", "publishable": False}
 
 
+def mark_diagnostic():
+    LABEL.update(
+        diagnostic_profile=True,
+        valid_for_comparison=False,
+        diagnostic_pid=os.getpid(),
+        diagnostic_parent_pid=os.getppid(),
+    )
+
+
 def mark_functional():
     """Label every record this process writes from now on as a functional run. ``LABEL`` is
     spread into every record, so no result, receipt or call line of the process can be read as
