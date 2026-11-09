@@ -226,7 +226,7 @@ def test_empty_group_requires_a_complete_process_snapshot(heavy, monkeypatch):
 
 
 def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, monkeypatch):
-    real_send, real_sleep, real_drain = heavy._send, heavy.time.sleep, heavy._drain
+    real_send, real_drain = heavy._send, heavy._drain
     draining = threading.Event()
     injections, states = [], []
     bounded = heavy._bounded
@@ -235,14 +235,14 @@ def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, mo
         if signum == signal.SIGINT:
             assert (tmp_path / "heavy.lock" / "owner").is_file()
             raise PermissionError("repeated signal denied")
+        if draining.is_set() and not injections:
+            # The drain always sends its first signal, so both repeated signals arrive
+            # while it drains without depending on a poll, a sleep or the grace period.
+            for _ in range(2):
+                injections.append(True)
+                states[0].receive(signal.SIGINT, None)
+                assert (tmp_path / "heavy.lock" / "owner").is_file()
         return real_send(group, signum)
-
-    def sleep(seconds):
-        if draining.is_set() and len(injections) < 2:
-            injections.append(True)
-            states[0].receive(signal.SIGINT, None)
-            assert (tmp_path / "heavy.lock" / "owner").is_file()
-        real_sleep(seconds)
 
     def ready(child, state, notify, _deadline):
         assert until(lambda: states and (tmp_path / "descendant.pid").exists())
@@ -256,7 +256,6 @@ def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, mo
             draining.clear()
 
     monkeypatch.setattr(heavy, "_send", denied)
-    monkeypatch.setattr(heavy.time, "sleep", sleep)
     monkeypatch.setattr(heavy, "_bounded", ready)
     monkeypatch.setattr(heavy, "_drain", drain)
     state, thread, result, errors = _run(heavy, tmp_path, "ignore", time.monotonic() + 0.1)
