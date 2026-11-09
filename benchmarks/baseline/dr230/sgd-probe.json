@@ -1,0 +1,82 @@
+{
+  "status": "functional_complete",
+  "train_rows": 256,
+  "checks": {
+    "0.1": {
+      "rows": 32,
+      "logit_bound_passed": true,
+      "max_logit_error": 2.4796152207073874e-06,
+      "max_logit_bound": 0.002522450631398229,
+      "max_probability_error": 4.7220897680944063e-07,
+      "max_probability_bound": 0.0006310894950077604,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 2.205371856689453e-06
+    },
+    "1.0": {
+      "rows": 32,
+      "logit_bound_passed": true,
+      "max_logit_error": 2.5102167171553447e-06,
+      "max_logit_bound": 0.002522450638585636,
+      "max_probability_error": 3.5980430723725476e-07,
+      "max_probability_bound": 0.0006310894968046121,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 1.9073486328125e-06
+    },
+    "10.0": {
+      "rows": 32,
+      "logit_bound_passed": true,
+      "max_logit_error": 2.5102167171553447e-06,
+      "max_logit_bound": 0.002522450638585636,
+      "max_probability_error": 3.5980430723725476e-07,
+      "max_probability_bound": 0.0006310894968046121,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 1.9073486328125e-06
+    }
+  },
+  "persistence": {
+    "complete_bit_identity": true,
+    "standalone_bit_identity": true,
+    "labels_preserved": true
+  },
+  "stores": {
+    "scores_path": "folded",
+    "combined_path": "unfolded",
+    "ids_scores_thresholds_vectors_verified": true
+  },
+  "payloads": [
+    "complete",
+    "standalone"
+  ],
+  "source_unchanged": true,
+  "quality_selection": false,
+  "validation_accessed": false,
+  "test_accessed": false,
+  "peak_rss_bytes": 1606647808,
+  "tool_fingerprints": {
+    "sgd.py": "060f3d9ef4e855595929f66010b7b06dd2faa99c02db47358f95a8f64ba68305",
+    "sgd_data.py": "4dd19feea7cdf875626b42c4387eb9c730d00ca77801d2102babff6d1b6a8eca",
+    "sgd_model.py": "8175435e3e1ec682f63b65b00e4ec1ab5be353e975984d771dbe9705b77e80d9",
+    "sgd_training.py": "27831e7989b108b0af691e062d0dd1a0a79465e84fab1a44ce551f05346faa51",
+    "sgd_validation.py": "962329e1bbe3412613b951add9b5d5d843fe4651e83da96a0d70bcee4f01620c",
+    "sgd.json": "c05d4e8c08cdcb448ba15537113bd9760c1522e9bb268716c7cd842e4047aec2",
+    "checks.py": "77d0359d4beb0546aa4b352e37e7dbf38f41961451d2cef47c60c274c737b2fa",
+    "inputs.py": "33392c98ef29d383d336ab4710a3de424286bde6834a497133d2c953e05b8bb7",
+    "metrics.py": "37ba68304881b24b0b6f8739a51bd2de32c73ac02ae19e0b4fdfe21b9a613dc4",
+    "thresholds.py": "a7901ade9797949da53494e316dc41ba90b97982548bce86e190e15cd7c3a061",
+    "civil_comments.py": "26ed3f703380250666fa9a99d961cd767c6e548e52ba1caf6d50c00012a18062",
+    "evaluation.py": "a04d76b090906a325108154146c5f053b8401911b654747484e2ff9b41a641ac",
+    "full_bekko.py": "0d23b6488d6b7184406ea3e5b108094fc0a537b1bfee7e0a8fee298a5a8dbb73"
+  },
+  "source_scaler_sha256": "4f9bcc5ee1ab7c3e7a888954f04d4454262a219aef083612ffdf158b14aa4f24",
+  "config_sha256": "c05d4e8c08cdcb448ba15537113bd9760c1522e9bb268716c7cd842e4047aec2",
+  "implementation_commit": "638976d9",
+  "wrapper_exit_status": 0,
+  "heavy_lock_released": true,
+  "evidence_class": "correctness"
+}

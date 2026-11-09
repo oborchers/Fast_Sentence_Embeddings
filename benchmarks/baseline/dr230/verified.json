@@ -1,0 +1,48 @@
+{
+  "model_name": "bekko-civil-comments-toxicity-classifier",
+  "checks": {
+    "import": {
+      "rows": 256,
+      "logit_bound_passed": true,
+      "max_logit_error": 6.876367375951986e-06,
+      "max_logit_bound": 0.009377925728336777,
+      "max_probability_error": 5.457302095224215e-07,
+      "max_probability_bound": 0.0023449582692423973,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 8.58306884765625e-06
+    },
+    "persistence": {
+      "complete_bit_identity": true,
+      "standalone_bit_identity": true,
+      "labels_preserved": true
+    },
+    "store": {
+      "scores_path": "folded",
+      "combined_path": "unfolded",
+      "ids_scores_thresholds_vectors_verified": true
+    }
+  },
+  "environment": {
+    "git_revision": "ebe5b568ffd17c44a0a1c055053ac731857ebf06",
+    "python": "3.13.16",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "python_compiler": "Clang 22.1.3 ",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "fse": "2.0.1.dev78+gebe5b568",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "pyarrow": "26.0.0",
+    "huggingface-hub": "2.3.0",
+    "tokenizers": "0.23.3"
+  },
+  "selection_sha256": "ce8f6cb37be31e7584c300be1edccbc3f2405c9946fb5460529f482041f9b238",
+  "model_sha256": {
+    "complete": "8560867e9bffcc391362e7499507ab19cf92d2eb18673d7a23632771a168cf52",
+    "standalone": "77688ea255cc62ce34f1b7eb2349d2ebaf53c3a33d642dd2030aacb46292dd62"
+  }
+}

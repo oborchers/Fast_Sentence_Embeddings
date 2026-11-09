@@ -1,0 +1,82 @@
+{
+  "status": "complete",
+  "C_reference": 0.1,
+  "alpha": 5.540552969348552e-06,
+  "epochs_completed": 3,
+  "rows_seen": 5414622,
+  "checkpoint": "C0.1-epoch3.joblib",
+  "checkpoint_sha256": "a4185e44afa8f996da158c1637b3f64f82315852be55b986b047fa19e449b37f",
+  "validation": {
+    "rows": 97320,
+    "per_label": {
+      "toxicity": {
+        "positive": 7671,
+        "roc_auc": 0.8838623523585725,
+        "average_precision": 0.45263794947935154,
+        "precision": 0.18201997780244172,
+        "recall": 0.9193064789466823,
+        "f1": 0.30387383117162925
+      },
+      "obscene": {
+        "positive": 525,
+        "roc_auc": 0.9051404859066412,
+        "average_precision": 0.14007147398686445,
+        "precision": 0.01113695321585115,
+        "recall": 0.9485714285714286,
+        "f1": 0.022015428483013195
+      },
+      "threat": {
+        "positive": 224,
+        "roc_auc": 0.9506495642383385,
+        "average_precision": 0.08642848062932437,
+        "precision": 0.005277481954798249,
+        "recall": 0.9955357142857143,
+        "f1": 0.010499305539207608
+      },
+      "insult": {
+        "positive": 5769,
+        "roc_auc": 0.9025461237271059,
+        "average_precision": 0.4547698265588655,
+        "precision": 0.14102228732865962,
+        "recall": 0.9344773790951638,
+        "f1": 0.2450621633293179
+      },
+      "identity_attack": {
+        "positive": 664,
+        "roc_auc": 0.9536414103276207,
+        "average_precision": 0.15026856888314577,
+        "precision": 0.016840375827899573,
+        "recall": 0.9879518072289156,
+        "f1": 0.033116260285728706
+      },
+      "sexual_explicit": {
+        "positive": 201,
+        "roc_auc": 0.9625890051590298,
+        "average_precision": 0.10658483224391342,
+        "precision": 0.004631344942571323,
+        "recall": 0.9950248756218906,
+        "f1": 0.009219776420421804
+      }
+    },
+    "macro": {
+      "roc_auc": 0.9264048236195515,
+      "average_precision": 0.2317935219635775,
+      "precision": 0.06015473684537028,
+      "recall": 0.9634779472916325,
+      "f1": 0.10396446087155307
+    }
+  },
+  "checks": {
+    "rows": 256,
+    "logit_bound_passed": true,
+    "max_logit_error": 3.274257174723516e-06,
+    "max_logit_bound": 0.0021118209629995745,
+    "max_probability_error": 2.4546709059825034e-07,
+    "max_probability_bound": 0.0005284320779080968,
+    "mask_bound_passed": true,
+    "strict_equality_passed": true,
+    "unfolded_bound_passed": true,
+    "max_folded_unfolded_difference": 3.814697265625e-06
+  },
+  "test_accessed": false
+}

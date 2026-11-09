@@ -1,0 +1,78 @@
+{
+  "schema": "civil-comments-sgd-final@1",
+  "dataset": {
+    "repo": "google/civil_comments",
+    "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+    "license": "cc0-1.0"
+  },
+  "encoders": [
+    {
+      "name": "potion",
+      "repo": "minishlab/potion-base-8M",
+      "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "license": "mit",
+      "files": [
+        "config.json",
+        "model.safetensors",
+        "tokenizer.json",
+        "README.md"
+      ]
+    },
+    {
+      "name": "bekko",
+      "repo": "hotchpotch/bekko-static-embedding-v1",
+      "revision": "c18167b8f244c1bc6de21ce9b710bac8a29c4615",
+      "license": "mit",
+      "files": [
+        "config_sentence_transformers.json",
+        "modules.json",
+        "model.safetensors",
+        "tokenizer.json",
+        "README.md"
+      ]
+    }
+  ],
+  "labels": [
+    "toxicity",
+    "insult"
+  ],
+  "seed": 17,
+  "sample_rows": 200000,
+  "sampling": "hash-sample@1",
+  "C": [
+    0.1,
+    1.0,
+    10.0
+  ],
+  "class_weight": "fixed per-label dictionaries from all train counts",
+  "max_iter": 1000,
+  "normalize": false,
+  "target_threshold": 0.5,
+  "prediction_threshold": 0.5,
+  "bekko_minimum_gain": 0.01,
+  "batch_rows": 8192,
+  "budget_seconds": 3600,
+  "minimum_free_bytes": 42949672960,
+  "maximum_rss_bytes": 4294967296,
+  "medium_minimum_remaining_seconds": 3600,
+  "minimum_test_positives": 100,
+  "license": "mit",
+  "train_rows": 1804874,
+  "dimension": 1024,
+  "sklearn_version": "1.9.1",
+  "epochs": 3,
+  "loss": "log_loss",
+  "penalty": "l2",
+  "learning_rate": "invscaling",
+  "eta0": 0.01,
+  "power_t": 0.5,
+  "average": true,
+  "estimated_peak_bytes": 3221225472,
+  "minimum_gain": 0.01,
+  "probe_rows": 256,
+  "probe_seconds": 300,
+  "prediction_thresholds": [
+    0.7895925045013428,
+    0.8461187481880188
+  ]
+}

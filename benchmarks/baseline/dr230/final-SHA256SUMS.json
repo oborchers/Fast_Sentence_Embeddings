@@ -1,0 +1,53 @@
+{
+  "algorithm": "SHA256",
+  "files": {
+    "complete/LICENSE": {
+      "bytes": 1077,
+      "sha256": "6c18990c470b4a6d3b6a165a7a88ddb42ec2d731272202a87c48143de912ec19"
+    },
+    "complete/README.md": {
+      "bytes": 5935,
+      "sha256": "f820455f8f395ea354df28f13be51ea219eddb17c727c1dff78430bd7e829d14"
+    },
+    "complete/config.json": {
+      "bytes": 203,
+      "sha256": "6c8bf7f5b3a72c870b9219adeaa06f23e68ef7a8e89bc3ea8e56012f889f4f87"
+    },
+    "complete/model.safetensors": {
+      "bytes": 412824340,
+      "sha256": "69f8bfc39013f19a4d3a0a5dffec1624306fddb8ab7e9b488a8126b2479ba9c8"
+    },
+    "standalone/LICENSE": {
+      "bytes": 1077,
+      "sha256": "6c18990c470b4a6d3b6a165a7a88ddb42ec2d731272202a87c48143de912ec19"
+    },
+    "standalone/README.md": {
+      "bytes": 5935,
+      "sha256": "f820455f8f395ea354df28f13be51ea219eddb17c727c1dff78430bd7e829d14"
+    },
+    "standalone/config.json": {
+      "bytes": 203,
+      "sha256": "ce2971f45e96549a713fda22a76cfb2f9958d0b8aef39f8917cadcb77f9fdd4d"
+    },
+    "standalone/model.safetensors": {
+      "bytes": 4815892,
+      "sha256": "fc622127f06899ad93e69271f1c168daafa8a73eb33249a12cbeb4bea74fb8c3"
+    },
+    "config.json": {
+      "bytes": 1824,
+      "sha256": "058e92b10e8d954cfa04a12704a5fe0ba2591b58807eb6ef5a7830b111c1f9dc"
+    },
+    "selection.json": {
+      "bytes": 4822,
+      "sha256": "06ad2c31a0305f2f00211beedde25a6e455b9dbda91c1da33d77747c27ac15f5"
+    },
+    "verified.json": {
+      "bytes": 1763,
+      "sha256": "0bd39fb852de352ca4e28a0400deb71a425fef6fbce437f17824ba703029ff21"
+    },
+    "metrics.json": {
+      "bytes": 9656,
+      "sha256": "5b90d39e9ef31e7d532f712f31e7fdecc5189b6c3298e9d891a577185f2728c8"
+    }
+  }
+}
