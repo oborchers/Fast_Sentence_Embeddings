@@ -18,6 +18,7 @@ Requires an fse master build with multilabel support, or fse 2.1 when released. 
 
 ```python
 import fse
+
 model = fse.Classifier.from_pretrained("/path/to/standalone")
 scores = model.predict_proba(["A calm discussion of the proposed policy."])
 mask = model.predict(["A calm discussion of the proposed policy."])

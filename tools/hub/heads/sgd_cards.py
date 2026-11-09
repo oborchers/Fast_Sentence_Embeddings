@@ -51,6 +51,7 @@ def render(record):
         "",
         "```python",
         "import fse",
+        "",
         'model = fse.Classifier.from_pretrained("/path/to/standalone")',
         'scores = model.predict_proba(["A calm discussion of the proposed policy."])',
         'mask = model.predict(["A calm discussion of the proposed policy."])',
