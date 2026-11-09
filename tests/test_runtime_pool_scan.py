@@ -88,11 +88,11 @@ def test_encoding_from_a_task_on_the_same_pool_is_refused(tmp_path):
     with fse.Pool(2, max_tasks=1) as pool:
 
         def nested():
-            with pool.inside():
+            with pool._inside():
                 return encoder.encode(path, pool=pool)
 
         with pytest.raises(RuntimeError, match="same pool"):
-            pool.submit(nested).result(timeout=10)
+            pool._submit(nested).result(timeout=10)
         assert encoder.encode(path, pool=pool).shape == (5000, 6)
 
 
@@ -203,8 +203,8 @@ def test_scan_interrupt_settles_tasks_and_gives_back_places(tmp_path, monkeypatc
         with pytest.raises(KeyboardInterrupt, match="scan interrupted"):
             readers.join()
         for _ in range(max_tasks):
-            assert pool.try_acquire()
+            assert pool._try_acquire()
         for _ in range(max_tasks):
-            pool.release()
+            pool._release()
         monkeypatch.undo()
         assert encoder.encode(path, pool=pool).shape == (5000, 6)

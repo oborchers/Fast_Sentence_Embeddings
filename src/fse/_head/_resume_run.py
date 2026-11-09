@@ -298,7 +298,7 @@ def _heads(run: _Run, source: Any, sinks: dict[str, Any], start: int, ids: Any) 
     vectors = run.return_vectors
     pipeline = subject.pipeline(run.backend, vectors)
     score = sinks["score"]
-    kinds = tuple(STORED_RUNTIME[head.stored] for head in score.score_schema.heads)
+    kinds = tuple(STORED_RUNTIME[head.stored] for head in score._score_schema.heads)
     discard = [
         _Discard(member.head.width(kind))
         for member, kind in zip(pipeline.plan.members, kinds, strict=True)
@@ -398,7 +398,7 @@ def predict_lone(
 ) -> Any:
     """``predict`` of a single head into resumable sinks; the score sink names the head."""
     name = "head"
-    schema = getattr(score_sink, "score_schema", None)
+    schema = getattr(score_sink, "_score_schema", None)
     if schema is not None:
         names = [head.name for head in schema.heads]
         if len(names) != 1:
