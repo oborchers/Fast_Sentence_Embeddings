@@ -40,23 +40,29 @@ def observe(operation, job):
     """The evidence of one search arm, or ``None`` for a stage without the prefilter profile."""
     if not search_enabled(job) or getattr(operation, "store", None) is None:
         return None
-    backend = operation.store._backend
+    calls = max(1, min(job["iterations"], POOL // job["queries"]))
+    operation.restart()
+    try:
+        return capture(lambda _: operation(), calls, operation.store._backend, job["search_mode"])
+    finally:
+        operation.restart()
+
+
+def capture(run, calls, backend, mode):
+    """Capture a separate, untimed sequence of search calls."""
     logger, capture = logging.getLogger("fse.store"), _Capture()
     level = logger.level
     logger.setLevel(logging.DEBUG)
     logger.addHandler(capture)
-    calls = max(1, min(job["iterations"], POOL // job["queries"]))  # the blocks a group reaches
     try:
-        operation.restart()
-        for capture.call in range(calls):  # the calls of one group, block after block
-            operation()
+        for capture.call in range(calls):
+            run(capture.call)
     finally:
         logger.removeHandler(capture)
         logger.setLevel(level)
-        operation.restart()
     return {
         "untimed": True,
-        "search_mode": job["search_mode"],
+        "search_mode": mode,
         "backend": getattr(backend, "name", None),
         "isa": getattr(backend, "isa", None),
         "prefilter_variant": _variant(backend),

@@ -47,6 +47,10 @@
       "budget_minutes": 15
     },
     {
+      "name": "search",
+      "estimate_minutes": 12
+    },
+    {
       "name": "collection",
       "estimate_minutes": 3,
       "budget_minutes": 10
@@ -525,6 +529,87 @@
       "estimated_seconds": 180,
       "dimensions": 256,
       "planned_input_bytes": 2455180892
+    },
+    {
+      "id": "search-exact-float32",
+      "stage": "search",
+      "kind": "search",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-exact",
+      "workers": 16,
+      "texts": 832318,
+      "dtype": "float32",
+      "store_dtype": "float32",
+      "mode": "exact",
+      "prefilter": "off",
+      "rounds": 3,
+      "estimated_seconds": 120,
+      "dimensions": 1024,
+      "queries_per_call": 1,
+      "pool_size": 256,
+      "k": 10,
+      "relative_to": "search-exact-float32"
+    },
+    {
+      "id": "search-exact-int8",
+      "stage": "search",
+      "kind": "search",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-exact",
+      "workers": 16,
+      "texts": 832318,
+      "dtype": "float32",
+      "store_dtype": "int8",
+      "mode": "exact",
+      "prefilter": "off",
+      "rounds": 3,
+      "estimated_seconds": 120,
+      "dimensions": 1024,
+      "queries_per_call": 1,
+      "pool_size": 256,
+      "k": 10,
+      "relative_to": "search-exact-float32"
+    },
+    {
+      "id": "search-binary-float32",
+      "stage": "search",
+      "kind": "search",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-exact",
+      "workers": 16,
+      "texts": 832318,
+      "dtype": "float32",
+      "store_dtype": "float32",
+      "mode": "binary",
+      "prefilter": "off",
+      "rounds": 3,
+      "estimated_seconds": 120,
+      "dimensions": 1024,
+      "queries_per_call": 1,
+      "pool_size": 256,
+      "k": 10,
+      "relative_to": "search-exact-float32",
+      "oversample": 40
+    },
+    {
+      "id": "search-prefilter-int8",
+      "stage": "search-prefilter",
+      "kind": "search",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-exact",
+      "workers": 16,
+      "texts": 832318,
+      "dtype": "float32",
+      "store_dtype": "int8",
+      "mode": "exact",
+      "prefilter": "shipped",
+      "rounds": 3,
+      "estimated_seconds": 120,
+      "dimensions": 1024,
+      "queries_per_call": 1,
+      "pool_size": 256,
+      "k": 10,
+      "relative_to": "search-exact-int8"
     }
   ],
   "quiet_cell": {
@@ -611,5 +696,11 @@
   },
   "model_formats": {
     "hotchpotch/bekko-static-embedding-v1": "sentence-transformers"
+  },
+  "search_queries": {
+    "split": "test",
+    "pool_size": 256,
+    "seed": 0,
+    "expected_test_sentences": 9414
   }
 }

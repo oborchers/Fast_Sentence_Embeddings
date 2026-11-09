@@ -30,6 +30,8 @@ def arguments():
             "paragraphs",
             "heads",
             "versions",
+            "search",
+            "search-prefilter",
         ),
         default="libraries",
     )
