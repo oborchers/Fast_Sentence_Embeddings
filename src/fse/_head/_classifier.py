@@ -14,7 +14,7 @@ from dataclasses import replace
 from types import MappingProxyType
 from typing import Any, Literal, Self
 
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._contract import Head, Link
 from fse._encoder import _pretrained
@@ -263,7 +263,7 @@ class Classifier(_Predicting, _Scoring, LinearModel):
         )
 
     @property
-    def classes_(self) -> ndarray:
+    def classes_(self) -> NDArray[Any]:
         """The labels in output order (int64 or str)."""
         assert self._content.labels is not None
         return classes(self._content.labels)

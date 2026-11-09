@@ -24,6 +24,7 @@ from typing import Any, Literal, Self
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._backends import PoolInput, get_backend
 from fse._container import (
@@ -433,14 +434,14 @@ class LinearModel(HubModel):
         return self._encoder.fingerprint
 
     @property
-    def coef_(self) -> ndarray:
+    def coef_(self) -> NDArray[np.float32]:
         """A copy of A, (k, d) float32; a standalone model has none and raises."""
         if self._content.weight is None:
             raise ValueError("a standalone model holds no weights: they are folded into its table")
         return self._content.weight.copy()
 
     @property
-    def intercept_(self) -> ndarray:
+    def intercept_(self) -> NDArray[np.float32]:
         """A copy of b, (k,) float32."""
         return self._content.bias.copy()
 

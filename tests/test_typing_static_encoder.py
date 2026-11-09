@@ -237,6 +237,12 @@ def test_static_model_and_tokenizer_public_types(tmp_path: Path) -> None:
     model = fse.StaticModel.from_pretrained(folder)
     assert_type(model, fse.StaticModel)
     assert isinstance(model, fse.StaticModel)
+    rows = model.encode(TEXTS)
+    sequences = model.encode_as_sequence(TEXTS)
+    assert_type(rows, NDArray[np.float32])
+    assert_type(sequences, list[NDArray[np.float32]] | NDArray[np.float32])
+    assert_type(model.embedding, NDArray[np.float32])
+    assert rows.dtype == model.embedding.dtype == np.float32
     tokenizer = model.tokenizer
     assert_type(tokenizer, Tokenizer)
     encoded = tokenizer.encode("a b", add_special_tokens=False)
@@ -280,3 +286,20 @@ def test_length_report_array_dtypes() -> None:
     truncated = report.truncated_rows()
     assert_type(truncated, NDArray[np.int64])
     assert truncated.dtype == np.int64
+
+
+def test_word_vector_array_dtypes() -> None:
+    words = _encoder().word_vectors
+    assert_type(words.stored_vectors, NDArray[Any])
+    assert_type(words.scales, NDArray[np.float32] | None)
+    assert_type(words.ngram_scales, NDArray[np.float32] | None)
+    assert_type(words.stored_ngrams, NDArray[Any] | None)
+    assert_type(words.vocab_bytes, NDArray[np.uint8])
+    assert_type(words.vocab_offsets, NDArray[np.int64])
+    row = words.get_vector("a")
+    rows = words.get_vectors(np.array([0, 1], np.int64))
+    assert_type(row, NDArray[np.float32])
+    assert_type(rows, NDArray[np.float32])
+    assert row.dtype == rows.dtype == np.float32
+    assert words.vocab_bytes.dtype == np.uint8
+    assert words.vocab_offsets.dtype == np.int64

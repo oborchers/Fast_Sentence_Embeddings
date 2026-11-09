@@ -20,6 +20,7 @@ from typing import Any, Literal, Self
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes
 from fse._container import (
@@ -340,21 +341,21 @@ class WordVectors:
         return self._metadata["fse.dtype"]
 
     @property
-    def stored_vectors(self) -> ndarray:
+    def stored_vectors(self) -> NDArray[Any]:
         """The stored rows: float32 values, or float16 or int8 codes (with ``scales``);
         ``get_vectors`` gives them decoded as float32."""
         return self._tensors["vectors"].view()
 
     @property
-    def scales(self) -> ndarray | None:
+    def scales(self) -> NDArray[np.float32] | None:
         return _view(self._tensors.get("scales"))
 
     @property
-    def vocab_bytes(self) -> ndarray:
+    def vocab_bytes(self) -> NDArray[np.uint8]:
         return self._tensors["vocab.bytes"].view()
 
     @property
-    def vocab_offsets(self) -> ndarray:
+    def vocab_offsets(self) -> NDArray[np.int64]:
         return self._tensors["vocab.offsets"].view()
 
     @property
@@ -363,12 +364,12 @@ class WordVectors:
         return None if text is None else _parse_fasttext(text)
 
     @property
-    def stored_ngrams(self) -> ndarray | None:
+    def stored_ngrams(self) -> NDArray[Any] | None:
         """The stored FastText ngram rows, as ``stored_vectors`` (with ``ngram_scales``)."""
         return _view(self._tensors.get("ngrams"))
 
     @property
-    def ngram_scales(self) -> ndarray | None:
+    def ngram_scales(self) -> NDArray[np.float32] | None:
         return _view(self._tensors.get("ngram_scales"))
 
     @property
@@ -457,7 +458,7 @@ class WordVectors:
             raise IndexError(f"index {index} is out of range for {len(self)} words")
         return int(index)
 
-    def get_vector(self, key: str | int) -> ndarray:
+    def get_vector(self, key: str | int) -> NDArray[np.float32]:
         """The float32 row of a word or word id, as a new array.
 
         For FastText this is the row of the word itself, without its ngrams (gensim's
@@ -466,7 +467,7 @@ class WordVectors:
         i = self.index(key) if isinstance(key, str) else self._check_index(key)
         return self.get_vectors(np.array([i]))[0]
 
-    def get_vectors(self, indices: Any) -> ndarray:
+    def get_vectors(self, indices: Any) -> NDArray[np.float32]:
         """The float32 rows of the word ids ``indices``, as a new (k, dim) array."""
         ids = np.asarray(indices)
         if ids.size == 0 and ids.ndim == 1:

@@ -85,6 +85,10 @@ def test_classifier_predictions_and_scores() -> None:
     all_parts = model.predict(TEXTS, return_vectors=True, lengths="per_row")
     assert_type(all_parts, tuple[NDArray[Any], NDArray[np.float32], fse.LengthReport])
     assert isinstance(all_parts[2], fse.LengthReport)
+    assert_type(model.classes_, NDArray[Any])
+    assert_type(model.coef_, NDArray[np.float32])
+    assert_type(model.intercept_, NDArray[np.float32])
+    assert model.coef_.dtype == model.intercept_.dtype == np.float32
     proba = model.predict_proba(TEXTS)
     decision = model.decision_function(TEXTS)
     assert_type(proba, NDArray[np.float32])

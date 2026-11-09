@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Self
 
 import numpy as np
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._encoder import Encoder
 from fse._encoder._model2vec_rules import UNSET, Rules, Unset
@@ -158,7 +158,7 @@ class StaticModel:
         convert_to_numpy: bool = True,
         convert_to_tensor: bool = False,
         device: str | None = None,
-    ) -> ndarray:
+    ) -> NDArray[np.float32]:
         """Encode a sentence (a vector of ``dim`` float32 values) or a list, tuple or numpy
         array of sentences (a matrix, one row each).
 
@@ -202,7 +202,7 @@ class StaticModel:
         show_progress_bar: bool = False,
         use_multiprocessing: bool = True,
         multiprocessing_threshold: int = 10_000,
-    ) -> list[ndarray] | ndarray:
+    ) -> list[NDArray[np.float32]] | NDArray[np.float32]:
         """Encode a sentence or a list, tuple or numpy array of sentences as the rows of
         their tokens: a ``(tokens, dim)`` float32 array each (a list of them for a list),
         the rows of the table gathered as they are (``table.take``, the same bytes as
@@ -300,7 +300,7 @@ class StaticModel:
         return self._rules.tokens
 
     @property
-    def embedding(self) -> ndarray:
+    def embedding(self) -> NDArray[np.float32]:
         """The table of the rows (float32, read-only: model2vec's is writable)."""
         return self._rules.word_vectors.stored_vectors
 
