@@ -1,0 +1,151 @@
+{
+  "selected": {
+    "encoder": "bekko",
+    "variant": "full",
+    "alpha": 5.540552969348553e-07,
+    "train_rows": 1804874,
+    "epochs": 3
+  },
+  "checkpoint_sha256": "92492d447be94cfd09056110432b26719055e433483fa331f44094502412f665",
+  "comparison_sha256": "c317289899474e7835b4d5370a907661143b24d8b05f4ab381d832ddb11946c3",
+  "validation": {
+    "thresholds": {
+      "toxicity": 0.7895925045013428,
+      "obscene": 0.9737074375152588,
+      "threat": 0.9930905103683472,
+      "insult": 0.8461187481880188,
+      "identity_attack": 0.9543197751045227,
+      "sexual_explicit": 0.9922670125961304
+    },
+    "default": {
+      "rows": 97320,
+      "per_label": {
+        "toxicity": {
+          "positive": 7671,
+          "roc_auc": 0.8838623719892974,
+          "average_precision": 0.4526379561166576,
+          "precision": 0.18201997780244172,
+          "recall": 0.9193064789466823,
+          "f1": 0.30387383117162925
+        },
+        "obscene": {
+          "positive": 525,
+          "roc_auc": 0.9051404957457956,
+          "average_precision": 0.14007147447644994,
+          "precision": 0.01113695321585115,
+          "recall": 0.9485714285714286,
+          "f1": 0.022015428483013195
+        },
+        "threat": {
+          "positive": 224,
+          "roc_auc": 0.9506497021725184,
+          "average_precision": 0.08642848439524048,
+          "precision": 0.005277481954798249,
+          "recall": 0.9955357142857143,
+          "f1": 0.010499305539207608
+        },
+        "insult": {
+          "positive": 5769,
+          "roc_auc": 0.9025461237271059,
+          "average_precision": 0.4547698372928197,
+          "precision": 0.14102228732865962,
+          "recall": 0.9344773790951638,
+          "f1": 0.2450621633293179
+        },
+        "identity_attack": {
+          "positive": 664,
+          "roc_auc": 0.9536414103276207,
+          "average_precision": 0.1502686834586997,
+          "precision": 0.016840375827899573,
+          "recall": 0.9879518072289156,
+          "f1": 0.033116260285728706
+        },
+        "sexual_explicit": {
+          "positive": 201,
+          "roc_auc": 0.9625890051590298,
+          "average_precision": 0.10658483224391342,
+          "precision": 0.004631344942571323,
+          "recall": 0.9950248756218906,
+          "f1": 0.009219776420421804
+        }
+      },
+      "macro": {
+        "roc_auc": 0.926404851520228,
+        "average_precision": 0.23179354466396349,
+        "precision": 0.06015473684537028,
+        "recall": 0.9634779472916325,
+        "f1": 0.10396446087155307
+      }
+    },
+    "tuned": {
+      "rows": 97320,
+      "per_label": {
+        "toxicity": {
+          "positive": 7671,
+          "roc_auc": 0.8838623719892974,
+          "average_precision": 0.4526379561166576,
+          "precision": 0.40891876538534366,
+          "recall": 0.5630295919697562,
+          "f1": 0.47375637580211705
+        },
+        "obscene": {
+          "positive": 525,
+          "roc_auc": 0.9051404957457956,
+          "average_precision": 0.14007147447644994,
+          "precision": 0.16832779623477298,
+          "recall": 0.2895238095238095,
+          "f1": 0.21288515406162464
+        },
+        "threat": {
+          "positive": 224,
+          "roc_auc": 0.9506497021725184,
+          "average_precision": 0.08642848439524048,
+          "precision": 0.14043583535108958,
+          "recall": 0.25892857142857145,
+          "f1": 0.18210361067503925
+        },
+        "insult": {
+          "positive": 5769,
+          "roc_auc": 0.9025461237271059,
+          "average_precision": 0.4547698372928197,
+          "precision": 0.4357909806728704,
+          "recall": 0.5276477725775698,
+          "f1": 0.4773404422142073
+        },
+        "identity_attack": {
+          "positive": 664,
+          "roc_auc": 0.9536414103276207,
+          "average_precision": 0.1502686834586997,
+          "precision": 0.17718047174986287,
+          "recall": 0.4864457831325301,
+          "f1": 0.2597507036590269
+        },
+        "sexual_explicit": {
+          "positive": 201,
+          "roc_auc": 0.9625890051590298,
+          "average_precision": 0.10658483224391342,
+          "precision": 0.1484375,
+          "recall": 0.2835820895522388,
+          "f1": 0.19487179487179487
+        }
+      },
+      "macro": {
+        "roc_auc": 0.926404851520228,
+        "average_precision": 0.23179354466396349,
+        "precision": 0.24651522489898992,
+        "recall": 0.4015262696974127,
+        "f1": 0.30011801354730167
+      }
+    }
+  },
+  "full_macro_auc": 0.926404851520228,
+  "small_macro_auc": 0.9102392840121661,
+  "gain": 0.016165567508061862,
+  "excluded_labels": {
+    "severe_toxicity": {
+      "positive": 13,
+      "train_rows": 1804874
+    }
+  },
+  "label_decision": "Oliver selected toxicity and insult after validation; no alpha reselection"
+}

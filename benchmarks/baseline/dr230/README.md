@@ -5,9 +5,13 @@ trainieren und mit Modellkarte vorbereiten). These are local correctness and
 quality results on Apple M1 Pro, not speed measurements. No Linux comparison
 was run. Source, package and compiler versions are in `verified.json`.
 
-Current state: model selected and artifacts verified. Official test is held by
-the coordinator while validation-only threshold proposals are reviewed. No test
-result or completed model card is claimed at this stage.
+Current state: the full streaming SGD head won the predeclared validation
+comparison. Oliver selected only its toxicity and insult estimators at the
+already selected alpha. Their validation-only maximum-F1 thresholds were saved
+before exactly one official test evaluation. Both final artifacts, card and
+manifest are complete outside Git. `final-metrics.json` and `final-model-card.md`
+record the final two-label result. Earlier six-label receipts remain historical
+selection evidence, not the final distributed label scope.
 
 | File | Meaning |
 |---|---|
@@ -43,4 +47,12 @@ class predictions, and restore non-mutating scaler inference after in-place
 training. The later validation-threshold routine is assigned to the coordinating
 agent's independent final diff review, with no third Codex round.
 
-Full `make check`, final held-out results, card and manifest remain pending.
+Final held-out results, card and manifest are complete. `make check` is running
+on the final code. The coordinator owns the final independent diff review.
+
+Final prepared artifacts: `/Users/oliverborchers/fse-dr311/final-toxicity-insult-01/prepared`.
+The SHA256 manifest covers 12 files under that directory. The copies here use
+a `final-` prefix to distinguish them from earlier small six-label evidence.
+The official test was evaluated exactly once on 97,320 rows. No model or cutoff
+was changed afterwards. See `sgd-validation.md` for the prior six-label comparison
+and `final-metrics.json` for complete provenance and per-label test values.
