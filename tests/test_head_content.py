@@ -146,13 +146,14 @@ def test_valid_mixed_numbers_keep_float32_bits():
     np.testing.assert_array_equal(b.view(np.uint32), np.array([0.25], F32).view(np.uint32))
 
 
+# Optional pandas may be installed but incompatible with the minimum NumPy version.
 def test_numeric_dataframe_weights_ignore_boolean_column_names():
-    pd = pytest.importorskip("pandas")
+    pd = pytest.importorskip("pandas", exc_type=ImportError)
     w, _ = weights(pd.DataFrame([[1.0, 0.5]], columns=[True, False]), None, 2)
     np.testing.assert_array_equal(w.view(np.uint32), np.array([[1.0, 0.5]], F32).view(np.uint32))
 
 
 @pytest.mark.parametrize("container", ["Index", "Series"])
 def test_labels_keep_ordered_pandas_sequences(container):
-    pd = pytest.importorskip("pandas")
+    pd = pytest.importorskip("pandas", exc_type=ImportError)
     assert labels(getattr(pd, container)(["b", "a"]), 2) == ("b", "a")
