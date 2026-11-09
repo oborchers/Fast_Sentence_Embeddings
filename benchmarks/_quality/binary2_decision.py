@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from _quality.binary_inputs import MODELS, OVERSAMPLES_2, PROBE_QUERIES, VARIANTS
+from _quality.binary_inputs import MODELS, OVERSAMPLES_2, PROBE_QUERIES, QUERIES, VARIANTS
 
 THRESHOLD = 0.95
 
@@ -66,6 +66,8 @@ def decide(path, cells, finished, failed):
         return {"result": "inconclusive", "decision": None}
     if queries == {PROBE_QUERIES}:
         return {"result": "probe", "decision": None}
+    if queries != {QUERIES}:  # a mix of query counts decides nothing
+        return {"result": "inconclusive", "decision": None}
     summary = {
         "|".join(map(str, key)): round(row["recall_at_10"], 4) for key, row in sorted(table.items())
     }
