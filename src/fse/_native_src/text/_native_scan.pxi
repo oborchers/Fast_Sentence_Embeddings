@@ -159,32 +159,12 @@ def scan_spans(const unsigned char[::1] data, offsets, Py_ssize_t first, Py_ssiz
     return sentences, chunk_list, -1, -1
 
 
-cdef int _push_u32_nogil(_Buffer *b, uINT_t value) noexcept nogil:
-    if <Py_ssize_t>sizeof(uINT_t) > b.capacity - b.size:
-        if _grow_nogil(b, sizeof(uINT_t)) != 0:
-            return -1
-    (<uINT_t *>(b.data + b.size))[0] = value
-    b.size += sizeof(uINT_t)
-    return 0
-
-
 cdef int _push_i64_nogil(_Buffer *b, np.int64_t value) noexcept nogil:
     if <Py_ssize_t>sizeof(np.int64_t) > b.capacity - b.size:
         if _grow_nogil(b, sizeof(np.int64_t)) != 0:
             return -1
     (<np.int64_t *>(b.data + b.size))[0] = value
     b.size += sizeof(np.int64_t)
-    return 0
-
-
-cdef int _push_bytes_nogil(_Buffer *b, const unsigned char *data, Py_ssize_t n) noexcept nogil:
-    if n == 0:
-        return 0  # b.data may still be NULL, and memcpy needs valid pointers
-    if n > b.capacity - b.size:
-        if _grow_nogil(b, n) != 0:
-            return -1
-    memcpy(b.data + b.size, data, n)
-    b.size += n
     return 0
 
 
