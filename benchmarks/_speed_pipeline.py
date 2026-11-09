@@ -12,6 +12,7 @@ import tomllib
 from importlib.metadata import distributions
 from pathlib import Path
 
+import _speed_protocol as protocols
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
@@ -236,7 +237,7 @@ def prepare_models(root, contract, reuse=None):
 
     result = {}
     needed = {c["model"] for c in contract["cells"]}
-    if any(c["kind"] != "write" for c in contract["cells"]):
+    if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
         needed.add(contract["quiet_cell"]["model"])
     for repo, revision in contract["models"].items():
         if repo not in needed:
@@ -261,6 +262,10 @@ def prepare_models(root, contract, reuse=None):
 
 
 def measure_child(job):
+    if job.get("kind") == "predict":
+        from _speed_predict import predict_child
+
+        return predict_child(job)
     if job.get("kind") == "write":
         return headline_child(job)
     if job["backend"] == "rust":
