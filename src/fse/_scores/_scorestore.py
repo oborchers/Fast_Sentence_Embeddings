@@ -225,7 +225,7 @@ class ScoreStore(MemberReaders):
     @validate_arguments
     def get_doc_ids(
         self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
-    ) -> ndarray:
+    ) -> NDArray[np.int64]:
         """The document IDs (int64) of the rows ``start`` to ``stop - 1`` (all by default),
         a copy."""
         shards = self._snapshot()

@@ -268,3 +268,73 @@ def test_predicted_batches_are_generators_with_typed_fields() -> None:
     assert_type(grouped, Generator[fse.HeadsBatch, None, None])
     assert isinstance(next(grouped).lengths, fse.LengthReport)
     grouped.close()
+
+
+def _optional_classifier_sinks(
+    model: fse.Classifier, score: fse.Sink | None, vector: fse.Sink | None, flag: bool
+) -> None:
+    result = model.predict(TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag)
+    assert_type(result, NDArray[Any] | tuple[NDArray[Any], NDArray[np.float32]] | None)
+    assert result is None or isinstance(result, np.ndarray | tuple)
+    reported = model.predict(
+        TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag, lengths="summary"
+    )
+    assert_type(
+        reported,
+        tuple[NDArray[Any], fse.LengthReport]
+        | tuple[NDArray[Any], NDArray[np.float32], fse.LengthReport]
+        | tuple[None, fse.LengthReport],
+    )
+    assert isinstance(reported[-1], fse.LengthReport)
+
+
+def _optional_regressor_sinks(
+    model: fse.Regressor, score: fse.Sink | None, vector: fse.Sink | None, flag: bool
+) -> None:
+    result = model.predict(TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag)
+    assert_type(
+        result, NDArray[np.float32] | tuple[NDArray[np.float32], NDArray[np.float32]] | None
+    )
+    assert result is None or isinstance(result, np.ndarray | tuple)
+    reported = model.predict(
+        TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag, lengths="summary"
+    )
+    assert_type(
+        reported,
+        tuple[NDArray[np.float32], fse.LengthReport]
+        | tuple[NDArray[np.float32], NDArray[np.float32], fse.LengthReport]
+        | tuple[None, fse.LengthReport],
+    )
+    assert isinstance(reported[-1], fse.LengthReport)
+
+
+def _optional_group_sinks(
+    heads: fse.Heads, score: fse.Sink | None, vector: fse.Sink | None, flag: bool
+) -> None:
+    result = heads.predict(TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag)
+    assert_type(
+        result,
+        Mapping[str, NDArray[Any]] | tuple[Mapping[str, NDArray[Any]], NDArray[np.float32]] | None,
+    )
+    assert result is None or isinstance(result, Mapping | tuple)
+    reported = heads.predict(
+        TEXTS, score_sink=score, vector_sink=vector, return_vectors=flag, lengths="summary"
+    )
+    assert_type(
+        reported,
+        tuple[Mapping[str, NDArray[Any]], fse.LengthReport]
+        | tuple[Mapping[str, NDArray[Any]], NDArray[np.float32], fse.LengthReport]
+        | tuple[None, fse.LengthReport],
+    )
+    assert isinstance(reported[-1], fse.LengthReport)
+
+
+def test_optional_sinks_are_arrays_when_none() -> None:
+    encoder = _encoder()
+    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    r = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
+    heads = fse.Heads(c=c, r=r)
+    for flag in (False, True):
+        _optional_classifier_sinks(c, None, None, flag)
+        _optional_regressor_sinks(r, None, None, flag)
+        _optional_group_sinks(heads, None, None, flag)

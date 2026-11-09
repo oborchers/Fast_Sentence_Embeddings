@@ -234,16 +234,18 @@ class _HeadsPredicting:
         output: OutputInput = None,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Any = None,
+        lengths: None = None,
         count_truncated: bool = False,
         on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
-        vector_sink: Any = None,
-        score_sink: Any,
+        vector_sink: Sink | None = None,
+        score_sink: Sink | None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
         pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
+    ) -> (
+        Mapping[str, NDArray[Any]] | tuple[Mapping[str, NDArray[Any]], NDArray[np.float32]] | None
+    ): ...
 
     @overload
     def predict(
@@ -253,16 +255,20 @@ class _HeadsPredicting:
         output: OutputInput = None,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Any = None,
+        lengths: LengthLevel,
         count_truncated: bool = False,
         on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
-        vector_sink: Any,
-        score_sink: None = None,
+        vector_sink: Sink | None = None,
+        score_sink: Sink | None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
         pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
+    ) -> (
+        tuple[Mapping[str, NDArray[Any]], LengthReport]
+        | tuple[Mapping[str, NDArray[Any]], NDArray[np.float32], LengthReport]
+        | tuple[None, LengthReport]
+    ): ...
 
     @_validated
     def predict(

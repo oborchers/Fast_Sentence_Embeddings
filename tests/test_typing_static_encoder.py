@@ -253,9 +253,30 @@ def test_static_model_and_tokenizer_public_types(tmp_path: Path) -> None:
     assert type(encoder) is _SpecialEncoder
 
 
-def test_union_dtype_literal_and_omitted_sink() -> None:
-    encoder = _encoder()
-    dtype: Literal["float16", "int8"] = "int8"
+def _union_dtype(encoder: fse.Encoder, dtype: Literal["float16", "int8"]) -> None:
     result = encoder.encode(TEXTS, dtype=dtype)
-    assert_type(result, NDArray[Any] | fse.QuantizedRows)
+    assert_type(result, NDArray[Any] | fse.QuantizedRows | None)
     assert isinstance(result, np.ndarray | fse.QuantizedRows)
+
+
+def test_union_dtype_literal_and_omitted_sink() -> None:
+    _union_dtype(_encoder(), "int8")
+    _union_dtype(_encoder(), "float16")
+
+
+def test_length_report_array_dtypes() -> None:
+    _, report = _encoder().encode(TEXTS, lengths="per_row", count_truncated=True)
+    assert_type(report.char_truncated, NDArray[np.bool_] | None)
+    assert_type(report.token_truncated, NDArray[np.bool_] | None)
+    assert_type(report.empty, NDArray[np.bool_] | None)
+    assert_type(report.tokens, NDArray[np.int64] | None)
+    assert_type(report.dropped_unknown, NDArray[np.int64] | None)
+    assert_type(report.truncated_tokens, NDArray[np.int64] | None)
+    assert_type(report.truncated_chars, NDArray[np.int64] | None)
+    assert report.tokens is not None
+    assert report.tokens.dtype == np.int64
+    assert report.char_truncated is not None
+    assert report.char_truncated.dtype == np.bool_
+    truncated = report.truncated_rows()
+    assert_type(truncated, NDArray[np.int64])
+    assert truncated.dtype == np.int64

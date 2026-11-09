@@ -21,6 +21,7 @@ from typing import Any, Literal, cast
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._text import new_workspace
 
@@ -140,15 +141,15 @@ class LengthReport:
     dropped_total: int
     truncated_tokens_total: int | None = None
     truncated_chars_total: int | None = None
-    char_truncated: ndarray | None = None
-    token_truncated: ndarray | None = None
-    empty: ndarray | None = None
-    tokens: ndarray | None = None
-    dropped_unknown: ndarray | None = None
-    truncated_tokens: ndarray | None = None
-    truncated_chars: ndarray | None = None
+    char_truncated: NDArray[np.bool_] | None = None
+    token_truncated: NDArray[np.bool_] | None = None
+    empty: NDArray[np.bool_] | None = None
+    tokens: NDArray[np.int64] | None = None
+    dropped_unknown: NDArray[np.int64] | None = None
+    truncated_tokens: NDArray[np.int64] | None = None
+    truncated_chars: NDArray[np.int64] | None = None
 
-    def truncated_rows(self) -> ndarray:
+    def truncated_rows(self) -> NDArray[np.int64]:
         """The rows (numbered in the run, from ``first_row``) a rule cut, ascending."""
         if self.char_truncated is None or self.token_truncated is None:
             raise ValueError("truncated_rows needs a report of lengths='per_row'")

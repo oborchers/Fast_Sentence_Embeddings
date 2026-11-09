@@ -191,7 +191,7 @@ class StaticModel:
             sentences, "; streams and files go to StaticModel.encoder.encode"
         )
         rows = encoder.encode(texts, workers=workers)
-        return rows[0] if single else rows  # type: ignore[index, return-value]
+        return rows[0] if single else rows
 
     def encode_as_sequence(
         self,

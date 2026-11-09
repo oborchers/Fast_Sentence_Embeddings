@@ -72,17 +72,22 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
 def test_score_store_types(tmp_path: Path) -> None:
     encoder = _encoder()
     classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
-    with fse.ScoreSink(tmp_path / "scores", classifier, name="c") as sink:
+    with fse.ScoreSink(tmp_path / "scores", classifier, name="c", doc_ids=True) as sink:
         assert_type(sink, fse.ScoreSink)
         protocol: fse.Sink = sink
         assert protocol.dim == 3
-        batches = classifier.predict_batches([TEXTS], score_sink=sink)
+        batches = classifier.predict_batches(
+            [(TEXTS, np.array([4, 5, 6], np.int64))], score_sink=sink, doc_ids=True
+        )
         assert inspect.isgenerator(batches)
         list(batches)
     with fse.ScoreStore.open(tmp_path / "scores") as store:
         heads = store.heads
         assert_type(heads, Mapping[str, ScoreHead])
         assert isinstance(heads["c"], ScoreHead)
+        ids = store.get_doc_ids()
+        assert_type(ids, NDArray[np.int64])
+        assert ids.dtype == np.int64
         scores = store.get_scores("c", "decision")
         assert_type(scores, NDArray[np.float32])
         assert scores.dtype == np.float32
