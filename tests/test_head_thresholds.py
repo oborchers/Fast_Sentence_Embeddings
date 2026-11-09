@@ -73,3 +73,9 @@ def test_updated_numpy_integer_keys_keep_valid_float32_bits():
     got = updated({1: 0.1, 2: 0.2}, {np.int64(2): 0.9}, (1, 2))
     want = thresholds([0.1, 0.9], (1, 2))
     np.testing.assert_array_equal(got.view(np.uint32), want.view(np.uint32))
+
+
+@pytest.mark.parametrize("mask", [False, [True, False]])
+def test_masked_threshold_vectors_are_refused_before_conversion(mask):
+    with pytest.raises(TypeError, match="masked"):
+        thresholds(np.ma.array([0.3, 0.7], mask=mask), (1, 2))

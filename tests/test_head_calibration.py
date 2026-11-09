@@ -136,3 +136,16 @@ def test_public_temperature_import_refuses_masked_arrays(field):
             link="softmax",
             temperature=1.7,
         )
+
+
+@pytest.mark.parametrize("temperature", [None, 1.7])
+def test_public_import_refuses_nested_masked_rows(temperature):
+    import fse
+    from support.encoder import finished
+
+    enc = finished(normalize=False)
+    weight = [np.ma.array(np.ones(enc.output_dim), mask=True), np.ones(enc.output_dim)]
+    with pytest.raises(TypeError, match="masked"):
+        fse.Classifier.from_arrays(
+            enc, weight, labels=["a", "b"], link="softmax", temperature=temperature
+        )

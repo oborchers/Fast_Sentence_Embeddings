@@ -109,3 +109,18 @@ def test_invalid_integer_label_updates_leave_original_unchanged(key):
     with pytest.raises(ValidationError):
         original.with_thresholds({key: 0.9})
     assert dict(original.thresholds) == before
+
+
+def test_public_threshold_inputs_refuse_even_unmasked_masked_arrays():
+    original = model()
+    limits = np.ma.array([0.3, 0.7], mask=False)
+    with pytest.raises(TypeError, match="masked"):
+        original.with_thresholds(limits)
+    with pytest.raises(TypeError, match="masked"):
+        fse.Classifier.from_arrays(
+            original.encoder,
+            original.coef_,
+            labels=["a", "b"],
+            link="multilabel",
+            thresholds=limits,
+        )

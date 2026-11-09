@@ -122,3 +122,11 @@ def test_refuse_lost_input_accepts_numbers(value):
     from fse._validation import refuse_lost_input
 
     assert refuse_lost_input(value, "input") is None
+
+
+@pytest.mark.parametrize("value", [[np.ma.array([1, 2], mask=True)], [np.array([True]), [1.0]]])
+def test_refuse_lost_input_checks_nested_arrays(value):
+    from fse._validation import refuse_lost_input
+
+    with pytest.raises(TypeError, match=r"masked|bool"):
+        refuse_lost_input(value, "input")

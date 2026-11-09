@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
+from fse._validation import refuse_lost_input
+
 from ._content import _label, _numbers
 
 
@@ -20,6 +22,7 @@ def thresholds(value: Any, labels: tuple) -> ndarray:
     elif np.isscalar(value):
         values = [_cutoff(value)] * len(labels)
     else:
+        refuse_lost_input(value, "thresholds")
         array = np.asarray(value)
         if array.ndim != 1 or len(array) != len(labels):
             raise ValueError(f"thresholds must hold {len(labels)} values, not shape {array.shape}")

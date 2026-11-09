@@ -286,3 +286,9 @@ def test_integer_threshold_keys_are_checked_before_any_rows(tmp_path, key):
     sc.write_store(tmp_path / "s", heads, sh.texts(6))
     with fse.ScoreStore.open(tmp_path / "s") as store, pytest.raises(TypeError, match="a label"):
         store.predict_batches(thresholds={"m": {key: 0.9}})
+
+
+def test_store_refuses_masked_threshold_vectors_before_reading_rows(decision):
+    path, _, _ = decision
+    with fse.ScoreStore.open(path) as store, pytest.raises(TypeError, match="masked"):
+        store.predict_batches(thresholds={"toxic": np.ma.array([0.3, 0.5, 0.7], mask=False)})
