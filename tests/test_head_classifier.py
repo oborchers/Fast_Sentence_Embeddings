@@ -5,30 +5,12 @@ import pytest
 
 import fse
 from fse import _reference_head as ref
-from support import head as support
+from support.classifier import model as _model
 from support.encoder import finished
+from support.head import bits
 from support.runtime import texts
 
 F32 = np.float32
-
-
-def bits(x):
-    return np.asarray(x, dtype=F32).view(np.uint32)
-
-
-def _model(k=3, labels=None, normalize=False, fasttext=True, **kwargs):
-    encoder = finished("float16", fasttext=fasttext, normalize=normalize)
-    rng = np.random.default_rng(k)
-    weight = rng.standard_normal((k, encoder.output_dim)).astype(F32)
-    bias = rng.standard_normal(k).astype(F32)
-    names = labels or (["no", "yes"] if k == 1 else [f"c{i}" for i in range(k)])
-    return fse.Classifier.from_arrays(encoder, weight, bias, labels=names, **kwargs)
-
-
-def _logits(model, sentences):
-    return support.logits(
-        model.encoder._spec, model.coef_, model.intercept_, sentences, normalized=model.normalized
-    )
 
 
 def test_int_labels_and_their_dtype():

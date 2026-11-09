@@ -6,13 +6,10 @@ import pytest
 import fse
 from support import head as support
 from support.encoder import finished
+from support.head import bits
 from support.runtime import texts
 
 F32 = np.float32
-
-
-def bits(x):
-    return np.asarray(x, dtype=F32).view(np.uint32)
 
 
 @pytest.mark.parametrize("targets", [1, 2])

@@ -77,3 +77,8 @@ def outputs(z, output, link=None):
             return ref.multilabel(z, np.full(z.shape[1], 0.5, np.float32))
         return ref.labels(z)
     return ref.proba(z, link)
+
+
+def bits(x):
+    """The float32 bit patterns used by public head tests."""
+    return np.asarray(x, dtype=F32).view(np.uint32)

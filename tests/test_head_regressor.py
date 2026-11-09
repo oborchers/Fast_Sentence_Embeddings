@@ -4,13 +4,10 @@ import numpy as np
 
 import fse
 from support.encoder import finished
+from support.head import bits
 from support.runtime import texts
 
 F32 = np.float32
-
-
-def bits(x):
-    return np.asarray(x, dtype=F32).view(np.uint32)
 
 
 def test_save_and_load(tmp_path):
