@@ -32,6 +32,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 def validate_arguments(func: F) -> F:
     """Validate the arguments of ``func`` strictly with pydantic.
 
+    pydantic evaluates every annotation, including the return, when wrapping. A method
+    returning its own class uses ``Self`` while that class is not yet bound.
+
     The plain function wrapper binds to instances like any method. pydantic before 2.6
     caches its own wrapper in the instance ``__dict__`` when a decorated method is
     accessed, and that wrapper cannot be pickled, which breaks saving models.

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import numpy as np
 from numpy import ndarray
@@ -82,7 +82,7 @@ class WordVectors:
     @classmethod
     def _open(
         cls, tensors: dict[str, ndarray], metadata: dict[str, str], path: Path | None = None
-    ) -> WordVectors:
+    ) -> Self:
         """Word vectors of tensors whose structure is checked here, their values not."""
         _check_structure(tensors, metadata)
         out = object.__new__(cls)
@@ -108,7 +108,7 @@ class WordVectors:
         fasttext: FastTextParams | None = None,
         ngrams: Any = None,
         ngram_scales: Any = None,
-    ) -> WordVectors:
+    ) -> Self:
         """Word vectors from arrays, copied and checked.
 
         ``vectors`` holds one row per word as float32, float16 or int8 codes (with
@@ -133,7 +133,7 @@ class WordVectors:
     @classmethod
     def _from_arrays(
         cls, vectors, words, vocab_bytes, vocab_offsets, fasttext, arrays, *, copy: bool = True
-    ) -> WordVectors:
+    ) -> Self:
         """from_arrays; ``copy`` is False only for arrays the caller created and hands over
         (fse.gensim), which become read-only instead of being copied."""
         if not isinstance(vectors, ndarray):
@@ -158,7 +158,7 @@ class WordVectors:
         tensors: dict[str, ndarray],
         metadata: dict[str, str],
         index: dict[bytes, int] | None = None,
-    ) -> WordVectors:
+    ) -> Self:
         """New word vectors from arrays this module owns; checks values and words.
 
         ``index`` is the checked lookup of the same vocabulary, if there is one.
@@ -171,9 +171,7 @@ class WordVectors:
 
     @classmethod
     @validate_arguments
-    def load(
-        cls, path: PathLike, mmap: bool = False
-    ):  # -> WordVectors; pydantic cannot resolve it here
+    def load(cls, path: PathLike, mmap: bool = False) -> Self:
         """Open word vectors saved with ``save``.
 
         Without ``mmap`` the arrays are read into memory and every checksum is checked;
@@ -190,7 +188,7 @@ class WordVectors:
         return cls._open(tensors, metadata, path)
 
     @validate_arguments
-    def save(self, path: PathLike):
+    def save(self, path: PathLike) -> None:
         """Write the word vectors into the new ``.safetensors`` file ``path``.
 
         Loaded vectors are checked first, and every tensor is compared with the checksum
@@ -246,7 +244,7 @@ class WordVectors:
         # Mapped data can change through the file, so its check is never remembered.
         self._verified = not self._mapped()
 
-    def verify(self):
+    def verify(self) -> None:
         """Check everything: the data this object holds against the checksums it was loaded
         with, the files on disk, the values and the words.
         """
@@ -254,8 +252,7 @@ class WordVectors:
         if self._path is not None:
             SafetensorsContainer().verify(self._path)
 
-    @validate_arguments
-    def quantize(self, dtype: Literal["float16", "int8"]):  # -> WordVectors, as for load
+    def quantize(self, dtype: Literal["float16", "int8"]) -> WordVectors:
         """float16 or int8 copies of float32 word vectors, quantized in blocks.
 
         The result owns all its arrays. For loaded vectors, every block is read once, and
@@ -480,3 +477,7 @@ class WordVectors:
             raise IndexError(f"indices must be between 0 and {len(self) - 1}")
         scales = self.scales
         return _codes.dequantize(self.stored_vectors[ids], None if scales is None else scales[ids])
+
+
+# pydantic resolves the return annotation when wrapping; the class is bound only here.
+WordVectors.quantize = validate_arguments(WordVectors.quantize)  # type: ignore[method-assign]

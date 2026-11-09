@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 
 from fse._encoder import _pretrained
 from fse._validation import PathLike, validate_arguments
@@ -30,7 +30,7 @@ class Regressor(_RegressorPredicting, LinearModel):
 
     @classmethod
     @validate_arguments
-    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None) -> Self:
         """The head of a fitted scikit-learn linear regressor (or a Pipeline of an optional
         ``StandardScaler`` and the regressor) on the rows of
         ``encoder``; reads its attributes and imports nothing of scikit-learn."""
@@ -48,14 +48,14 @@ class Regressor(_RegressorPredicting, LinearModel):
     @validate_arguments
     def from_arrays(
         cls, encoder: Any, weight: Any, bias: Any = None, *, normalized: bool | None = None
-    ):
+    ) -> Self:
         """The head ``weight`` (targets, d) or (d,) and ``bias`` (targets, a scalar or None)
         on the rows of ``encoder``; ``normalized`` as for ``Classifier.from_arrays``."""
         return cls._build(encoder, weight, bias, normalized=normalized)
 
     @classmethod
     @validate_arguments
-    def load(cls, path: PathLike, mmap: bool = False):  # -> Regressor
+    def load(cls, path: PathLike, mmap: bool = False) -> Self:
         """Open a regressor saved with ``save``, complete or standalone."""
         return cls._load(path, mmap)
 
@@ -70,7 +70,7 @@ class Regressor(_RegressorPredicting, LinearModel):
         cache_dir: PathLike | None = None,
         local_files_only: bool = False,
         mmap: bool = False,
-    ):  # -> Regressor
+    ) -> Self:
         """The regressor of a local ``.safetensors`` file or of an fse folder written by
         ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit; ``mmap`` as for

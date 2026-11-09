@@ -26,7 +26,7 @@ hands it out), ``_closed_event`` and ``_published_event`` (its log events).
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from numpy import ndarray
 
@@ -247,7 +247,7 @@ class ShardSinkBase(ResumableSinkMarker):
                 raise
             self._shut_down(error)
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, _kind: object, error: BaseException | None, _tb: object) -> None:

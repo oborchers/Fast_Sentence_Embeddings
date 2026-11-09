@@ -1,3 +1,5 @@
+from typing import Self
+
 import numpy as np
 import pydantic
 import pytest
@@ -105,3 +107,27 @@ def test_threshold_input_rejects_coercion(value):
     )
     with pytest.raises(ValidationError):
         adapter.validate_python(value)
+
+
+class _SelfValidated:
+    @classmethod
+    @validate_arguments
+    def make(cls, value: int) -> Self:
+        return cls()
+
+    @validate_arguments
+    def copied(self, value: int) -> Self:
+        return type(self)()
+
+
+class _SelfChild(_SelfValidated):
+    pass
+
+
+def test_self_return_annotations_keep_strict_validation_and_the_subclass():
+    assert isinstance(_SelfChild.make(4), _SelfChild)
+    assert isinstance(_SelfChild().copied(4), _SelfChild)
+    for method in (_SelfChild.make, _SelfChild().copied):
+        with pytest.raises(pydantic.ValidationError) as caught:
+            method("4")
+        assert caught.value.title == method.__qualname__

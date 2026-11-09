@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import threading
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import numpy as np
 from numpy import ndarray
@@ -108,7 +108,7 @@ class LinearModel(HubModel):
         path: Path | None = None,
         checksums: dict[str, str] | None = None,
         fingerprint_: str | None = None,
-    ):
+    ) -> Self:
         out = object.__new__(cls)
         out._encoder = encoder
         out._content = content
@@ -144,7 +144,7 @@ class LinearModel(HubModel):
         thresholds: Any = None,
         rule: Head | None = None,
         note: str | None = None,
-    ):
+    ) -> Self:
         """A model of ``encoder`` and the head of ``weight`` and ``bias``, checked."""
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an fse.Encoder, not {type(encoder).__name__}")
@@ -188,7 +188,7 @@ class LinearModel(HubModel):
         return self._encoder.tokenizer
 
     @validate_arguments
-    def quantize(self, dtype: Literal["float16", "int8"]):  # -> Self
+    def quantize(self, dtype: Literal["float16", "int8"]) -> Self:
         """A new model of the same class and head whose encoder holds a float16 or int8
         copy of its float32 table (``Encoder.quantize``); A and b are copied unchanged, a
         loaded model's compared with their checksums first. Its predictions are those of
@@ -218,7 +218,7 @@ class LinearModel(HubModel):
     # --- persistence ------------------------------------------------------------------
 
     @validate_arguments
-    def save(self, path: PathLike, standalone: bool = False):
+    def save(self, path: PathLike, standalone: bool = False) -> None:
         """Write the model into the new ``.safetensors`` file ``path``: complete (the
         encoder's table and the head), or with ``standalone=True`` only the folded table
         (vocabulary x outputs) and the bias, which predicts the same bits but has no
@@ -313,13 +313,13 @@ class LinearModel(HubModel):
         return dataclasses.replace(pool, **copies)
 
     @classmethod
-    def _load(cls, path: Any, mmap: bool = False):
+    def _load(cls, path: Any, mmap: bool = False) -> Self:
         path = Path(path)
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
         return cls._opened(tensors, metadata, path, path)
 
     @classmethod
-    def _opened(cls, tensors: dict, metadata: dict, path: Path | None, where: Path):
+    def _opened(cls, tensors: dict, metadata: dict, path: Path | None, where: Path) -> Self:
         """The model of an opened artifact: from the file ``path``, or of checked bytes
         (``path`` None) that ``where`` names in errors."""
         if metadata.get("fse.kind") == _format.ENCODER_KIND:
@@ -349,7 +349,7 @@ class LinearModel(HubModel):
         )
 
     @classmethod
-    def _from_files(cls, files: Any, mmap: bool):
+    def _from_files(cls, files: Any, mmap: bool) -> Self:
         """The model of a local ``.safetensors`` file, or of an fse folder (local or of the
         Hub) whose config.json names a linear head; the config is compared with the
         metadata actually loaded. ``files`` come from ``_pretrained.files``."""

@@ -16,7 +16,7 @@ docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)". A ``Stati
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 from numpy import ndarray
@@ -55,7 +55,7 @@ class StaticModel:
         raise TypeError("make a StaticModel with StaticModel.from_pretrained")
 
     @classmethod
-    def _new(cls, rules: Rules) -> StaticModel:
+    def _new(cls, rules: Rules) -> Self:
         out = object.__new__(cls)
         out._rules = rules
         out._variants = Variants(rules)
@@ -85,7 +85,7 @@ class StaticModel:
         revision: str | None = None,
         cache_dir: PathLike | None = None,
         local_files_only: bool = False,
-    ):  # -> StaticModel
+    ) -> Self:
         """Load a model from a local folder or a Hugging Face Hub repository (``namespace/name``,
         at ``revision``, checked against its commit), read with the rules of model2vec 0.10.0.
 
