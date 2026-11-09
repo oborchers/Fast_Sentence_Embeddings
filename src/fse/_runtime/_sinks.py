@@ -16,7 +16,7 @@ rows into the target itself (stage 5, ``store`` of the backend).
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 import numpy as np
 from numpy import ndarray
@@ -63,7 +63,12 @@ class Sink(Protocol):
     refuses.
     """
 
-    dim: int
+    if TYPE_CHECKING:
+
+        @property
+        def dim(self) -> int: ...
+    else:
+        dim: int
 
     def target(self, first_row: int, n_rows: int) -> Stored:
         """Writable C-contiguous rows ``(n_rows, dim)`` for one task: float32 rows, float16

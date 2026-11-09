@@ -14,9 +14,9 @@ and does not import the encoder.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any, overload
+from typing import Any, Literal, overload
 
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes
 from fse._runtime import (
@@ -25,6 +25,7 @@ from fse._runtime import (
     LengthSettings,
     Pool,
     QuantizedRows,
+    Sink,
     check_workers,
     rule_of,
     workers_of,
@@ -47,18 +48,33 @@ class _Encoding:
         self,
         texts: Any,
         *,
-        dtype: str | None = None,
+        dtype: Literal["float32", "float16"] | None = None,
         workers: int | None = None,
         backend: str = "cpu",
-        sink: Any = None,
+        sink: None = None,
         doc_ids: Any = None,
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        shard: tuple[int, int] | None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: None = None,
         pool: Pool | None = None,
-    ) -> ndarray | QuantizedRows | None: ...
-
+    ) -> NDArray[Any]: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: Literal["int8"],
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        doc_ids: Any = None,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: None = None,
+        pool: Pool | None = None,
+    ) -> QuantizedRows: ...
     @overload
     def encode(
         self,
@@ -67,14 +83,94 @@ class _Encoding:
         dtype: str | None = None,
         workers: int | None = None,
         backend: str = "cpu",
-        sink: Any = None,
+        sink: Sink,
         doc_ids: Any = None,
-        lengths: LengthLevel,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         shard: tuple[int, int] | None = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray | QuantizedRows | None, LengthReport]: ...
+    ) -> None: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: Literal["float32", "float16"] | None = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        doc_ids: Any = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: None = None,
+        pool: Pool | None = None,
+    ) -> tuple[NDArray[Any], LengthReport]: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: Literal["int8"],
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        doc_ids: Any = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: None = None,
+        pool: Pool | None = None,
+    ) -> tuple[QuantizedRows, LengthReport]: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: str | None = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink,
+        doc_ids: Any = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> tuple[None, LengthReport]: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: str | None = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink | None = None,
+        doc_ids: Any = None,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> NDArray[Any] | QuantizedRows | None: ...
+    @overload
+    def encode(
+        self,
+        texts: Any,
+        *,
+        dtype: str | None = None,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink | None = None,
+        doc_ids: Any = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> tuple[NDArray[Any] | QuantizedRows | None, LengthReport]: ...
 
     def encode(
         self,
@@ -156,8 +252,8 @@ class _Encoding:
         sink: Any = None,
         doc_ids: bool = False,
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
     ) -> Iterator[EncodedBatch]: ...
@@ -173,8 +269,8 @@ class _Encoding:
         sink: Any = None,
         doc_ids: bool = False,
         lengths: LengthLevel,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
     ) -> Iterator[tuple[EncodedBatch, LengthReport]]: ...
