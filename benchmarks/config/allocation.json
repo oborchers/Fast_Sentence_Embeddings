@@ -50,6 +50,12 @@
         "revision": "pins"
       },
       {
+        "name": "base",
+        "role": "base",
+        "lock": "speed-base.lock.txt",
+        "revision": "624251df2269e3099f5c61987be63e718893b58c"
+      },
+      {
         "name": "reference",
         "role": "reference",
         "lock": "speed-reference.lock.txt",
@@ -75,6 +81,8 @@
           "{allocated_at}",
           "--reference-python",
           "{python_reference}",
+          "--base-python",
+          "{python_base}",
           "--study",
           "{study}"
         ]

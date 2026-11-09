@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Raise `fse_revision` in `benchmarks/config/pins.json` from 624251df (fse 2.0) to a1e9bf50, the master after DR-317 (DR-320: Pin der fse-Revision für die Linux-Studien auf den aktuellen master heben), so the Linux studies install an fse with `fse.Heads`. Historical results keep their own pin. Measurement tooling only; no change to the library.
+- Raise `fse_revision` in `benchmarks/config/pins.json` from 624251df (fse 2.0) to a1e9bf50, the master after DR-317 (DR-320: Pin der fse-Revision für die Linux-Studien auf den aktuellen master heben), so the Linux studies install an fse with `fse.Heads`. Historical results keep their own pin. The speed allocation gains a `base` environment (fse 2.0 at 624251df, lock `speed-base.lock.txt`) passed as `--base-python`, so `--study all` is no longer refused for its `versions` cells; the plans of the existing cells are unchanged. Measurement tooling only; no change to the library.
 
 - Start sink threads only with their first work (DR-317: Sink-Threads eines nicht geschlossenen Sinks nicht unbefristet weiterlaufen lassen). Constructing or inspecting a `ShardSink` or `ScoreSink` starts no thread. Write and hash start at the first commit, publish at the first finished shard. Used sinks still require `close()` or a `with` block. Thread-start failures follow the shared writer error and cleanup protocol.
 
