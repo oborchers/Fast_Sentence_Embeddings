@@ -485,14 +485,11 @@ ignore_names = [
     "no_sink_threads_left", # an autouse fixture of tests/conftest.py, run by pytest
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "broken_logging",    # a fixture used through pytest.mark.usefixtures
-    "no_fse_threads_left", # an autouse fixture of tests/test_runtime_pool.py
+    "no_fse_threads_left", # an autouse fixture of tests/support/pool.py
     "normalizer",        # attributes of a Hugging Face tokenizer, read by tokenizers
     "pre_tokenizer",
     "post_processor",
     "mteb_model_meta",   # metadata read by mteb.evaluate on encoder wrappers
-    "hf_split",          # arguments of the MTEB encoder interface
-    "hf_subset",
-    "prompt_type",
     "_fields_",          # the layout of a ctypes struct, read by ctypes (tests/support/arrow_c.py)
     "n_children",        # fields of the Arrow C structs there, read by the extension
     "__qualname__",      # set on a stand-in method that pydantic titles errors from (tests/test_store_vectorstore_search.py)
