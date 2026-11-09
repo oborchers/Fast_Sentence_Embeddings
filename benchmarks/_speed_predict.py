@@ -79,7 +79,16 @@ def classifier(job):
     return model, provenance
 
 
-def memory_plan(cell, model_bytes, input_bytes, warmup_bytes, work, limit, kind):
+def memory_plan(
+    cell,
+    model_bytes,
+    input_bytes,
+    warmup_bytes,
+    work,
+    limit,
+    kind,
+    occupied_disk=0,
+):
     n, k, w = cell["texts"], len(cell["head"]["labels"]), cell["workers"]
     components = {
         "controller_libraries_reserve": (2 if cell.get("functional_only") else 8) * resources.GIB,
@@ -94,7 +103,8 @@ def memory_plan(cell, model_bytes, input_bytes, warmup_bytes, work, limit, kind)
         components,
         limit=limit,
         work=work,
-        disk=input_bytes + warmup_bytes + 5 * resources.GIB,
+        disk=max(0, input_bytes + warmup_bytes - occupied_disk) + 5 * resources.GIB,
+        occupied_input_disk_bytes=occupied_disk,
         kind=kind,
         output=cell["output"],
         label_count=k,
@@ -132,7 +142,16 @@ def admit_plans(context, cell, sizes=None):
         warmup_bytes = input_bytes * min(job["texts"], job["warmup_texts"]) // job["texts"]
         if sizes and job is cell:
             input_bytes, warmup_bytes = sizes
-        plan = memory_plan(job, model_bytes, input_bytes, warmup_bytes, work, limit, scope)
+        plan = memory_plan(
+            job,
+            model_bytes,
+            input_bytes,
+            warmup_bytes,
+            work,
+            limit,
+            scope,
+            occupied_disk=sum(sizes) if sizes else 0,
+        )
         append(
             ledger.root / "memory.jsonl",
             dict(
@@ -215,7 +234,9 @@ def summarize(cell, rows, identity, matches):
     valid = complete and not short
     return dict(
         protocol="predict@1",
-        status="invalid" if short else ("valid" if complete else "partial"),
+        status="invalid"
+        if short
+        else ("valid" if complete else ("partial" if rows else "not_started")),
         reason="call shorter than two seconds" if short else (None if complete else "round budget"),
         input_identity=identity,
         input_matches_headline=matches,
