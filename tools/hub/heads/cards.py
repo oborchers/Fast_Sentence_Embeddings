@@ -6,10 +6,14 @@ import argparse
 import json
 from pathlib import Path
 
+from sgd_cards import render as render_sgd
+
 
 def render(record):
     if record["status"] != "complete":
         raise ValueError("incomplete runs cannot produce a release-ready model card")
+    if record["config"]["schema"] == "civil-comments-sgd-final@1":
+        return render_sgd(record)
     config, selected = record["config"], record["selection"]["selected"]
     spec = next(s for s in config["encoders"] if s["name"] == selected["encoder"])
     sample = record["selection"]["sample"]

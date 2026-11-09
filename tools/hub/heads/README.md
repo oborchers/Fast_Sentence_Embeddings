@@ -179,3 +179,30 @@ alpha, and a gain of at least 0.01 is required to replace small. Only then are
 per-label maximum-F1 thresholds proposed, with highest cutoff on ties. Existing
 artifacts remain unchanged and official test stays held. The full prior rules
 and primary sources are in `benchmarks/baseline/dr230/sgd-protocol.md`.
+
+## Approved two-label finalization
+
+After reviewing full validation, the maintainer selected only the existing
+`toxicity` and `insult` estimators at alpha 5.540552969348553e-7. No refit or
+new alpha choice occurs. `sgd_final.py` imports those two rows with `from_arrays`,
+checks the unchanged numerical bound and bit identity with the selected six-label
+columns, stores their validation-only maximum-F1 cutoffs and verifies both reloads.
+
+```sh
+uv run python tools/hub/heads/sgd_final.py \
+  --parent "$HOME/fse-dr311" --source "$HOME/fse-dr311/sgd-full-01" \
+  --work "$HOME/fse-dr311/final-toxicity-insult-01" --preflight
+# Only with the explicit test signal, under the shared heavy-lock wrapper:
+uv run python tools/hub/heads/sgd_final.py \
+  --parent "$HOME/fse-dr311" --source "$HOME/fse-dr311/sgd-full-01" \
+  --work "$HOME/fse-dr311/final-toxicity-insult-01" --test-approved
+```
+
+This finalizer uses the remainder of the signal-anchored one-hour window and the
+4 GiB watchdog. It writes the global exclusive `test-started` marker before any
+test access, then evaluates the saved standalone model exactly once. The general
+test hold remains active for other commands. No retry is permitted after that
+marker exists. The final model and stored cutoffs never change after test.
+The completed `prepared/` directory contains both artifacts, a card generated
+from recorded metrics, MIT licenses and a SHA256 manifest. The card documents
+all five removed labels, validation evidence, optimizer and uncalibrated scores.
