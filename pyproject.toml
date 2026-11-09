@@ -206,7 +206,8 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/fse"]
+files = ["src/fse", "tests/test_typing_static_encoder.py", "tests/test_typing_static_heads.py", "tests/test_typing_static_stores.py"]
+mypy_path = "src"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
