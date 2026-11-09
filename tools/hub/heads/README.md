@@ -33,6 +33,8 @@ proportions and balanced class weights. Convergence warnings invalidate the run.
 Selection uses full-validation macro ROC AUC. Each encoder tries C in ascending
 order (0.1, 1, 10), and ties retain the smaller C. Bekko replaces POTION only with
 at least 0.01 higher macro ROC AUC. Test is unavailable to selection. Full train
+is never compared across encoders. If Bekko wins the small comparison, that small
+Bekko classifier is final and full POTION is not fitted. If POTION wins, full train
 is admitted only for POTION, with at least one hour plus a 15-minute finalization reserve before
 the earlier of the budget end and 18:00, and an 8 GiB memory plan. It uses the selected C and replaces the small model only if full-validation
 macro ROC AUC is no lower. The receipt records skipped or completed full training.
