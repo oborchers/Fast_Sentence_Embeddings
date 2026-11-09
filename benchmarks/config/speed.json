@@ -193,6 +193,66 @@
       "estimated_seconds": 600
     },
     {
+      "id": "headline-100m-predict",
+      "stage": "headline",
+      "kind": "predict",
+      "model": "minishlab/potion-base-8M",
+      "reference": null,
+      "texts": 100000000,
+      "workers": 16,
+      "dtype": "float32",
+      "rounds": 3,
+      "dimensions": 256,
+      "output": "labels",
+      "head": {
+        "kind": "placeholder",
+        "profile": "toxicity-placeholder@1",
+        "seed": 17,
+        "labels": [
+          "toxicity",
+          "obscene",
+          "threat",
+          "insult",
+          "identity_attack",
+          "sexual_explicit"
+        ]
+      },
+      "warmup_texts": 20000000,
+      "estimated_seconds": 900,
+      "planned_input_bytes": 13639687281,
+      "planned_input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef"
+    },
+    {
+      "id": "headline-100m-predict-proba",
+      "stage": "headline",
+      "kind": "predict",
+      "model": "minishlab/potion-base-8M",
+      "reference": null,
+      "texts": 100000000,
+      "workers": 16,
+      "dtype": "float32",
+      "rounds": 3,
+      "dimensions": 256,
+      "output": "proba",
+      "head": {
+        "kind": "placeholder",
+        "profile": "toxicity-placeholder@1",
+        "seed": 17,
+        "labels": [
+          "toxicity",
+          "obscene",
+          "threat",
+          "insult",
+          "identity_attack",
+          "sexual_explicit"
+        ]
+      },
+      "warmup_texts": 20000000,
+      "estimated_seconds": 900,
+      "planned_input_bytes": 13639687281,
+      "planned_input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef"
+    },
+    {
       "id": "dtype-float32-1",
       "stage": "dtypes",
       "kind": "dtype",
@@ -553,8 +613,8 @@
     }
   ],
   "headline_billing": {
-    "planning_minutes": 25,
-    "planning_balance_usd": 0.6,
+    "planning_minutes": 50,
+    "planning_balance_usd": 1.25,
     "collection_reserve_seconds": 120
   },
   "model_formats": {

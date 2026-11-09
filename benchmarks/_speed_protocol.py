@@ -20,6 +20,7 @@ VARIANTS = {
     ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False),
     ("heads", "fse-separate"): ("heads-compare@1", "bits", False),
     ("write", None): ("write@1", "bits", False),
+    ("predict", None): ("predict@1", "bits", False),
 }
 
 
@@ -31,20 +32,32 @@ def protocol(cell):
         raise ValueError(
             f"no protocol for kind {cell['kind']!r} against reference {cell['reference']!r}"
         ) from None
-    return {"name": name, "exact": check == "bits", "control": control}
+    single = name in ("write@1", "predict@1")
+    return {
+        "name": name,
+        "exact": check == "bits",
+        "control": control,
+        "paired": not single,
+        "own_memory_plan": single,
+        "needs_quiet": not single,
+    }
 
 
 def validate(cells):
     """Refuse a study with a cell no variant covers, before anything runs."""
     for cell in cells:
         protocol(cell)
+        if cell["kind"] == "predict":
+            from _speed_predict import validate
+
+            validate(cell)
 
 
 def require(cells, base_python):
     """Refuse, before any download or input, a study whose environment cannot run its cells."""
     if any(c["reference"] == "fse-base" for c in cells) and not base_python:
         raise ValueError("fse-base cells need --base-python, the installed base fse")
-    if any(c["kind"] == "heads" for c in cells):
+    if any(c["kind"] in ("heads", "predict") for c in cells):
         import fse
 
         if not hasattr(fse, "Heads"):
