@@ -71,7 +71,10 @@ class Budget:
         def watch():
             while not stop.wait(0.1):
                 if self.rss() > self.config["maximum_rss_bytes"]:
-                    os.write(2, b"inconclusive: memory watchdog exceeded 8 GiB; no retry\n")
+                    os.write(
+                        2,
+                        b"inconclusive: memory watchdog exceeded configured RSS limit; no retry\n",
+                    )
                     os._exit(75)
 
         thread = threading.Thread(target=watch, daemon=True)
@@ -110,7 +113,7 @@ class Budget:
             raise RuntimeError("inconclusive: fewer than 40 GiB free")
         # macOS reports bytes, Linux KiB. This recipe runs on either platform.
         if self.rss() > self.config["maximum_rss_bytes"]:
-            raise RuntimeError("inconclusive: peak RSS exceeded 8 GiB")
+            raise RuntimeError("inconclusive: peak RSS exceeded configured RSS limit")
 
 
 def source(work, spec, filename, dataset=False):

@@ -1,0 +1,18 @@
+{
+  "schema": "civil-comments-full-bekko@1",
+  "train_rows": 1804874,
+  "dimension": 1024,
+  "working_dtype": "float32",
+  "solver": "lbfgs",
+  "scikit_learn_version": "1.9.1",
+  "C": [0.1, 1.0, 10.0],
+  "full_minimum_gain": 0.01,
+  "budget_seconds": 7200,
+  "maximum_plan_bytes": 17179869184,
+  "maximum_rss_bytes": 9663676416,
+  "memory_reserve_bytes": 1610612736,
+  "minimum_free_bytes": 42949672960,
+  "batch_rows": 4096,
+  "threshold_rule": "maximum per-label F1; highest float32 cutoff on ties",
+  "test": "held until explicit coordinator signal"
+}

@@ -110,6 +110,27 @@ An active external `test-hold.json` prevents `finalize` from reading test. The
 current hold requires an explicit signal from fse-main. This proposal command
 does not release it or change the frozen estimator or encoder selection.
 
+## Full Bekko follow-up
+
+The separately approved full-training comparison uses the same frozen Bekko
+encoder on every training row, with a new two-hour budget and a reviewed memory
+plan. It never reads test or changes the small run's artifacts. It reports both
+variants and leaves the six-versus-two-label decision to Oliver.
+
+```sh
+uv run python tools/hub/heads/full_bekko.py \
+  --parent "$HOME/fse-dr311" --work "$HOME/fse-dr311/full-bekko-01" --preflight
+# Only after admission, under the shared heavy-lock wrapper:
+uv run python tools/hub/heads/full_bekko.py \
+  --parent "$HOME/fse-dr311" --work "$HOME/fse-dr311/full-bekko-01"
+```
+
+The output directory must be new. An unsuccessful memory admission starts no
+work. The command pins sklearn 1.9.1's float32 L-BFGS path, streams input, and
+scales one float32 working file in place. It compares C before fitting thresholds.
+Only a full-validation macro ROC AUC gain of at least 0.01 replaces the small
+head. `benchmarks/baseline/dr230/full-protocol.md` specifies the prior rules.
+
 Sources: [dataset and CC0 terms](https://huggingface.co/datasets/google/civil_comments),
 [annotator fractions](https://www.tensorflow.org/datasets/catalog/civil_comments),
 [POTION source](https://huggingface.co/minishlab/potion-base-8M),
