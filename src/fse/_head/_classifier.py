@@ -29,10 +29,11 @@ from . import _calibration, _model2vec_files, _model2vec_objects, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._predict import _Predicting
+from ._predict_scores import _Scoring
 from ._thresholds import updated
 
 
-class Classifier(_Predicting, LinearModel):
+class Classifier(_Predicting, _Scoring, LinearModel):
     """Predicts labels of texts with an encoder and a linear head ``z = A x + b`` on its
     rows. Single-label heads choose one class. Multilabel heads independently compare
     each probability with its stored cutoff, returning a boolean matrix.
