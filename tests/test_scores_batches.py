@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import fse
-from fse._scores._batches import blocks
+from fse._store._vector_batches import blocks
 from support import score_heads as sh
 from support import scores as sc
 
