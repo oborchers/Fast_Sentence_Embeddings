@@ -144,3 +144,9 @@ def test_valid_mixed_numbers_keep_float32_bits():
     w, b = weights([[1, 0.5]], [0.25], 2)
     np.testing.assert_array_equal(w.view(np.uint32), np.array([[1, 0.5]], F32).view(np.uint32))
     np.testing.assert_array_equal(b.view(np.uint32), np.array([0.25], F32).view(np.uint32))
+
+
+def test_numeric_dataframe_weights_ignore_boolean_column_names():
+    pd = pytest.importorskip("pandas")
+    w, _ = weights(pd.DataFrame([[1.0, 0.5]], columns=[True, False]), None, 2)
+    np.testing.assert_array_equal(w.view(np.uint32), np.array([[1.0, 0.5]], F32).view(np.uint32))

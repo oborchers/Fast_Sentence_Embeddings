@@ -134,6 +134,9 @@ def refuse_lost_input(value: Any, name: str) -> None:
             raise TypeError(f"{name} must be numbers (float or int), not bool")
     elif isinstance(value, bool | np.bool_):
         raise TypeError(f"{name} must be numbers (float or int), not bool")
+    elif hasattr(value, "__array__") and not np.isscalar(value):
+        for item in np.asarray(value, dtype=object).ravel():
+            refuse_lost_input(item, name)
     elif isinstance(value, Iterable) and not isinstance(value, str | bytes | Mapping):
         for item in value:
             refuse_lost_input(item, name)
