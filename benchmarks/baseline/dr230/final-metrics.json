@@ -1,0 +1,312 @@
+{
+  "status": "complete",
+  "claim_class": "correctness",
+  "linux_comparison": "none run",
+  "config": {
+    "schema": "civil-comments-sgd-final@1",
+    "dataset": {
+      "repo": "google/civil_comments",
+      "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+      "license": "cc0-1.0"
+    },
+    "encoders": [
+      {
+        "name": "potion",
+        "repo": "minishlab/potion-base-8M",
+        "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+        "license": "mit",
+        "files": [
+          "config.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "README.md"
+        ]
+      },
+      {
+        "name": "bekko",
+        "repo": "hotchpotch/bekko-static-embedding-v1",
+        "revision": "c18167b8f244c1bc6de21ce9b710bac8a29c4615",
+        "license": "mit",
+        "files": [
+          "config_sentence_transformers.json",
+          "modules.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "README.md"
+        ]
+      }
+    ],
+    "labels": [
+      "toxicity",
+      "insult"
+    ],
+    "seed": 17,
+    "sample_rows": 200000,
+    "sampling": "hash-sample@1",
+    "C": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "class_weight": "fixed per-label dictionaries from all train counts",
+    "max_iter": 1000,
+    "normalize": false,
+    "target_threshold": 0.5,
+    "prediction_threshold": 0.5,
+    "bekko_minimum_gain": 0.01,
+    "batch_rows": 8192,
+    "budget_seconds": 3600,
+    "minimum_free_bytes": 42949672960,
+    "maximum_rss_bytes": 4294967296,
+    "medium_minimum_remaining_seconds": 3600,
+    "minimum_test_positives": 100,
+    "license": "mit",
+    "train_rows": 1804874,
+    "dimension": 1024,
+    "sklearn_version": "1.9.1",
+    "epochs": 3,
+    "loss": "log_loss",
+    "penalty": "l2",
+    "learning_rate": "invscaling",
+    "eta0": 0.01,
+    "power_t": 0.5,
+    "average": true,
+    "estimated_peak_bytes": 3221225472,
+    "minimum_gain": 0.01,
+    "probe_rows": 256,
+    "probe_seconds": 300,
+    "prediction_thresholds": [
+      0.7895925045013428,
+      0.8461187481880188
+    ]
+  },
+  "selection": {
+    "selected": {
+      "encoder": "bekko",
+      "variant": "full",
+      "alpha": 5.540552969348553e-07,
+      "train_rows": 1804874,
+      "epochs": 3
+    },
+    "checkpoint_sha256": "92492d447be94cfd09056110432b26719055e433483fa331f44094502412f665",
+    "comparison_sha256": "c317289899474e7835b4d5370a907661143b24d8b05f4ab381d832ddb11946c3",
+    "validation": {
+      "thresholds": {
+        "toxicity": 0.7895925045013428,
+        "obscene": 0.9737074375152588,
+        "threat": 0.9930905103683472,
+        "insult": 0.8461187481880188,
+        "identity_attack": 0.9543197751045227,
+        "sexual_explicit": 0.9922670125961304
+      },
+      "default": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8838623719892974,
+            "average_precision": 0.4526379561166576,
+            "precision": 0.18201997780244172,
+            "recall": 0.9193064789466823,
+            "f1": 0.30387383117162925
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.9051404957457956,
+            "average_precision": 0.14007147447644994,
+            "precision": 0.01113695321585115,
+            "recall": 0.9485714285714286,
+            "f1": 0.022015428483013195
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9506497021725184,
+            "average_precision": 0.08642848439524048,
+            "precision": 0.005277481954798249,
+            "recall": 0.9955357142857143,
+            "f1": 0.010499305539207608
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.9025461237271059,
+            "average_precision": 0.4547698372928197,
+            "precision": 0.14102228732865962,
+            "recall": 0.9344773790951638,
+            "f1": 0.2450621633293179
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9536414103276207,
+            "average_precision": 0.1502686834586997,
+            "precision": 0.016840375827899573,
+            "recall": 0.9879518072289156,
+            "f1": 0.033116260285728706
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9625890051590298,
+            "average_precision": 0.10658483224391342,
+            "precision": 0.004631344942571323,
+            "recall": 0.9950248756218906,
+            "f1": 0.009219776420421804
+          }
+        },
+        "macro": {
+          "roc_auc": 0.926404851520228,
+          "average_precision": 0.23179354466396349,
+          "precision": 0.06015473684537028,
+          "recall": 0.9634779472916325,
+          "f1": 0.10396446087155307
+        }
+      },
+      "tuned": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8838623719892974,
+            "average_precision": 0.4526379561166576,
+            "precision": 0.40891876538534366,
+            "recall": 0.5630295919697562,
+            "f1": 0.47375637580211705
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.9051404957457956,
+            "average_precision": 0.14007147447644994,
+            "precision": 0.16832779623477298,
+            "recall": 0.2895238095238095,
+            "f1": 0.21288515406162464
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9506497021725184,
+            "average_precision": 0.08642848439524048,
+            "precision": 0.14043583535108958,
+            "recall": 0.25892857142857145,
+            "f1": 0.18210361067503925
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.9025461237271059,
+            "average_precision": 0.4547698372928197,
+            "precision": 0.4357909806728704,
+            "recall": 0.5276477725775698,
+            "f1": 0.4773404422142073
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9536414103276207,
+            "average_precision": 0.1502686834586997,
+            "precision": 0.17718047174986287,
+            "recall": 0.4864457831325301,
+            "f1": 0.2597507036590269
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9625890051590298,
+            "average_precision": 0.10658483224391342,
+            "precision": 0.1484375,
+            "recall": 0.2835820895522388,
+            "f1": 0.19487179487179487
+          }
+        },
+        "macro": {
+          "roc_auc": 0.926404851520228,
+          "average_precision": 0.23179354466396349,
+          "precision": 0.24651522489898992,
+          "recall": 0.4015262696974127,
+          "f1": 0.30011801354730167
+        }
+      }
+    },
+    "full_macro_auc": 0.926404851520228,
+    "small_macro_auc": 0.9102392840121661,
+    "gain": 0.016165567508061862,
+    "excluded_labels": {
+      "severe_toxicity": {
+        "positive": 13,
+        "train_rows": 1804874
+      }
+    },
+    "label_decision": "Oliver selected toxicity and insult after validation; no alpha reselection"
+  },
+  "model_name": "bekko-civil-comments-toxicity-classifier",
+  "checks": {
+    "import": {
+      "rows": 256,
+      "logit_bound_passed": true,
+      "max_logit_error": 3.1784635936560335e-06,
+      "max_logit_bound": 0.0015815348595486698,
+      "max_probability_error": 2.962216655300054e-07,
+      "max_probability_bound": 0.00039586055204537057,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 3.814697265625e-06
+    },
+    "selected_columns_bit_identity": true,
+    "validation_thresholds": {
+      "toxicity": 0.7895925045013428,
+      "insult": 0.8461187481880188
+    },
+    "persistence": {
+      "complete_bit_identity": true,
+      "standalone_bit_identity": true,
+      "labels_preserved": true
+    },
+    "store": {
+      "scores_path": "folded",
+      "combined_path": "unfolded",
+      "ids_scores_thresholds_vectors_verified": true
+    }
+  },
+  "environment": {
+    "git_revision": "980a5147e2b9ab7c0d9c4f5504920a7f69930b59",
+    "python": "3.13.16",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "python_compiler": "Clang 22.1.3 ",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "fse": "2.0.1.dev78+gebe5b568",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "pyarrow": "26.0.0",
+    "huggingface-hub": "2.3.0",
+    "tokenizers": "0.23.3"
+  },
+  "test": {
+    "rows": 97320,
+    "per_label": {
+      "toxicity": {
+        "positive": 7777,
+        "roc_auc": 0.8834066949797177,
+        "average_precision": 0.4475048384329623,
+        "precision": 0.4127951256664128,
+        "recall": 0.5575414684325576,
+        "f1": 0.47437229910836387
+      },
+      "insult": {
+        "positive": 5776,
+        "roc_auc": 0.9049248686371061,
+        "average_precision": 0.44959495898483176,
+        "precision": 0.4365262550490479,
+        "recall": 0.5238919667590027,
+        "f1": 0.476235442241108
+      }
+    },
+    "macro": {
+      "roc_auc": 0.8941657818084119,
+      "average_precision": 0.44854989870889705,
+      "precision": 0.42466069035773035,
+      "recall": 0.5407167175957801,
+      "f1": 0.4753038706747359
+    }
+  },
+  "unreliable_labels": [],
+  "test_score_sha256": "025854ba57d8b2e6057f0250a5004463ab4223aaae62ebaa71c421a793b8bf68",
+  "test_evaluations": 1,
+  "peak_rss_bytes": 1858191360
+}

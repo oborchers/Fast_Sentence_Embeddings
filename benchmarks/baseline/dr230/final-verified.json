@@ -1,0 +1,53 @@
+{
+  "model_name": "bekko-civil-comments-toxicity-classifier",
+  "checks": {
+    "import": {
+      "rows": 256,
+      "logit_bound_passed": true,
+      "max_logit_error": 3.1784635936560335e-06,
+      "max_logit_bound": 0.0015815348595486698,
+      "max_probability_error": 2.962216655300054e-07,
+      "max_probability_bound": 0.00039586055204537057,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 3.814697265625e-06
+    },
+    "selected_columns_bit_identity": true,
+    "validation_thresholds": {
+      "toxicity": 0.7895925045013428,
+      "insult": 0.8461187481880188
+    },
+    "persistence": {
+      "complete_bit_identity": true,
+      "standalone_bit_identity": true,
+      "labels_preserved": true
+    },
+    "store": {
+      "scores_path": "folded",
+      "combined_path": "unfolded",
+      "ids_scores_thresholds_vectors_verified": true
+    }
+  },
+  "environment": {
+    "git_revision": "980a5147e2b9ab7c0d9c4f5504920a7f69930b59",
+    "python": "3.13.16",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "python_compiler": "Clang 22.1.3 ",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "fse": "2.0.1.dev78+gebe5b568",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "pyarrow": "26.0.0",
+    "huggingface-hub": "2.3.0",
+    "tokenizers": "0.23.3"
+  },
+  "selection_sha256": "06ad2c31a0305f2f00211beedde25a6e455b9dbda91c1da33d77747c27ac15f5",
+  "model_sha256": {
+    "complete": "69f8bfc39013f19a4d3a0a5dffec1624306fddb8ab7e9b488a8126b2479ba9c8",
+    "standalone": "fc622127f06899ad93e69271f1c168daafa8a73eb33249a12cbeb4bea74fb8c3"
+  }
+}

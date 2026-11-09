@@ -1,0 +1,394 @@
+{
+  "status": "validation_complete_test_held",
+  "config": {
+    "schema": "civil-comments-streaming-sgd@1",
+    "dataset": {
+      "repo": "google/civil_comments",
+      "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+      "license": "cc0-1.0"
+    },
+    "encoders": [
+      {
+        "name": "potion",
+        "repo": "minishlab/potion-base-8M",
+        "revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+        "license": "mit",
+        "files": [
+          "config.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "README.md"
+        ]
+      },
+      {
+        "name": "bekko",
+        "repo": "hotchpotch/bekko-static-embedding-v1",
+        "revision": "c18167b8f244c1bc6de21ce9b710bac8a29c4615",
+        "license": "mit",
+        "files": [
+          "config_sentence_transformers.json",
+          "modules.json",
+          "model.safetensors",
+          "tokenizer.json",
+          "README.md"
+        ]
+      }
+    ],
+    "labels": [
+      "toxicity",
+      "obscene",
+      "threat",
+      "insult",
+      "identity_attack",
+      "sexual_explicit"
+    ],
+    "seed": 17,
+    "sample_rows": 200000,
+    "sampling": "hash-sample@1",
+    "C": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "class_weight": "fixed per-label dictionaries from all train counts",
+    "max_iter": 1000,
+    "normalize": false,
+    "target_threshold": 0.5,
+    "prediction_threshold": 0.5,
+    "bekko_minimum_gain": 0.01,
+    "batch_rows": 8192,
+    "budget_seconds": 3600,
+    "minimum_free_bytes": 42949672960,
+    "maximum_rss_bytes": 4294967296,
+    "medium_minimum_remaining_seconds": 3600,
+    "minimum_test_positives": 100,
+    "license": "mit",
+    "train_rows": 1804874,
+    "dimension": 1024,
+    "sklearn_version": "1.9.1",
+    "epochs": 3,
+    "loss": "log_loss",
+    "penalty": "l2",
+    "learning_rate": "invscaling",
+    "eta0": 0.01,
+    "power_t": 0.5,
+    "average": true,
+    "estimated_peak_bytes": 3221225472,
+    "minimum_gain": 0.01,
+    "probe_rows": 256,
+    "probe_seconds": 300
+  },
+  "environment": {
+    "git_revision": "a3294292486bfcf80336fafd15e03927fd74b1b5",
+    "python": "3.13.16",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1 Pro",
+    "python_compiler": "Clang 22.1.3 ",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "fse": "2.0.1.dev78+gebe5b568",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "pyarrow": "26.0.0",
+    "huggingface-hub": "2.3.0",
+    "tokenizers": "0.23.3"
+  },
+  "candidates": {
+    "0.1": {
+      "C_reference": 0.1,
+      "alpha": 5.540552969348552e-06,
+      "status": "complete",
+      "rows_seen": 5414622,
+      "epochs_completed": 3,
+      "checkpoint": "C0.1-epoch3.joblib"
+    },
+    "1.0": {
+      "C_reference": 1.0,
+      "alpha": 5.540552969348553e-07,
+      "status": "complete",
+      "rows_seen": 5414622,
+      "epochs_completed": 3,
+      "checkpoint": "C1.0-epoch3.joblib"
+    },
+    "10.0": {
+      "C_reference": 10.0,
+      "alpha": 5.5405529693485526e-08,
+      "status": "complete",
+      "rows_seen": 5414622,
+      "epochs_completed": 3,
+      "checkpoint": "C10.0-epoch3.joblib"
+    }
+  },
+  "comparison": {
+    "status": "validation_complete_test_held",
+    "small": {
+      "thresholds": {
+        "toxicity": 0.7263436317443848,
+        "obscene": 0.9979920983314514,
+        "threat": 0.9994817972183228,
+        "insult": 0.8330206274986267,
+        "identity_attack": 0.9791128039360046,
+        "sexual_explicit": 0.999951183795929
+      },
+      "default": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8810338513688227,
+            "average_precision": 0.45156340097491054,
+            "precision": 0.28401585204755614,
+            "recall": 0.7567461869378177,
+            "f1": 0.41302027748132336
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8896890876398083,
+            "average_precision": 0.11404019050769307,
+            "precision": 0.0347247875877355,
+            "recall": 0.7161904761904762,
+            "f1": 0.06623799876684577
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.913647226162031,
+            "average_precision": 0.05652822509020468,
+            "precision": 0.03111769686706181,
+            "recall": 0.65625,
+            "f1": 0.05941794664510913
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8981511780196096,
+            "average_precision": 0.45206127533056745,
+            "precision": 0.2577456647398844,
+            "recall": 0.7729242503033454,
+            "f1": 0.3865793922580086
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9370428998106313,
+            "average_precision": 0.14540619543314662,
+            "precision": 0.06644270250093319,
+            "recall": 0.8042168674698795,
+            "f1": 0.1227445121250431
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9418714610720942,
+            "average_precision": 0.08391528252200271,
+            "precision": 0.03386641580432737,
+            "recall": 0.7164179104477612,
+            "f1": 0.06467549966314844
+          }
+        },
+        "macro": {
+          "roc_auc": 0.9102392840121661,
+          "average_precision": 0.2172524283097542,
+          "precision": 0.11798551992458307,
+          "recall": 0.7371242818915467,
+          "f1": 0.18544593782324637
+        }
+      },
+      "tuned": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8810338513688227,
+            "average_precision": 0.45156340097491054,
+            "precision": 0.41305841924398623,
+            "recall": 0.5484291487420154,
+            "f1": 0.4712141577060932
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8896890876398083,
+            "average_precision": 0.11404019050769307,
+            "precision": 0.1780250347705146,
+            "recall": 0.2438095238095238,
+            "f1": 0.2057877813504823
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.913647226162031,
+            "average_precision": 0.05652822509020468,
+            "precision": 0.11683168316831684,
+            "recall": 0.26339285714285715,
+            "f1": 0.16186556927297668
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8981511780196096,
+            "average_precision": 0.45206127533056745,
+            "precision": 0.4526518186188111,
+            "recall": 0.48968625411683137,
+            "f1": 0.4704412989175687
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9370428998106313,
+            "average_precision": 0.14540619543314662,
+            "precision": 0.17418981481481483,
+            "recall": 0.45331325301204817,
+            "f1": 0.2516722408026756
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9418714610720942,
+            "average_precision": 0.08391528252200271,
+            "precision": 0.15030674846625766,
+            "recall": 0.24378109452736318,
+            "f1": 0.1859582542694497
+          }
+        },
+        "macro": {
+          "roc_auc": 0.9102392840121661,
+          "average_precision": 0.2172524283097542,
+          "precision": 0.24751058651378355,
+          "recall": 0.37373535522510654,
+          "f1": 0.29115655038654104
+        }
+      }
+    },
+    "full": {
+      "thresholds": {
+        "toxicity": 0.7895925045013428,
+        "obscene": 0.9737074375152588,
+        "threat": 0.9930905103683472,
+        "insult": 0.8461187481880188,
+        "identity_attack": 0.9543197751045227,
+        "sexual_explicit": 0.9922670125961304
+      },
+      "default": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8838623719892974,
+            "average_precision": 0.4526379561166576,
+            "precision": 0.18201997780244172,
+            "recall": 0.9193064789466823,
+            "f1": 0.30387383117162925
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.9051404957457956,
+            "average_precision": 0.14007147447644994,
+            "precision": 0.01113695321585115,
+            "recall": 0.9485714285714286,
+            "f1": 0.022015428483013195
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9506497021725184,
+            "average_precision": 0.08642848439524048,
+            "precision": 0.005277481954798249,
+            "recall": 0.9955357142857143,
+            "f1": 0.010499305539207608
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.9025461237271059,
+            "average_precision": 0.4547698372928197,
+            "precision": 0.14102228732865962,
+            "recall": 0.9344773790951638,
+            "f1": 0.2450621633293179
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9536414103276207,
+            "average_precision": 0.1502686834586997,
+            "precision": 0.016840375827899573,
+            "recall": 0.9879518072289156,
+            "f1": 0.033116260285728706
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9625890051590298,
+            "average_precision": 0.10658483224391342,
+            "precision": 0.004631344942571323,
+            "recall": 0.9950248756218906,
+            "f1": 0.009219776420421804
+          }
+        },
+        "macro": {
+          "roc_auc": 0.926404851520228,
+          "average_precision": 0.23179354466396349,
+          "precision": 0.06015473684537028,
+          "recall": 0.9634779472916325,
+          "f1": 0.10396446087155307
+        }
+      },
+      "tuned": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8838623719892974,
+            "average_precision": 0.4526379561166576,
+            "precision": 0.40891876538534366,
+            "recall": 0.5630295919697562,
+            "f1": 0.47375637580211705
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.9051404957457956,
+            "average_precision": 0.14007147447644994,
+            "precision": 0.16832779623477298,
+            "recall": 0.2895238095238095,
+            "f1": 0.21288515406162464
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9506497021725184,
+            "average_precision": 0.08642848439524048,
+            "precision": 0.14043583535108958,
+            "recall": 0.25892857142857145,
+            "f1": 0.18210361067503925
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.9025461237271059,
+            "average_precision": 0.4547698372928197,
+            "precision": 0.4357909806728704,
+            "recall": 0.5276477725775698,
+            "f1": 0.4773404422142073
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9536414103276207,
+            "average_precision": 0.1502686834586997,
+            "precision": 0.17718047174986287,
+            "recall": 0.4864457831325301,
+            "f1": 0.2597507036590269
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9625890051590298,
+            "average_precision": 0.10658483224391342,
+            "precision": 0.1484375,
+            "recall": 0.2835820895522388,
+            "f1": 0.19487179487179487
+          }
+        },
+        "macro": {
+          "roc_auc": 0.926404851520228,
+          "average_precision": 0.23179354466396349,
+          "precision": 0.24651522489898992,
+          "recall": 0.4015262696974127,
+          "f1": 0.30011801354730167
+        }
+      }
+    },
+    "C_reference": 1.0,
+    "alpha": 5.540552969348553e-07,
+    "checkpoint": "C1.0-epoch3.joblib",
+    "gain": 0.016165567508061862,
+    "replacement": "full",
+    "test_accessed": false
+  },
+  "peak_rss_bytes": 1763377152,
+  "test_accessed": false
+}

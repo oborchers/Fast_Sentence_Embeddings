@@ -1,0 +1,42 @@
+{
+  "potion": {
+    "dimension": 256,
+    "import": {
+      "rows": 32,
+      "logit_bound_passed": true,
+      "max_logit_error": 1.1580145986567203e-06,
+      "max_logit_bound": 0.0005444884910985961,
+      "max_probability_error": 2.4708507351256515e-07,
+      "max_probability_bound": 0.00013659895993285216,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 1.1920928955078125e-06
+    },
+    "store": {
+      "scores_path": "folded",
+      "combined_path": "unfolded",
+      "ids_scores_thresholds_vectors_verified": true
+    }
+  },
+  "bekko": {
+    "dimension": 1024,
+    "import": {
+      "rows": 32,
+      "logit_bound_passed": true,
+      "max_logit_error": 1.0504614671447143e-06,
+      "max_logit_bound": 0.0011822963919456287,
+      "max_probability_error": 1.0048308662913286e-07,
+      "max_probability_bound": 0.0002960509351446103,
+      "mask_bound_passed": true,
+      "strict_equality_passed": true,
+      "unfolded_bound_passed": true,
+      "max_folded_unfolded_difference": 9.5367431640625e-07
+    },
+    "store": {
+      "scores_path": "folded",
+      "combined_path": "unfolded",
+      "ids_scores_thresholds_vectors_verified": true
+    }
+  }
+}

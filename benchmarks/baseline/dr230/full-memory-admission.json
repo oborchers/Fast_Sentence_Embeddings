@@ -1,0 +1,30 @@
+{
+  "admitted": false,
+  "reasons": [
+    "macOS reported availability is below the conservative working-set plan"
+  ],
+  "train_rows": 1804874,
+  "dimension": 1024,
+  "working_dtype": "float32",
+  "matrix_bytes": 7392763904,
+  "estimated_peak_bytes": 9003376640,
+  "maximum_plan_bytes": 17179869184,
+  "maximum_rss_bytes": 9663676416,
+  "physical_memory_bytes": 17179869184,
+  "reported_free_percent": 35,
+  "estimated_available_bytes": 6012954214,
+  "free_disk_bytes": 118851440640,
+  "swap": "vm.swapusage: total = 10240.00M  used = 9718.75M  free = 521.25M  (encrypted)",
+  "phases": {
+    "encode": "stream parquet, map/write/flush/unmap one output batch, retain no corpus texts",
+    "scale": "one float32 memmap, StandardScaler partial_fit and transform in batches",
+    "fit": "one read-only float32 memmap, one OVR fit, no scaler or matrix copies",
+    "validate": "unmap training matrix before loading encoder and validation texts"
+  },
+  "dtype_evidence": {
+    "sklearn_version": "1.9.1",
+    "input": "LogisticRegression.fit validates float64 or float32",
+    "loss": "LinearModelLoss.weight_intercept_raw casts weights to X.dtype",
+    "gradient": "X.T @ grad_pointwise uses the same float32 training matrix"
+  }
+}
