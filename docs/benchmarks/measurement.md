@@ -936,3 +936,105 @@ Class optimization for the enabling decision of DR-278 (int8-Vorfilter in die ex
 - Rule, fixed beforehand: the variant is enabled only if `o1` and `o2` are each at least 10 % faster (a saving of at least `max(3 * A/A IQR, 0.02)`, confirmed with at least half of it; the `cells@1` decision block applies the 10 % limit) and `r5` is not slower (median of the paired factor base/candidate at least 0.98, the confirmation not below it, evaluated by the same decision block, independently of the `descriptive_only` cell label). Otherwise nothing is enabled and no range is cut afterwards; the data go to the maintainer. A missing cell is `inconclusive`. The optional `decision` block names `main` cells and `edge` factor bounds. It is validated before cell selection. `decision.json` records `overall`, each role, `final`, `complete` and `stopped_after`, including after preparation failure or budget exhaustion. Partial selections remain inconclusive when required cells are missing. Overall reject or inconclusive returns exit 1. A functional run records `functional_only` and never enables a variant. `stop_early: true` stops later cells only after a final reject from this same rule. This local file uses `false`. The half-saving confirmation contract remains fixed; edge factor bounds have no global minimum.
 - Budget and order: 8 h of wall time for all three cells together, set with `--wall-time-seconds 28800` (without it the tool takes 7200 s). The expected duration with groups of about 2.5 s (the first tier of the A/A search) is about 5.4 h (4.4 to 6.5 h, from the rehearsal of DR-278); a second tier (4 s) is planned at about 9.8 h, over the budget. The tool checks no total estimate: the first limit reached decides the status (`inconclusive_budget` by the wall budget, `inconclusive_noise` by the calibration cap), and stopping before the second tier is a manual rule. Never extend, never repeat. The timing controller takes its own lock role; the heavy lock is for builds and checks only.
 - Profiles outside the decision: samply on `o2-d1024-q8` (the threads `fse-search` run `fse_int8_pass`, `fse-rescore` the small rest) and memray on a fallback by budget (a store of identical rows), which must stay within the memory bounds of `store.md`, "Search".
+
+## Profile jobs (`profile@1`)
+
+`speed.py --profile FILE` profiles one addressed, completed child from a sealed
+result folder. It does not rerun a comparison. `--profile-check FILE` checks
+profiler access without opening the origin. Both commands hold the shared heavy
+lock for all installed-interpreter probes, the access test, input reconstruction
+and the profile. Queue time counts against the separate profile budget.
+
+The JSON contract has exactly these fields (paths are absolute):
+
+```json
+{
+  "format": "profile@1",
+  "name": "tokenizer-candidate",
+  "entry": "development",
+  "source_results": "/external/results/source",
+  "job": "tokenizer-compare-0-1",
+  "nominal_arm": "candidate",
+  "action": "measure",
+  "python": "/external/env/bin/python",
+  "tool": "samply",
+  "requested": {"processes": "child", "threads": "all"},
+  "iterations": null,
+  "wall_time_seconds": 300,
+  "output": "/external/results/profile-tokenizer",
+  "work": "/external/work/profile-tokenizer",
+  "extra_lock": null,
+  "datasets": null
+}
+```
+
+`name` and `job` are safe file stems. `output` and `work` must be fresh,
+outside the checkout, outside origin results and work, and must not overlap.
+The development tag is `<cell>-<phase>-<pair>-<position>`; the publication
+speed tag is `<cell>-<round>-<label>`. `nominal_arm` names the recorded arm,
+not the executing build. For example, an A/A candidate still executes the base
+build. The tool compares the executing package content, full Python version and
+all installed distributions before and after the profile. Interpreter and package
+paths are recorded but may differ for an environment copy.
+
+The origin must pass collection verification. Exactly one completed operation
+must match the job. The runner's recursive Python source hashes must match the
+origin. Historical results without the required evidence are refused. Every
+content-addressed development input is checked before and after the run.
+Speed supports only fse encode, dtype and head children on Linux. It checks the
+recorded dtype artifact hash and reconstructs deleted inputs offline from
+`datasets` and the original snapshot. Both the input hash and sample rows must
+match. Write, Rust and other library children are refused.
+
+`action` is `measure` or `profile-head` for development, and `child` for speed.
+Only `profile-head` accepts an `iterations` override. It requires a linear-heads
+profile. Multi-head jobs preserve the frozen `heads_mode` of the addressed arm.
+Manual `profile-head` jobs without that field retain their historical fallback
+to `candidate_heads_mode`.
+
+Tools and accepted scope:
+
+| Tool | Platforms | Process scope | Observed evidence |
+| :--- | :--- | :--- | :--- |
+| samply | Unix | `child` | Child PID and nonempty samples in `threads` |
+| py-spy | Linux | `child`, `child-and-subprocesses` | Parent chain for `child`, process names for subprocess mode, nonempty samples |
+| memray | Unix | `child` | Same-process leader, metadata PID and positive allocation count |
+
+For memray, prepare a copy of the executing arm's environment after measurement.
+Install `benchmarks/config/profile.lock.txt` into that copy with hash checking.
+Set `python` to the copy and `extra_lock` to the lock path. The origin environment
+is never modified. Only locked additional packages are permitted. A locked
+package that conflicts with an origin version is refused. Memray does not follow
+fork or exec here. Its all-thread coverage is an assurance of the tool, not an
+observed thread list. py-spy excludes idle Python frames. Native py-spy frames
+are requested on Linux. samply may capture additional processes, but project
+acceptance verifies the addressed child only.
+
+`coverage.json` separates `requested`, `observed` and `assured`. Missing or
+unreadable attribution or data fails the profile. The profile covers the whole
+child, including preparation, input checks and warmup. For `profile-head`, the
+receipt also reports whether `profile_ready` appeared in the log.
+
+The child admission deadline reserves 60 seconds for shutdown and sealing.
+The group receives SIGTERM 30 seconds before the profile deadline, then SIGKILL
+after a ten-second grace period if necessary. The lock remains held until the
+entire group ends, even if that exceeds the deadline. On Darwin, a zero-signal
+permission error counts as completion only when the process list proves every
+remaining member is a zombie, or proves there are no remaining members. The
+snapshot must include its own controller. The same proof applies when a real
+signal races with the last member exiting.
+Live or unobserved membership remains an error. Cleanup retains the lock until
+group completion is proved, then reports the error. An outstanding group is
+reported every 15 seconds. These are shutdown parameters, not measured timings.
+
+Every receipt is marked `diagnostic_profile: true` and
+`valid_for_comparison: false` at its first write, including child error receipts.
+Development and speed pair summaries reject diagnostic profiles. Profile values
+never enter speed summaries. Result status is `valid`, `refused`,
+`inconclusive_budget`, `interrupted` or `failed`; only `valid` exits zero.
+The folder includes the normal progress, cells, manifest and DONE artifacts and
+can be collected through `speed.py --collect`. No automatic retry occurs.
+
+Profiler format sources: [py-spy 0.4.2 speedscope writer](https://github.com/benfred/py-spy/blob/v0.4.2/src/speedscope.rs),
+[memray 1.20.0 metadata](https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_metadata.py).
+Darwin group-query behavior: [XNU killpg1 implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c).

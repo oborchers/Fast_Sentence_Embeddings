@@ -134,3 +134,15 @@ def finalize_rehearsal(ledger, entry):
         control_proof(ledger.root / "controls", entry)
     except Exception as error:
         append(ledger.root / "fatal.jsonl", {"stage": "rehearsal-controls", "error": repr(error)})
+
+
+def child_record(job):
+    result = {"execution": {"python": sys.version, "executable": sys.executable}}
+    if job.get("diagnostic_profile"):
+        result.update(
+            diagnostic_profile=True,
+            valid_for_comparison=False,
+            diagnostic_pid=os.getpid(),
+            diagnostic_parent_pid=os.getppid(),
+        )
+    return result

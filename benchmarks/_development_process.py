@@ -11,7 +11,13 @@ import time
 from pathlib import Path
 
 from _development_budget import check_args
-from _development_system import LABEL, configure_child, mark_functional, require_unix
+from _development_system import (
+    LABEL,
+    configure_child,
+    mark_diagnostic,
+    mark_functional,
+    require_unix,
+)
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.records import atomic, document, sha256
 from _measurement import package_identity
@@ -43,13 +49,7 @@ def launch(args, job, python, tag, timed=False):
     }
     file = args.results / (tag + ".job.json")
     atomic(file, job)
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["FSE_DEVELOPMENT_TIMED"] = "1" if timed else "0"
-    command = [interpreter(python), str(ENTRY), "--development-job", str(file)]
-    nice = shutil.which("nice")
-    if not timed and nice:
-        command = [nice, "-n", "10", *command]
+    command, env = child_command(python, file, timed)
     with file.with_suffix(".log").open("x") as log:
         child = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -64,6 +64,17 @@ def launch(args, job, python, tag, timed=False):
     if receipt.get("mode") != "local-development" or receipt.get("publishable") is not False:
         raise ValueError("child omitted the local development result label")
     return receipt
+
+
+def child_command(python, file, timed=False):
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["FSE_DEVELOPMENT_TIMED"] = "1" if timed else "0"
+    command = [interpreter(python), str(ENTRY), "--development-job", str(file)]
+    nice = shutil.which("nice")
+    if not timed and nice:
+        command = [nice, "-n", "10", *command]
+    return command, env
 
 
 def _failed(job, code, log):
@@ -93,6 +104,8 @@ def child(file):
     job = document(file)
     if job.get("functional_only"):
         mark_functional()
+    if job.get("diagnostic_profile"):
+        mark_diagnostic()
     workers = job.get("workers", 1)
     configure_child(workers)
     try:

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from _harness.records import atomic, sha256
-from _measurement import package_identity, telemetry
+from _measurement import child_record, package_identity, telemetry
 from _speed_cells import configure
 
 
@@ -81,6 +81,7 @@ def headline_child(job):
     atomic(
         Path(job["receipt"]),
         dict(
+            **child_record(job),
             seconds=seconds,
             affinity=sorted(os.sched_getaffinity(0)),
             requested_worker_limit=job["workers"],
