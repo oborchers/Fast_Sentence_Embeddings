@@ -101,7 +101,7 @@ class ScoreSink(ShardSinkBase):
         first_row, stream = 0, None
         if self._exists:
             first_row, stream = _existing(path, schema, doc_ids, synced, resume)
-        created_by = _created_by()  # before the threads start
+        created_by = _created_by()  # before the sink is initialized
         row_values = schema.dim + (2 if doc_ids else 0)  # the 8 bytes of an ID, as float32 values
         super().__init__(
             path,
