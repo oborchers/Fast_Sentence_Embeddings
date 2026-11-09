@@ -334,7 +334,7 @@ DONE is not success; rejected/inconclusive decisions are preserved.
 
 The [benchmark skill](../../.agents/skills/fse-benchmark/SKILL.md#local-unix-development)
 shows the pinned development Dockerfile and read-only repository mounts. It builds
-this checkout's extension on Linux using CPython 3.13.16, keeps models/data outside
+this checkout's extension on Linux using CPython 3.13.18 of the image in `pins.json`, keeps models/data outside
 the image and is never pushed to a registry. Rebuild after product changes. A container
 functional probe establishes function only, with no Linux or host-Mac speed claim.
 

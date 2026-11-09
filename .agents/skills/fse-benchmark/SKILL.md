@@ -128,7 +128,7 @@ docker run --rm --cpus 2 --memory 4g \
 ```
 
 Create those external directories first. The image builds the extension with
-CPython 3.13.16 and uv 0.13.0, with no baked models/data and no registry push.
+CPython 3.13.18 (the image of `pins.json`) and uv 0.13.0, with no baked models/data and no registry push.
 Rebuild it from the same checkout after product changes. Its explicit development
 version does not identify a Git commit; package/source hashes identify actual code.
 For a functional comparison, replace the final `--local-info` command with:
