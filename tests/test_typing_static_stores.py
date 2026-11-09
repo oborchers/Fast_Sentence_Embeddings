@@ -19,6 +19,23 @@ def _encoder() -> fse.Encoder:
     return fse.Encoder.from_arrays(np.eye(3, dtype=np.float32), words=["a", "b", "c"])
 
 
+def _check_vector_batches(store: fse.VectorStore) -> None:
+    batches = store.iter_batches()
+    assert_type(batches, Generator[fse.VectorBatch, None, None])
+    assert inspect.isgenerator(batches)
+    batch = next(batches)
+    assert_type(batch.vectors, NDArray[Any] | fse.QuantizedRows)
+    assert_type(batch.doc_ids, NDArray[np.int64] | None)
+    assert_type(batch.inv_norms, NDArray[np.float32] | None)
+    normalized = batch.normalized()
+    assert_type(normalized, NDArray[np.float32])
+    assert normalized.dtype == np.float32
+    batches.close()
+    with closing(store.iter_batches()) as opened:
+        assert_type(opened, Generator[fse.VectorBatch, None, None])
+        assert next(opened).n_rows == 3
+
+
 def test_vector_store_types_and_closing(tmp_path: Path) -> None:
     encoder = _encoder()
     memory: fse.Sink = fse.MemorySink(3)
@@ -30,20 +47,7 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         assert_type(result, None)
         assert result is None
     with fse.VectorStore.open(tmp_path / "vectors", encoder=encoder) as store:
-        batches = store.iter_batches()
-        assert_type(batches, Generator[fse.VectorBatch, None, None])
-        assert inspect.isgenerator(batches)
-        batch = next(batches)
-        assert_type(batch.vectors, NDArray[Any] | fse.QuantizedRows)
-        assert_type(batch.doc_ids, NDArray[np.int64] | None)
-        assert_type(batch.inv_norms, NDArray[np.float32] | None)
-        normalized = batch.normalized()
-        assert_type(normalized, NDArray[np.float32])
-        assert normalized.dtype == np.float32
-        batches.close()
-        with closing(store.iter_batches()) as opened:
-            assert_type(opened, Generator[fse.VectorBatch, None, None])
-            assert next(opened).n_rows == 3
+        _check_vector_batches(store)
         vectors = store.get_vectors()
         ids = store.get_doc_ids()
         assert_type(vectors, NDArray[np.float32])
