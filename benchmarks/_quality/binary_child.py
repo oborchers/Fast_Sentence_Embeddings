@@ -26,14 +26,14 @@ def _sections(data):
     )
 
 
-def _queries(model, pool, stored):
-    """The first QUERIES texts of the pool that encode to a finite nonzero vector."""
+def _queries(model, pool, stored, count=QUERIES):
+    """The first ``count`` texts of the pool that encode to a finite nonzero vector."""
     rows = model.encode(pool, workers=1)
     good = np.isfinite(rows).all(axis=1) & (rows != 0).any(axis=1)
     kept = [t for t, ok in zip(pool, good, strict=True) if ok]
-    if len(kept) < QUERIES or stored.intersection(kept[:QUERIES]):
+    if len(kept) < count or stored.intersection(kept[:count]):
         raise ValueError("too few usable queries, or a query is stored in the corpus")
-    return np.ascontiguousarray(rows[good][:QUERIES], dtype=np.float32), int((~good).sum())
+    return np.ascontiguousarray(rows[good][:count], dtype=np.float32), int((~good).sum())
 
 
 def _words(vectors):
