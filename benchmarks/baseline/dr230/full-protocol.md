@@ -30,6 +30,28 @@ Rules fixed before the full run:
   Stop at safe operation boundaries without extension or automatic retries.
   Finish heavy work before 18:00 local time. Keep partial outputs on failure.
 
+## Budget-limited C selection
+
+This rule was agreed with fse-main before inspecting the first full candidate
+metric. The earlier protocol had no explicit truncated-grid selection rule.
+
+- Compare only candidates whose fit and full-validation evaluation both completed.
+- An interrupted fit or incomplete evaluation has status `not_finished` and never
+  contributes an inferred or substituted metric.
+- Among completed candidates, choose greatest validation macro ROC AUC, with
+  smaller C on a tie. The minimum 0.01 gain over small still applies.
+- Missing C values make the grid incomplete. Report every C's actual status and
+  do not describe a partial grid as a completed three-C study.
+- If no full candidate completed, small remains the final model and the full
+  experiment is `inconclusive`.
+- Unfinished threshold or artifact steps are also `not_finished`. Do not extend
+  the budget or rerun fits to fill a missing cell.
+
+The active process is not modified mid-fit. If its budget check stops the run,
+collect the candidate receipts already written for this report. A complete
+validation receipt is evidence of that evaluation, not proof that an unfinished
+threshold or export stage also completed. Keep those distinctions in the report.
+
 The new command uses its own new external directory, preserving the small run,
 its models, selection and active test hold. No finished card or test result is
 produced by the full-comparison command.
