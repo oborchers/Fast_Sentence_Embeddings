@@ -32,7 +32,7 @@
         "max": 2
       },
       "memory_max_bytes": {
-        "max": 4294967296
+        "max": 6442450944
       },
       "disk_free_bytes": {
         "min": 1000000000
@@ -48,6 +48,12 @@
         "role": "candidate",
         "lock": "speed-main.lock.txt",
         "revision": "pins"
+      },
+      {
+        "name": "base",
+        "role": "base",
+        "lock": "speed-base.lock.txt",
+        "revision": "624251df2269e3099f5c61987be63e718893b58c"
       },
       {
         "name": "reference",
@@ -75,6 +81,8 @@
           "{allocated_at}",
           "--reference-python",
           "{python_reference}",
+          "--base-python",
+          "{python_base}",
           "--study",
           "{study}"
         ]

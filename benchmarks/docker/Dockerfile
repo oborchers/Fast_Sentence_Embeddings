@@ -1,6 +1,6 @@
 # Linux development and functional probes only. Never use this image for README numbers.
-# Public multi-architecture python:3.13.16-slim index, resolved 2026-11-03.
-FROM python:3.13.16-slim@sha256:cf50a4f6ac4f026458b08d5222023d700ac806410dff5e9ca8728fa44f2b850f
+# The image of benchmarks/config/pins.json (machine.image), CPython 3.13.18, linux/amd64.
+FROM python:3.13@sha256:f23cf6c01ace0da9aa4d04fd078dba0fcce0c23cf3320329a38a2b6890761f9c
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential git procps ca-certificates \
@@ -20,7 +20,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/fse-env \
 WORKDIR /opt/fse-build
 COPY pyproject.toml uv.lock setup.py README.md LICENSE NOTICE ./
 COPY src/ ./src/
-RUN test "$(python -c 'import platform; print(platform.python_version())')" = 3.13.16 \
+RUN test "$(python -c 'import platform; print(platform.python_version())')" = 3.13.18 \
     && uv sync --locked --no-default-groups --group test --no-editable --python /usr/local/bin/python \
     && /opt/fse-env/bin/python -c 'import fse; from fse._backends._cpu import CpuBackend; CpuBackend()' \
     && uv pip check --python /opt/fse-env/bin/python
