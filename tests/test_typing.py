@@ -19,6 +19,8 @@ def test_public_type_exports_are_the_original_objects():
     assert public.Tokenizer is Tokenizer
     assert get_args(public.LengthLevel) == ("summary", "per_row")
     assert not set(public.__all__) & set(fse.__all__)
+    assert "typing" not in fse.__all__
+    assert fse.typing is public
     assert not hasattr(public, "ScoreSchema")
     assert not hasattr(ScoreHead, "entry")
     assert not hasattr(ScoreHead, "threshold_name")
