@@ -13,7 +13,9 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -29,8 +31,8 @@ class ScoreBatch:
 
     store_row: int
     n_rows: int
-    outputs: Mapping[str, ndarray]
-    doc_ids: ndarray | None = None
+    outputs: Mapping[str, NDArray[Any]]
+    doc_ids: NDArray[np.int64] | None = None
 
 
 def blocks(

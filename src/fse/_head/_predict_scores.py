@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, overload
+from typing import Any, Literal, overload
 
-from numpy import ndarray
+import numpy as np
+from numpy.typing import NDArray
 
-from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
+from fse._runtime import LengthReport, LengthSettings, Pool, Sink, workers_of
 from fse._runtime._lengths import LengthLevel
 from fse._validation import F, PositiveInt, validate_arguments
 
@@ -30,12 +31,68 @@ class _Scoring:
         *,
         workers: int | None = None,
         backend: str = "cpu",
+        sink: None = None,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> NDArray[np.float32]: ...
+
+    @overload
+    def predict_proba(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> None: ...
+
+    @overload
+    def predict_proba(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> tuple[NDArray[np.float32], LengthReport]: ...
+
+    @overload
+    def predict_proba(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> tuple[None, LengthReport]: ...
+
+    @overload
+    def predict_proba(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         pool: Pool | None = None,
-    ) -> ndarray | None: ...
+    ) -> NDArray[np.float32] | None: ...
 
     @overload
     def predict_proba(
@@ -46,10 +103,10 @@ class _Scoring:
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport]: ...
+    ) -> tuple[NDArray[np.float32] | None, LengthReport]: ...
 
     @_validated
     def predict_proba(
@@ -80,12 +137,68 @@ class _Scoring:
         *,
         workers: int | None = None,
         backend: str = "cpu",
+        sink: None = None,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> NDArray[np.float32]: ...
+
+    @overload
+    def decision_function(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink,
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> None: ...
+
+    @overload
+    def decision_function(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: None = None,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> tuple[NDArray[np.float32], LengthReport]: ...
+
+    @overload
+    def decision_function(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        sink: Sink,
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        pool: Pool | None = None,
+    ) -> tuple[None, LengthReport]: ...
+
+    @overload
+    def decision_function(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         pool: Pool | None = None,
-    ) -> ndarray | None: ...
+    ) -> NDArray[np.float32] | None: ...
 
     @overload
     def decision_function(
@@ -96,10 +209,10 @@ class _Scoring:
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport]: ...
+    ) -> tuple[NDArray[np.float32] | None, LengthReport]: ...
 
     @_validated
     def decision_function(

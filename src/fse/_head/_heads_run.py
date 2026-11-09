@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Generator, Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from numpy import ndarray
 
@@ -37,6 +37,9 @@ from ._sink_run import SinkRun, run_batches, start
 METHOD = "Heads.predict_batches"
 
 # What a head can give: labels, probabilities or decisions of a classifier, values of a regressor.
+OutputName = Literal["labels", "proba", "decision", "values"]
+OutputInput = OutputName | Mapping[str, OutputName] | None
+
 OUTPUT_NAMES = ("labels", "proba", "decision", "values")
 
 

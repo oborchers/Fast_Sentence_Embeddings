@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Generator, Iterator
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes, _log
 from fse._container import NpyContainer
@@ -209,7 +210,7 @@ class VectorStore(MemberReaders):
         workers: PositiveInt | None = None,
         mode: Literal["auto", "exact", "blas"] = "auto",
         pool: Pool | None = None,
-    ) -> ndarray:
+    ) -> NDArray[np.float32]:
         """The linear score ``dot16(row, w) * scale + bias`` of every row with every weight
         vector (``weights`` a vector or a matrix of one per row; ``bias`` one number or one
         per vector): shape (rows,) or (rows, vectors). ``mode`` as for ``search``: exact
@@ -233,7 +234,7 @@ class VectorStore(MemberReaders):
     @validate_arguments
     def get_vectors(
         self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
-    ) -> ndarray:
+    ) -> NDArray[np.float32]:
         """A float32 copy of the rows ``start`` to ``stop - 1`` (all by default), decoded
         from the stored float16 or int8 values."""
         self._check_open()
@@ -248,7 +249,7 @@ class VectorStore(MemberReaders):
     @validate_arguments
     def get_doc_ids(
         self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
-    ) -> ndarray:
+    ) -> NDArray[np.int64]:
         """The document IDs (int64) of the rows ``start`` to ``stop - 1`` (all by default),
         a copy."""
         self._check_open()
@@ -260,7 +261,7 @@ class VectorStore(MemberReaders):
         )
 
     @validate_arguments
-    def take_vectors(self, rows: Any, /) -> ndarray:
+    def take_vectors(self, rows: Any, /) -> NDArray[np.float32]:
         """The float32 rows at the store positions ``rows`` (a list or an int64 array of one or
         two dimensions, so ``result.ids`` of a search works), in that order, decoded as
         ``get_vectors``: shape ``rows.shape + (dim,)``, a new array. Order and duplicates
@@ -280,7 +281,7 @@ class VectorStore(MemberReaders):
             )
 
     @validate_arguments
-    def take_doc_ids(self, rows: Any, /) -> ndarray:
+    def take_doc_ids(self, rows: Any, /) -> NDArray[np.int64]:
         """The document IDs (int64) at the store positions ``rows``, as ``take_vectors`` takes
         them: shape ``rows.shape``, a new array, in the order asked, duplicates kept."""
         self._check_open()
@@ -323,7 +324,7 @@ class VectorStore(MemberReaders):
 
     def _batches(
         self, shards: list, block_rows: int, start: int, stop: int
-    ) -> Iterator[VectorBatch]:
+    ) -> Generator[VectorBatch, None, None]:
         self._check_open()  # also for no rows, and before the first block
         for shard, tensors, first, end in _vector_batches.blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more

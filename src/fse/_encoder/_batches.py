@@ -20,12 +20,14 @@ from contextlib import contextmanager
 from typing import Any, NamedTuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fse import _codes
 from fse._runtime import (
     LengthCollector,
     LengthSettings,
     Pipeline,
+    QuantizedRows,
     check_workers,
     streaming,
     wants_inverse_norms,
@@ -56,11 +58,11 @@ class EncodedBatch(NamedTuple):
 
     first_row: int
     n_rows: int
-    rows: Any
+    rows: NDArray[Any] | QuantizedRows | None
     durable_rows: int | None
 
     @property
-    def vectors(self) -> Any:
+    def vectors(self) -> NDArray[Any] | QuantizedRows | None:
         """An alias of ``rows``."""
         return self.rows
 

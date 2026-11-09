@@ -36,7 +36,7 @@ _NAME = re.compile(r"[a-z][a-z0-9_]*", re.ASCII)
 Path = Literal["folded", "normalized", "unfolded", "standalone"]
 
 
-class Heads(_HeadsPredicting, Mapping):
+class Heads(_HeadsPredicting, Mapping[str, Classifier | Regressor]):
     """Heads of one encoder, scored together: ``Heads(quality=q, toxic=t)``.
 
     The names are the keywords (``[a-z][a-z0-9_]*``) and the order of the heads is the
@@ -50,7 +50,7 @@ class Heads(_HeadsPredicting, Mapping):
     the call fails, and the error names the head."""
 
     __slots__ = ("_heads", "_lock", "_pipelines")
-    _heads: Mapping[str, LinearModel]
+    _heads: Mapping[str, Classifier | Regressor]
     _lock: threading.Lock
     _pipelines: dict[tuple[str, bool], HeadsPipeline]
 
@@ -68,7 +68,7 @@ class Heads(_HeadsPredicting, Mapping):
     # --- the mapping ------------------------------------------------------------------
 
     def __getitem__(self, name: str) -> Classifier | Regressor:
-        return self._heads[name]  # type: ignore[return-value]
+        return self._heads[name]
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._heads)
