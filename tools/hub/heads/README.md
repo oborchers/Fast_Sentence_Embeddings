@@ -33,8 +33,8 @@ proportions and balanced class weights. Convergence warnings invalidate the run.
 Selection uses full-validation macro ROC AUC. Each encoder tries C in ascending
 order (0.1, 1, 10), and ties retain the smaller C. Bekko replaces POTION only with
 at least 0.01 higher macro ROC AUC. Test is unavailable to selection. Full train
-is admitted only for POTION, with at least one hour remaining and an 8 GiB memory
-plan. It uses the selected C and replaces the small model only if full-validation
+is admitted only for POTION, with at least one hour plus a 15-minute finalization reserve before
+the earlier of the budget end and 18:00, and an 8 GiB memory plan. It uses the selected C and replaces the small model only if full-validation
 macro ROC AUC is no lower. The receipt records skipped or completed full training.
 
 `verify` imports the final estimator with explicit label names. On validation
@@ -52,17 +52,29 @@ trapezoidal area. Zero predicted positives produce precision and F1 of zero.
 An absent target class aborts instead of producing an undefined metric. Labels
 with fewer than 100 test positives are marked unreliable.
 
+`civil_comments.py` owns the dataset adapter. `training.fit` and `metrics.metrics`
+also accept a one-dimensional binary target with two class labels. This recipe
+uses only one six-label head per run. The Civil Comments card remains separate
+from these reusable fitting and scoring functions.
+
 The three-hour budget starts at preparation's first download. Checks between
 downloads, vector batches and fits enforce time, 40 GiB free disk, 8 GiB peak RSS
 and an 18:00 local cutoff. A fit already in progress finishes at a safe boundary.
-No automatic retry or budget extension is allowed. Failure retains partial
+A watchdog also checks peak RSS during fits. Full-train scaling uses batches
+in place to avoid a second full matrix. Admission records conservative memory
+estimates before vectorization. No automatic retry or budget extension is allowed. Failure retains partial
 files, raises an error and produces no completed card. Do not remove exclusive
 selection or test markers to repeat a failed run.
+
+Only the atomically published `prepared/` directory is a completed deliverable.
+Verification folders have an incomplete card. Failed finalization retains
+`pending/` for diagnosis, which must never be published. The final receipt and
+manifest become authoritative together when `pending/` is renamed to `prepared/`.
 
 The generated card comes from `metrics.json` only:
 
 ```sh
-uv run python tools/hub/heads/cards.py "$HOME/fse-dr311/metrics.json" /tmp/card.md
+uv run python tools/hub/heads/cards.py "$HOME/fse-dr311/prepared/metrics.json" /tmp/card.md
 ```
 
 `SHA256SUMS.json` covers both prepared folders, configuration, selection,

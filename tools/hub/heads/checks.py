@@ -57,11 +57,11 @@ def import_bound(model, encoder, estimator, texts):
     if not (error <= bound).all():
         raise AssertionError("sklearn logits exceed the data-dependent folded bound")
     scores = model.predict_proba(texts)
-    probability_error = np.abs(scores - estimator.predict_proba(x)).max(axis=1)
+    probability_error = np.abs(scores - estimator.predict_proba(x.astype(np.float64))).max(axis=1)
     tolerance = bound_module.proba_tolerance("sigmoid@1", bound, len(a))
     if not (probability_error <= tolerance).all():
         raise AssertionError("sklearn probabilities exceed the derived sigmoid bound")
-    changed = model.predict(texts) != estimator.predict(x)
+    changed = model.predict(texts) != estimator.predict(x.astype(np.float64))
     if (changed & (np.abs(z_star) > bound)).any():
         raise AssertionError("mask differs outside the numerical ambiguity interval")
     np.testing.assert_array_equal(model.predict(texts), ref.multilabel(z, np.full(len(a), 0.5)))
@@ -69,6 +69,15 @@ def import_bound(model, encoder, estimator, texts):
     equal = model.with_thresholds(scores[0].tolist()).predict(texts[:1])
     if equal.any():
         raise AssertionError("equality must not pass a strict threshold")
+    heads = fse.Heads(toxic=model)
+    unfolded, returned = heads.predict(texts, output="decision", return_vectors=True)
+    bits(returned, x)
+    unfolded_bound = bound_module.unfolded(x, a64, b64, a, b, unfolded["toxic"])
+    if not (np.abs(unfolded["toxic"] - z_star) <= unfolded_bound).all():
+        raise AssertionError("unfolded logits exceed the data-dependent bound")
+    path_difference = np.abs(z - unfolded["toxic"])
+    if not (path_difference <= bound + unfolded_bound).all():
+        raise AssertionError("folded and unfolded paths exceed their combined bounds")
     return {
         "rows": len(texts),
         "logit_bound_passed": True,
@@ -78,6 +87,8 @@ def import_bound(model, encoder, estimator, texts):
         "max_probability_bound": float(tolerance.max()),
         "mask_bound_passed": True,
         "strict_equality_passed": True,
+        "unfolded_bound_passed": True,
+        "max_folded_unfolded_difference": float(path_difference.max()),
     }
 
 
@@ -92,6 +103,9 @@ def persistence(work, model, texts, config, name):
             license="mit",
             language=["en"],
             model_name=name,
+        )
+        (folder / "README.md").write_text(
+            "# Incomplete preparation\n\nNo held-out evaluation or approved card is available in this folder.\n"
         )
         restored = fse.Classifier.from_pretrained(folder)
         np.testing.assert_array_equal(restored.classes_, config["labels"])

@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import resource
 import shutil
 import sys
+import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
-import pyarrow.parquet as pq
 from huggingface_hub import hf_hub_download
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -52,7 +54,54 @@ class Budget:
         self.started = read(stamp)["unix"]
 
     def remaining(self):
-        return self.config["budget_seconds"] - (time.time() - self.started)
+        now = time.time()
+        local = time.localtime(now)
+        cutoff = time.mktime((*local[:3], 18, 0, 0, *local[6:]))
+        return min(self.config["budget_seconds"] - (now - self.started), cutoff - now)
+
+    def rss(self):
+        value = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return value * (1 if sys.platform == "darwin" else 1024)
+
+    @contextmanager
+    def monitor(self):
+        """A memory overrun terminates the process, preserving its incomplete files."""
+        stop = threading.Event()
+
+        def watch():
+            while not stop.wait(0.1):
+                if self.rss() > self.config["maximum_rss_bytes"]:
+                    os.write(2, b"inconclusive: memory watchdog exceeded 8 GiB; no retry\n")
+                    os._exit(75)
+
+        thread = threading.Thread(target=watch, daemon=True)
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join()
+
+    def admit(self, encoder, train_rows, validation_rows, *, inplace=False):
+        table = encoder._spec.pool_input().vectors
+        matrix = train_rows * encoder.output_dim * 8
+        # Includes scaler's temporary variance arrays, validation, table and 2 GiB
+        # for Python texts, targets, tokenizer, optimizer and transient imports.
+        estimate = (
+            (1 if inplace else 3) * matrix
+            + validation_rows * encoder.output_dim * 8
+            + table.nbytes
+            + 2 * 1024**3
+        )
+        receipt = {
+            "estimated_peak_bytes": estimate,
+            "limit_bytes": self.config["maximum_rss_bytes"],
+            "inplace_scaling": inplace,
+        }
+        if estimate > self.config["maximum_rss_bytes"]:
+            raise RuntimeError("inconclusive: memory plan exceeds 8 GiB")
+        self.check()
+        return receipt
 
     def check(self):
         if self.remaining() <= 0 or time.localtime().tm_hour >= 18:
@@ -60,9 +109,7 @@ class Budget:
         if shutil.disk_usage(self.work).free < self.config["minimum_free_bytes"]:
             raise RuntimeError("inconclusive: fewer than 40 GiB free")
         # macOS reports bytes, Linux KiB. This recipe runs on either platform.
-        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        rss *= 1 if sys.platform == "darwin" else 1024
-        if rss > self.config["maximum_rss_bytes"]:
+        if self.rss() > self.config["maximum_rss_bytes"]:
             raise RuntimeError("inconclusive: peak RSS exceeded 8 GiB")
 
 
@@ -89,46 +136,6 @@ def source(work, spec, filename, dataset=False):
             cache_dir=work / "hub",
         )
     )
-
-
-def prepare(work, config, budget):
-    for split in ("train", "validation"):
-        dataset(work, config, split, budget)
-    for spec in config["encoders"]:
-        folder = work / spec["name"]
-        folder.mkdir()
-        for filename in spec["files"]:
-            budget.check()
-            shutil.copyfile(source(work, spec, filename), folder / filename)
-        budget.check()
-
-
-def dataset(work, config, split, budget):
-    if split not in ("train", "validation", "test"):
-        raise ValueError("unknown split")
-    count = 2 if split == "train" else 1
-    columns = ["text", *config["labels"]] + (["severe_toxicity"] if split == "train" else [])
-    texts, targets = [], []
-    omitted_positive = 0
-    for shard in range(count):
-        budget.check()
-        name = f"data/{split}-{shard:05d}-of-{count:05d}.parquet"
-        table = pq.read_table(source(work, config["dataset"], name, True), columns=columns)
-        if split == "train":
-            omitted_positive += int(
-                (table["severe_toxicity"].to_numpy() >= config["target_threshold"]).sum()
-            )
-        texts.extend(table["text"].to_pylist())
-        targets.append(np.column_stack([table[label].to_numpy() for label in config["labels"]]))
-    values = np.concatenate(targets)
-    if split == "train":
-        write(
-            work / "excluded-labels.json",
-            {"severe_toxicity": {"positive": omitted_positive, "train_rows": len(texts)}},
-        )
-    if not np.isfinite(values).all() or ((values < 0) | (values > 1)).any():
-        raise ValueError("targets must be finite annotator fractions in [0, 1]")
-    return texts, values >= config["target_threshold"]
 
 
 def sample(rows, count, seed):

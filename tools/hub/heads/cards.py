@@ -13,6 +13,7 @@ def render(record):
     config, selected = record["config"], record["selection"]["selected"]
     spec = next(s for s in config["encoders"] if s["name"] == selected["encoder"])
     sample = record["selection"]["sample"]
+    omitted = record["selection"]["excluded_labels"]["severe_toxicity"]
     lines = [
         "---",
         "license: mit",
@@ -54,8 +55,9 @@ def render(record):
         f"Training binarizes those fractions with >= {config['target_threshold']}. "
         f"Inference uses scores strictly > {config['prediction_threshold']}. Equality is excluded.",
         "",
-        "The severe_toxicity label was removed because only 13 of the 1,804,874 training rows "
-        "are positive at >= 0.5. The six retained labels are trained independently.",
+        f"The severe_toxicity label was removed because only {omitted['positive']:,} of the "
+        f"{omitted['train_rows']:,} training rows are positive at >= {config['target_threshold']}. "
+        "The retained labels are trained independently.",
         "",
         f"- Dataset revision: `{config['dataset']['revision']}` (CC0-1.0).",
         f"- Encoder: `{spec['repo']}` at `{spec['revision']}` (MIT), normalize=False.",

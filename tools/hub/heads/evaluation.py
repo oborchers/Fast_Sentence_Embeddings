@@ -5,13 +5,16 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata
 import platform
+import shutil
 import subprocess
 
 import numpy as np
 from cards import render
 from checks import import_bound, persistence, store_roundtrip
-from inputs import ROOT, coverage, dataset, read, write
-from training import fit, metrics, selected_model
+from civil_comments import dataset
+from inputs import ROOT, coverage, read, write
+from metrics import metrics
+from training import fit, selected_model
 
 import fse
 
@@ -29,6 +32,13 @@ def environment():
         "python": platform.python_version(),
         "platform": platform.platform(),
         "machine": platform.machine(),
+        "cpu": subprocess.check_output(
+            ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
+        ).strip()
+        if platform.system() == "Darwin"
+        else platform.processor(),
+        "python_compiler": platform.python_compiler(),
+        "compiler": subprocess.check_output(["cc", "--version"], text=True).splitlines()[0],
         **{
             name: importlib.metadata.version(name)
             for name in (
@@ -63,6 +73,7 @@ def probe(work, config, budget):
             "store": store_roundtrip(directory, model, encoder, texts),
         }
         persistence(directory, model, texts, config, spec["name"] + "-probe-classifier")
+    budget.check()
     write(work / "probe.json", results)
 
 
@@ -106,6 +117,25 @@ def manifest(work):
     write(work / "SHA256SUMS.json", {"algorithm": "SHA256", "files": files})
 
 
+def publish_prepared(work, record, budget):
+    """One directory rename commits all finished files; staging is never a deliverable."""
+    pending = work / "pending"
+    pending.mkdir()
+    for kind in ("complete", "standalone"):
+        shutil.copytree(work / kind, pending / kind)
+    for name in ("config.json", "selection.json", "verified.json"):
+        shutil.copyfile(work / name, pending / name)
+    write(pending / "metrics.json", record)
+    card = render(record)
+    for kind in ("complete", "standalone"):
+        (pending / kind / "README.md").write_text(card)
+        shutil.copyfile(ROOT / "LICENSE", pending / kind / "LICENSE")
+    manifest(pending)
+    budget.check()
+    # The complete receipt is authoritative only inside this atomically published folder.
+    pending.rename(work / "prepared")
+
+
 def finalize(work, config, budget):
     verified = read(work / "verified.json")
     if verified["selection_sha256"] != sha256(work / "selection.json"):
@@ -146,13 +176,8 @@ def finalize(work, config, budget):
         "test_evaluations": 1,
     }
     budget.check()
-    write(work / "metrics.json", record)
-    card = render(record)
-    license_text = (ROOT / "LICENSE").read_text()
-    for kind in ("complete", "standalone"):
-        (work / kind / "README.md").write_text(card)
-        (work / kind / "LICENSE").write_text(license_text)
-    manifest(work)
+    write(work / "test-result.json", {**record, "status": "evaluated-not-published"})
+    publish_prepared(work, record, budget)
     print(
         {"test_macro": result["macro"], "unreliable_labels": record["unreliable_labels"]},
         flush=True,

@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import os
 
+from civil_comments import prepare
 from evaluation import finalize, probe, verify
-from inputs import CONFIG, Budget, external, load, prepare, write
+from inputs import CONFIG, Budget, external, load, write
 from threadpoolctl import threadpool_limits
 from training import select
 
@@ -33,7 +34,7 @@ def main():
         raise ValueError("run configuration changed")
     budget = Budget(args.work, config)
     budget.check()
-    with threadpool_limits(limits=1):
+    with budget.monitor(), threadpool_limits(limits=1):
         if args.command == "prepare":
             prepare(args.work, config, budget)
         elif args.command == "probe":
@@ -44,7 +45,6 @@ def main():
             verify(args.work, config, budget)
         else:
             finalize(args.work, config, budget)
-    budget.check()
     print(args.command + ": complete", flush=True)
 
 

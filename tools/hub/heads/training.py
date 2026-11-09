@@ -7,10 +7,11 @@ import warnings
 
 import joblib
 import numpy as np
-from inputs import coverage, dataset, digest_positions, read, sample, vectors, write
+from civil_comments import dataset
+from inputs import coverage, digest_positions, read, sample, vectors, write
+from metrics import metrics
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, precision_recall_fscore_support, roc_auc_score
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -18,69 +19,54 @@ from sklearn.preprocessing import StandardScaler
 import fse
 
 
-def metrics(y, scores, labels):
-    coverage(y)
-    if scores.shape != y.shape or not np.isfinite(scores).all():
-        raise ValueError("invalid classifier scores")
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y,
-        scores > 0.5,
-        average=None,
-        zero_division=0,
-    )
-    auc = roc_auc_score(y, scores, average=None)
-    ap = average_precision_score(y, scores, average=None)
-    names = ("roc_auc", "average_precision", "precision", "recall", "f1")
-    values = np.stack([auc, ap, precision, recall, f1], axis=1)
-    return {
-        "rows": len(y),
-        "per_label": {
-            label: {
-                "positive": int(y[:, i].sum()),
-                **dict(zip(names, values[i].tolist(), strict=True)),
-            }
-            for i, label in enumerate(labels)
-        },
-        "macro": dict(zip(names, values.mean(axis=0).tolist(), strict=True)),
-    }
-
-
 def fit(x, y, c, config, budget, *, inplace=False):
     budget.check()
+    classifier = LogisticRegression(
+        C=c,
+        solver="lbfgs",
+        max_iter=config["max_iter"],
+        random_state=config["seed"],
+        class_weight=config["class_weight"],
+    )
+    if y.ndim == 2 and y.shape[1] >= 2:
+        classifier = OneVsRestClassifier(classifier, n_jobs=1)
+    elif y.ndim != 1 or set(np.unique(y)) != {0, 1}:
+        raise ValueError("targets must be a binary vector or a multilabel indicator matrix")
     model = Pipeline(
         [
             ("scale", StandardScaler(copy=not inplace)),
-            (
-                "classifier",
-                OneVsRestClassifier(
-                    LogisticRegression(
-                        C=c,
-                        solver="lbfgs",
-                        max_iter=config["max_iter"],
-                        random_state=config["seed"],
-                        class_weight=config["class_weight"],
-                    ),
-                    n_jobs=1,
-                ),
-            ),
+            ("classifier", classifier),
         ]
     )
     with warnings.catch_warnings():
         warnings.simplefilter("error", ConvergenceWarning)
-        model.fit(x, y)
+        if inplace:
+            # Full-train variance estimation must not allocate a second whole matrix.
+            scaler = model.named_steps["scale"]
+            for start in range(0, len(x), config["batch_rows"]):
+                budget.check()
+                scaler.partial_fit(x[start : start + config["batch_rows"]])
+            for start in range(0, len(x), config["batch_rows"]):
+                budget.check()
+                scaler.transform(x[start : start + config["batch_rows"]], copy=False)
+            classifier.fit(x, y)
+        else:
+            model.fit(x, y)
     budget.check()
     return model
 
 
 def candidate(work, spec, texts, y, valid_texts, valid_y, config, budget):
     encoder = fse.Encoder.from_pretrained(work / spec["name"], normalize=False)
+    memory_plan = budget.admit(encoder, len(texts), len(valid_texts))
+    write(work / (spec["name"] + "-memory-plan.json"), memory_plan)
     x = vectors(encoder, texts, work / (spec["name"] + "-train.npy"), config, budget)
     v = vectors(encoder, valid_texts, work / (spec["name"] + "-validation.npy"), config, budget)
     best, rows = None, []
     for c in config["C"]:
         model = fit(x, y, c, config, budget)
         result = metrics(valid_y, model.predict_proba(v), config["labels"])
-        row = {"encoder": spec["name"], "C": c, "validation": result}
+        row = {"encoder": spec["name"], "C": c, "validation": result, "memory_plan": memory_plan}
         rows.append(row)
         write(work / f"{spec['name']}-C{c}-validation.json", row)
         print({"encoder": spec["name"], "C": c, "macro": result["macro"]}, flush=True)
@@ -96,20 +82,29 @@ def medium(work, selected, texts, targets, valid_y, config, budget):
     """Full train is admitted only for POTION within conservative memory/time reserves."""
     if selected["encoder"] != "potion":
         return None, "not admitted: full-width bekko exceeds the 8 GiB memory plan"
-    if budget.remaining() < config["medium_minimum_remaining_seconds"]:
+    if budget.remaining() < config["medium_minimum_remaining_seconds"] + 900:
         return None, "not admitted: insufficient remaining budget"
     encoder = fse.Encoder.from_pretrained(work / "potion", normalize=False)
+    memory_plan = budget.admit(encoder, len(texts), len(valid_y), inplace=True)
+    write(work / "medium-memory-plan.json", memory_plan)
     x = vectors(encoder, texts, work / "medium-train.npy", config, budget)
     v = np.load(work / "potion-validation.npy", mmap_mode="r")
     model = fit(x, targets, selected["C"], config, budget, inplace=True)
     result = metrics(valid_y, model.predict_proba(v), config["labels"])
-    row = {"encoder": "potion", "C": selected["C"], "validation": result}
+    row = {
+        "encoder": "potion",
+        "C": selected["C"],
+        "validation": result,
+        "memory_plan": memory_plan,
+    }
     joblib.dump(model, work / "medium.joblib")
     write(work / "medium-validation.json", row)
     return row, "completed"
 
 
 def select(work, config, budget):
+    if set(read(work / "probe.json")) != {spec["name"] for spec in config["encoders"]}:
+        raise ValueError("both encoder probes must pass before selection")
     # A failed selection cannot be automatically repeated or silently overwritten.
     with (work / "selection-started").open("x") as marker:
         marker.write("No automatic retries. Preserve partial results on failure.\n")
