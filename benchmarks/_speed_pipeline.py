@@ -262,6 +262,10 @@ def prepare_models(root, contract, reuse=None):
 
 
 def measure_child(job):
+    if job.get("kind") == "search":
+        from _speed_search_child import run
+
+        return run(job)
     if job.get("kind") == "predict":
         from _speed_predict import predict_child
 

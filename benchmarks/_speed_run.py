@@ -44,9 +44,15 @@ def prepare(args, contract, ledger):
     require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
-    sentences, unknown, paragraphs = inputs.corpus_sources(
-        contract, (args.reuse_work or args.work) / "datasets"
-    )
+    if all(c["kind"] == "search" for c in contract["cells"]):
+        quiet_contract = {**contract, "cells": [contract["quiet_cell"]], "functional_only": True}
+        sentences, unknown, paragraphs = inputs.corpus_sources(
+            quiet_contract, (args.reuse_work or args.work) / "datasets"
+        )
+    else:
+        sentences, unknown, paragraphs = inputs.corpus_sources(
+            contract, (args.reuse_work or args.work) / "datasets"
+        )
     require_budget(ledger, 60)
     rust = (
         engines.build_rust(args.work / "native", CONFIG / "rust.lock")
@@ -55,6 +61,8 @@ def prepare(args, contract, ledger):
     )
     return {
         "work": args.work,
+        "datasets": (args.reuse_work or args.work) / "datasets",
+        "retained_source_bytes": sum(len(t.encode()) * 4 + 72 for t in sentences + paragraphs),
         "ledger": ledger,
         "models": models,
         "paragraphs": sentences,
@@ -303,12 +311,20 @@ def quiet(context, contract):
 def study_contract(args):
     contract = load_contract(args.input)
     headline = args.study == "headline"
-    if args.study != "all":
+    if args.study == "search-prefilter":
+        contract["cells"] = [
+            dict(c, relative_to="search-exact-int8")
+            for c in contract["cells"]
+            if c["id"] in ("search-exact-int8", "search-prefilter-int8")
+        ]
+    elif args.study == "all":
+        contract["cells"] = [c for c in contract["cells"] if c["stage"] != "search-prefilter"]
+    else:
         contract["cells"] = [c for c in contract["cells"] if c["stage"] == args.study]
     if not contract["cells"]:
         raise ValueError("study has no matching cells")
     protocols.validate(contract["cells"])
-    protocols.require(contract["cells"], args.base_python)
+    protocols.require(contract["cells"], args.base_python, args.rehearse)
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")
@@ -322,7 +338,9 @@ def study_contract(args):
         for cell in [*contract["cells"], contract["quiet_cell"]]:
             cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
             cell.update(
-                texts=20_000 if cell["kind"] in ("write", "predict") else 12_000,
+                texts=65_536
+                if cell["kind"] == "search"
+                else (20_000 if cell["kind"] in ("write", "predict") else 12_000),
                 workers=min(cell["workers"], 2),
                 functional_only=True,
             )
@@ -359,7 +377,14 @@ def run_cells(context, contract):
             ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
         )
         quiet(context, contract)
+    search_cells = [c for c in contract["cells"] if c["kind"] == "search"]
+    if search_cells:
+        from _speed_search_run import run as run_search
+
+        run_search(context, search_cells)
     for cell in contract["cells"]:
+        if cell["kind"] == "search":
+            continue
         ledger.current, ledger.stage = cell["id"], cell["stage"]
         started = time.monotonic()
         if not ledger.admit(cell["estimated_seconds"]):
