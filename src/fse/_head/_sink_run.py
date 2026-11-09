@@ -74,7 +74,7 @@ def start_lone(
 ) -> Any:
     """``start`` (or ``starter``, which takes the same arguments) for a single head. The score
     sink names it: a sink of one head."""
-    schema = getattr(score_sink, "score_schema", None)
+    schema = getattr(score_sink, "_score_schema", None)
     if vector_sink is not None and starter is start:  # the checks of a group come in this order
         _check_vector_sink(model, return_vectors, vector_sink)
     name = "head"

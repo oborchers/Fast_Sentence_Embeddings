@@ -376,7 +376,7 @@ def test_a_store_that_would_outgrow_its_root_is_refused_before_it_is_made(tmp_pa
     from fse._store._layout import root_text
 
     with score_sink(tmp_path / "s") as sink:
-        schema = sink.score_schema.with_paths({n: "folded" for n in HEADS})
+        schema = sink._score_schema.with_paths({n: "folded" for n in HEADS})
         plain = len(root_text(schema.info(False))) + 1
         monkeypatch.setattr(_schema, "SCORE_STORE_BYTES", plain + 20)  # fits without the keys
         with pytest.raises(ValueError, match=r"store\.json of"):

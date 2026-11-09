@@ -57,7 +57,8 @@ class ScoreSink(ShardSinkBase):
     """Write the scores of heads into the score store at ``path``: a new store, or the end
     of an existing one of the same heads. ``heads`` is a ``fse.Heads``, or one ``Classifier``
     or ``Regressor`` with its ``name`` (required: the name is written to the store, and
-    ``ScoreStore`` reads the head by it).
+    ``ScoreStore`` reads the head by it). What a store holds is read through
+    ``ScoreStore.heads``; the sink gives out no schema.
 
     ``stored`` says what each head stores: None (the decision of a classifier, the values of
     a regressor), one name for all heads, or a mapping of head names to ``decision``,
@@ -121,7 +122,7 @@ class ScoreSink(ShardSinkBase):
             self._ready = False
 
     @property
-    def score_schema(self) -> ScoreSchema:
+    def _score_schema(self) -> ScoreSchema:
         """The schema of the scores the sink writes (the paths of the heads are filled in
         once a run attached)."""
         return self._schema
