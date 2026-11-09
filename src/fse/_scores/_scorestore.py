@@ -135,8 +135,9 @@ class ScoreStore(MemberReaders):
         """The stored values of the rows ``start`` to ``stop - 1`` (all by default) in
         blocks of at most ``block_rows`` rows, never over the end of a shard: for each head
         a read-only view of the mapped shard (the stored decision, probabilities or values;
-        ``(n,)`` for a head that is flat). A head of several columns is not contiguous in
-        the view; copy it if you need that. Raises ``RuntimeError`` for the next block after
+        ``(n,)`` for single-label decisions or vector regression; multilabel stays ``(n, k)``).
+        A head of several columns is not contiguous in the view; copy it if you need that.
+        Raises ``RuntimeError`` for the next block after
         ``close``, also before the first."""
         shards = self._snapshot()
         stop = stop_row(shards, start, stop)
@@ -173,7 +174,8 @@ class ScoreStore(MemberReaders):
     ) -> Generator[ScoreBatch, None, None]:
         """Labels or values for every row, in blocks, as ``Heads.predict_batches`` gives
         them: by default the labels of a classifier and the values of a regressor,
-        ``output`` as for ``Heads`` (one name or a mapping of head names to names). What a
+        ``output`` as for ``Heads`` (one name or a mapping of head names to names). A
+        multilabel output keeps shape ``(n, k)``, including k = 1. What a
         head can give follows from what it stored (see ``fse._scores._predict``); anything
         else raises before a row is read. ``thresholds`` maps multilabel head names to
         new cutoffs (a partial mapping keeps the stored cutoffs of the labels it does not
@@ -219,7 +221,7 @@ class ScoreStore(MemberReaders):
             np.array(_columns(found, tensors["scores"][first:end]))
             for _, tensors, first, end in blocks(shards, start, stop, 1 << 62)
         ]
-        shape = (0,) if _flat(found) else (0, found.width)
+        shape = (0,) if _predict._store_flat(found, found.stored) else (0, found.width)
         return np.concatenate(parts) if parts else np.empty(shape, np.float32)
 
     @validate_arguments
@@ -395,18 +397,10 @@ def _threshold_names(heads: Mapping[str, ScoreHead], thresholds: Any) -> dict[st
     return dict(thresholds)
 
 
-def _flat(head: ScoreHead) -> bool:
-    """Whether one column of the head is given as (n,): as ``Heads`` gives a classifier's
-    decision of one logit and the values of a regressor that was a vector."""
-    if head.width != 1:
-        return False
-    return (head.task == "classification" and head.stored == "decision") or head.flat is True
-
-
 def _columns(head: ScoreHead, scores: ndarray) -> ndarray:
     """The columns of ``head`` in the rows ``scores``, (n,) for a flat head."""
     view = scores[:, head.columns[0] : head.columns[1]]
-    return view[:, 0] if _flat(head) else view
+    return view[:, 0] if _predict._store_flat(head, head.stored) else view
 
 
 def _predict_raw(info: ScoreInfo, state: Any, scores: ndarray, store_row: int, ids: Any):

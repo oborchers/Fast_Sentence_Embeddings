@@ -243,7 +243,8 @@ def _tensor(tensors: dict[str, ndarray], name: str, ndim: int) -> ndarray:
 
 def _flat(metadata: dict[str, str], task: str, k: int) -> bool:
     """Whether one output gives (n,): ``fse.head.flat``, exactly for a regression head of
-    one output (a classifier's decisions of one output are always (n,))."""
+    one output. Single-label decisions of one output are (n,); multilabel is handled
+    by the caller."""
     if ("fse.head.flat" in metadata) != (task == "regression" and k == 1):
         raise ValueError("fse.head.flat is given exactly for regression heads of one output")
     return _bool(metadata, "fse.head.flat") if "fse.head.flat" in metadata else True

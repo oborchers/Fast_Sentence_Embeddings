@@ -39,7 +39,7 @@ from fse._store import ShardSink, VectorStore
 from fse._store._search import score_blocks
 
 from ._derive import derive
-from ._outputs import PredictedBatch
+from ._outputs import PredictedBatch, gives_flat
 
 # The output a caller asks for, and what the runtime computes for it.
 RUNTIME = {"labels": "labels", "proba": "proba", "decision": "logits", "values": "logits"}
@@ -108,7 +108,14 @@ def finish(model: Any, rows: ndarray, output: str) -> ndarray:
     where the head gives (n,)."""
     if output == "labels":
         return rows if model._content.link is Link.MULTILABEL else model.classes_[rows]
-    if output != "proba" and rows.shape[1] == 1 and model._content.flat:
+    content = model._content
+    if gives_flat(
+        output,
+        rows.shape[1],
+        task=content.task,
+        multilabel=content.link is Link.MULTILABEL,
+        flat=content.flat,
+    ):
         return rows[:, 0].copy()
     return rows
 

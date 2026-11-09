@@ -6,7 +6,7 @@ loading and the similarity searches. Per-element methods such as ``similarity`` 
 """
 
 import functools
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Annotated, Any, TypeAlias, TypeVar
 
@@ -100,6 +100,7 @@ def _threshold_label(value: object) -> object:
 
 
 def _threshold_vector(value: np.ndarray) -> np.ndarray:
+    refuse_lost_input(value, "thresholds")
     if value.ndim != 1:
         raise ValueError("thresholds must be a one-dimensional vector")
     for item in value:
@@ -121,3 +122,24 @@ ThresholdInput: TypeAlias = (
     | _ThresholdVector
     | None
 )
+
+
+def refuse_lost_input(value: Any, name: str) -> None:
+    """Refuse masks and bools before conversion, including inside nested sequences.
+
+    Numeric ndarrays need no element scan. Iterating sequences directly also avoids
+    allocating an object array proportional to a large list of indices.
+    """
+    if isinstance(value, np.ma.MaskedArray):
+        raise TypeError(f"{name} must not be a masked array")
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind == "b":
+            raise TypeError(f"{name} must be numbers (float or int), not bool")
+    elif isinstance(value, bool | np.bool_):
+        raise TypeError(f"{name} must be numbers (float or int), not bool")
+    elif hasattr(value, "__array__") and not np.isscalar(value):
+        for item in np.asarray(value, dtype=object).ravel():
+            refuse_lost_input(item, name)
+    elif isinstance(value, Iterable) and not isinstance(value, str | bytes | Mapping):
+        for item in value:
+            refuse_lost_input(item, name)

@@ -71,10 +71,10 @@ def test_nested_backfill_refused_before_any_write(tmp_path, sizes):
     with fse.Pool(2) as pool:
 
         def nested():
-            with pool.inside():
+            with pool._inside():
                 return fse.add_sign_bits(path, pool=pool)
 
-        future = pool.submit(nested)
+        future = pool._submit(nested)
         with pytest.raises(RuntimeError, match="same pool"):
             future.result(timeout=10)
         assert not list(path.glob("*sign_bits-*"))
@@ -93,18 +93,18 @@ def test_backfill_waits_for_a_shared_place(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_bits_write, "write_bits", write)
     with fse.Pool(2, max_tasks=1) as pool:
-        pool.acquire()
+        pool._acquire()
         reached = blocked_in_wait(pool._permits._cond, "backfill")
         readers = Readers({"backfill": lambda: fse.add_sign_bits(path, pool=pool)}).start()
         try:
             assert arrived(reached, pool._permits._cond)
             assert not names
         finally:
-            pool.release()
+            pool._release()
             readers.wait()
         assert readers.join() == {"backfill": 2}
-        assert pool.try_acquire()
-        pool.release()
+        assert pool._try_acquire()
+        pool._release()
 
 
 class HeldWriters:
@@ -184,8 +184,8 @@ def test_failure_settles_own_writers_but_not_an_independent_call(tmp_path, monke
                 readers.join()
             assert other.threads[0].is_alive()  # the independent call still owns its writer
             assert not list(path.glob(".sign_bits-*"))
-            assert pool.try_acquire()
-            pool.release()
+            assert pool._try_acquire()
+            pool._release()
         finally:
             held.release_own()
             held.done.set()

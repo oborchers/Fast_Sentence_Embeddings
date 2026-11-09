@@ -34,7 +34,7 @@ from fse._container import (
     fingerprint,
     tensor_code,
 )
-from fse._validation import PathLike, validate_arguments
+from fse._validation import PathLike, refuse_lost_input, validate_arguments
 from fse._wordvectors_format import (
     _BLOCK_ROWS,
     QUANTIZATION,
@@ -469,6 +469,7 @@ class WordVectors:
 
     def get_vectors(self, indices: Any) -> NDArray[np.float32]:
         """The float32 rows of the word ids ``indices``, as a new (k, dim) array."""
+        refuse_lost_input(indices, "indices")
         ids = np.asarray(indices)
         if ids.size == 0 and ids.ndim == 1:
             ids = ids.astype(np.int64)

@@ -111,3 +111,48 @@ def test_head_content_properties():
     assert (
         HeadContent("regression", None, np.zeros(1, F32), True, Link.OVR, None).link_id == "ovr@1"
     )
+
+
+@pytest.mark.parametrize("value", [{"a", "b"}, frozenset(["a", "b"]), {"a": 0, "b": 1}])
+def test_labels_refuse_unordered_sets_and_discarded_mapping_values(value):
+    with pytest.raises(TypeError, match=r"order|discarded"):
+        labels(value, 2)
+
+
+@pytest.mark.parametrize(
+    "value", [["b", "a"], ("b", "a"), np.array(["b", "a"]), {"b": 0, "a": 1}.keys()]
+)
+def test_labels_keep_ordered_inputs(value):
+    assert labels(value, 2) == ("b", "a")
+
+
+@pytest.mark.parametrize("field", ["weight", "bias"])
+@pytest.mark.parametrize("masked", [False, True])
+def test_weights_refuse_information_lost_by_array_conversion(field, masked):
+    values = {"weight": [[1, 0.5], [0.25, 1]], "bias": [0.0, 0.5]}
+    bad = (
+        np.ma.array(values[field], mask=False)
+        if masked
+        else ([[True, 0.5], [0.25, 1]] if field == "weight" else [True, 0.5])
+    )
+    values[field] = bad
+    with pytest.raises(TypeError, match=r"masked|bool"):
+        weights(values["weight"], values["bias"], 2)
+
+
+def test_valid_mixed_numbers_keep_float32_bits():
+    w, b = weights([[1, 0.5]], [0.25], 2)
+    np.testing.assert_array_equal(w.view(np.uint32), np.array([[1, 0.5]], F32).view(np.uint32))
+    np.testing.assert_array_equal(b.view(np.uint32), np.array([0.25], F32).view(np.uint32))
+
+
+def test_numeric_dataframe_weights_ignore_boolean_column_names():
+    pd = pytest.importorskip("pandas")
+    w, _ = weights(pd.DataFrame([[1.0, 0.5]], columns=[True, False]), None, 2)
+    np.testing.assert_array_equal(w.view(np.uint32), np.array([[1.0, 0.5]], F32).view(np.uint32))
+
+
+@pytest.mark.parametrize("container", ["Index", "Series"])
+def test_labels_keep_ordered_pandas_sequences(container):
+    pd = pytest.importorskip("pandas")
+    assert labels(getattr(pd, container)(["b", "a"]), 2) == ("b", "a")

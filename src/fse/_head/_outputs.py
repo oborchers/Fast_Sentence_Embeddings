@@ -75,3 +75,15 @@ class HeadsBatch:
     vectors: NDArray[np.float32] | None
     durable_rows: int | None = None
     lengths: LengthReport | None = None
+
+
+def gives_flat(output: str, width: int, *, task: str, multilabel: bool, flat: bool | None) -> bool:
+    """Whether one column is a vector: single-label decisions or vector regression.
+
+    Probabilities and multilabel outputs keep their second axis, including at width one.
+    """
+    if output not in ("decision", "values") or width != 1:
+        return False
+    if task == "classification":
+        return not multilabel
+    return flat is True

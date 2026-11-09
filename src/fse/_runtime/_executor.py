@@ -111,11 +111,11 @@ class _Run:
         self.pool_of_call: Pool
 
     def execute(self, pool: Pool):
-        pool.check_open()
+        pool._check_open()
         self.pool_of_call = pool
         if self.workers < pool.workers:  # this call may use no more threads than it asked for
             self.limit = self.workers
-        with pool.inside():
+        with pool._inside():
             try:
                 self._loop(pool)
             except BaseException:
@@ -148,9 +148,9 @@ class _Run:
         # is done, and a task that is done and committed gave its place back already.
         running = [f for f in self._running() if not f.done()]
         for future in running:
-            future.add_done_callback(lambda _f: pool.release())
+            future.add_done_callback(lambda _f: pool._release())
         for _ in range(self.held - len(running)):
-            pool.release()
+            pool._release()
         self.held = 0
 
     def _loop(self, pool: Pool):
@@ -187,7 +187,7 @@ class _Run:
                 self._give_back(pool)
                 return
             item = self.reserve(task)  # an error stops the run at once
-            future = pool.submit(self._work, self.sequence, item)
+            future = pool._submit(self._work, self.sequence, item)
             with self.lock:
                 self.unfinished += 1
                 self.futures.add(future)  # before the callback: it may run at once
@@ -199,18 +199,18 @@ class _Run:
         """A place of the pool for one more task. If none is free and this call has tasks to
         commit, False: committing releases a place. A call with no task waits for one, so the
         calls that hold places are the ones that release them."""
-        if pool.try_acquire():
+        if pool._try_acquire():
             self.held += 1
             return True
         if self.pending:
             return False
-        pool.acquire()
+        pool._acquire()
         self.held += 1
         return True
 
     def _give_back(self, pool: Pool):
         self.held -= 1
-        pool.release()
+        pool._release()
 
     def _unfinished(self) -> int:
         with self.lock:
@@ -236,7 +236,7 @@ class _Run:
         if sequence > self.failed_at:
             return _SKIPPED
         try:
-            with self.pool_of_call.inside():
+            with self.pool_of_call._inside():
                 return self.work(task)
         except BaseException:
             with self.lock:

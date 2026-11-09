@@ -190,11 +190,11 @@ def test_reuses_pool_after_success_error_and_nested_call(monkeypatch, kind):
             head.predict([*data, 7], return_vectors=True, pool=pool)
 
         def nested():
-            with pool.inside():
+            with pool._inside():
                 return head.predict(data, return_vectors=True, pool=pool)
 
         with pytest.raises(RuntimeError, match="same pool"):
-            pool.submit(nested).result(timeout=10)
+            pool._submit(nested).result(timeout=10)
         same(head.predict(data, return_vectors=True, pool=pool)[0], want)
         assert not pool.closed
     assert settled(0)

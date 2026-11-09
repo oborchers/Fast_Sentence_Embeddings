@@ -105,8 +105,8 @@ def test_an_earlier_invalid_sentence_wins_over_a_later_task_exception(
             assert scan.sentences == 0
             assert isinstance(error, UnicodeDecodeError)
             assert "sentence 0" in str(error)
-            assert pool.try_acquire()
-            pool.release()
+            assert pool._try_acquire()
+            pool._release()
     finally:
         if isinstance(src, FileSource):
             src.close()
@@ -153,5 +153,5 @@ def test_runner_task_errors_are_raised_in_range_order(monkeypatch):
 
         with pytest.raises(MemoryError, match=r"^0$"):
             src.scan_until_error(workers=2, run_ranges=runner)
-        assert pool.try_acquire()
-        pool.release()
+        assert pool._try_acquire()
+        pool._release()

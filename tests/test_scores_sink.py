@@ -22,7 +22,7 @@ def test_the_constructor_checks_but_creates_nothing(tmp_path):
     assert (sink.dim, sink.dtype, sink.inverse_norms) == (7, "float32", False)
     assert sink.encoder_fingerprint == sh.group().encoder_fingerprint
     assert sink.columns == {"quality": slice(0, 1), "toxic": slice(1, 4), "topic": slice(4, 7)}
-    assert sink.score_schema.dim == 7
+    assert not hasattr(sink, "score_schema")  # what is stored is read through ScoreStore.heads
     assert (sink.first_row, sink.published_rows, sink.durable_rows) == (0, 0, 0)
     assert sink.durability == "full"
     assert sink.has_doc_ids

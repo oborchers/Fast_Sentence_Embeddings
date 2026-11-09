@@ -50,6 +50,9 @@ class Pool:
     threads when it is collected. A child of ``os.fork`` starts the threads again at its
     first call. ``max_tasks`` bounds the tasks, not their memory: every call keeps its own
     window of rows.
+
+    The public surface is the constructor, ``workers``, ``max_tasks``, ``closed``, ``close()``
+    and the ``with`` block; the methods that hand out places and tasks are internal.
     """
 
     def __init__(
@@ -108,9 +111,11 @@ class Pool:
         state = "closed" if self._closed else "open"
         return f"Pool(workers={self._workers}, max_tasks={self._max_tasks}, {state})"
 
-    # --- what the executor of a run uses ------------------------------------------------
+    # --- internal: used by the executors of fse (_runtime._executor, _store._search_run); not
+    # part of the API. ``_submit`` takes no place of ``max_tasks``, so only the executors may call it.
+    # ------------------------------------------------------------------------------------
 
-    def submit(self, work: Callable[..., Any], *args: Any) -> Future:
+    def _submit(self, work: Callable[..., Any], *args: Any) -> Future:
         """``work(*args)`` on a thread of the pool."""
         with self._lock:
             if self._closed:
@@ -120,24 +125,24 @@ class Pool:
             executor = self._executor
         return executor.submit(work, *args)
 
-    def try_acquire(self) -> bool:
+    def _try_acquire(self) -> bool:
         """Take one of the ``max_tasks`` places if one is free."""
         return self._permits.acquire(blocking=False)
 
-    def acquire(self) -> None:
+    def _acquire(self) -> None:
         """Wait for a place; the wait ends early only by an interrupt."""
         while not self._permits.acquire(timeout=_POLL_SECONDS):
             pass
 
-    def release(self) -> None:
+    def _release(self) -> None:
         self._permits.release()
 
-    def check_open(self) -> None:
+    def _check_open(self) -> None:
         if self._closed:
             raise RuntimeError("the pool is closed")
 
     @contextmanager
-    def inside(self) -> Iterator[None]:
+    def _inside(self) -> Iterator[None]:
         """Mark the calling thread as inside a call or a task of this pool. A call of the pool
         from there (a sink that encodes on the same pool, a task that runs a call) would wait
         for places that its own call holds, so it is refused instead of left to hang."""
@@ -162,10 +167,10 @@ class Pool:
         """Start every thread now: as many tasks that wait for each other need as many
         threads, so the barrier opens only when all of them run."""
         if self._workers == 1:
-            self.submit(_nothing).result()
+            self._submit(_nothing).result()
             return
         barrier = threading.Barrier(self._workers)
-        futures = [self.submit(_arrive, barrier) for _ in range(self._workers)]
+        futures = [self._submit(_arrive, barrier) for _ in range(self._workers)]
         wait(futures)
         for future in futures:
             future.result()  # a timeout of the barrier is an error, not a silent half start
@@ -200,7 +205,7 @@ def workers_of(workers: object, pool: object = None) -> Workers:
         return Workers(usable_cpus() if workers is None else int(workers))
     if not isinstance(pool, Pool):
         raise TypeError(f"pool must be an fse.Pool, not {type(pool).__name__}")
-    pool.check_open()
+    pool._check_open()
     if workers is None:
         return Workers(pool.workers, pool)
     if workers > pool.workers:
