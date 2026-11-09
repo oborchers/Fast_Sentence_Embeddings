@@ -564,6 +564,12 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 | `version-compare@1` | `dtype` against `fse-base` (two installed versions) | bits | none |
 | `heads-compare@1` | `heads` against `model2vec`, `fse-unfolded`, `fse-separate` | tolerance, or bits for `fse-separate` | none |
 | `write@1` | `write` | bits (codes, scales, inventories) | none |
+| `predict@1` | `predict` (labels or probabilities) | sample bits against cpu and numpy | none |
+
+The registry also exposes `paired` (comparison arms), `own_memory_plan` (skip the
+shared pair formula), and `needs_quiet` (prepare and run the quiet cell). Writing and
+prediction have no comparison arm, own their resource plans, and need no quiet cell.
+These properties are independent so future protocols can choose each explicitly.
 
 ### Precision, paragraphs, heads and versions
 
@@ -575,6 +581,45 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 The sizes of these cells mirror the existing cells of the same model; the study for a release sets its own sizes and budget before any paid run.
 
 Writing cells record first native-file read through ShardSink close. They use a float32 table, int8 storage and `durability: none`. Model loading, input generation and verification are outside this timer. Sink opening and external file/directory synchronization have separate observations. Codes, scales, row counts and file inventories are checked before deletion. Logical file bytes are not device write amplification. Separate sequential worker configurations do not isolate a CPU-scaling effect.
+
+The classification headlines `headline-100m-predict` (labels) and
+`headline-100m-predict-proba` (probabilities) use the same seeded WikiText sentence
+file as `headline-100m`, POTION-8M, and the configured ordered head labels. The default labels are `toxicity` and `insult`. Their timer
+covers one `Classifier.predict(Path)` or `predict_proba(Path)` call, from native
+file opening through the complete output in memory. Labels are a boolean matrix
+(200 MB for 100 million rows and two labels), probabilities a float32 matrix (800 MB). There is
+no output sink, Python text reading, or batching loop inside this timer.
+
+Before building input, each cell records a declared production resource plan and
+an actual-limit plan through `_harness.resources`. The plan includes sampling
+arrays, mapped input, outputs, model copies, worker and sample buffers, a
+controller reserve, and input/warmup disk space. Updated plans use actual file
+sizes. Resource rejection or budget exhaustion during preparation yields
+`not_started`. A changed production input digest or disagreement with the writing
+cell in the same invocation yields `invalid`, without throughput. Each child
+warms the same native-file path on a separate subset before its measured call.
+Production warmups and measured calls must each last at least two seconds.
+The fixed warmup has 20 million rows; a shorter call fails rather than silently
+changing this workload. Hashing and verification follow the timer. A 10,000-row
+sample must match cpu and numpy bit for bit. Output hashes and runtime/head
+identities must match across all three rounds. Owned input and warmup files are
+removed on success, rejection, and preparation failure.
+
+`head` declares the head's kind and ordered labels (1 to 16 unique nonempty strings). The label count controls weights, output shapes, checks, and memory planning. `toxicity-placeholder@1` is
+an untrained multilabel head (PCG64 seed 17, float32 weights and bias, raw means,
+folded path, cutoffs 0.5). Receipts record its parameter hashes and fingerprint.
+It is allowed only with `--rehearse`, never as publication evidence. A future
+real-head configuration must pin `repo`, `revision`, `filename`, and `sha256`;
+this PR deliberately refuses that kind until its loader is implemented. No Hub
+head is downloaded here. The publication cells therefore remain `not_started`
+outside rehearsal until the real toxicity head is integrated.
+
+`--rehearse --study headline --workers 16` reduces each headline to 20,000 rows
+and two workers, exercises both classification outputs, and labels every result
+functional only. It supports correctness claims, never speed claims. The
+profiling child-job command currently refuses prediction jobs. The allocation
+command must pass explicit `--workers` for the headline study. Its historical
+billing plan is 50 minutes and 1.25 USD, not spending authorization.
 
 Select an agreed study:
 

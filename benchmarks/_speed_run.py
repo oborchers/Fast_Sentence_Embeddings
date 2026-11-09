@@ -245,7 +245,7 @@ def memory_preflight(context, contract):
             workers=cell.get("production_workers", cell["workers"]),
             functional_only=False,
         )
-        if cell["kind"] == "write":
+        if protocols.protocol(cell)["own_memory_plan"]:
             continue
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
         plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
@@ -314,14 +314,15 @@ def study_contract(args):
             raise ValueError("headline requires explicit --workers 16 or 32")
         contract["billing"].update(contract["headline_billing"])
         contract["format"] = "headline-study-v1"
-        contract["cells"][0]["workers"] = args.workers
+        for cell in contract["cells"]:
+            cell["workers"] = args.workers
     if args.rehearse:
         contract["rehearsal_limits"] = records.rehearsal_limits()
         contract["functional_only"] = True
         for cell in [*contract["cells"], contract["quiet_cell"]]:
             cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
             cell.update(
-                texts=20_000 if cell["kind"] == "write" else 12_000,
+                texts=20_000 if cell["kind"] in ("write", "predict") else 12_000,
                 workers=min(cell["workers"], 2),
                 functional_only=True,
             )
@@ -352,7 +353,7 @@ def run(args):
 def run_cells(context, contract):
     ledger = context["ledger"]
     memory_preflight(context, contract)
-    if any(c["kind"] != "write" for c in contract["cells"]):
+    if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
         ledger.stage, ledger.current = "quiet", "quiet"
         require_budget(
             ledger, 1 if contract.get("functional_only") else contract["rules"]["quiet_seconds"]
@@ -367,6 +368,10 @@ def run_cells(context, contract):
         try:
             if cell["kind"] == "write":
                 run_headline(context, {**contract, "cells": [cell]})
+            elif not protocols.protocol(cell)["paired"]:
+                from _speed_predict import run_predict
+
+                ledger.result(cell, started, **run_predict(context, cell, launch, cleanup))
             else:
                 ledger.result(cell, started, **pair(context, cell))
         except Exception as error:
