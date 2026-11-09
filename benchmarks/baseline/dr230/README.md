@@ -47,8 +47,14 @@ class predictions, and restore non-mutating scaler inference after in-place
 training. The later validation-threshold routine is assigned to the coordinating
 agent's independent final diff review, with no third Codex round.
 
-Final held-out results, card and manifest are complete. `make check` is running
-on the final code. The coordinator owns the final independent diff review.
+Final held-out results, card and manifest are complete. Final `make check
+PYTEST_N=2` passed on code commit fb77b9a9 after merging master 621d2b89:
+14,381 passed, 517 skipped. Ruff check and formatting (754 files), guardrails,
+11 import contracts, vulture, deptry and mypy (173 source files) all passed.
+`final-gates.json` records the command, log digest and prior format correction.
+Only the card example whitespace and its manifest hashes changed in that fix.
+Model tensors, cutoffs and official test results remained unchanged. The
+coordinator owns the independent final diff review, with no third Codex round.
 
 Final prepared artifacts: `/Users/oliverborchers/fse-dr311/final-toxicity-insult-01/prepared`.
 The SHA256 manifest covers 12 files under that directory. The copies here use

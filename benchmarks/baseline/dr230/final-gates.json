@@ -1,0 +1,42 @@
+{
+  "status": "passed",
+  "code_commit": "fb77b9a9728af9383727386a92b2aaaa844c8b0a",
+  "merged_master": "621d2b89",
+  "command": "UV_PYTHON=3.13 UV_NO_SYNC=1 make check PYTEST_N=2",
+  "wrapper": "benchmarks/speed.py --local-heavy --worker-name dr311-checked-final",
+  "nice": 10,
+  "exit_status": 0,
+  "heavy_lock_released": true,
+  "ruff_check": "passed",
+  "ruff_format_files": 754,
+  "guardrails": "passed",
+  "import_contracts_kept": 11,
+  "import_contracts_broken": 0,
+  "vulture": "passed",
+  "deptry": "passed",
+  "mypy_source_files": 173,
+  "pytest_passed": 14381,
+  "pytest_skipped": 517,
+  "pytest_failed": 0,
+  "pytest_workers": 2,
+  "network_tests": "not run (standard make check exclusion)",
+  "raw_log": "/private/tmp/dr311-checked-final.log",
+  "raw_log_sha256": "2ad2922a151a8d0898239eee903fd125c3a6e1202c938a670bf1df587c28169c",
+  "earlier_gates": [
+    {
+      "code": "980a5147",
+      "passed": 14360,
+      "skipped": 517,
+      "exit_status": 0
+    },
+    {
+      "code": "463bd807",
+      "exit_status": 2,
+      "reason": "format check: missing blank line in model card code example; stopped before pytest",
+      "fixed_by": "fb77b9a9"
+    }
+  ],
+  "frozen_model_changed": false,
+  "official_test_repeated": false,
+  "independent_final_diff_review": "coordinator pending; no third Codex round"
+}
