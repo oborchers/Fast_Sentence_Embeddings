@@ -53,6 +53,13 @@ def probe(work, config, budget):
     write(work / "probe.json", result)
 
 
+def verify_encoders(work):
+    for name, files in json.loads((work / "encoder-sources.json").read_text()).items():
+        for filename, expected in files.items():
+            if sha256(work / name / filename) != expected:
+                raise ValueError("encoder changed after preparation")
+
+
 def run(work, config, *, ensure_probe=False):
     if json.loads((work / "config.json").read_text()) != config:
         raise ValueError("configuration changed after preparation")
@@ -60,12 +67,14 @@ def run(work, config, *, ensure_probe=False):
         raise ValueError("train annotation sample must be reviewed before fitting")
     if not ensure_probe and not (work / "probe.json").exists():
         raise ValueError("both small encoder probes must pass before training")
-    for name, files in json.loads((work / "encoder-sources.json").read_text()).items():
-        for filename, expected in files.items():
-            if sha256(work / name / filename) != expected:
-                raise ValueError("encoder changed after probe")
     budget = AegisBudget(work, config)
     with budget.monitor(), threadpool_limits(limits=1):
+        if ensure_probe:
+            with (work / "night-started").open("x") as marker:
+                marker.write("One night attempt only. No automatic retry.\n")
+            if not (work / "encoder-sources.json").exists():
+                download_encoders(work, config, budget)
+        verify_encoders(work)
         if ensure_probe and not (work / "probe.json").exists():
             probe(work, config, budget)
         select(work, config, budget)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import gc
+import importlib
 import json
-import os
 import shutil
+import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -13,7 +14,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from aegis import dataset, sha256, write
-from inputs import Budget, source
+from inputs import ROOT, Budget, source
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import average_precision_score
 from training import fit
@@ -27,7 +28,9 @@ class AegisBudget(Budget):
     def __init__(self, work, config):
         stamp = work / "started.json"
         if not stamp.exists():
-            owner_file = Path(os.environ["FSE_HEAVY_LOCK"]) / "owner"
+            sys.path.insert(0, str(ROOT / "benchmarks"))
+            locks = importlib.import_module("_development_locks")
+            owner_file = locks.lock_paths()[1] / "owner"
             owner = json.loads(owner_file.read_text())
             if not owner["worker"].startswith("dr318-"):
                 raise RuntimeError("Aegis needs its own acquired heavy wrapper")
