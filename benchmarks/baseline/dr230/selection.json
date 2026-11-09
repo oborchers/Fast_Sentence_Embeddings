@@ -1,0 +1,573 @@
+{
+  "selected": {
+    "encoder": "bekko",
+    "C": 0.1,
+    "validation": {
+      "rows": 97320,
+      "per_label": {
+        "toxicity": {
+          "positive": 7671,
+          "roc_auc": 0.8810339153504444,
+          "average_precision": 0.4519693563697235,
+          "precision": 0.28401585204755614,
+          "recall": 0.7567461869378177,
+          "f1": 0.41302027748132336
+        },
+        "obscene": {
+          "positive": 525,
+          "roc_auc": 0.8896999795837546,
+          "average_precision": 0.13001482742459597,
+          "precision": 0.0347247875877355,
+          "recall": 0.7161904761904762,
+          "f1": 0.06623799876684577
+        },
+        "threat": {
+          "positive": 224,
+          "roc_auc": 0.9136500768017515,
+          "average_precision": 0.05883748267896268,
+          "precision": 0.03111769686706181,
+          "recall": 0.65625,
+          "f1": 0.05941794664510913
+        },
+        "insult": {
+          "positive": 5769,
+          "roc_auc": 0.8981528801626772,
+          "average_precision": 0.45406566943226906,
+          "precision": 0.2577456647398844,
+          "recall": 0.7729242503033454,
+          "f1": 0.3865793922580086
+        },
+        "identity_attack": {
+          "positive": 664,
+          "roc_auc": 0.9370430712046995,
+          "average_precision": 0.14606778935696468,
+          "precision": 0.06644270250093319,
+          "recall": 0.8042168674698795,
+          "f1": 0.1227445121250431
+        },
+        "sexual_explicit": {
+          "positive": 201,
+          "roc_auc": 0.9418779925268888,
+          "average_precision": 0.08547587463820913,
+          "precision": 0.03386641580432737,
+          "recall": 0.7164179104477612,
+          "f1": 0.06467549966314844
+        }
+      },
+      "macro": {
+        "roc_auc": 0.9102429859383694,
+        "average_precision": 0.2210718333167875,
+        "precision": 0.11798551992458307,
+        "recall": 0.7371242818915467,
+        "f1": 0.18544593782324637
+      }
+    },
+    "memory_plan": {
+      "estimated_peak_bytes": 8269529088,
+      "limit_bytes": 8589934592,
+      "inplace_scaling": false
+    },
+    "variant": "small",
+    "train_rows": 200000
+  },
+  "estimator": "bekko-best.joblib",
+  "candidates": [
+    {
+      "encoder": "potion",
+      "C": 0.1,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8547114995313222,
+            "average_precision": 0.3616381041307692,
+            "precision": 0.24616194403017808,
+            "recall": 0.7315864945900143,
+            "f1": 0.36837441333814697
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8678827763142036,
+            "average_precision": 0.06669969987627448,
+            "precision": 0.024070161961462135,
+            "recall": 0.7161904761904762,
+            "f1": 0.04657500309674223
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9356196352799586,
+            "average_precision": 0.06257453299673185,
+            "precision": 0.02067979320206798,
+            "recall": 0.8392857142857143,
+            "f1": 0.040365002683843264
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8732664143833142,
+            "average_precision": 0.3478298110488733,
+            "precision": 0.21508573694122313,
+            "recall": 0.7522967585370082,
+            "f1": 0.3345280764635603
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.939469426913082,
+            "average_precision": 0.11820522490934868,
+            "precision": 0.051160631383472606,
+            "recall": 0.8298192771084337,
+            "f1": 0.09637921987056149
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9169999117357129,
+            "average_precision": 0.058521005043655094,
+            "precision": 0.017049180327868854,
+            "recall": 0.7761194029850746,
+            "f1": 0.03336541546358678
+          }
+        },
+        "macro": {
+          "roc_auc": 0.8979916106929323,
+          "average_precision": 0.1692447296676088,
+          "precision": 0.09570124130771213,
+          "recall": 0.7742163539494534,
+          "f1": 0.15326452181940683
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 3605831680,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    },
+    {
+      "encoder": "potion",
+      "C": 1.0,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8547092667181351,
+            "average_precision": 0.36164121476039035,
+            "precision": 0.24618421052631578,
+            "recall": 0.731716855690262,
+            "f1": 0.36841587082800037
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8678670730237443,
+            "average_precision": 0.06669674802458185,
+            "precision": 0.024060920202214117,
+            "recall": 0.7161904761904762,
+            "f1": 0.04655770183259039
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9355724617903931,
+            "average_precision": 0.06253503200462625,
+            "precision": 0.020668425681618294,
+            "recall": 0.8392857142857143,
+            "f1": 0.04034334763948498
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8732640268389225,
+            "average_precision": 0.34783815402510654,
+            "precision": 0.2150926568229115,
+            "recall": 0.7524700988039521,
+            "f1": 0.3345535817502216
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.939460327446186,
+            "average_precision": 0.11817749170526663,
+            "precision": 0.051160631383472606,
+            "recall": 0.8298192771084337,
+            "f1": 0.09637921987056149
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9169308063826298,
+            "average_precision": 0.05850153803030426,
+            "precision": 0.01694729936584299,
+            "recall": 0.7711442786069652,
+            "f1": 0.033165721621910775
+          }
+        },
+        "macro": {
+          "roc_auc": 0.897967327033335,
+          "average_precision": 0.16923169642504599,
+          "precision": 0.09568569066372921,
+          "recall": 0.7734377834476339,
+          "f1": 0.1532359072571283
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 3605831680,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    },
+    {
+      "encoder": "potion",
+      "C": 10.0,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8547091562044246,
+            "average_precision": 0.36164174741280136,
+            "precision": 0.24618421052631578,
+            "recall": 0.731716855690262,
+            "f1": 0.36841587082800037
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8678656365071985,
+            "average_precision": 0.06669824235773829,
+            "precision": 0.024062460002559835,
+            "recall": 0.7161904761904762,
+            "f1": 0.04656058448393288
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9355680938746924,
+            "average_precision": 0.06253246721770914,
+            "precision": 0.020663882171905915,
+            "recall": 0.8392857142857143,
+            "f1": 0.040334692126153184
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8732637201123629,
+            "average_precision": 0.34783885624247074,
+            "precision": 0.2150926568229115,
+            "recall": 0.7524700988039521,
+            "f1": 0.3345535817502216
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9394593302443344,
+            "average_precision": 0.11817557067046539,
+            "precision": 0.051160631383472606,
+            "recall": 0.8298192771084337,
+            "f1": 0.09637921987056149
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9169240956329976,
+            "average_precision": 0.05850704293885855,
+            "precision": 0.01694729936584299,
+            "recall": 0.7711442786069652,
+            "f1": 0.033165721621910775
+          }
+        },
+        "macro": {
+          "roc_auc": 0.8979650054293349,
+          "average_precision": 0.16923232114000722,
+          "precision": 0.09568519004550143,
+          "recall": 0.7734377834476339,
+          "f1": 0.1532349451134634
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 3605831680,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    },
+    {
+      "encoder": "bekko",
+      "C": 0.1,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8810339153504444,
+            "average_precision": 0.4519693563697235,
+            "precision": 0.28401585204755614,
+            "recall": 0.7567461869378177,
+            "f1": 0.41302027748132336
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8896999795837546,
+            "average_precision": 0.13001482742459597,
+            "precision": 0.0347247875877355,
+            "recall": 0.7161904761904762,
+            "f1": 0.06623799876684577
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9136500768017515,
+            "average_precision": 0.05883748267896268,
+            "precision": 0.03111769686706181,
+            "recall": 0.65625,
+            "f1": 0.05941794664510913
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8981528801626772,
+            "average_precision": 0.45406566943226906,
+            "precision": 0.2577456647398844,
+            "recall": 0.7729242503033454,
+            "f1": 0.3865793922580086
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9370430712046995,
+            "average_precision": 0.14606778935696468,
+            "precision": 0.06644270250093319,
+            "recall": 0.8042168674698795,
+            "f1": 0.1227445121250431
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9418779925268888,
+            "average_precision": 0.08547587463820913,
+            "precision": 0.03386641580432737,
+            "recall": 0.7164179104477612,
+            "f1": 0.06467549966314844
+          }
+        },
+        "macro": {
+          "roc_auc": 0.9102429859383694,
+          "average_precision": 0.2210718333167875,
+          "precision": 0.11798551992458307,
+          "recall": 0.7371242818915467,
+          "f1": 0.18544593782324637
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 8269529088,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    },
+    {
+      "encoder": "bekko",
+      "C": 1.0,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8810229723119286,
+            "average_precision": 0.45195353649842823,
+            "precision": 0.2840503107717907,
+            "recall": 0.75661582583757,
+            "f1": 0.41303729006547113
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8895920637380423,
+            "average_precision": 0.12995735649968504,
+            "precision": 0.034641606780910265,
+            "recall": 0.7161904761904762,
+            "f1": 0.06608665084805343
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9129913491360538,
+            "average_precision": 0.05843515668319564,
+            "precision": 0.03099787685774947,
+            "recall": 0.6517857142857143,
+            "f1": 0.05918119173084718
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8981402712396976,
+            "average_precision": 0.4540837805165278,
+            "precision": 0.2577885671348477,
+            "recall": 0.7730975905702895,
+            "f1": 0.3866493281317729
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9369463504157334,
+            "average_precision": 0.14585500292880024,
+            "precision": 0.06639313688922044,
+            "recall": 0.8042168674698795,
+            "f1": 0.12265992879292523
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9413195659487137,
+            "average_precision": 0.08523111889854454,
+            "precision": 0.0338381448177946,
+            "recall": 0.7114427860696517,
+            "f1": 0.0646035690083578
+          }
+        },
+        "macro": {
+          "roc_auc": 0.9100020954650282,
+          "average_precision": 0.22091932533753025,
+          "precision": 0.11795160720871885,
+          "recall": 0.735558210070597,
+          "f1": 0.18536965976290462
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 8269529088,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    },
+    {
+      "encoder": "bekko",
+      "C": 10.0,
+      "validation": {
+        "rows": 97320,
+        "per_label": {
+          "toxicity": {
+            "positive": 7671,
+            "roc_auc": 0.8810215719868881,
+            "average_precision": 0.45195627974354,
+            "precision": 0.2840503107717907,
+            "recall": 0.75661582583757,
+            "f1": 0.41303729006547113
+          },
+          "obscene": {
+            "positive": 525,
+            "roc_auc": 0.8895537500707189,
+            "average_precision": 0.12989469617705715,
+            "precision": 0.034641606780910265,
+            "recall": 0.7161904761904762,
+            "f1": 0.06608665084805343
+          },
+          "threat": {
+            "positive": 224,
+            "roc_auc": 0.9128150692539931,
+            "average_precision": 0.058290279920220324,
+            "precision": 0.030456852791878174,
+            "recall": 0.6428571428571429,
+            "f1": 0.05815831987075929
+          },
+          "insult": {
+            "positive": 5769,
+            "roc_auc": 0.8981389818521235,
+            "average_precision": 0.45408586499776576,
+            "precision": 0.25780346820809247,
+            "recall": 0.7730975905702895,
+            "f1": 0.3866660886904504
+          },
+          "identity_attack": {
+            "positive": 664,
+            "roc_auc": 0.9369597970594512,
+            "average_precision": 0.1458262978364215,
+            "precision": 0.06648406374501992,
+            "recall": 0.8042168674698795,
+            "f1": 0.12281508739650414
+          },
+          "sexual_explicit": {
+            "positive": 201,
+            "roc_auc": 0.9413143920119743,
+            "average_precision": 0.08527894565516371,
+            "precision": 0.03381414045873729,
+            "recall": 0.7114427860696517,
+            "f1": 0.06455981941309255
+          }
+        },
+        "macro": {
+          "roc_auc": 0.9099672603725248,
+          "average_precision": 0.2208887273883614,
+          "precision": 0.11787507379273814,
+          "recall": 0.7340701148325017,
+          "f1": 0.18522054271405516
+        }
+      },
+      "memory_plan": {
+        "estimated_peak_bytes": 8269529088,
+        "limit_bytes": 8589934592,
+        "inplace_scaling": false
+      }
+    }
+  ],
+  "medium": {
+    "status": "not admitted: full-width bekko exceeds the 8 GiB memory plan",
+    "result": null
+  },
+  "sample": {
+    "method": "hash-sample@1",
+    "sha256_little_endian_int64": "115fad6c1f5d5edede04b925f180cfd8b6ece5492dc474819aad2b0cfe47fe1b",
+    "deterministic_repeat": true,
+    "rows": 200000,
+    "positive": [
+      16094,
+      1031,
+      490,
+      11869,
+      1465,
+      503
+    ],
+    "negative": [
+      183906,
+      198969,
+      199510,
+      188131,
+      198535,
+      199497
+    ]
+  },
+  "full_train": {
+    "rows": 1804874,
+    "positive": [
+      144334,
+      9603,
+      4280,
+      106534,
+      13410,
+      4686
+    ],
+    "negative": [
+      1660540,
+      1795271,
+      1800594,
+      1698340,
+      1791464,
+      1800188
+    ]
+  },
+  "excluded_labels": {
+    "severe_toxicity": {
+      "positive": 13,
+      "train_rows": 1804874
+    }
+  },
+  "validation": {
+    "rows": 97320,
+    "positive": [
+      7671,
+      525,
+      224,
+      5769,
+      664,
+      201
+    ],
+    "negative": [
+      89649,
+      96795,
+      97096,
+      91551,
+      96656,
+      97119
+    ]
+  },
+  "bekko_gain": 0.012251375245437068,
+  "small_verification": {
+    "rows": 256,
+    "logit_bound_passed": true,
+    "max_logit_error": 6.876367375951986e-06,
+    "max_logit_bound": 0.009377925728336777,
+    "max_probability_error": 5.457302095224215e-07,
+    "max_probability_bound": 0.0023449582692423973,
+    "mask_bound_passed": true,
+    "strict_equality_passed": true,
+    "unfolded_bound_passed": true,
+    "max_folded_unfolded_difference": 8.58306884765625e-06
+  }
+}
