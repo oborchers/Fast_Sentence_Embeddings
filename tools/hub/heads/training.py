@@ -51,6 +51,8 @@ def fit(x, y, c, config, budget, *, inplace=False):
                 budget.check()
                 scaler.transform(x[start : start + config["batch_rows"]], copy=False)
             classifier.fit(x, y)
+            # Fitting reused disk-backed training rows, inference must never mutate inputs.
+            scaler.set_params(copy=True)
         else:
             model.fit(x, y)
     budget.check()

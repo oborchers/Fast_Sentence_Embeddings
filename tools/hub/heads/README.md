@@ -58,6 +58,8 @@ with fewer than 100 test positives are marked unreliable.
 also accept a one-dimensional binary target with two class labels. This recipe
 uses only one six-label head per run. The Civil Comments card remains separate
 from these reusable fitting and scoring functions.
+Binary metrics require the actual predicted class indices through `predictions=`.
+They never infer a class from rounded probabilities that could both equal 0.5.
 
 The three-hour budget starts at preparation's first download. Checks between
 downloads, vector batches and fits enforce time, 40 GiB free disk, 8 GiB peak RSS
