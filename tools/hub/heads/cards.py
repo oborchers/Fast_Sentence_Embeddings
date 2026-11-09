@@ -33,7 +33,7 @@ def render(record):
         "",
         "## Requirements and usage",
         "",
-        "Requires fse from the recorded master revision below, or fse 2.1 when released. "
+        "Requires a master build of fse with multilabel support, or fse 2.1 when released. "
         "fse 2.0.0 cannot load this multilabel artifact. This prepared model has not been uploaded.",
         "",
         "```python",
@@ -78,7 +78,10 @@ def render(record):
         "",
         "Full training is admitted only for POTION after the small comparison passes, with "
         "sufficient budget and memory. It replaces the small head only if its validation "
-        "macro ROC AUC is no lower. No test value guides any model, size, C or threshold choice.",
+        "macro ROC AUC is no lower. If Bekko wins the small comparison, that small Bekko "
+        "head is final and full POTION is not fitted. No test value guides any model, size, C or threshold choice.",
+        "",
+        "Full-training status: " + record["selection"]["medium"]["status"] + ".",
         "",
         "## Evaluation",
         "",
