@@ -16,7 +16,7 @@ from _speed_pipeline import measure_child
 from _speed_run import run
 
 
-def main():
+def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=CONFIG / "speed.json")
     parser.add_argument(
@@ -38,6 +38,9 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
+    mode.add_argument("--profile", type=Path, help="profile an addressed child from profile@1")
+    mode.add_argument("--profile-check", type=Path, help="check profiler access from profile@1")
+    mode.add_argument("--profile-probe", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--setup", type=Path)
     mode.add_argument("--run", action="store_true")
     mode.add_argument("--rehearse", action="store_true")
@@ -52,14 +55,44 @@ def main():
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def profile_utility(args):
+    if args.profile_probe:
+        from _development_profile_probe import child
+
+        child(args.profile_probe)
+        return 0
+    if args.profile or args.profile_check:
+        from _development_profile import run as profile
+
+        return profile(args.profile or args.profile_check, check_only=bool(args.profile_check))
+    return None
+
+
+def child_job(file):
+    job = document(file)
+    if job.get("kind") == "profile-input":
+        from _speed_profile import input_child
+
+        input_child(job)
+    else:
+        measure_child(job)
+
+
+def main():
+    args = arguments()
+    profile_status = profile_utility(args)
+    if profile_status is not None:
+        return profile_status
     local_status = dispatch(args)
     if local_status is not None:
         return local_status
     if utility(args, "speed"):
         return 0
     if args.child_job:
-        measure_child(document(args.child_job))
+        child_job(args.child_job)
         return 0
     specification = contract(args.input)
     if (
@@ -68,7 +101,7 @@ def main():
     ):
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:
-        parser.error("allocation Unix timestamp required")
+        raise ValueError("allocation Unix timestamp required")
     if args.setup:
         if os.getenv("MEASURE_REHEARSAL") == "1":
             rehearsal_limits()

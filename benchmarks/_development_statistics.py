@@ -46,6 +46,8 @@ def order(cell, pair):
 
 
 def paired(cell, records):
+    if any(row.get("diagnostic_profile") for row in records):
+        raise ValueError("diagnostic profiles cannot enter paired comparisons")
     factors = [_ratio(cell, records, number) for number in range(cell["pairs"])]
     if len(records) != cell["pairs"] * len(order(cell, 0)):
         raise ValueError("unexpected extra paired observations")

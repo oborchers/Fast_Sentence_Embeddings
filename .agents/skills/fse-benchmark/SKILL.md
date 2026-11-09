@@ -253,3 +253,15 @@ Assign a read-only watcher and collect incremental files every two minutes.
 Distinguish missing result files from SSH errors. Never start another controller from the watcher.
 The owner collects and verifies immediately on failure or completion, then promptly deletes the allocation.
 Analyze completeness locally after collection. Never retain idle billing for analysis or code preparation.
+
+### Addressed diagnostic profiles
+
+Use `speed.py --profile FILE` with the `profile@1` contract in the measurement
+guide, or `--profile-check FILE` before allocating a run window. The profile
+owns one heavy lock across access checks and execution, with its own deadline.
+Use fresh external output and work paths. Keep the sealed origin and its inputs
+read-only. Runner sources and executing package content must match the origin.
+For memray, prepare a copy of the arm environment after measurement and install
+`benchmarks/config/profile.lock.txt` there with hash checking. Do not change the
+origin environment. Verify requested and observed coverage separately. Profiles
+are diagnostic correctness evidence and cannot enter paired speed summaries.
