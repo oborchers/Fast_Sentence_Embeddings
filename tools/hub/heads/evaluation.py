@@ -140,6 +140,9 @@ def publish_prepared(work, record, budget):
 
 
 def finalize(work, config, budget):
+    hold = work / "test-hold.json"
+    if hold.exists() and read(hold)["active"]:
+        raise RuntimeError("official test is held pending an explicit signal from fse-main")
     verified = read(work / "verified.json")
     if verified["selection_sha256"] != sha256(work / "selection.json"):
         raise ValueError("selection changed since verification")

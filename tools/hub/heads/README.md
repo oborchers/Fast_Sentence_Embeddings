@@ -85,6 +85,29 @@ verification and metrics. Only small receipts, the manifest and card belong in
 folder is the intended distribution artifact, with no `-standalone` name suffix.
 Publication and a README model link are separate work.
 
+## Validation-only threshold proposal
+
+The coordinator currently holds the official test while reviewing per-label F1
+thresholds. `thresholds.py` uses only the complete official validation split and
+the already verified saved standalone model. It writes a proposal receipt and
+validation scores outside the checkout. It changes neither saved model.
+
+```sh
+uv run python tools/hub/heads/thresholds.py --work "$HOME/fse-dr311" --preflight
+# Run under the shared heavy-lock wrapper, as for the other correctness steps:
+uv run python tools/hub/heads/thresholds.py --work "$HOME/fse-dr311"
+```
+
+Thresholds maximize F1 separately for each label under `score > float32 cutoff`.
+Equal scores stay together. Ties in maximal F1 select the highest representable
+cutoff, so the rule is deterministic. A small validation probe checks the actual
+`with_thresholds` masks and unchanged score bits. These validation values are
+optimized on the same split and are not independent holdout estimates.
+
+An active external `test-hold.json` prevents `finalize` from reading test. The
+current hold requires an explicit signal from fse-main. This proposal command
+does not release it or change the frozen estimator or encoder selection.
+
 Sources: [dataset and CC0 terms](https://huggingface.co/datasets/google/civil_comments),
 [annotator fractions](https://www.tensorflow.org/datasets/catalog/civil_comments),
 [POTION source](https://huggingface.co/minishlab/potion-base-8M),

@@ -7,7 +7,7 @@ from inputs import coverage
 from sklearn.metrics import average_precision_score, precision_recall_fscore_support, roc_auc_score
 
 
-def metrics(y, scores, labels):
+def metrics(y, scores, labels, *, thresholds=0.5):
     binary = y.ndim == 1
     if binary:
         if set(np.unique(y)) != {0, 1} or scores.shape != (len(y), 2):
@@ -20,7 +20,7 @@ def metrics(y, scores, labels):
         raise ValueError("invalid classifier scores")
     if ((scores < 0) | (scores > 1)).any():
         raise ValueError("classifier scores must lie in [0, 1]")
-    predicted = scores > 0.5
+    predicted = scores > np.asarray(thresholds, dtype=np.float32)
     if binary:
         index = scores.argmax(axis=1)
         predicted = np.column_stack([index == 0, index == 1])
