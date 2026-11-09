@@ -145,7 +145,7 @@ def test_score_schema_property_without_close_starts_nothing(tmp_path, monkeypatc
         real(thread)
 
     monkeypatch.setattr(threading.Thread, "start", start)
-    assert fse.ScoreSink(tmp_path / "s", sh.group()).score_schema.dim == 7
+    assert fse.ScoreSink(tmp_path / "s", sh.group())._score_schema.dim == 7
     assert starts == []
 
 

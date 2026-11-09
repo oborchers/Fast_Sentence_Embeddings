@@ -163,7 +163,7 @@ class Busy:
 
     def __init__(self, pool, threads):
         self.release, self.started = threading.Event(), threading.Semaphore(0)
-        self.futures = [pool.submit(self._block) for _ in range(threads)]
+        self.futures = [pool._submit(self._block) for _ in range(threads)]
         for _ in range(threads):
             assert self.started.acquire(timeout=TIMEOUT)  # every one runs on its thread
 
@@ -327,14 +327,14 @@ def test_a_call_waits_for_a_place_held_by_another_and_then_runs():
         def second():
             outcome["b"] = squares(4, Workers(2, pool))
 
-        waiting, real = threading.Event(), pool.acquire
+        waiting, real = threading.Event(), pool._acquire
 
         def acquire():  # the blocking wait for a place, entered by the waiter
             if threading.current_thread().name == "waiter":
                 waiting.set()
             real()
 
-        pool.acquire = acquire
+        pool._acquire = acquire
         holder = threading.Thread(target=first)
         holder.start()
         assert entered.wait(TIMEOUT)

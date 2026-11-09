@@ -97,6 +97,16 @@ def test_a_report_is_frozen_and_read_only():
     assert fse.LengthReport is LengthReport
 
 
+def test_the_total_of_the_dropped_unknown_ids_is_not_the_total_of_the_cut_tokens():
+    names = {field.name for field in dataclasses.fields(LengthReport)}
+    assert "dropped_unknown_total" in names
+    assert "dropped_total" not in names
+    _, report = run(pipeline(), TEXTS, LengthSettings.of("per_row", True, "keep", "m"))
+    assert report.dropped_unknown_total == int(report.dropped_unknown.sum())
+    assert report.truncated_tokens_total > 0
+    assert report.dropped_unknown_total != report.truncated_tokens_total
+
+
 def test_the_empty_run_has_an_empty_report():
     _, report = run(pipeline(), [], LengthSettings.of("per_row", True, "keep", "m"))
     assert report.n_rows == 0
