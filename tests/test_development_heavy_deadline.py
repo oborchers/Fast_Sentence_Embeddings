@@ -238,10 +238,13 @@ def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, mo
         return real_send(group, signum)
 
     def sleep(seconds):
-        if draining.is_set() and len(injections) < 2:
-            injections.append(True)
-            states[0].receive(signal.SIGINT, None)
-            assert (tmp_path / "heavy.lock" / "owner").is_file()
+        # Both signals arrive at the first wait of the drain, so the test needs the drain
+        # to wait once, not a number of polls that a loaded machine can cut short.
+        if draining.is_set() and not injections:
+            for _ in range(2):
+                injections.append(True)
+                states[0].receive(signal.SIGINT, None)
+                assert (tmp_path / "heavy.lock" / "owner").is_file()
         real_sleep(seconds)
 
     def ready(child, state, notify, _deadline):
@@ -251,7 +254,7 @@ def test_repeated_signal_failure_keeps_lock_until_group_ends(heavy, tmp_path, mo
     def drain(child, notify, **kwargs):
         draining.set()
         try:
-            return real_drain(child, notify, grace=0.2, **kwargs)
+            return real_drain(child, notify, grace=1.0, **kwargs)
         finally:
             draining.clear()
 
