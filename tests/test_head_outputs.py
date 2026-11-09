@@ -30,3 +30,23 @@ def test_predicted_batch():
         None,
         12,
     )
+
+
+@pytest.mark.parametrize("output", ["decision", "proba", "values", "labels"])
+@pytest.mark.parametrize("width", [1, 3])
+@pytest.mark.parametrize("task", ["classification", "regression"])
+@pytest.mark.parametrize("multilabel", [False, True])
+@pytest.mark.parametrize("flat", [None, False, True])
+def test_gives_flat_follows_the_table(output, width, task, multilabel, flat):
+    from fse._head._outputs import gives_flat
+
+    # One-column single-label decisions and vector regression flatten. Probabilities
+    # and multilabel decisions retain (n, k), including for k = 1.
+    expected = (
+        output in ("decision", "values")
+        and width == 1
+        and (
+            (task == "classification" and not multilabel) or (task == "regression" and flat is True)
+        )
+    )
+    assert gives_flat(output, width, task=task, multilabel=multilabel, flat=flat) is expected

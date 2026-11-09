@@ -93,3 +93,34 @@ def test_changes_verify_loaded_tensors(tmp_path):
     loaded._content = replace(loaded._content, bias=bias)
     with pytest.raises(CorruptArtifactError, match=r"head.bias.*changed"):
         loaded.with_thresholds(None)
+
+
+@pytest.mark.parametrize("key", [True, 1.0])
+def test_invalid_integer_label_updates_leave_original_unchanged(key):
+    encoder = finished(normalize=False)
+    original = fse.Classifier.from_arrays(
+        encoder,
+        np.zeros((2, encoder.output_dim), np.float32),
+        labels=[1, 2],
+        link="multilabel",
+        thresholds=[0.3, 0.7],
+    )
+    before = dict(original.thresholds)
+    with pytest.raises(ValidationError):
+        original.with_thresholds({key: 0.9})
+    assert dict(original.thresholds) == before
+
+
+def test_public_threshold_inputs_refuse_even_unmasked_masked_arrays():
+    original = model()
+    limits = np.ma.array([0.3, 0.7], mask=False)
+    with pytest.raises(TypeError, match="masked"):
+        original.with_thresholds(limits)
+    with pytest.raises(TypeError, match="masked"):
+        fse.Classifier.from_arrays(
+            original.encoder,
+            original.coef_,
+            labels=["a", "b"],
+            link="multilabel",
+            thresholds=limits,
+        )

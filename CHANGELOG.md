@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Fix the unreleased 2.1 ScoreStore outputs of a one-label multilabel classifier to keep shape `(n, 1)`, including empty selections and joined views. Head and store outputs now share one shape rule. Threshold updates validate supplied label keys before overlaying current cutoffs.
+- Changed: reject unordered sets and mappings as class labels, boolean elements mixed into head weights, biases or word-vector indices, and masked arrays before conversion discards their masks, including temperature imports. These stricter checks affect existing 2.0 APIs. Ordered dictionary keys remain accepted. Valid inputs retain their float32 bits.
+
 - Add publication-study search cells for exact float32, exact int8 and binary search, plus an explicit prefilter comparison selection (DR-308: Suchzellen mit Zeit je Anfrage in der Veröffentlichungsstudie anbieten). Whole-pool blocks share a calibrated pass count and report time per request with median and IQR. Check the measured final pass against exact score bits and ids, record binary recall and prefilter path evidence, and admit model groups against phase memory plans and the allocation budget. No library change or published speed numbers.
 
 - Add an offline Civil Comments classifier preparation tool under `tools/hub/heads/` (DR-311: Toxizitäts-Classifier aus google/civil_comments außerhalb von fse trainieren und mit Modellkarte vorbereiten). It compares two pinned encoders on train and validation, trains a six-label head with scikit-learn outside fse, verifies complete and standalone artifacts, and renders a model card from recorded test metrics. Models and data stay outside the checkout. The final prepared model retains toxicity and insult from the full streaming SGD head, with validation-selected thresholds and one frozen official test evaluation. No upload or library change.

@@ -38,6 +38,7 @@ from numpy import ndarray
 from fse._contract import Head, Link
 from fse._head._content import classes
 from fse._head._derive import decide, derive
+from fse._head._outputs import gives_flat
 from fse._store._scores_info import ScoreHead
 
 from ._batches import ScoreBatch
@@ -59,7 +60,7 @@ class HeadPlan:
         ``first_row`` of the store."""
         head, want = self.head, self.want
         if head.stored == "values" or (head.stored == "decision" and want == "decision"):
-            return _owned(view, flat=self._flat())
+            return _owned(view, flat=_store_flat(head, want))
         if head.stored == "proba" and want == "proba":
             return _owned(view, flat=False)
         rows = _contiguous(view, work, head.name)
@@ -75,10 +76,12 @@ class HeadPlan:
             return self.classes[out]
         return out
 
-    def _flat(self) -> bool:
-        """Whether one column is given as (n,): always for a classifier, for a regressor of
-        one target that was a vector."""
-        return self.head.task == "classification" or self.head.flat is True
+
+def _store_flat(head: ScoreHead, output: str) -> bool:
+    """Apply the shared output shape rule to persisted head metadata."""
+    return gives_flat(
+        output, head.width, task=head.task, multilabel=head.multilabel, flat=head.flat
+    )
 
 
 def _check(head: ScoreHead, want: str, rule: Head) -> None:
