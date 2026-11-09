@@ -35,7 +35,7 @@ STORED_RUNTIME = {"decision": "logits", "values": "logits", "proba": "proba"}
 def check_score_sink(sink: Any, heads: Mapping[str, Any], *, resumed: bool = False) -> None:
     """Check ``sink`` against ``heads``; a sink made with ``resume=True`` is refused unless
     ``resumed`` says the call resumes (``predict``). Raises before anything is read."""
-    schema = getattr(sink, "score_schema", None)
+    schema = getattr(sink, "_score_schema", None)
     if schema is None or not callable(getattr(sink, "_attach", None)):
         raise TypeError(f"a score_sink must be a fse.ScoreSink, not {type(sink).__name__}")
     if not resumed and getattr(sink, "resume", False) is True:
@@ -137,7 +137,7 @@ class ScoreRun:
     def __init__(self, sink: Any, kinds: tuple[str, ...], ids: TaskIds | None = None):
         self.sink = sink
         self.ids = ids or TaskIds(1)
-        schema = sink.score_schema
+        schema = sink._score_schema
         self.segments = [slice(*head.columns) for head in schema.heads]
         self.doc_ids = bool(sink.has_doc_ids)
         self.tees: list[Any] = [None] * len(kinds)

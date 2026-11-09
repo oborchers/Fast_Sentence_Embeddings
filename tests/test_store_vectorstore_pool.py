@@ -73,7 +73,7 @@ class Submits:
 
     def __init__(self, monkeypatch):
         self.count = 0
-        real = Pool.submit
+        real = Pool._submit
 
         def submit(pool, *args):
             self.count += 1
@@ -82,7 +82,7 @@ class Submits:
         def own_threads(*_args, **_kwargs):
             raise AssertionError("a call with a pool made threads of its own")
 
-        monkeypatch.setattr(Pool, "submit", submit)
+        monkeypatch.setattr(Pool, "_submit", submit)
         monkeypatch.setattr(_search_run, "ThreadPoolExecutor", own_threads)
 
 

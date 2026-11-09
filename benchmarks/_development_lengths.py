@@ -79,7 +79,7 @@ def digest(report):
             "n_truncated",
             "n_empty",
             "tokens_total",
-            "dropped_total",
+            "dropped_unknown_total",
             "truncated_tokens_total",
             "truncated_chars_total",
         )
@@ -113,7 +113,7 @@ def check_against_independent(model, texts, mode, report, workers):
         "n_truncated",
         "n_empty",
         "tokens_total",
-        "dropped_total",
+        "dropped_unknown_total",
     )
     for name in sums:
         if getattr(report, name) != getattr(full, name):
@@ -160,7 +160,7 @@ def check_reference(model, texts, mode):
             raise ValueError(f"the length report differs from the reference count in {name}")
     for name, key in (
         ("tokens_total", "tokens"),
-        ("dropped_total", "dropped_unknown"),
+        ("dropped_unknown_total", "dropped_unknown"),
         ("truncated_tokens_total", "truncated_tokens"),
         ("truncated_chars_total", "truncated_chars"),
     ):

@@ -66,7 +66,7 @@ def _check_sums(report, want, count):
     assert report.n_truncated == sum(cut)
     assert report.n_empty == sum(w["tokens"] == 0 for w in want)
     assert report.tokens_total == sum(w["tokens"] for w in want)
-    assert report.dropped_total == sum(w["dropped_unknown"] for w in want)
+    assert report.dropped_unknown_total == sum(w["dropped_unknown"] for w in want)
     assert report.count_truncated is count
     tokens = sum(w["truncated_tokens"] for w in want) if count else None
     chars = sum(w["truncated_chars"] for w in want) if count else None

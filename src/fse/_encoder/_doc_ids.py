@@ -12,7 +12,7 @@ from fse._text._ids import IdSource, IdWindow
 def refuse_score_sink(sink: Any) -> None:
     """A ScoreSink takes the scores of heads only, whatever its document-ID mode: it goes to
     ``score_sink=`` of ``predict_batches``, never as a sink of rows or vectors."""
-    if hasattr(sink, "score_schema"):
+    if hasattr(sink, "_score_schema"):
         raise ValueError(
             "a ScoreSink stores the scores of heads, not the rows of an encoder, the vectors "
             "of a head or its outputs; pass it as score_sink= to predict_batches of a "

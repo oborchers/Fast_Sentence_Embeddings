@@ -73,9 +73,9 @@ def count(workers: Any) -> int:
 def _inline(fn: Callable[[Any], Any], tasks: Iterator[Any], pool: Pool) -> Iterator[Any]:
     """The tasks in this thread, each inside the pool (not across a ``yield``: what the
     consumer does between two results is not a task of the pool)."""
-    pool.check_open()
+    pool._check_open()
     for task in tasks:
-        with pool.inside():
+        with pool._inside():
             result = fn(task)
         yield result
 
@@ -108,7 +108,7 @@ class _Own:
         with self.ended:
             self.unended += 1
         try:
-            future = self.pool.submit(self._work, fn, task)
+            future = self.pool._submit(self._work, fn, task)
         except BaseException:
             self._end()
             raise
@@ -119,13 +119,13 @@ class _Own:
 
     def _work(self, fn: Callable[[Any], Any], task: Any) -> Any:
         try:
-            with self.pool.inside():
+            with self.pool._inside():
                 return fn(task)
         finally:
             self._end()
 
     def _end(self) -> None:
-        self.pool.release()  # first: once no task is left, every place is back
+        self.pool._release()  # first: once no task is left, every place is back
         with self.ended:
             self.unended -= 1
             self.ended.notify_all()
@@ -163,8 +163,8 @@ def _taken(future: Future) -> None:
 def _on_pool(fn: Callable[[Any], Any], tasks: Iterator[Any], threads: Workers) -> Iterator[Any]:
     pool, limit = threads.pool, threads.workers
     assert pool is not None
-    pool.check_open()
-    with pool.inside():  # refused inside a call or a task of the same pool
+    pool._check_open()
+    with pool._inside():  # refused inside a call or a task of the same pool
         pass
     own = _Own(pool)
     pending: deque[Future] = deque()
@@ -191,17 +191,17 @@ def _fill(own: _Own, fn, tasks: Iterator[Any], pending: deque, window: int, limi
     used; True once the tasks are exhausted. With no place free, a call that has results
     of its own takes those first; one that has none waits for a place."""
     while len(pending) < window and own.unfinished() < limit:
-        if not own.pool.try_acquire():
+        if not own.pool._try_acquire():
             if pending:
                 return False
-            own.pool.acquire()
+            own.pool._acquire()
         try:
             task = next(tasks, _END)
         except BaseException:
-            own.pool.release()
+            own.pool._release()
             raise
         if task is _END:
-            own.pool.release()
+            own.pool._release()
             return True
         pending.append(own.submit(fn, task))
     return False
