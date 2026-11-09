@@ -38,24 +38,26 @@ def updated(current: Mapping, given: Any, labels: tuple) -> ndarray:
     0.5."""
     if isinstance(given, Mapping):
         values = _named(current, labels)
+        indices = {label: index for index, label in enumerate(labels)}
         for key, value in given.items():
-            values[_index(key, labels)] = _cutoff(value)
+            values[_index(key, labels, indices)] = _cutoff(value)
         given = values
     return thresholds(given, labels)
 
 
 def _named(given: Mapping, labels: tuple) -> list:
+    indices = {label: index for index, label in enumerate(labels)}
     values = [0.5] * len(labels)
     for key, value in given.items():
-        values[_index(key, labels)] = _cutoff(value)
+        values[_index(key, labels, indices)] = _cutoff(value)
     return values
 
 
-def _index(key: Any, labels: tuple) -> int:
+def _index(key: Any, labels: tuple, indices: dict) -> int:
     name = _label(key)
-    if name not in labels or type(name) is not type(labels[0]):
+    if name not in indices or type(name) is not type(labels[0]):
         raise ValueError(f"unknown threshold label {key!r}; expected one of {labels!r}")
-    return labels.index(name)
+    return indices[name]
 
 
 def _cutoff(value: Any) -> float:
