@@ -28,7 +28,7 @@ def _encoder() -> fse.Encoder:
 def test_head_factory_types(tmp_path: Path) -> None:
     encoder = _encoder()
     classifier = _SpecialClassifier.from_arrays(
-        encoder, np.ones((2, 3), np.float32), link="multilabel"
+        encoder, np.ones((2, 3), np.float32), link="multilabel", labels=[0, 1]
     )
     regressor = _SpecialRegressor.from_arrays(encoder, np.ones(3, np.float32))
     assert_type(classifier, _SpecialClassifier)
@@ -73,7 +73,7 @@ def test_head_factory_types(tmp_path: Path) -> None:
 
 
 def test_classifier_predictions_and_scores() -> None:
-    model = fse.Classifier.from_arrays(_encoder(), np.eye(3, dtype=np.float32))
+    model = fse.Classifier.from_arrays(_encoder(), np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     labels = model.predict(TEXTS)
     assert_type(labels, NDArray[Any])
     assert isinstance(labels, np.ndarray)
@@ -140,7 +140,7 @@ def test_regressor_predictions() -> None:
 
 def test_heads_mapping_and_predictions() -> None:
     encoder = _encoder()
-    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     r = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
     heads = fse.Heads(c=c, r=r)
     assert_type(heads["c"], fse.Classifier | fse.Regressor)
@@ -165,7 +165,7 @@ def test_heads_mapping_and_predictions() -> None:
 
 
 def test_classifier_resume_returns(tmp_path: Path) -> None:
-    model = fse.Classifier.from_arrays(_encoder(), np.eye(3, dtype=np.float32))
+    model = fse.Classifier.from_arrays(_encoder(), np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     with fse.ScoreSink(tmp_path / "scores", model, name="c", resume=True) as score:
         result = model.predict(TEXTS, score_sink=score)
         assert_type(result, None)
@@ -216,7 +216,9 @@ def test_regressor_resume_returns(tmp_path: Path) -> None:
 
 def test_heads_resume_returns(tmp_path: Path) -> None:
     encoder = _encoder()
-    heads = fse.Heads(c=fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32)))
+    heads = fse.Heads(
+        c=fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
+    )
     with fse.ScoreSink(tmp_path / "scores", heads, resume=True) as score:
         result = heads.predict(TEXTS, score_sink=score)
         assert_type(result, None)
@@ -242,7 +244,7 @@ def test_heads_resume_returns(tmp_path: Path) -> None:
 
 def test_predicted_batches_are_generators_with_typed_fields() -> None:
     encoder = _encoder()
-    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     r = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
     classifier_batches = c.predict_batches([TEXTS], return_vectors=True)
     assert_type(classifier_batches, Generator[fse.PredictedBatch, None, None])
@@ -342,7 +344,7 @@ def _optional_group_sinks(
 
 def test_optional_sinks_are_arrays_when_none() -> None:
     encoder = _encoder()
-    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    c = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     r = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
     heads = fse.Heads(c=c, r=r)
     for flag in (False, True):

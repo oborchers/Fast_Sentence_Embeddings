@@ -71,7 +71,9 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         assert bool(inspect.isgenerator(predicted))
         assert next(predicted).outputs is not None
         predicted.close()
-        classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+        classifier = fse.Classifier.from_arrays(
+            encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2]
+        )
         classified = classifier.predict_batches(store)
         assert_type(classified, Generator[fse.PredictedBatch, None, None])
         assert bool(inspect.isgenerator(classified))
@@ -81,7 +83,7 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
 
 def test_score_store_types(tmp_path: Path) -> None:
     encoder = _encoder()
-    classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     with fse.ScoreSink(tmp_path / "scores", classifier, name="c", doc_ids=True) as sink:
         assert_type(sink, fse.ScoreSink)
         protocol: fse.Sink = sink
@@ -139,7 +141,7 @@ def test_resumed_encode_and_position_streams(tmp_path: Path) -> None:
 
 def test_head_stream_generators_with_both_sinks_and_positions(tmp_path: Path) -> None:
     encoder = _encoder()
-    classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
+    classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32), labels=[0, 1, 2])
     regressor = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
     heads = fse.Heads(c=classifier, r=regressor)
     with (

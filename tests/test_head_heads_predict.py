@@ -13,7 +13,9 @@ from support.encoder import finished
 
 def test_moved_methods_preserve_validation_titles_and_slots():
     encoder = finished(normalize=False)
-    classifier = fse.Classifier.from_arrays(encoder, np.ones((2, encoder.output_dim)))
+    classifier = fse.Classifier.from_arrays(
+        encoder, np.ones((2, encoder.output_dim)), labels=[0, 1]
+    )
     regressor = fse.Regressor.from_arrays(encoder, np.ones(encoder.output_dim))
     heads = fse.Heads(c=classifier, r=regressor)
     cases = [
