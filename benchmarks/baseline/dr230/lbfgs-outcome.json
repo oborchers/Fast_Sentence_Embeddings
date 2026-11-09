@@ -1,0 +1,40 @@
+{
+  "status": "inconclusive",
+  "reason": "explicit two-hour budget exhausted",
+  "exit_status": 143,
+  "budget_deadline_unix": 1794223534,
+  "observed_terminal_unix": 1794223595.8527691,
+  "candidates": [
+    {
+      "C": 0.1,
+      "status": "not_finished",
+      "reason": "fit_interrupted_before_complete_validation"
+    },
+    {
+      "C": 1.0,
+      "status": "not_finished",
+      "reason": "not_started"
+    },
+    {
+      "C": 10.0,
+      "status": "not_finished",
+      "reason": "not_started"
+    }
+  ],
+  "completed_candidates": 0,
+  "replacement": "small",
+  "thresholds_status": "not_finished",
+  "full_artifact_status": "not_finished",
+  "test_accessed": false,
+  "heavy_lock_released": true,
+  "retained": [
+    "train.npy",
+    "targets.npy",
+    "scaler.joblib",
+    "coverage.json",
+    "config.json",
+    "memory-admission.json",
+    "started.json"
+  ],
+  "peak_rss_bytes": null
+}

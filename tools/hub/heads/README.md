@@ -140,3 +140,42 @@ Sources: [dataset and CC0 terms](https://huggingface.co/datasets/google/civil_co
 [Bekko source](https://huggingface.co/hotchpotch/bekko-static-embedding-v1),
 [class weights](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html),
 [average precision](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.average_precision_score.html).
+
+## Streaming SGD follow-up
+
+The approved `sgd.json` fixes three epochs and three alpha values, with six
+independently weighted online logistic classifiers per alpha. It reuses the
+completed train-only scaler and already standardized full Bekko matrix read-only.
+Each bounded copied batch feeds every candidate before release. It never loads
+the full training matrix into memory or fits a scaler on standardized values.
+
+```sh
+uv run python tools/hub/heads/sgd.py preflight \
+  --parent "$HOME/fse-dr311" --source "$HOME/fse-dr311/full-bekko-01" \
+  --work "$HOME/fse-dr311/sgd-probe-01"
+# Under the approved shared heavy-lock wrapper, at most five minutes:
+uv run python tools/hub/heads/sgd.py probe \
+  --parent "$HOME/fse-dr311" --source "$HOME/fse-dr311/full-bekko-01" \
+  --work "$HOME/fse-dr311/sgd-probe-01"
+# Only after the coordinator's separate SGD start signal, under the same wrapper:
+uv run python tools/hub/heads/sgd.py full \
+  --parent "$HOME/fse-dr311" --source "$HOME/fse-dr311/full-bekko-01" \
+  --work "$HOME/fse-dr311/sgd-full-01" --signal-at "$DR311_SGD_SIGNAL_UNIX" \
+  --probe-receipt "$HOME/fse-dr311/sgd-probe-01/probe.json"
+```
+
+The functional probe uses 256 training vectors and 32 training texts. It checks
+all three affine imports against the unchanged numerical bound, persistence and
+score stores. It reads neither validation nor test, and makes no quality choice.
+Full training requires that successful receipt and unchanged tool fingerprints.
+The one-hour budget starts at the new explicit signal, including lock waits.
+The deadline and 4 GiB peak RSS watchdog terminate incomplete work without retry.
+
+Progress and epoch checkpoints remain outside Git. A candidate is eligible only
+after three complete epochs and complete validation. Only completed validation
+receipts count in a partial grid. No completed candidate means inconclusive and
+keeps the small head. Validation selects alpha by macro ROC AUC, ties favor larger
+alpha, and a gain of at least 0.01 is required to replace small. Only then are
+per-label maximum-F1 thresholds proposed, with highest cutoff on ties. Existing
+artifacts remain unchanged and official test stays held. The full prior rules
+and primary sources are in `benchmarks/baseline/dr230/sgd-protocol.md`.

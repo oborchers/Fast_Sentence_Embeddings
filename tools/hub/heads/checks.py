@@ -18,14 +18,23 @@ def bits(actual, expected):
     np.testing.assert_array_equal(actual.view(np.uint32), expected.view(np.uint32))
 
 
-def import_bound(model, encoder, estimator, texts):
+def exact_head(estimator, affine):
+    if affine is not None:
+        weight, bias = affine
+        if weight.dtype != np.float64 or bias.dtype != np.float64:
+            raise ValueError("explicit affine reference must be float64")
+        return weight, bias
+    found = reader.read(estimator, "classification")
+    return found.weight, found.bias
+
+
+def import_bound(model, encoder, estimator, texts, *, affine=None):
     """Use the same data-dependent bound as the repository's conformance tests."""
     sys.path.insert(0, str(ROOT / "tests"))
     bound_module = importlib.import_module("support.head_bound")
     spec = encoder._spec
     x = encoder.encode(texts)
-    found = reader.read(estimator, "classification")
-    a64, b64 = found.weight, found.bias
+    a64, b64 = exact_head(estimator, affine)
     a, b = model.coef_, model.intercept_
     z = model.decision_function(texts)
     z_star = x.astype(np.float64) @ a64.T + b64

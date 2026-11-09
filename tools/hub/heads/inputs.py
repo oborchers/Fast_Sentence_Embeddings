@@ -64,12 +64,15 @@ class Budget:
         return value * (1 if sys.platform == "darwin" else 1024)
 
     @contextmanager
-    def monitor(self):
+    def monitor(self, *, deadline=False):
         """A memory overrun terminates the process, preserving its incomplete files."""
         stop = threading.Event()
 
         def watch():
             while not stop.wait(0.1):
+                if deadline and self.remaining() <= 0:
+                    os.write(2, b"inconclusive: configured deadline reached; no retry\n")
+                    os._exit(124)
                 if self.rss() > self.config["maximum_rss_bytes"]:
                     os.write(
                         2,
