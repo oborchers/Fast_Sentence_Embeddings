@@ -14,7 +14,6 @@ from _harness.search import order, sequence_digest, summarize
 from _measurement import spread
 from _speed_search import admission, prepare
 from _speed_search_identity import identity, verify
-from _speed_search_plan import admit
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
@@ -125,7 +124,7 @@ def jobs(context, cells, root):
 
 
 def calibrate(context, cells, specs, errors):
-    admission(context, "calibration", 30 * len(cells))
+    admission(context, "calibration", 120 * len(cells))
     passes, seconds = [], {}
     for cell in cells:
         try:
@@ -155,15 +154,43 @@ def rounds(context, cells, specs, passes, seconds, rows, errors):
         estimate = sum(15 + (passes + 2) * seconds[c["id"]] for c in active)
         if not context["ledger"].admit(estimate):
             break
-        for cell in order(active, number):
-            key = cell["id"]
-            try:
-                rows[key].append(launch(context, specs[key], "measurement", number, passes))
-            except Exception as error:
-                errors[key] = repr(error)
+        run_round(context, order(active, number), specs, passes, number, rows, errors)
         active = [cell for cell in active if cell["id"] not in errors]
         if not active:
             break
+
+
+def run_round(context, cells, specs, passes, number, rows, errors):
+    for cell in cells:
+        key = cell["id"]
+        try:
+            rows[key].append(launch(context, specs[key], "measurement", number, passes))
+        except Exception as error:
+            errors[key] = repr(error)
+
+
+def stable_path(rows):
+    return len({json.dumps(r["path_evidence"], sort_keys=True) for r in rows}) == 1
+
+
+def relative(cell, rows, all_rows, errors, short):
+    baseline = cell.get("relative_to")
+    if not baseline:
+        return {}
+    reference = all_rows[baseline]
+    complete = (
+        baseline not in errors and len(reference) == cell["rounds"] and stable_path(reference)
+    )
+    long_enough = cell.get("functional_only") or all(r["seconds"] >= 2 for r in reference)
+    if complete and long_enough and not short:
+        if [r["sequence_sha256"] for r in reference] != [r["sequence_sha256"] for r in rows]:
+            raise ValueError("relative search comparison has different query sequences")
+        return {
+            "relative_speedup": spread(
+                [b["seconds"] / a["seconds"] for a, b in zip(rows, reference, strict=True)]
+            )
+        }
+    return {"publishable": False, "relative_comparison": "unavailable"}
 
 
 def summary(cell, rows, all_rows, errors, passes):
@@ -175,8 +202,7 @@ def summary(cell, rows, all_rows, errors, passes):
             reason="search budget or stop signal",
             completed_rounds=len(rows),
         )
-    paths = {json.dumps(r["path_evidence"], sort_keys=True) for r in rows}
-    if len(paths) != 1:
+    if not stable_path(rows):
         return dict(status="failed", reason="search path changed between rounds")
     short = any(r["seconds"] < 2 for r in rows) and not cell.get("functional_only")
     result = dict(
@@ -192,19 +218,7 @@ def summary(cell, rows, all_rows, errors, passes):
     )
     if "recall_at_k" in rows[0]:
         result["recall_at_k"] = rows[0]["recall_at_k"]
-    baseline = cell.get("relative_to")
-    if baseline:
-        reference = all_rows[baseline]
-        valid_reference = baseline not in errors and len(reference) == cell["rounds"]
-        valid_reference = valid_reference and (
-            cell.get("functional_only") or all(r["seconds"] >= 2 for r in reference)
-        )
-        if valid_reference and not short:
-            result["relative_speedup"] = spread(
-                [b["seconds"] / a["seconds"] for a, b in zip(rows, reference, strict=True)]
-            )
-        else:
-            result.update(publishable=False, relative_comparison="unavailable")
+    result.update(relative(cell, rows, all_rows, errors, short))
     return result
 
 
@@ -216,7 +230,6 @@ def group(context, cells):
     rows, errors, passes = {c["id"]: [] for c in cells}, {}, None
     ledger.stage, ledger.current = "search", cells[0]["id"]
     try:
-        admit(context, cells)
         specs = jobs(context, cells, root)
         passes, seconds = calibrate(context, cells, specs, errors)
         rounds(context, cells, specs, passes, seconds, rows, errors)
@@ -226,13 +239,20 @@ def group(context, cells):
         errors.update({c["id"]: repr(error) for c in cells})
     for cell in cells:
         ledger.result(cell, started, **summary(cell, rows[cell["id"]], rows, errors, passes))
+    cleanup_stores(context, root, rows)
+
+
+def cleanup_stores(context, root, rows):
     # Keep all raw files on failed or partial groups. Successful stores are owned here.
-    if all(r["status"] == "valid" for r in ledger.finished if r["id"] in rows):
-        for path in root.iterdir():
-            if path.name in ("float32", "int8"):
-                if path.is_symlink() or path.parent != root:
-                    raise ValueError("search store cleanup ownership changed")
-                shutil.rmtree(path)
+    outcomes = [r for r in context["ledger"].finished if r["id"] in rows]
+    if not outcomes or any(r["status"] != "valid" for r in outcomes):
+        return
+    for path in root.iterdir():
+        if path.name not in ("float32", "int8"):
+            continue
+        if path.is_symlink() or path.parent != root or any(p.is_symlink() for p in path.rglob("*")):
+            raise ValueError("search store cleanup ownership changed")
+        shutil.rmtree(path)
 
 
 def run(context, cells):

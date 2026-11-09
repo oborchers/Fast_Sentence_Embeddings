@@ -40,32 +40,18 @@ def sources(context, cell):
     positions = functional.select(count, cell["texts"])
     if len(positions) != cell["texts"]:
         raise ValueError("search store size exceeds the pinned source")
-    wanted, train, hashes, full_bytes = set(positions), [], set(), 0
-    seen_count = 0
-    for index, text in enumerate(texts(folder, spec["configuration"], "train")):
-        seen_count += 1
-        full_bytes += len(text.encode()) + 1
-        hashes.add(hashlib.sha256(text.encode()).digest())
-        if index in wanted:
-            train.append(text)
-    if seen_count != count:
-        raise ValueError("pinned search train paragraph count changed")
+    hashes, selected_bytes, full_bytes = inventory(folder, spec, set(positions))
     if full_bytes > contract["search_queries"]["source_utf8_bound_bytes"]:
         raise ValueError("search source exceeds the declared memory bound")
-    candidates, seen, counts = [], set(), dict(test_sentences=0, duplicates=0, in_store=0)
-    for paragraph in texts(folder, spec["configuration"], "test"):
-        for text in re.split(r"(?<=[.!?])\s+", paragraph):
-            if len(text.split()) < 5:
-                continue
-            counts["test_sentences"] += 1
-            digest = hashlib.sha256(text.encode()).digest()
-            if digest in hashes:
-                counts["in_store"] += 1
-            elif digest in seen:
-                counts["duplicates"] += 1
-            else:
-                candidates.append(text)
-                seen.add(digest)
+    candidates, counts = test_candidates(folder, spec, hashes)
+    context["search_selected_bytes"] = selected_bytes
+    from _speed_search_plan import admit
+
+    admit(context, context["search_group_cells"])
+    wanted = set(positions)
+    train = [
+        text for i, text in enumerate(texts(folder, spec["configuration"], "train")) if i in wanted
+    ]
     expected = contract["search_queries"]["expected_test_sentences"]
     if expected is None and not cell.get("functional_only"):
         raise ValueError(
@@ -88,6 +74,42 @@ def sources(context, cell):
     }
     append(context["ledger"].root / "search-sources.jsonl", dict(cell_id=cell["id"], **metadata))
     return train, candidates, metadata
+
+
+def inventory(folder, spec, wanted):
+    hashes, selected, total, count = set(), 0, 0, 0
+    for index, text in enumerate(texts(folder, spec["configuration"], "train")):
+        count += 1
+        size = len(text.encode()) + 1
+        total += size
+        hashes.add(hashlib.sha256(text.encode()).digest())
+        if index in wanted:
+            selected += size
+    if count != spec["expected_paragraphs"]:
+        raise ValueError("pinned search train paragraph count changed")
+    return hashes, selected, total
+
+
+def test_candidates(folder, spec, hashes):
+    candidates, seen, counts = [], set(), dict(test_sentences=0, duplicates=0, in_store=0)
+    size = 0
+    for paragraph in texts(folder, spec["configuration"], "test"):
+        for text in re.split(r"(?<=[.!?])\s+", paragraph):
+            if len(text.split()) < 5:
+                continue
+            counts["test_sentences"] += 1
+            digest = hashlib.sha256(text.encode()).digest()
+            if digest in hashes:
+                counts["in_store"] += 1
+            elif digest in seen:
+                counts["duplicates"] += 1
+            else:
+                size += len(text.encode()) * 4 + 200
+                if size > 32 * 1024**2:
+                    raise MemoryError("search test candidates exceed their memory bound")
+                candidates.append(text)
+                seen.add(digest)
+    return candidates, counts
 
 
 def queries(encoder, candidates, cell, path):

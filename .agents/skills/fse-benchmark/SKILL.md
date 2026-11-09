@@ -49,7 +49,7 @@ for the ticket.
 
 | Need | Entry | Definition |
 | :--- | :--- | :--- |
-| Library pairs, dtype controls, streamed writing | `benchmarks/speed.py` | `benchmarks/config/speed.json` |
+| Library pairs, dtype controls, streamed writing, search time per request | `benchmarks/speed.py` | `benchmarks/config/speed.json` |
 | MTEB, STS, offline SIF fits, recall, score summaries | `benchmarks/quality.py` | `benchmarks/config/quality.json` |
 
 Start with `python benchmarks/speed.py --describe` or `python benchmarks/quality.py --describe`.
@@ -174,8 +174,17 @@ Never publish local Mac times or run beside another heavy job.
 
 ## 4. Measure under the agreed protocol
 
-Publish speed only from Linux. Size input so every measured fse call lasts at least two seconds.
+Publish speed only from Linux. Size input so every measured fse inference call (encode or predict) lasts at least two seconds.
 Aim for three seconds with headroom. If a call falls below the gate, mark it invalid.
+For search, individual calls have no two-second minimum. Measure whole passes of a
+fixed query pool, calibrate every cell toward three-second blocks (at least two),
+then freeze the largest pass count for all cells of the model. Rotate cells across
+at least three rounds and report median and IQR of block time divided by requests.
+A production block below two seconds is invalid. `--study search` selects exact
+float32, exact int8 and binary search. `--study search-prefilter` explicitly selects
+the prefilter and exact int8 comparison and is excluded from `all`. Functional
+adapter enablement is never publishable. See the guide's search contract.
+
 Do not reuse withdrawn small-input or M1 speed claims. M1 quality and accuracy remain valid.
 
 Alternate arms for at least three rounds, with a full warmup before each measured call.

@@ -68,3 +68,14 @@ def summarize(rows, pool_size, passes):
         "requests_per_block": pool_size * passes,
         "sequence_sha256": rows[0]["sequence_sha256"],
     }
+
+
+def validate_group(cells):
+    keys = ("texts", "workers", "pool_size", "dimensions", "queries_per_call", "rounds", "k")
+    if any(tuple(c[k] for k in keys) != tuple(cells[0][k] for k in keys) for c in cells):
+        raise ValueError("search cells of a model must share the input and round contract")
+    identifiers = {c["id"] for c in cells}
+    if any(c.get("relative_to") and c["relative_to"] not in identifiers for c in cells):
+        raise ValueError("search relative_to must name a cell in the same selected model group")
+    if any(c["queries_per_call"] != 1 for c in cells):
+        raise ValueError("search-time@1 currently requires one query per call")

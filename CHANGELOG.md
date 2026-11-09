@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Add publication-study search cells for exact float32, exact int8 and binary search, plus an explicit prefilter comparison selection (DR-308: Suchzellen mit Zeit je Anfrage in der Veröffentlichungsstudie anbieten). Whole-pool blocks share a calibrated pass count and report time per request with median and IQR. Check the measured final pass against exact score bits and ids, record binary recall and prefilter path evidence, and admit model groups against phase memory plans and the allocation budget. No library change or published speed numbers.
+
 - Add two native-file classification headline cells for 100 million texts (DR-314: Kopfzeile für 100 Millionen klassifizierte Texte in der Veröffentlichungsstudie anbieten), with labels and probabilities, configurable head labels (default: toxicity and insult), resource admission before input preparation, per-round warmup, and sample bit checks against cpu and numpy. The untrained placeholder is restricted to functional rehearsals. Publication waits for a pinned real toxicity head. Protocols expose comparison-arm, resource-plan, and quiet-cell properties. Measurement tooling only; no library change.
 
 - Profile an addressed development or fse speed child with `speed.py --profile` and the strict `profile@1` contract (DR-313: Profiljob für einen adressierten Kindjob unter der Heavy-Sperre ausführen). One heavy lock covers access checks, offline input reconstruction and execution. Profiles have a separate deadline, fresh folders, checked origin hashes and executing identities, explicit coverage evidence and diagnostic receipts that comparison summaries refuse. Measurement tooling only.

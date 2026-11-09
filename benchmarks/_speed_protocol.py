@@ -61,6 +61,12 @@ def validate(cells):
 
             validate(cell)
 
+    from _harness.search import validate_group
+
+    search = [c for c in cells if c["kind"] == "search"]
+    for model in {c["model"] for c in search}:
+        validate_group([c for c in search if c["model"] == model])
+
 
 def require(cells, base_python, functional=False):
     """Refuse, before any download or input, a study whose environment cannot run its cells."""
@@ -95,3 +101,29 @@ def require(cells, base_python, functional=False):
             and CpuBackend().prefilter_variant() is None
         ):
             raise ValueError("search-prefilter requires a shipped enabled prefilter variant")
+
+
+def select(cells, study):
+    if study == "search-prefilter":
+        cells = [
+            dict(c, relative_to="search-exact-int8")
+            for c in cells
+            if c["id"] in ("search-exact-int8", "search-prefilter-int8")
+        ]
+    elif study == "all":
+        cells = [c for c in cells if c["stage"] != "search-prefilter"]
+    else:
+        cells = [c for c in cells if c["stage"] == study]
+    return cells
+
+
+def reduce_cells(contract):
+    for cell in [*contract["cells"], contract["quiet_cell"]]:
+        cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
+        cell.update(
+            texts=65_536
+            if cell["kind"] == "search"
+            else (20_000 if cell["kind"] in ("write", "predict") else 12_000),
+            workers=min(cell["workers"], 2),
+            functional_only=True,
+        )

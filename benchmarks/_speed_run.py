@@ -311,16 +311,7 @@ def quiet(context, contract):
 def study_contract(args):
     contract = load_contract(args.input)
     headline = args.study == "headline"
-    if args.study == "search-prefilter":
-        contract["cells"] = [
-            dict(c, relative_to="search-exact-int8")
-            for c in contract["cells"]
-            if c["id"] in ("search-exact-int8", "search-prefilter-int8")
-        ]
-    elif args.study == "all":
-        contract["cells"] = [c for c in contract["cells"] if c["stage"] != "search-prefilter"]
-    else:
-        contract["cells"] = [c for c in contract["cells"] if c["stage"] == args.study]
+    contract["cells"] = protocols.select(contract["cells"], args.study)
     if not contract["cells"]:
         raise ValueError("study has no matching cells")
     protocols.validate(contract["cells"])
@@ -335,15 +326,7 @@ def study_contract(args):
     if args.rehearse:
         contract["rehearsal_limits"] = records.rehearsal_limits()
         contract["functional_only"] = True
-        for cell in [*contract["cells"], contract["quiet_cell"]]:
-            cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
-            cell.update(
-                texts=65_536
-                if cell["kind"] == "search"
-                else (20_000 if cell["kind"] in ("write", "predict") else 12_000),
-                workers=min(cell["workers"], 2),
-                functional_only=True,
-            )
+        protocols.reduce_cells(contract)
         contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
     return contract
 
@@ -391,16 +374,21 @@ def run_cells(context, contract):
             ledger.result(cell, started, status="not_started", reason="soft budget or stop signal")
             continue
         try:
-            if cell["kind"] == "write":
-                run_headline(context, {**contract, "cells": [cell]})
-            elif not protocols.protocol(cell)["paired"]:
-                from _speed_predict import run_predict
-
-                ledger.result(cell, started, **run_predict(context, cell, launch, cleanup))
-            else:
-                ledger.result(cell, started, **pair(context, cell))
+            run_cell(context, contract, cell, started)
         except Exception as error:
             ledger.result(cell, started, status="failed", reason=repr(error))
+
+
+def run_cell(context, contract, cell, started):
+    ledger = context["ledger"]
+    if cell["kind"] == "write":
+        run_headline(context, {**contract, "cells": [cell]})
+    elif not protocols.protocol(cell)["paired"]:
+        from _speed_predict import run_predict
+
+        ledger.result(cell, started, **run_predict(context, cell, launch, cleanup))
+    else:
+        ledger.result(cell, started, **pair(context, cell))
 
 
 def run_headline(context, contract):

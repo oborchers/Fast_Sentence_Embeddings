@@ -131,6 +131,10 @@ def prepare(context, cells, root):
 
     admission(context, "model preparation", 300)
     cell = cells[0]
+    context["search_group_cells"] = cells
+    from _speed_search_plan import admit_inventory
+
+    admit_inventory(context, cell)
     model = context["models"][cell["model"]]
     encoder = Encoder.from_pretrained(model["artifact"], mmap=True)
     train, test, metadata = sources(context, cell)

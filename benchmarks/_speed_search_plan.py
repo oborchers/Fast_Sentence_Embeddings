@@ -88,3 +88,27 @@ def admit(context, cells):
     atomic(ledger.root / "preflight-memory.json", preflight)
     if not admitted:
         raise MemoryError("fixed search group exceeds memory or disk plan")
+
+
+def admit_inventory(context, cell):
+    """Scan hashes and byte counts before materializing selected train text."""
+    corpus = context["ledger"].contract["corpus"]["expected_paragraphs"]
+    model = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+    components = {
+        "libraries_reserve": (2 if cell.get("functional_only") else 8) * resources.GIB,
+        "model": model,
+        "hashes_positions_and_selection_sort": corpus * 240,
+        "test_candidates_and_reader": 96 * MIB,
+        "retained_entry_sources": context.get("retained_source_bytes", 0),
+    }
+    plan = resources.assess(
+        components,
+        limit=resources.require_limit(),
+        kind="functional" if cell.get("functional_only") else "production",
+    )
+    append(
+        context["ledger"].root / "memory.jsonl",
+        dict(cell_id=cell["id"], phase="source_inventory", **plan),
+    )
+    if not plan["admitted"]:
+        raise MemoryError("search source inventory exceeds memory plan")
