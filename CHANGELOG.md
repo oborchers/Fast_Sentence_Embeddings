@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+- Add an offline Civil Comments classifier preparation tool under `tools/hub/heads/` (DR-311: Toxizitäts-Classifier aus google/civil_comments außerhalb von fse trainieren und mit Modellkarte vorbereiten). It compares two pinned encoders on train and validation, trains a six-label head with scikit-learn outside fse, verifies complete and standalone artifacts, and renders a model card from recorded test metrics. Models and data stay outside the checkout. No upload or library change.
+
 - Start sink threads only with their first work (DR-317: Sink-Threads eines nicht geschlossenen Sinks nicht unbefristet weiterlaufen lassen). Constructing or inspecting a `ShardSink` or `ScoreSink` starts no thread. Write and hash start at the first commit, publish at the first finished shard. Used sinks still require `close()` or a `with` block. Thread-start failures follow the shared writer error and cleanup protocol.
 
 - Return `(result, vectors)` from `Heads.predict`, `Classifier.predict` and `Regressor.predict` with `return_vectors=True` and no sinks (DR-312: return_vectors=True in Heads.predict ohne Sinks nicht still übergehen); previously the call raised ValueError. With lengths the return is `(result, vectors, LengthReport)`. Outputs and encoder vectors match `predict_batches(return_vectors=True)` bit for bit, including the unfolded path of raw-mean heads. Resume sink returns stay unchanged. Standalone heads, VectorStore inputs and `Regressor.predict(sink=...)` refuse this switch.
