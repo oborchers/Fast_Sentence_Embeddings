@@ -122,7 +122,8 @@ uv run python tools/hub/heads/full_bekko.py \
   --parent "$HOME/fse-dr311" --work "$HOME/fse-dr311/full-bekko-01" --preflight
 # Only after admission, under the shared heavy-lock wrapper:
 uv run python tools/hub/heads/full_bekko.py \
-  --parent "$HOME/fse-dr311" --work "$HOME/fse-dr311/full-bekko-01"
+  --parent "$HOME/fse-dr311" --work "$HOME/fse-dr311/full-bekko-01" \
+  --signal-at "$DR311_SIGNAL_UNIX"
 ```
 
 The output directory must be new. An unsuccessful memory admission starts no
@@ -130,6 +131,8 @@ work. The command pins sklearn 1.9.1's float32 L-BFGS path, streams input, and
 scales one float32 working file in place. It compares C before fitting thresholds.
 Only a full-validation macro ROC AUC gain of at least 0.01 replaces the small
 head. `benchmarks/baseline/dr230/full-protocol.md` specifies the prior rules.
+`DR311_SIGNAL_UNIX` is the Unix time of the coordinator's explicit start signal.
+The two-hour budget is anchored to that signal, never to a later process start.
 
 Sources: [dataset and CC0 terms](https://huggingface.co/datasets/google/civil_comments),
 [annotator fractions](https://www.tensorflow.org/datasets/catalog/civil_comments),

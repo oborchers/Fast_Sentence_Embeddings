@@ -26,7 +26,7 @@ Rules fixed before the full run:
   for both small and full. Include default and proposed cutoff results.
 - Oliver then decides whether to retain six labels or only toxicity and insult.
   Do not choose the labels in this run. The official test stays held.
-- New budget: two hours from actual admitted run start, including embedding.
+- New budget: two hours from the coordinator's explicit start signal, including embedding.
   Stop at safe operation boundaries without extension or automatic retries.
   Finish heavy work before 18:00 local time. Keep partial outputs on failure.
 
@@ -56,4 +56,9 @@ float16 storage is permitted by Oliver but unnecessary here: float32 storage
 avoids additional feature rounding and still meets the process memory target.
 Admission checks actual host availability and the existing 40 GiB disk reserve.
 `full-memory-admission.json` records the no-run result. A failed admission means
-the full run has not started and its two-hour budget has not begun.
+the full run has not started. The explicit signal's Unix timestamp is passed to
+the actual command, so setup or scheduling after that signal cannot reset the budget.
+
+Coordination update: fse-main first runs the separately owned Linux profiling
+job, then closes Docker Desktop itself and signals this worker. Do not start the
+full comparison or close any other application before that signal.

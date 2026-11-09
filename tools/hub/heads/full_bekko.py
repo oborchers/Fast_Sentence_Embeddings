@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import math
+import time
 import warnings
 
 import joblib
@@ -101,11 +103,13 @@ def comparison(parent, work, winner, config, budget):
     }
 
 
-def run(parent, work, config, plan):
+def run(parent, work, config, plan, signal_at):
     work.mkdir(parents=True, exist_ok=False)
     write(work / "config.json", config)
     write(work / "memory-admission.json", plan)
+    write(work / "started.json", {"unix": signal_at, "source": "explicit coordinator signal"})
     budget = Budget(work, config)
+    budget.check()
     with budget.monitor(), threadpool_limits(limits=1):
         raw_vectors(parent, work, config, budget)
         scaler = standardize(work, config, budget)
@@ -145,6 +149,9 @@ def main():
     parser.add_argument("--parent", type=external, required=True)
     parser.add_argument("--work", type=external, required=True)
     parser.add_argument("--preflight", action="store_true")
+    parser.add_argument(
+        "--signal-at", type=float, help="Unix timestamp of the explicit coordinator start signal"
+    )
     args = parser.parse_args()
     config, _ = settings(args.parent)
     if args.work == args.parent or args.work.exists():
@@ -153,9 +160,15 @@ def main():
     print(json.dumps(plan, indent=2), flush=True)
     if args.preflight:
         return
+    if (
+        args.signal_at is None
+        or not math.isfinite(args.signal_at)
+        or not 0 < args.signal_at <= time.time()
+    ):
+        parser.error("a valid past coordinator --signal-at timestamp is required for a run")
     if not plan["admitted"]:
         raise RuntimeError("full Bekko run was not admitted; no work started")
-    run(args.parent, args.work, config, plan)
+    run(args.parent, args.work, config, plan, args.signal_at)
 
 
 if __name__ == "__main__":
