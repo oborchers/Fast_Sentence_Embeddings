@@ -140,7 +140,7 @@ class LengthReport:
     n_truncated: int
     n_empty: int
     tokens_total: int
-    dropped_total: int
+    dropped_unknown_total: int
     truncated_tokens_total: int | None = None
     truncated_chars_total: int | None = None
     char_truncated: ndarray | None = None
@@ -202,7 +202,7 @@ class LengthCollector:
             n_truncated=sums[2],
             n_empty=sums[3],
             tokens_total=sums[4],
-            dropped_total=sums[5],
+            dropped_unknown_total=sums[5],
             **fields,
         )
 
