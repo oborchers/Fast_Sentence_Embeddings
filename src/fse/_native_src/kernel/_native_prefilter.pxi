@@ -135,12 +135,12 @@ def _int8_pass(stored, inverse, qcodes, qscales, slack, threshold, k, capacity, 
         raise ValueError("the slack of every query must be finite and not negative")
     if np.isnan(threshold).any():
         raise ValueError("a threshold must not be NaN")
-    if isinstance(k, bool) or not isinstance(k, int | np.integer) or not 1 <= k <= _PREFILTER_INT_MAX:
+    if isinstance(k, bool) or not isinstance(k, (int, np.integer)) or not 1 <= k <= _PREFILTER_INT_MAX:
         raise ValueError(f"k must be an integer from 1 to {_PREFILTER_INT_MAX}")
     k = int(k)
     if capacity is None:
         capacity = max(4 * k, 4096)
-    if isinstance(capacity, bool) or not isinstance(capacity, int | np.integer) or not 1 <= capacity <= _PREFILTER_INT_MAX:
+    if isinstance(capacity, bool) or not isinstance(capacity, (int, np.integer)) or not 1 <= capacity <= _PREFILTER_INT_MAX:
         raise ValueError(f"capacity must be an integer from 1 to {_PREFILTER_INT_MAX}")
     capacity = int(capacity)
     heap = np.empty((width, k), dtype=np.float64)
