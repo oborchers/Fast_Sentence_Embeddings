@@ -91,7 +91,7 @@ def add_shard(path, score_info, first, rows, *, limit=0.5, created_by="test", sc
         metadata.update(stats.metadata())
     for item in score_info.heads:
         if item.multilabel:
-            tensors[item.threshold_name] = thresholds(limit, len(item.labels))
+            tensors[item._threshold_name] = thresholds(limit, len(item.labels))
     NpyContainer().write(path / shard_name(first), tensors, metadata)
 
 

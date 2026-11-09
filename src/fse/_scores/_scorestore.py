@@ -344,7 +344,7 @@ class ScoreStore(MemberReaders):
         assert labels is not None
         if shards:
             tensors = shards[0][1]
-            stored = tensors[head.threshold_name]
+            stored = tensors[head._threshold_name]
         else:
             stored = np.full(len(labels), 0.5, np.float32)
         if given is _NOT_GIVEN:

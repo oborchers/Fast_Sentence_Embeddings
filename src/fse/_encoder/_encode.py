@@ -14,7 +14,7 @@ and does not import the encoder.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any, Literal, overload
+from typing import Any, overload
 
 from numpy import ndarray
 
@@ -29,13 +29,12 @@ from fse._runtime import (
     rule_of,
     workers_of,
 )
+from fse._runtime._lengths import LengthLevel
 
 from . import _batches, _positions, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._doc_ids import check_id_mode
 from ._sources import opened
-
-Level = Literal["summary", "per_row"]
 
 
 class _Encoding:
@@ -70,7 +69,7 @@ class _Encoding:
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         shard: tuple[int, int] | None = None,
@@ -173,7 +172,7 @@ class _Encoding:
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,

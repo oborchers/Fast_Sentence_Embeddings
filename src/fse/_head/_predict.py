@@ -19,12 +19,11 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
+from fse._runtime._lengths import LengthLevel
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _lone_run, _resume_run, _run
 from ._outputs import PredictedBatch
-
-Level = Literal["summary", "per_row"]
 
 
 class _Predicting:
@@ -93,7 +92,7 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[False] = False,
@@ -111,7 +110,7 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[True],
@@ -129,7 +128,7 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: bool = False,
@@ -260,7 +259,7 @@ class _Predicting:
         vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: Any = False,
-        lengths: Level,
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,

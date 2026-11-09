@@ -20,23 +20,24 @@ from typing import Any, NamedTuple, Protocol, cast
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes
 
 # What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales;
 # for a sink that wants inverse norms, a float32 vector of one per row follows.
-Stored = ndarray | tuple[ndarray, ...]
+Stored = NDArray[Any] | tuple[NDArray[Any], ...]
 
 
 class QuantizedRows(NamedTuple):
     """int8 sentence vectors: the codes and one float32 scale per row (row = codes * scale)."""
 
-    codes: ndarray
-    scales: ndarray
+    codes: NDArray[np.int8]
+    scales: NDArray[np.float32]
 
 
 # The rows of a run as encode returns them: float32 rows, float16 codes or QuantizedRows.
-Rows = ndarray | QuantizedRows
+Rows = NDArray[Any] | QuantizedRows
 
 
 class Sink(Protocol):

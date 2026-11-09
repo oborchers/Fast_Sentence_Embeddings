@@ -13,6 +13,7 @@ from fse._runtime import (
     Pool,
     workers_of,
 )
+from fse._runtime._lengths import LengthLevel
 from fse._validation import F, PositiveInt, validate_arguments
 
 from . import _heads_run, _resume_run
@@ -94,7 +95,7 @@ class _HeadsPredicting:
         output: Any = None,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[False] = False,
@@ -113,7 +114,7 @@ class _HeadsPredicting:
         output: Any = None,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[True],
@@ -132,7 +133,7 @@ class _HeadsPredicting:
         output: Any = None,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: bool = False,

@@ -56,7 +56,7 @@ class ScoreSchema:
             found.append(head)
             column = head.columns[1]
             if head.multilabel:
-                limits[head.threshold_name] = _frozen(model._head.thresholds)
+                limits[head._threshold_name] = _frozen(model._head.thresholds)
         schema = cls(heads.encoder_fingerprint, tuple(found), limits)
         schema.check_size()
         return schema

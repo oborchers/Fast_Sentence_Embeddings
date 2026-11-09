@@ -80,6 +80,10 @@ SHARED = (
 @dataclass(frozen=True)
 class ScoreHead:
     """One head of a score store: its model, what it stores in which columns of ``scores``
+    ``labels`` names the output columns, or is None for a regressor. ``columns`` is
+    the half-open range in the stored score matrix, and ``width`` its size. ``flat``
+    records whether a single output is returned as a vector. ``model`` identifies
+    the model, ``task``, ``rule``, ``link`` and ``stored`` describe its outputs,
     and the path (``folded``, ``normalized``, ``unfolded``, ``standalone``) its run took."""
 
     name: str
@@ -89,12 +93,12 @@ class ScoreHead:
     link: str
     stored: str
     path: str
-    labels: tuple | None
+    labels: tuple[str, ...] | tuple[int, ...] | None
     width: int
     columns: tuple[int, int]
     flat: bool | None
 
-    def entry(self) -> dict[str, Any]:
+    def _entry(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "model": self.model,
@@ -114,7 +118,7 @@ class ScoreHead:
         return self.link == MULTILABEL
 
     @property
-    def threshold_name(self) -> str:
+    def _threshold_name(self) -> str:
         return THRESHOLD_PREFIX + self.name
 
 
@@ -140,7 +144,7 @@ class ScoreInfo:
 
     @property
     def threshold_names(self) -> tuple[str, ...]:
-        return tuple(head.threshold_name for head in self.heads if head.multilabel)
+        return tuple(head._threshold_name for head in self.heads if head.multilabel)
 
     @property
     def proba_columns(self) -> tuple[tuple[int, int], ...]:
@@ -154,7 +158,7 @@ class ScoreInfo:
             "fse.encoder": self.encoder,
             "fse.doc_ids": "int64" if self.has_doc_ids else "none",
             "fse.resume": "none" if self.resume is None else self.resume.mode,
-            "fse.score_heads": canonical_json([head.entry() for head in self.heads]),
+            "fse.score_heads": canonical_json([head._entry() for head in self.heads]),
         }
         if self.resume is not None:
             metadata.update(self.resume.metadata(metadata))

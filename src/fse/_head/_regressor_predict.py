@@ -8,6 +8,7 @@ from typing import Any, Literal, overload
 from numpy import ndarray
 
 from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
+from fse._runtime._lengths import LengthLevel
 from fse._validation import F, PositiveInt, validate_arguments
 
 from . import _lone_run, _resume_run, _run
@@ -89,7 +90,7 @@ class _RegressorPredicting:
         workers: int | None = None,
         backend: str = "cpu",
         sink: Any = None,
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[False] = False,
@@ -108,7 +109,7 @@ class _RegressorPredicting:
         workers: int | None = None,
         backend: str = "cpu",
         sink: None = None,
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: Literal[True],
@@ -127,7 +128,7 @@ class _RegressorPredicting:
         workers: int | None = None,
         backend: str = "cpu",
         sink: Any = None,
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         return_vectors: bool = False,
@@ -265,7 +266,7 @@ class _RegressorPredicting:
         vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: Any = False,
-        lengths: Literal["summary", "per_row"],
+        lengths: LengthLevel,
         count_truncated: Any = False,
         on_truncation: Any = "keep",
         positions: bool = False,

@@ -112,11 +112,11 @@ def test_threshold_input_rejects_coercion(value):
 class _SelfValidated:
     @classmethod
     @validate_arguments
-    def make(cls, value: int) -> Self:
+    def make(cls, _value: int) -> Self:
         return cls()
 
     @validate_arguments
-    def copied(self, value: int) -> Self:
+    def copied(self, _value: int) -> Self:
         return type(self)()
 
 
