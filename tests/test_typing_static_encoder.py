@@ -153,7 +153,7 @@ def test_encoded_batch_fields_and_generators() -> None:
     encoder = _encoder()
     gen = encoder.encode_batches([TEXTS])
     assert_type(gen, Generator[fse.EncodedBatch, None, None])
-    assert inspect.isgenerator(gen)
+    assert bool(inspect.isgenerator(gen))
     batch = next(gen)
     assert_type(batch.rows, NDArray[Any] | fse.QuantizedRows | None)
     assert_type(batch.vectors, NDArray[Any] | fse.QuantizedRows | None)
@@ -162,17 +162,17 @@ def test_encoded_batch_fields_and_generators() -> None:
     gen.close()
     for dtype in ("int8", "float16"):
         with_rows = encoder.encode_batches([TEXTS], dtype=dtype)
-        assert inspect.isgenerator(with_rows)
+        assert bool(inspect.isgenerator(with_rows))
         item = next(with_rows)
         assert isinstance(item.rows, fse.QuantizedRows if dtype == "int8" else np.ndarray)
         with_rows.close()
     no_rows = encoder.encode_batches([TEXTS], sink=fse.MemorySink(3))
-    assert inspect.isgenerator(no_rows)
+    assert bool(inspect.isgenerator(no_rows))
     assert next(no_rows).rows is None
     no_rows.close()
     reports = encoder.encode_batches([TEXTS], lengths="per_row")
     assert_type(reports, Generator[tuple[fse.EncodedBatch, fse.LengthReport], None, None])
-    assert inspect.isgenerator(reports)
+    assert bool(inspect.isgenerator(reports))
     assert isinstance(next(reports)[1], fse.LengthReport)
     reports.close()
 
@@ -210,7 +210,7 @@ def _static_folder(path: Path) -> Path:
     table = np.arange(12, dtype=np.float32).reshape(4, 3)
     SafetensorsContainer().write(path / "model.safetensors", {"embeddings": table}, {})
     (path / "config.json").write_text(json.dumps({"normalize": False, "max_length": 8}))
-    document = {
+    document: dict[str, Any] = {
         "version": "1.0",
         "truncation": None,
         "padding": None,
@@ -266,7 +266,7 @@ def test_static_model_and_tokenizer_public_types(tmp_path: Path) -> None:
 
 def _union_dtype(encoder: fse.Encoder, dtype: Literal["float16", "int8"]) -> None:
     result = encoder.encode(TEXTS, dtype=dtype)
-    assert_type(result, NDArray[Any] | fse.QuantizedRows | None)
+    assert_type(result, NDArray[Any] | fse.QuantizedRows)
     assert isinstance(result, np.ndarray | fse.QuantizedRows)
 
 

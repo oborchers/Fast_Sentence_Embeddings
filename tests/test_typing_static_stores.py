@@ -22,7 +22,7 @@ def _encoder() -> fse.Encoder:
 def _check_vector_batches(store: fse.VectorStore) -> None:
     batches = store.iter_batches()
     assert_type(batches, Generator[fse.VectorBatch, None, None])
-    assert inspect.isgenerator(batches)
+    assert bool(inspect.isgenerator(batches))
     batch = next(batches)
     assert_type(batch.vectors, NDArray[Any] | fse.QuantizedRows)
     assert_type(batch.doc_ids, NDArray[np.int64] | None)
@@ -68,13 +68,13 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         model = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
         predicted = model.predict_batches(store)
         assert_type(predicted, Generator[fse.PredictedBatch, None, None])
-        assert inspect.isgenerator(predicted)
+        assert bool(inspect.isgenerator(predicted))
         assert next(predicted).outputs is not None
         predicted.close()
         classifier = fse.Classifier.from_arrays(encoder, np.eye(3, dtype=np.float32))
         classified = classifier.predict_batches(store)
         assert_type(classified, Generator[fse.PredictedBatch, None, None])
-        assert inspect.isgenerator(classified)
+        assert bool(inspect.isgenerator(classified))
         assert next(classified).outputs is not None
         classified.close()
 
@@ -89,7 +89,7 @@ def test_score_store_types(tmp_path: Path) -> None:
         batches = classifier.predict_batches(
             [(TEXTS, np.array([4, 5, 6], np.int64))], score_sink=sink, doc_ids=True
         )
-        assert inspect.isgenerator(batches)
+        assert bool(inspect.isgenerator(batches))
         list(batches)
     with fse.ScoreStore.open(tmp_path / "scores") as store:
         heads = store.heads
@@ -103,12 +103,12 @@ def test_score_store_types(tmp_path: Path) -> None:
         assert scores.dtype == np.float32
         stored = store.iter_batches()
         assert_type(stored, Generator[fse.ScoreBatch, None, None])
-        assert inspect.isgenerator(stored)
+        assert bool(inspect.isgenerator(stored))
         assert_type(next(stored).outputs, Mapping[str, NDArray[Any]])
         stored.close()
         default = store.predict_batches()
         assert_type(default, Generator[fse.ScoreBatch, None, None])
-        assert inspect.isgenerator(default)
+        assert bool(inspect.isgenerator(default))
         assert next(default).outputs["c"].dtype == np.int64
         default.close()
         probabilities = store.predict_batches(output={"c": "proba"})
@@ -132,7 +132,7 @@ def test_resumed_encode_and_position_streams(tmp_path: Path) -> None:
     with fse.ShardSink(tmp_path / "positions", encoder, resume=True) as sink:
         positioned = encoder.encode_batches([(TEXTS, "first")], sink=sink, positions=True)
         assert_type(positioned, Generator[fse.EncodedBatch, None, None])
-        assert inspect.isgenerator(positioned)
+        assert bool(inspect.isgenerator(positioned))
         assert next(positioned).rows is None
         positioned.close()
 
@@ -150,7 +150,7 @@ def test_head_stream_generators_with_both_sinks_and_positions(tmp_path: Path) ->
             [TEXTS], return_vectors=True, vector_sink=vector, score_sink=score
         )
         assert_type(combined, Generator[fse.HeadsBatch, None, None])
-        assert inspect.isgenerator(combined)
+        assert bool(inspect.isgenerator(combined))
         item = next(combined)
         assert item.vectors is None
         combined.close()
@@ -167,7 +167,7 @@ def test_head_stream_generators_with_both_sinks_and_positions(tmp_path: Path) ->
             lengths="per_row",
         )
         assert_type(positions, Generator[fse.HeadsBatch, None, None])
-        assert inspect.isgenerator(positions)
+        assert bool(inspect.isgenerator(positions))
         assert isinstance(next(positions).lengths, fse.LengthReport)
         positions.close()
     with fse.ScoreSink(tmp_path / "lone-positions", classifier, name="c", resume=True) as sink:
@@ -175,6 +175,6 @@ def test_head_stream_generators_with_both_sinks_and_positions(tmp_path: Path) ->
             [(TEXTS, "first")], score_sink=sink, positions=True, lengths="summary"
         )
         assert_type(lone, Generator[tuple[fse.PredictedBatch, fse.LengthReport], None, None])
-        assert inspect.isgenerator(lone)
+        assert bool(inspect.isgenerator(lone))
         assert isinstance(next(lone)[1], fse.LengthReport)
         lone.close()
