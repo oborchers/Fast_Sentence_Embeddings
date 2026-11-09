@@ -34,7 +34,7 @@ flowchart LR
 
 ## Eleven measurement rules
 
-1. Publish speed only from Linux. M1 timings and calls with only about 5,000 texts are withdrawn. Every measured fse call must last at least two seconds. Aim for three seconds with headroom. Rehearsal observations are never speed evidence.
+1. Publish speed only from Linux. M1 timings and calls with only about 5,000 texts are withdrawn. Every measured fse inference call (encode or predict) must last at least two seconds. Search uses the whole-pool block rule below. Aim for three seconds with headroom. Rehearsal observations are never speed evidence.
 2. Every number needs machine, CPU, date, workers, model, dimensions, table/output formats and text length. Report words or tokens per text beside texts/s. Sentences and paragraphs are different workloads.
 3. One physical allocation is one cohort. Do not combine machines into a ratio. A CPU flavor does not guarantee a specific processor. Read the CPU and allowed affinity after allocation.
 4. Use identical input within each pair on one machine. Alternate arms over at least three rounds. Report the median and the median of same-round time ratios. Different pairs may have different declared counts and digests. They are not a fixed-input scaling curve.
@@ -564,6 +564,7 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 | `version-compare@1` | `dtype` against `fse-base` (two installed versions) | bits | none |
 | `heads-compare@1` | `heads` against `model2vec`, `fse-unfolded`, `fse-separate` | tolerance, or bits for `fse-separate` | none |
 | `write@1` | `write` | bits (codes, scales, inventories) | none |
+| `search-time@1` | `search`, against `fse-exact` | measured final pool pass: ids and score bits, binary candidate membership and recall | none |
 | `predict@1` | `predict` (labels or probabilities) | sample bits against cpu and numpy | none |
 
 The registry also exposes `paired` (comparison arms), `own_memory_plan` (skip the
@@ -571,12 +572,79 @@ shared pair formula), and `needs_quiet` (prepare and run the quiet cell). Writin
 prediction have no comparison arm, own their resource plans, and need no quiet cell.
 These properties are independent so future protocols can choose each explicitly.
 
+### Search time per request
+
+`--study search` selects exact float32, exact int8 (prefilter off) and binary
+float32 with persisted sign bits, k=10 and oversample=40. The model is the pinned
+`sentence-transformers/static-retrieval-mrl-en-v1`, 1,024 dimensions, 16 workers.
+`--study search-prefilter` selects only the shipped int8 prefilter and exact int8
+comparison. It is excluded from `all`. A production prefilter selection is refused
+before downloads unless the installed build enables a runnable variant. A
+functional probe may enable a runnable variant in the adapter, with
+`prefilter_enabled_by_adapter: true` and `publishable: false`. An unavailable
+variant remains explicitly reported as a fallback, not evidence of entering it.
+
+A model group builds float32 (including sign bits) and int8 stores from every
+pinned WikiText-103 train paragraph once, without replacement. The functional
+store uses 65,536 positions chosen by `hash-sample@1`, preserving prefilter domain.
+Duplicate source texts are reported. Queries come from the pinned test split,
+with the same whitespace, heading, word-count and sentence rules. Query texts
+are unique and disjoint from the **entire** train source, including in functional
+runs. PCG64 seed 0 samples without replacement; the first 256 finite, nonzero
+float32 encodings form the fixed pool. Exclusions and remaining positions are
+recorded. The first functional probe discovers `expected_test_sentences`; pin
+that count before production. A missing count refuses publication preparation.
+
+Individual search calls have no two-second minimum. Each call takes one query.
+Warmup runs whole pool passes for at least two seconds. Calibration measures one
+whole pool pass per cell and computes the passes needed to reach three seconds.
+The maximum is frozen for all cells of that model. Every measured block follows
+the same query sequence, whose digest is recorded. Run at least three rounds,
+rotating cell order. A production block below two seconds is invalid. Time per
+request is block seconds divided by (pool size times pass count). Report median,
+IQR (interquartile range), minimum and maximum across rounds, not request latency
+percentiles. Relative factors use same-round block times. Incomplete or invalid
+comparisons have no published factor. Functional results remain functional only.
+
+The last measured pool pass stays alive until timer end. Its ids and score bits
+must match the saved exact reference of the corresponding store. For binary
+search, independently derive sign bits from stored float32 vectors in bounded
+blocks. Rank candidates by Hamming distance and physical position. Compute
+`exact(rows=sorted(C_query))` separately for every query. Binary output must match
+those bits and stay inside its candidates. Recall@10 against exact float32 is
+reported as mean and minimum, without a quality gate. Every shard must have a
+valid sign-bit companion. Separate untimed calls capture the actual prefilter
+variant, instruction set, entered calls and fallback reasons.
+
+Jobs and receipts bind every store file (manifests, vectors and sign bits), query and reference hashes, model
+artifact, installed package contents and adapter code. Check them before and
+after each operation and between rounds. Diagnostic profiles cannot enter search
+summaries. Plans report numeric peak `phases`, their `phase_components` and total
+additional disk for both stores and temporary files. Inventory scanning precedes
+text materialization so the functional plan uses measured selected-source bytes.
+The inventory records selected and total UTF-8 bytes before later preparation can
+fail; no guessed corpus-byte ceiling replaces the actual phase admission.
+Source inventory, model preparation, each store build, reference formation,
+calibration and each whole round have budget admission boundaries. Refused work
+is `not_started` or `partial`; raw files remain. Only successful groups remove
+their owned stores before moving to the next model.
+
+Prior art (source inspection, 2026-11-09):
+[ann-benchmarks runner](https://github.com/erikbern/ann-benchmarks/blob/main/ann_benchmarks/runner.py)
+divides batch search time by query count, and
+[FAISS HNSW benchmark](https://github.com/facebookresearch/faiss/blob/main/benchs/bench_hnsw.py)
+reports search batch time per query alongside recall.
+[VectorDBBench serial runner](https://github.com/zilliztech/VectorDBBench/blob/main/vectordb_bench/backend/runner/serial_runner.py)
+uses individual request durations and latency percentiles. This protocol adopts
+whole-pool normalization, adds warmup and rotating rounds, and reports block
+variation rather than percentiles of individually timed millisecond calls.
+
 ### Precision, paragraphs, heads and versions
 
 - Stage `bekko`: a Sentence Transformers repository other than the `sentence-transformers/` namespace is read in that format when `speed.json` lists it under `model_formats`. The cell sets `table_dtype: float16` for fse (a float16 table, float32 output) and `widen_weights: true` for the Sentence Transformers arm, which widens its table to float32 before any timer so that no arm measures a half-precision path the other does not share. The receipt records `widened_weights`, and the memory plan adds the float16 original that exists while the table is widened.
 - Stage `paragraphs`: `corpus: paragraphs` draws whole WikiText-103 paragraphs (the pinned 832,318, cut by the common character limit) instead of sentences, with the same seed and sampling. The planned byte counts of these cells are fixed like all others.
 - Stage `heads`: the workload is the fixed head of the development study (`linear-heads@1`, four softmax outputs, float32 PCG64 seed 17; four heads for `linear-heads-multi@1`). Every arm returns the probabilities (output `proba`) of the heads in the order `head_0` to `head_3`, for raw means (the encoder never normalizes), as one float32 matrix of `dimensions` columns (4, or 16 for four heads). Folding the head into the table is outside every timer. Three pairs: folded `predict_proba` against Model2Vec `encode(normalize=False)` followed by the affine map and the softmax in NumPy; folded against unfolded (`predict_batches` with `return_vectors=True`); four heads in one `Heads.predict` against four single `predict_proba` calls (bits).
-- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. The standard speed allocation declares the environment `base` (fse 2.0 at commit 624251df, lock `speed-base.lock.txt`) and passes it as `--base-python {python_base}`, so `--study all` is not refused up front. Search cells (time per request, output checked against exact) are not part of this entry yet.
+- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. The standard speed allocation declares the environment `base` (fse 2.0 at commit 624251df, lock `speed-base.lock.txt`) and passes it as `--base-python {python_base}`, so `--study all` is not refused up front. Stage `search` reports time per request, with output checked against exact search. The explicit `search-prefilter` selection is excluded from `all`.
 
 The sizes of these cells mirror the existing cells of the same model; the study for a release sets its own sizes and budget before any paid run.
 

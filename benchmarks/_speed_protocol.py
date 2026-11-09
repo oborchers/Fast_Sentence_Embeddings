@@ -23,6 +23,7 @@ VARIANTS = {
     ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False, True, False, True),
     ("heads", "fse-separate"): ("heads-compare@1", "bits", False, True, False, True),
     ("write", None): ("write@1", "bits", False, False, True, False),
+    ("search", "fse-exact"): ("search-time@1", "bits", False, False, True, True),
     ("predict", None): ("predict@1", "bits", False, False, True, False),
 }
 
@@ -51,13 +52,23 @@ def validate(cells):
     """Refuse a study with a cell no variant covers, before anything runs."""
     for cell in cells:
         protocol(cell)
+        if cell["kind"] == "search":
+            from _harness.search import validate as validate_search
+
+            validate_search(cell)
         if cell["kind"] == "predict":
             from _speed_predict import validate
 
             validate(cell)
 
+    from _harness.search import validate_group
 
-def require(cells, base_python):
+    search = [c for c in cells if c["kind"] == "search"]
+    for model in {c["model"] for c in search}:
+        validate_group([c for c in search if c["model"] == model])
+
+
+def require(cells, base_python, functional=False):
     """Refuse, before any download or input, a study whose environment cannot run its cells."""
     if any(c["reference"] == "fse-base" for c in cells) and not base_python:
         raise ValueError("fse-base cells need --base-python, the installed base fse")
@@ -68,3 +79,51 @@ def require(cells, base_python):
             raise ValueError(
                 "head cells need an fse revision with fse.Heads; the pin in pins.json is older"
             )
+
+    if any(c["kind"] == "search" for c in cells):
+        import inspect
+
+        from fse import ShardSink, VectorStore
+        from fse._backends._cpu import CpuBackend
+
+        if (
+            "oversample" not in inspect.signature(VectorStore.search).parameters
+            or "sign_bits" not in inspect.signature(ShardSink).parameters
+        ):
+            raise ValueError(
+                "search cells require binary search and persisted sign bits; pin is older"
+            )
+        if (
+            any(
+                c["kind"] == "search" and c["prefilter"] == "shipped" and not functional
+                for c in cells
+            )
+            and CpuBackend().prefilter_variant() is None
+        ):
+            raise ValueError("search-prefilter requires a shipped enabled prefilter variant")
+
+
+def select(cells, study):
+    if study == "search-prefilter":
+        cells = [
+            dict(c, relative_to="search-exact-int8")
+            for c in cells
+            if c["id"] in ("search-exact-int8", "search-prefilter-int8")
+        ]
+    elif study == "all":
+        cells = [c for c in cells if c["stage"] != "search-prefilter"]
+    else:
+        cells = [c for c in cells if c["stage"] == study]
+    return cells
+
+
+def reduce_cells(contract):
+    for cell in [*contract["cells"], contract["quiet_cell"]]:
+        cell["production_workers"], cell["production_texts"] = cell["workers"], cell["texts"]
+        cell.update(
+            texts=65_536
+            if cell["kind"] == "search"
+            else (20_000 if cell["kind"] in ("write", "predict") else 12_000),
+            workers=min(cell["workers"], 2),
+            functional_only=True,
+        )
