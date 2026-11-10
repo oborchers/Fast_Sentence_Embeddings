@@ -21,7 +21,13 @@ from numpy.typing import NDArray
 
 from fse._runtime import LengthReport, LengthSettings, Pool, Sink, workers_of
 from fse._runtime._lengths import LengthLevel
-from fse._validation import PositiveInt, validate_arguments
+from fse._store import VectorStore
+from fse._validation import (
+    TextBatches,
+    TextInput,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _lone_run, _resume_run, _run
 from ._outputs import PredictedBatch
@@ -35,9 +41,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -53,9 +59,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -71,9 +77,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -89,9 +95,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -107,9 +113,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -125,9 +131,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -145,9 +151,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -163,9 +169,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -181,9 +187,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -199,9 +205,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -217,9 +223,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -235,9 +241,9 @@ class _Predicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -257,9 +263,9 @@ class _Predicting:
     @validate_arguments
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -291,7 +297,11 @@ class _Predicting:
         then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
         Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
         Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
-        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors."""
+        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
+
+        ``texts`` also accepts any ``os.PathLike`` returning str: the lines of that file.
+        A plain str is one text, never a file path, and must be wrapped in a collection.
+        """
         threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
@@ -308,11 +318,11 @@ class _Predicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -328,11 +338,11 @@ class _Predicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -348,11 +358,11 @@ class _Predicting:
     @validate_arguments
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["labels", "proba", "decision"] = "labels",
         return_vectors: bool = False,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -365,7 +375,7 @@ class _Predicting:
         pool: Pool | None = None,
     ) -> Generator[Any, None, None]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
-        yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
+        yields finite lists, tuples or one-dimensional NumPy text arrays, or is a ``fse.VectorStore`` (one batch per block of
         rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
         ``return_vectors=True`` also its vectors, the encoder's own rows (one pooling gives
         both). What the ``sink`` takes depends on ``return_vectors``::

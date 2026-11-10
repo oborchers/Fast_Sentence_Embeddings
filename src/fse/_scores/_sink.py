@@ -27,6 +27,7 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _log
 from fse._ids import checked_ids, id_block
@@ -41,7 +42,12 @@ from fse._store._resume_format import SourceRows, check_mode, check_source, sync
 from fse._store._score_shard import ScoreShardWriter
 from fse._store._scores_format import SCORES
 from fse._store._sink import default_shard_rows, stream_of
-from fse._validation import PositiveInt, validate_arguments
+from fse._validation import (
+    PositiveInt,
+    UncheckedPath,
+    file_path,
+    validate_arguments,
+)
 
 from ._schema import ScoreSchema
 
@@ -85,7 +91,7 @@ class ScoreSink(ShardSinkBase):
     @validate_arguments
     def __init__(
         self,
-        path: Any,
+        path: UncheckedPath,
         heads: Any,
         *,
         name: Any = None,
@@ -96,7 +102,7 @@ class ScoreSink(ShardSinkBase):
         resume: bool = False,
     ):
         schema = ScoreSchema.from_heads(heads, stored, name)
-        path = Path(path)
+        path = Path(file_path(path, "path"))
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
         synced = durability == "full"
@@ -271,13 +277,13 @@ class ScoreSink(ShardSinkBase):
 
     # --- the sink protocol --------------------------------------------------------------
 
-    def target(self, first_row: int, n_rows: int) -> Any:  # the (n_rows, dim) matrix
+    def target(self, first_row: int, n_rows: int) -> NDArray[np.float32]:
         if not self._attached:
             raise RuntimeError(
                 "a ScoreSink takes rows only from predict_batches(score_sink=...) of a "
                 "Classifier, a Regressor or fse.Heads"
             )
-        return super().target(first_row, n_rows)[0]
+        return self._target(first_row, n_rows)[0]
 
     def commit(self, first_row: int, rows: Any, *, doc_ids: Any = None) -> None:
         parts, own, ids = self._commit_target(first_row, rows, doc_ids)

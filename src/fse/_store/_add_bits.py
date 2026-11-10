@@ -22,7 +22,11 @@ from pathlib import Path
 from typing import Literal
 
 from fse._runtime import Pool, workers_of
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._validation import (
+    PathLike,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _search_run
 from ._bits_write import backfill
@@ -36,7 +40,7 @@ def add_sign_bits(
     path: PathLike,
     *,
     durability: Literal["full", "none"] = "full",
-    workers: PositiveInt | None = None,
+    workers: WorkerCount = None,
     pool: Pool | None = None,
 ) -> int:
     """Write the sign bits of every shard of the store ``path`` that has none and return the

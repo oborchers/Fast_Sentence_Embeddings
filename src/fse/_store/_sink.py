@@ -26,12 +26,18 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes, _log
 from fse._encoder import Encoder
 from fse._ids import checked_ids, id_block
 from fse._partition import partition
-from fse._validation import PositiveInt, validate_arguments
+from fse._validation import (
+    PositiveInt,
+    UncheckedPath,
+    file_path,
+    validate_arguments,
+)
 
 from ._base_sink import ShardSinkBase
 from ._bits_write import backfill as backfill_bits
@@ -127,7 +133,7 @@ class ShardSink(ShardSinkBase):
     @validate_arguments
     def __init__(
         self,
-        path: Any,
+        path: UncheckedPath,
         encoder: Any,
         *,
         dtype: Literal["float32", "float16", "int8"] = "float32",
@@ -139,7 +145,7 @@ class ShardSink(ShardSinkBase):
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
-        path = Path(path)
+        path = Path(file_path(path, "path"))
         self._start = time.perf_counter()
         info = StoreInfo(
             encoder.fingerprint, dtype, encoder.output_dim, doc_ids, 2 if doc_ids or resume else 1
@@ -167,6 +173,10 @@ class ShardSink(ShardSinkBase):
             self._ready = False
             return
         self._opened_event(new, durability)
+
+    def target(self, first_row: int, n_rows: int) -> tuple[NDArray[Any], ...]:
+        """Reserve the stored vector arrays for one task."""
+        return self._target(first_row, n_rows)
 
     def _opened_event(self, new: bool, durability: str, **resumed: Any) -> None:
         info = self._info

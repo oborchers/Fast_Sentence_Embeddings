@@ -23,7 +23,13 @@ from numpy.typing import NDArray
 
 from fse._encoder import Encoder
 from fse._encoder._model2vec_rules import UNSET, Rules, Unset
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._validation import (
+    ModelRef,
+    PathLike,
+    PositiveInt,
+    TextInput,
+    validate_arguments,
+)
 
 from . import _arguments as arguments
 from . import _save
@@ -72,7 +78,7 @@ class StaticModel:
     @validate_arguments
     def from_pretrained(
         cls,
-        path: PathLike,
+        path: ModelRef,
         token: str | bool | None = None,
         normalize: bool | None = None,
         subfolder: str | None = None,
@@ -147,7 +153,7 @@ class StaticModel:
 
     def encode(
         self,
-        sentences: Any,
+        sentences: TextInput,
         *,
         show_progress_bar: bool = False,
         max_length: int | Unset | None = UNSET,
@@ -195,7 +201,7 @@ class StaticModel:
 
     def encode_as_sequence(
         self,
-        sentences: Any,
+        sentences: TextInput,
         *,
         max_length: int | None = None,
         batch_size: int = 1024,
@@ -232,7 +238,7 @@ class StaticModel:
         ]
         return out[0] if single else out
 
-    def tokenize(self, sentences: Any) -> list[list[int]]:
+    def tokenize(self, sentences: TextInput) -> list[list[int]]:
         """The token ids of a list, tuple or numpy array of sentences, each cut to the
         model's ``max_length`` tokens (not in characters first, as ``encode`` does) and
         without the unknown id (which still counts for the cut)."""
@@ -250,7 +256,7 @@ class StaticModel:
         ``max_length`` tokens, no characters first. See ``fse._static_model._tokenizer``."""
         return self._tokenizer
 
-    def _kept_ids(self, texts: Any) -> list[list[int]]:
+    def _kept_ids(self, texts: TextInput) -> list[list[int]]:
         return self._ids.lists(texts, (self.max_length, None, "keep"))
 
     # --- attributes -------------------------------------------------------------------

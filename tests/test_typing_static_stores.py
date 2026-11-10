@@ -11,12 +11,35 @@ from numpy.typing import NDArray
 
 import fse
 from fse.typing import ScoreHead
+from support.paths import OwnPath
 
 TEXTS = ["a b", "c", ""]
 
 
 def _encoder() -> fse.Encoder:
     return fse.Encoder.from_arrays(np.eye(3, dtype=np.float32), words=["a", "b", "c"])
+
+
+class _TypedScoreSink(fse.ScoreSink):
+    def target(self, first_row: int, n_rows: int) -> NDArray[np.float32]:
+        rows = super().target(first_row, n_rows)
+        assert_type(rows, NDArray[np.float32])
+        assert rows.dtype == np.float32
+        return rows
+
+
+def _check_locations(store: fse.VectorStore | fse.ScoreStore) -> None:
+    members, rows = store.locate([0, 2])
+    assert_type(members, NDArray[np.int64])
+    assert_type(rows, NDArray[np.int64])
+    assert members.dtype == rows.dtype == np.int64
+
+
+def test_score_target_dtype_matches_the_public_contract(tmp_path: Path) -> None:
+    encoder = _encoder()
+    head = fse.Regressor.from_arrays(encoder, np.ones(3, np.float32))
+    with _TypedScoreSink(tmp_path / "target", head, name="quality") as sink:
+        list(head.predict_batches([TEXTS], score_sink=sink))
 
 
 def _check_vector_batches(store: fse.VectorStore) -> None:
@@ -46,7 +69,8 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         result = encoder.encode(TEXTS, sink=protocol, doc_ids=np.array([4, 5, 6], np.int64))
         assert_type(result, None)
         assert result is None
-    with fse.VectorStore.open(tmp_path / "vectors", encoder=encoder) as store:
+    with fse.VectorStore.open(OwnPath(tmp_path / "vectors"), encoder=encoder) as store:
+        _check_locations(store)
         _check_vector_batches(store)
         vectors = store.get_vectors()
         ids = store.get_doc_ids()
@@ -94,6 +118,7 @@ def test_score_store_types(tmp_path: Path) -> None:
         assert bool(inspect.isgenerator(batches))
         list(batches)
     with fse.ScoreStore.open(tmp_path / "scores") as store:
+        _check_locations(store)
         heads = store.heads
         assert_type(heads, Mapping[str, ScoreHead])
         assert isinstance(heads["c"], ScoreHead)

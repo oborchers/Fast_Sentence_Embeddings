@@ -10,7 +10,14 @@ from numpy.typing import NDArray
 
 from fse._runtime import LengthReport, LengthSettings, Pool, Sink, workers_of
 from fse._runtime._lengths import LengthLevel
-from fse._validation import F, PositiveInt, validate_arguments
+from fse._store import VectorStore
+from fse._validation import (
+    F,
+    TextBatches,
+    TextInput,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _lone_run, _resume_run, _run
 from ._outputs import PredictedBatch
@@ -29,9 +36,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -48,9 +55,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: None = None,
@@ -67,9 +74,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -86,9 +93,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: LengthLevel,
@@ -105,9 +112,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -124,9 +131,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -143,9 +150,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -162,9 +169,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
@@ -181,9 +188,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -200,9 +207,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
@@ -222,9 +229,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -241,9 +248,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -260,9 +267,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -279,9 +286,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -298,9 +305,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -317,9 +324,9 @@ class _RegressorPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -340,9 +347,9 @@ class _RegressorPredicting:
     @_validated
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -375,7 +382,11 @@ class _RegressorPredicting:
         Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
         (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
 
-        ``sink=`` takes values and cannot be combined with ``return_vectors=True``."""
+        ``sink=`` takes values and cannot be combined with ``return_vectors=True``.
+
+        ``texts`` also accepts any ``os.PathLike`` returning str: the lines of that file.
+        A plain str is one text, never a file path, and must be wrapped in a collection.
+        """
         threads = workers_of(workers, pool)  # before anything is read
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
@@ -397,11 +408,11 @@ class _RegressorPredicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["values"] = "values",
         return_vectors: bool = False,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -417,11 +428,11 @@ class _RegressorPredicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["values"] = "values",
         return_vectors: bool = False,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,
@@ -437,11 +448,11 @@ class _RegressorPredicting:
     @_validated
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Literal["values"] = "values",
         return_vectors: bool = False,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         vector_sink: Any = None,

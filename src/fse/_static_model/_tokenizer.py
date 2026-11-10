@@ -23,6 +23,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from fse._validation import TextInput
+
 
 @dataclass(frozen=True)
 class Encoding:
@@ -61,14 +63,14 @@ class Tokenizer:
             raise TypeError(f"sequence must be a str, not {type(sequence).__name__}")
         return self._encodings([sequence])[0]
 
-    def encode_batch(self, input: Any, add_special_tokens: bool = True) -> list[Encoding]:
+    def encode_batch(self, input: TextInput, add_special_tokens: bool = True) -> list[Encoding]:
         """As ``encode``, for a list, tuple or numpy array of str."""
         _no_special_tokens(add_special_tokens)
         return self._encodings(input)
 
     encode_batch_fast = encode_batch
 
-    def _encodings(self, texts: Any) -> list[Encoding]:
+    def _encodings(self, texts: TextInput) -> list[Encoding]:
         return [Encoding(ids) for ids in self._ids(texts)]
 
     def get_vocab(self, with_added_tokens: bool = True) -> dict[str, int]:

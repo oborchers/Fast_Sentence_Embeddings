@@ -4,15 +4,12 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md,
-"Reading").
-
+"""``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md, "Reading").
 The shards published when the store is opened are mapped read-only (a snapshot: ``refresh``
 adds the shards published since). ``iter_batches`` gives the stored values as they are, read-only
 views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
 from what is stored, with the thresholds of the multilabel heads replaced if asked. No
-encoder, tokenizer or weight table is loaded.
-"""
+encoder, tokenizer or weight table is loaded."""
 
 from __future__ import annotations
 
@@ -47,7 +44,15 @@ from fse._store._refresh import refreshed
 from fse._store._scores_info import ScoreHead, ScoreInfo
 from fse._store._vector_batches import blocks
 from fse._store._view import Joined, MemberReaders, open_view, verify_members
-from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PathSequence,
+    PositiveInt,
+    UncheckedPath,
+    file_path,
+    validate_arguments,
+)
 
 from . import _predict
 from ._batches import ScoreBatch
@@ -76,7 +81,7 @@ class ScoreStore(MemberReaders):
 
     @classmethod
     def open(
-        cls, path: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+        cls, path: PathLike, *, heads: Any = None, name: Any = None, backend: str = "cpu"
     ) -> ScoreStore:
         """Open the store ``path``; with ``heads`` (a ``fse.Heads``), the store must hold
         exactly those heads, in that order, with those models. ``heads`` may also be one
@@ -86,7 +91,7 @@ class ScoreStore(MemberReaders):
 
     @classmethod
     def open_view(
-        cls, paths: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+        cls, paths: PathSequence, *, heads: Any = None, name: Any = None, backend: str = "cpu"
     ) -> ScoreStore:
         """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
         other, without merging them on disk; ``heads`` and ``name`` are checked against every
@@ -440,7 +445,9 @@ def _check_heads(path: Path, info: ScoreInfo, heads: Any, name: Any = None) -> N
 
 
 @validate_arguments
-def _open(cls: Any, path: Any, *, heads: Any = None, name: Any = None, backend: str = "cpu") -> Any:
+def _open(
+    cls: Any, path: UncheckedPath, *, heads: Any = None, name: Any = None, backend: str = "cpu"
+) -> Any:
     try:
         return _opened(cls, path, heads=heads, name=name, backend=backend)
     except BaseException as error:
@@ -448,10 +455,10 @@ def _open(cls: Any, path: Any, *, heads: Any = None, name: Any = None, backend: 
         raise
 
 
-def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
+def _opened(cls: Any, path: UncheckedPath, *, heads: Any, name: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
-    path = Path(path)
+    path = Path(file_path(path, "path"))
     info = read_store(path, KIND)
     if heads is not None:
         _check_heads(path, info, heads, name)

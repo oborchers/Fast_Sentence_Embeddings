@@ -6,6 +6,7 @@ explicitly instead.
 """
 
 import functools
+import os
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Annotated, Any, TypeAlias, TypeVar
@@ -16,6 +17,8 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    PlainValidator,
+    SkipValidation,
     StrictInt,
     StrictStr,
     validate_call,
@@ -48,8 +51,35 @@ def validate_arguments(func: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
-#: A file system path given as str or Path.
-PathLike: TypeAlias = str | Path
+def file_path(value: Any, name: str) -> str | Path:
+    """Check the original path and its protocol result before constructing a Path."""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, os.PathLike):
+        raise TypeError(f"{name} must be str or a path object, not {type(value).__name__}")
+    text = os.fspath(value)
+    if not isinstance(text, str):
+        raise TypeError(f"{name} must be a text path, not a path returning bytes")
+    return Path(text)
+
+
+def _file_path(value: Any) -> str | Path:
+    try:
+        return file_path(value, "path")
+    except TypeError as error:
+        raise ValueError(str(error)) from None
+
+
+#: A local text path. Strings remain strings; path objects become pathlib.Path.
+PathLike: TypeAlias = Annotated[str | os.PathLike[str], PlainValidator(_file_path)]
+#: A local model path, or a Hub identifier when supplied as a string.
+ModelRef: TypeAlias = PathLike
+# Bulk inputs are checked explicitly; their annotations must not consume iterators.
+TextInput: TypeAlias = object
+TextBatches: TypeAlias = Annotated[Iterable[object], SkipValidation]
+# Stores and sinks preserve their original TypeError boundary after pydantic validation.
+UncheckedPath: TypeAlias = Annotated[PathLike, SkipValidation]
+PathSequence: TypeAlias = Annotated[list[PathLike] | tuple[PathLike, ...], SkipValidation]
 
 
 def _numpy_integer_to_int(value: object) -> object:
@@ -61,6 +91,10 @@ def _numpy_integer_to_int(value: object) -> object:
 
 # bool stays an error: np.bool_ is no np.integer, and strict mode rejects a Python bool.
 PositiveInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(gt=0)]
+#: A positive Python or NumPy integer, or None to use the available CPUs.
+WorkerCount: TypeAlias = (
+    Annotated[int | np.integer[Any], BeforeValidator(_numpy_integer_to_int), Field(gt=0)] | None
+)
 NonNegativeInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(ge=0)]
 # Infinity would pass gt=0 and fail only later, in the arithmetic it is given to.
 PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
