@@ -158,16 +158,17 @@ def _field_hints(cls):
 
 
 def _imports(tree):
-    imports = {}
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                root = alias.name.split(".")[0]
-                imports[alias.asname or root] = alias.name if alias.asname else root
-        if isinstance(node, ast.ImportFrom) and node.module:
-            for alias in node.names:
-                imports[alias.asname or alias.name] = node.module + "." + alias.name
-    return imports
+    return dict(binding for node in tree.body for binding in _import_bindings(node))
+
+
+def _import_bindings(node):
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            root = alias.name.split(".")[0]
+            yield alias.asname or root, alias.name if alias.asname else root
+    elif isinstance(node, ast.ImportFrom) and node.module:
+        for alias in node.names:
+            yield alias.asname or alias.name, node.module + "." + alias.name
 
 
 def _integration_members(cls, classes):
