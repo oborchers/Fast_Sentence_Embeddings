@@ -7,7 +7,7 @@ datasets: [nvidia/Aegis-AI-Content-Safety-Dataset-2.0]
 base_model: hotchpotch/bekko-static-embedding-v1
 ---
 
-# fse/prompt-safety-aegis2-bekko
+# fse/bekko-aegis2-prompt-safety-classifier
 
 A linear prompt classifier trained outside fse using scikit-learn. This is a complete head, retaining its encoder for use with fse.Heads. The local artifact has not been uploaded.
 
