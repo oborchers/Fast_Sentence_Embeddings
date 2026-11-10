@@ -221,6 +221,9 @@ def load_encoder(root, contract, repo, snapshot):
 def save_artifacts(root, contract, repo, encoder):
     """One artifact per table dtype the cells of the model need (float32 always)."""
     cells = [c for c in contract["cells"] if c["model"] == repo]
+    for cell in cells:
+        if cell["kind"] == "write" and cell["dimensions"] != encoder.output_dim:
+            raise ValueError("declared write dimension differs from the model")
     dtypes = {"float32"}
     dtypes.update(c["dtype"] for c in cells if c["kind"] == "dtype")
     dtypes.update(c["table_dtype"] for c in cells if "table_dtype" in c)

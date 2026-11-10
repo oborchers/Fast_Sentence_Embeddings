@@ -686,9 +686,14 @@ the duration gate and establishes no speed claim.
 Each arm verifies the complete store inventory and row count, then compares sampled
 int8 codes and float32 scale bits with its own in-memory encoding. It saves those
 codes, scales and sampled row indices in a small `.npz` with a digest before deleting
-the store. The controller compares only these retained samples across arms, including
+the store. Samples live in the result directory, so its manifest and collection
+archive retain them; each receipt records the filename and digest. The controller
+compares only these retained samples across arms, including
 shape, dtype and bits. A mismatch makes the cell invalid, without a fallback. Store
 file digests remain arm-local because persistence metadata can differ across versions.
+Writing resource fields require positive integers, excluding booleans. The model
+dimension is checked during preparation and loading; the production input byte
+count is checked after writing the common file.
 The resource preflight records the production writing plan alongside encoding plans
 in `preflight-memory.json`. Its conservative components include retained corpus,
 preparation arrays, input cache, all pages of one store, model copies, worker buffers,

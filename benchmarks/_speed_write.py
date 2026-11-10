@@ -40,6 +40,8 @@ def headline_child(job):
 
     configure(job["workers"])
     model = Encoder.load(job["artifact"], mmap=True)
+    if model.output_dim != job["dimensions"]:
+        raise ValueError("declared write dimension differs from the loaded model")
     path = Path(job["vectors_file"])
     if path.exists() or path.is_symlink():
         raise ValueError("headline output must be fresh")
@@ -79,7 +81,7 @@ def headline_child(job):
         raise ValueError("headline int8 sample codes differ")
     if not np.array_equal(reference.scales.view(np.uint8), scales.view(np.uint8)):
         raise ValueError("headline int8 sample scales differ")
-    code_sample = path.with_suffix(".npz")
+    code_sample = Path(job["code_sample_file"])
     with code_sample.open("xb") as stream:
         np.savez(stream, indices=np.asarray(indices, dtype=np.int64), codes=codes, scales=scales)
         stream.flush()
@@ -94,6 +96,7 @@ def headline_child(job):
             affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
             warmup=warmup,
             code_sample_file=str(code_sample),
+            code_sample_relative=code_sample.name,
             code_sample_sha256=sha256(code_sample),
             requested_worker_limit=job["workers"],
             including_sink_open_seconds=including_open,

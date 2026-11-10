@@ -56,6 +56,10 @@ def validate(cells):
     for cell in cells:
         protocol(cell)
         pair_rounds(cell)
+        if cell["kind"] == "write":
+            from _speed_write_pair import validate as validate_write
+
+            validate_write(cell)
         if cell["kind"] == "search":
             from _harness.search import validate as validate_search
 

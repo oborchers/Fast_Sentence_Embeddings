@@ -16,8 +16,20 @@ class SampleMismatchError(ValueError):
     """The two versions produced different persisted code or scale bits."""
 
 
+def validate(cell):
+    """Check original resource inputs before any arithmetic or conversion."""
+    fields = ["texts", "workers", "dimensions"]
+    if cell["reference"] == "fse-base" or "planned_input_bytes" in cell:
+        fields.append("planned_input_bytes")
+    for name in fields:
+        if type(cell.get(name)) is not int or cell[name] <= 0:
+            raise ValueError(f"write {name} must be a positive integer")
+    pair_rounds(cell)
+
+
 def memory_plan(cell, model_bytes, limit, retained_source_bytes=0):
     """Conservative peak including all file-backed pages; stores never overlap."""
+    validate(cell)
     n, d, w = cell["texts"], cell["dimensions"], cell["workers"]
     return resources.assess(
         {
@@ -54,9 +66,49 @@ def compare_samples(rows):
             raise SampleMismatchError(f"headline cross-arm {key} bits differ")
 
 
-def rounds(context, cell, path, sample, identity, launch, cleanup):
+def write_round(context, cell, number, labels, path, sample, identity, launch, rows):
     from _speed_cells import remove_headline
 
+    current, ledger = [], context["ledger"]
+    for label in labels if number % 2 == 0 else labels[::-1]:
+        row = launch(context, cell, label, number, path, sample, identity)
+        rows.append(row)
+        current.append(row)
+        remove_headline(context["work"], Path(row["sample_file"]), row["files"])
+        append(
+            ledger.root / "cleanup.jsonl",
+            dict(
+                cell_id=cell["id"],
+                label=label,
+                round=number,
+                completed_at=time.time(),
+                disk_after=shutil.disk_usage(context["work"])._asdict(),
+            ),
+        )
+    if len(labels) == 2:
+        compare_samples(current)
+        append(
+            ledger.root / "checks.jsonl",
+            dict(
+                cell_id=cell["id"],
+                round=number,
+                sample_bitwise_equal=True,
+                rows=len(identity["sample_rows"]),
+                check="cross-arm codes and scales",
+            ),
+        )
+
+
+def check_identities(rows, labels):
+    for label in labels:
+        identities = {
+            json.dumps(row["identity"], sort_keys=True) for row in rows if row["label"] == label
+        }
+        if len(identities) > 1:
+            raise ValueError("headline runtime identity changed between rounds")
+
+
+def rounds(context, cell, path, sample, identity, launch, cleanup):
     rows, ledger = [], context["ledger"]
     paired = cell["reference"] == "fse-base"
     labels = ["fse", "fse-base"] if paired else ["fse"]
@@ -64,44 +116,12 @@ def rounds(context, cell, path, sample, identity, launch, cleanup):
         for number in range(pair_rounds(cell)):
             if not ledger.admit(cell["estimated_seconds"] / cell["rounds"]):
                 break
-            current = []
-            for label in labels if number % 2 == 0 else labels[::-1]:
-                row = launch(context, cell, label, number, path, sample, identity)
-                rows.append(row)
-                current.append(row)
-                remove_headline(context["work"], Path(row["sample_file"]), row["files"])
-                append(
-                    ledger.root / "cleanup.jsonl",
-                    dict(
-                        cell_id=cell["id"],
-                        label=label,
-                        round=number,
-                        completed_at=time.time(),
-                        disk_after=shutil.disk_usage(context["work"])._asdict(),
-                    ),
-                )
-            if paired:
-                compare_samples(current)
-                append(
-                    ledger.root / "checks.jsonl",
-                    dict(
-                        cell_id=cell["id"],
-                        round=number,
-                        sample_bitwise_equal=True,
-                        rows=len(identity["sample_rows"]),
-                        check="cross-arm codes and scales",
-                    ),
-                )
+            write_round(context, cell, number, labels, path, sample, identity, launch, rows)
         cleanup(
             context,
             [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")],
         )
-        for label in labels:
-            identities = {
-                json.dumps(row["identity"], sort_keys=True) for row in rows if row["label"] == label
-            }
-            if len(identities) > 1:
-                raise ValueError("headline runtime identity changed between rounds")
+        check_identities(rows, labels)
     except SampleMismatchError as error:
         return rows, dict(status="invalid", reason=str(error))
     except Exception as error:
