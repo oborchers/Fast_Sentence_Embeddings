@@ -472,14 +472,17 @@ jobs:
           enable-cache: ${{ needs.changes.outputs.targeted == 'true' && 'false' || 'auto' }}
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e  # v4.3.5
         env:
-          # Every event builds every wheel. Windows tests the wheel of one Python, 3.13, on
-          # every event: Unix keeps the only full suite (the test jobs run Python 3.11 to 3.15
-          # on Linux), and the Windows run adds the real Windows filesystem and process
-          # semantics once. 3.13 is the newest Python where the optional gensim tests also
-          # run, so it covers more than 3.14 and 3.15. The other platforms test the wheels of
-          # the newest Python on a pull request and all versions on every other event.
+          # Every event builds and tests every wheel. Windows runs the full suite on one
+          # Python, 3.13, on every event: Unix keeps the only full suite (full runs keep the
+          # Linux test jobs on Python 3.11 to 3.15; ordinary pull requests select 3.13 and,
+          # when required, the minimum-dependency job), and the Windows run adds the real
+          # Windows filesystem and process semantics once. Python 3.13 additionally runs the
+          # optional gensim tests, which are skipped on 3.14 and newer. The other four Windows
+          # wheels run a short check instead (tools/wheel_smoke.py, selected in pyproject.toml
+          # under [[tool.cibuildwheel.overrides]]). The other platforms test the wheels of the
+          # newest Python on a pull request and all versions on every other event.
           CIBW_SKIP: "*-win32 *_i686 *-${{ matrix.libc == 'musllinux' && 'manylinux' || 'musllinux' }}_*"
-          CIBW_TEST_SKIP: ${{ matrix.os == 'windows-latest' && 'cp311-* cp312-* cp314-* cp315-*' || (github.event_name == 'pull_request' && 'cp311-* cp312-* cp313-* cp314-*' || '') }}
+          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && matrix.os != 'windows-latest' && 'cp311-* cp312-* cp313-* cp314-*' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist-wheels-${{ matrix.os }}-${{ matrix.libc }}${{ needs.changes.outputs.targeted == 'true' && format('-pr-{0}-{1}', needs.changes.outputs.target_pr, needs.changes.outputs.source_ref) || '' }}
