@@ -154,26 +154,16 @@ and builds/tests that checkout. Credentials are not persisted, job tokens remain
 and the targeted Python jobs do not save caches into the controller branch.
 No repository or branch-protection setting changes are involved.
 
-Before the new definition is integrated, use the reviewed feature ref explicitly.
-For this change, from its checkout:
+To dispatch the targeted run, from the PR's checkout:
 
 ```sh
-gh workflow view ci.yml --ref fse-experiments --yaml
 ci_pr="$(gh pr view --json number --jq .number)"
 ci_sha="$(gh pr view "$ci_pr" --json headRefOid --jq .headRefOid)"
-gh workflow run ci.yml --ref fse-experiments \
-  -f scope=pr-macos -f pr_number="$ci_pr" -f head_sha="$ci_sha"
-```
-
-Inspect that feature definition before dispatching. Do not omit `scope=pr-macos`:
-the default intentionally retains the old full manual matrix. Do not substitute
-`--ref master` until master contains the new inputs and selection.
-After integration the targeted invocation is:
-
-```sh
 gh workflow run ci.yml --ref master \
   -f scope=pr-macos -f pr_number="$ci_pr" -f head_sha="$ci_sha"
 ```
+
+Do not omit `scope=pr-macos`: the default is the full manual matrix.
 
 The run's controller SHA/ref may differ from the tested PR SHA. Executing job names,
 source summaries and wheel artifact names identify the complete tested SHA. Targeted

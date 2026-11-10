@@ -356,7 +356,8 @@ class _RegressorPredicting:
         pool: Pool | None = None,
     ) -> Any:
         """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for a flat
-        head (one target from a one-dimensional ``coef_``), else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
+        head (one target: a one-dimensional ``coef_``, or a one-dimensional ``weight`` of
+        ``from_arrays``), else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
         or ``"per_row"`` returns ``(values, fse.LengthReport)``, the values ``None`` for a
         sink: what the length rule of the encoder cut (texts only; see ``Encoder.encode``).
 

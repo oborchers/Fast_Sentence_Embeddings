@@ -313,13 +313,15 @@ These are observations on this fixed float32 table, not bounds for other inputs.
 Normalization uses the 2.0 numerical contract, and folding changes the order of arithmetic.
 Keep `normalize=False` when moving a raw-mean application and validate any further numerical requirements yourself.
 
-Reproduce from the repository root, with each environment using its own installed fse and the script of that commit:
+Reproduce from the repository root, with each environment using its own installed fse and the script of that commit.
+The script reads the commit of the repository it sits in, so restore it to its old path first:
 
 ```sh
-git show 41fc5d77:benchmarks/compare_migration.py > /tmp/compare_migration.py
-/path/to/1x/bin/python /tmp/compare_migration.py export /tmp/migration.npz \
+git show 41fc5d77:benchmarks/compare_migration.py > benchmarks/compare_migration.py
+/path/to/1x/bin/python benchmarks/compare_migration.py export /tmp/migration.npz \
     --legacy-commit "$(git rev-parse origin/1.x)"
-.venv/bin/python /tmp/compare_migration.py compare /tmp/migration.npz
+.venv/bin/python benchmarks/compare_migration.py compare /tmp/migration.npz
+rm benchmarks/compare_migration.py
 ```
 
 Read the recorded metrics with their scope. This tiny plain-vector example cannot establish equivalence for other models,
