@@ -34,9 +34,7 @@ def headline_tokens(snapshot, source):
 def headline_child(job):
     import resource
 
-    import numpy as np
-
-    from fse import Encoder, ShardSink, VectorStore
+    from fse import Encoder, ShardSink
 
     configure(job["workers"])
     model = Encoder.load(job["artifact"], mmap=True)
@@ -66,6 +64,45 @@ def headline_child(job):
         raise ValueError("headline row count differs")
     files, synced_at, sync_telemetry = sync_headline(path)
     durable_seconds = synced_at - first_read
+    sample_record = check_sample(job, model, path)
+    if package_identity("fse") != identity:
+        raise ValueError("executing headline backend changed")
+    atomic(
+        Path(job["receipt"]),
+        dict(
+            **child_record(job),
+            seconds=seconds,
+            affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+            warmup=warmup,
+            **sample_record,
+            requested_worker_limit=job["workers"],
+            including_sink_open_seconds=including_open,
+            time_until_durable_seconds=durable_seconds,
+            external_fsync=True,
+            durability="none",
+            published_rows=sink.published_rows,
+            durable_rows=sink.durable_rows,
+            output_dtype="int8",
+            table_dtype=str(model.word_vectors.dtype),
+            peak_rss_bytes=peak,
+            identity=identity,
+            files=files,
+            bytes_written=sum(row["bytes"] for row in files),
+            telemetry_before=before,
+            telemetry_after=after,
+            telemetry_after_sync=sync_telemetry,
+            disk_before=disk_before,
+            disk_with_output=__import__("shutil").disk_usage(path.parent)._asdict(),
+        ),
+    )
+
+
+def check_sample(job, model, path):
+    """Verify one persisted sample and retain it in the collected result tree."""
+    import numpy as np
+
+    from fse import VectorStore
+
     indices = json.loads(Path(job["sample_file"]).read_text())
     sample_path = Path(job["sample_texts_file"])
     if sha256(sample_path) != job["sample_texts_sha256"]:
@@ -86,39 +123,12 @@ def headline_child(job):
         np.savez(stream, indices=np.asarray(indices, dtype=np.int64), codes=codes, scales=scales)
         stream.flush()
         os.fsync(stream.fileno())
-    if package_identity("fse") != identity:
-        raise ValueError("executing headline backend changed")
-    atomic(
-        Path(job["receipt"]),
-        dict(
-            **child_record(job),
-            seconds=seconds,
-            affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
-            warmup=warmup,
-            code_sample_file=str(code_sample),
-            code_sample_relative=code_sample.name,
-            code_sample_sha256=sha256(code_sample),
-            requested_worker_limit=job["workers"],
-            including_sink_open_seconds=including_open,
-            time_until_durable_seconds=durable_seconds,
-            external_fsync=True,
-            durability="none",
-            published_rows=sink.published_rows,
-            durable_rows=sink.durable_rows,
-            output_dtype="int8",
-            table_dtype=str(model.word_vectors.dtype),
-            sample_checked_rows=len(indices),
-            sample_bitwise_equal=True,
-            peak_rss_bytes=peak,
-            identity=identity,
-            files=files,
-            bytes_written=sum(row["bytes"] for row in files),
-            telemetry_before=before,
-            telemetry_after=after,
-            telemetry_after_sync=sync_telemetry,
-            disk_before=disk_before,
-            disk_with_output=__import__("shutil").disk_usage(path.parent)._asdict(),
-        ),
+    return dict(
+        code_sample_file=str(code_sample),
+        code_sample_relative=code_sample.name,
+        code_sample_sha256=sha256(code_sample),
+        sample_checked_rows=len(indices),
+        sample_bitwise_equal=True,
     )
 
 
