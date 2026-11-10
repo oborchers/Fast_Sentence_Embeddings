@@ -44,6 +44,7 @@ lint: ## Lint with ruff, the import contracts, the guardrails, unused code and d
 	$(UV) run ruff check $(LINT_PATHS)
 	$(UV) run lint-imports --no-cache
 	$(UV) run python tools/check_guardrails.py
+	$(UV) run python tools/check_doc_links.py
 	$(UV) run vulture
 	$(UV) run deptry src
 

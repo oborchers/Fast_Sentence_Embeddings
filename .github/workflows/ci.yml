@@ -40,13 +40,13 @@ env:
 
 jobs:
   # What a pull request needs to run. A pull request that touches only docs/ and Markdown
-  # files (README.md excepted, it is the package's description) skips every job below;
-  # check still runs and passes. Otherwise lint always runs, and test runs on Linux with
+  # files (README.md excepted, it is the package's description) runs lint for local links.
+  # Heavy jobs stay skipped. Otherwise lint always runs, and test runs on Linux with
   # Python 3.13 (the newest version where every test runs; gensim does not build on 3.14
   # and newer). The rest depends on the files changed, see the outputs below. Pushes to
   # master use all macOS test interpreters; release tags use one.
   # PR macOS jobs are explicit opt-ins. Monthly and full manual runs use the full matrix.
-  # Skill-only instructions and metadata also skip heavy jobs on ordinary master
+  # Skill-only instructions and metadata also run lint and skip heavy jobs on ordinary master
   # pushes. Unknown bases and workflow changes keep the full non-macOS PR selection.
   # A change of the workflows themselves turns every output on.
   changes:
@@ -56,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      lint: ${{ steps.diff.outputs.lint }}
       # The native code and the build: wheels.
       native: ${{ steps.diff.outputs.native }}
       # The dependency pins: the job with the minimum versions.
@@ -112,6 +113,7 @@ jobs:
           if [ "$TARGETED" = "true" ]; then
             {
               echo 'code=true'
+              echo 'lint=false'
               echo 'native=true'
               echo 'deps=false'
               echo 'st=true'
@@ -164,20 +166,21 @@ jobs:
           then
             {
               for name in code native deps st sdist; do echo "$name=false"; done
+              echo "lint=true"
               echo "test_matrix={\"include\":$full}"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "$EVENT" = "pull_request" ] && [ -z "$comparison" ]; then
             {
-              for name in code native deps st sdist; do echo "$name=true"; done
+              for name in code lint native deps st sdist; do echo "$name=true"; done
               echo "test_matrix={\"include\":$full}"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "$EVENT" != "pull_request" ]; then
             {
-              for name in code native deps st sdist; do echo "$name=true"; done
+              for name in code lint native deps st sdist; do echo "$name=true"; done
               echo "test_matrix={\"include\":$full}"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -219,6 +222,8 @@ jobs:
           if [ -n "$other" ] || touches '^README\.md$|^\.agents/skills/'; then code=true; else code=false; fi
           {
             echo "code=$code"
+            # A deleted image or other target can break unchanged documentation.
+            echo "lint=true"
             # The extension sources, setup.py, the project metadata, the sdist manifest,
             # the lockfile. Store/container changes also need the real Windows suite.
             flag native '^tools/hub/|^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
@@ -235,7 +240,7 @@ jobs:
 
   lint:
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.targeted != 'true'
+    if: needs.changes.outputs.lint == 'true' && needs.changes.outputs.targeted != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -403,8 +408,8 @@ jobs:
         # below makes sure they run.
         run: |
           uv venv --python 3.13 /tmp/sdist-env
-          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
-          /tmp/sdist-env/bin/python -c "import huggingface_hub, tokenizers, model2vec, safetensors; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
+          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "markdown-it-py>=3,<5" "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
+          /tmp/sdist-env/bin/python -c "import huggingface_hub, tokenizers, model2vec, safetensors, markdown_it; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
           /tmp/sdist-env/bin/python -m pytest tests -m "not network" -p no:cacheprovider
       - name: Use the sdist without gensim
         run: |

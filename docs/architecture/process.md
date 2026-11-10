@@ -112,7 +112,7 @@ The extension is compiled from `_native.pyx`, the `.pxi` parts it includes (one 
 
 Automatic pull requests do not allocate macOS runners, including wheel jobs.
 Their Linux, Windows, minimum-dependency and packaging selection is unchanged.
-Documentation-only PRs still skip tests. Optional macOS evidence uses the explicit
+Documentation-only PRs run lint, including the offline local-reference check, and still skip tests. Optional macOS evidence uses the explicit
 `pr-macos` manual scope described below, never a comment bot or `pull_request_target`.
 
 Pushes to master retain the full macOS test matrix (CPython 3.11 to 3.15),
@@ -246,30 +246,14 @@ Binding for every 2.0 module (formerly under "2.0 design").
 
 New 2.0 code goes into private modules of `fse`: `_contract` and `_reference` (contracts and reference), `_codes` (storage arithmetic in blocks), `_container`, `_wordvectors` and `_wordvectors_format`, the gensim adapter `fse.gensim` (extra `fse[gensim]`), then the runtime and backends, the encoder, sinks and store. gensim is not a dependency of fse: `import fse` and every 2.0 class work without it (tests check it in a subprocess that blocks gensim and scipy).
 
-The modules form layers, and a module imports only from layers below it. The import contracts in `pyproject.toml` (`[tool.importlinter]`, run by `make lint`) enforce this, and every new module must take a layer there:
+The modules form layers. A module imports only from layers below it. The import contracts
+in [pyproject.toml](../../pyproject.toml), under `[tool.importlinter]`, define the complete
+order and the independent modules within each layer. They also define the layers inside
+packages. `make lint` enforces these contracts. Place every new module in a layer there.
+Only the generated `_version` is exempt. This document keeps no second layer list.
 
-1. `typing` (the public annotation types)
-2. `_scores` (the scores of a group of heads, stored and read)
-3. `_head` (linear heads; they read stores in store mode)
-4. `gensim` (the adapter, the only module that imports gensim), `_store` (the shard sink and the vector store, which take an encoder) and `_static_model` (the API of model2vec on encoders), independent of each other
-5. `_encoder` (the encoder; `fse` loads its names on first access, because import-linter counts every import of the native extension as an import of `fse` itself, so a static import in `fse/__init__.py` would read as a cycle through every layer)
-6. `_hub_push` (a model folder pushed to the Hub, on `_hub`)
-7. `_runtime`
-8. `_backends`, `_stream`, `_text_file`, `_hub`, independent of each other
-9. `_text`
-10. `_wordvectors`
-11. `_wordvectors_format`, `_tokenizer_json`
-12. `_tokenizer_json_unigram`
-13. `_tokenizer_json_common` (what the readers of a tokenizer.json share)
-14. `_reference_head` (the reference of linear heads, on the reference of the encoder), `_reference_unigram` (on the added tokens of wordpiece@1) and `_log_config` (`enable_logging`, on `_validation`)
-15. `_ids`, `_container`, `_codes`, `_partition`, `_reference`, `_reference_text`, `_reference_wordpiece`, `_reference_prefilter`, `_reference_bits`, `_tokenizer_spec`, `_validation`, independent of each other: the references never share code with what they check
-16. `_tokenizer_unigram` (the parameters of unigram@1, which `TokenizerSpec` holds)
-17. `_contract`, `_cpus`, `_unicode`, `_unicode_bert`, `_unicode_graphemes`, `_charsmap`
-18. `_log` (the records of fse, which every module may emit)
-
-The contract is exhaustive (only the generated `_version` is exempt); where this list and `pyproject.toml` differ, `pyproject.toml` is right.
-
-Inside a package, an import contract keeps its parts apart: `_npy` and `_safetensors` share only `_common`, which sits on `_hash`, each backend shares only `_base`, the runtime's pipeline sits on its tasks, sinks, spec and executor, in the encoder the encoder sits on `_pretrained` and `_persist` (an encoder as an artifact and back), `_pretrained` on `_folder` (Hugging Face folders), that on `_card` (their model card), that on the readers `_model2vec` and `_sentence_transformers`, those on `_files`, that on its batches and format and those on its inputs, in the containers the in-place writer `_npy_inplace` sits on `_npy` and the reader of foreign files `_foreign` on `_safetensors`, in the store repair sits beside the sink and the vector store, above the shard writer, the search and recovery, those on the layout, the runtime's head sits on its pipeline, and in the heads the classes sit on the model, that on its runs, those on the scikit-learn reader, the format and the outputs, and those on the content.
+The paths checked for file length and complexity are defined by
+`[tool.fse.guardrails].paths` in the same configuration. Add new top-level code folders there.
 
 The native extension `_native` is invisible to import-linter. `tools/check_guardrails.py` checks that only `_text` (stages 1 and 2) and the cpu backend `_backends._cpu` (the kernels) import it and that it imports only `_contract` from fse. It also checks (in `tools/guardrails_imports.py`) that only `_container._hash` imports a hash library (hashlib or xxhash), that only `_log` and `_log_config` import `logging` or `warnings`. A further contract forbids gensim, scipy, smart_open, psutil, threadpoolctl, wordfreq, torch and sklearn in all of fse, except gensim in `fse.gensim`; the checker applies the same list to the extension.
 
