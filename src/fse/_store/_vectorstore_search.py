@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from fse._runtime import Pool, workers_of
+from fse._validation import WorkerCount
 
 from . import _binary_search, _filtered, _prefilter, _rescore, _search, _selection, _unique_search
 from ._recovery import rows_in
@@ -27,7 +28,7 @@ def search_store(
     queries: Any,
     k: int,
     *,
-    workers: int | None,
+    workers: WorkerCount,
     mode: str,
     doc_ids: Any,
     rows: Any,
@@ -123,7 +124,7 @@ def rescore_store(
     candidates: Any,
     k: int,
     *,
-    workers: int | None,
+    workers: WorkerCount,
     max_per_doc: int | None,
     pool: Pool | None = None,
 ) -> SearchResult:

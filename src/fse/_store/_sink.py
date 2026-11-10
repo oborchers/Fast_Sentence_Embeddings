@@ -32,7 +32,12 @@ from fse import _codes, _log
 from fse._encoder import Encoder
 from fse._ids import checked_ids, id_block
 from fse._partition import partition
-from fse._validation import PositiveInt, file_path, validate_arguments
+from fse._validation import (
+    PositiveInt,
+    UncheckedPath,
+    file_path,
+    validate_arguments,
+)
 
 from ._base_sink import ShardSinkBase
 from ._bits_write import backfill as backfill_bits
@@ -119,7 +124,7 @@ class ShardSink(ShardSinkBase):
     @validate_arguments
     def __init__(
         self,
-        path: Any,
+        path: UncheckedPath,
         encoder: Any,
         *,
         dtype: Literal["float32", "float16", "int8"] = "float32",

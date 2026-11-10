@@ -31,6 +31,11 @@ from fse._runtime import (
     workers_of,
 )
 from fse._runtime._lengths import LengthLevel
+from fse._validation import (
+    TextBatches,
+    TextInput,
+    WorkerCount,
+)
 
 from . import _batches, _positions, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
@@ -46,10 +51,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: Literal["float32", "float16"] | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         doc_ids: Any = None,
@@ -62,10 +67,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: Literal["int8"],
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         doc_ids: Any = None,
@@ -78,10 +83,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         doc_ids: Any = None,
@@ -94,10 +99,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: Literal["float32", "float16"] | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         doc_ids: Any = None,
@@ -110,10 +115,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: Literal["int8"],
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         doc_ids: Any = None,
@@ -126,10 +131,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         doc_ids: Any = None,
@@ -142,10 +147,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink | None = None,
         doc_ids: Any = None,
@@ -158,10 +163,10 @@ class _Encoding:
     @overload
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink | None = None,
         doc_ids: Any = None,
@@ -174,10 +179,10 @@ class _Encoding:
 
     def encode(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: Any = None,
@@ -244,10 +249,10 @@ class _Encoding:
     @overload
     def encode_batches(
         self,
-        batches: Any,
+        batches: TextBatches,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -261,10 +266,10 @@ class _Encoding:
     @overload
     def encode_batches(
         self,
-        batches: Any,
+        batches: TextBatches,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -277,10 +282,10 @@ class _Encoding:
 
     def encode_batches(
         self,
-        batches: Any,
+        batches: TextBatches,
         *,
         dtype: str | None = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         doc_ids: bool = False,
@@ -362,7 +367,7 @@ class _Encoding:
 
 def _encode_resumed(
     me: Any,
-    texts: Any,
+    texts: TextInput,
     dtype: str | None,
     workers: Any,
     backend: str,

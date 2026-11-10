@@ -9,7 +9,12 @@ from numpy.typing import NDArray
 
 from fse._runtime import LengthReport, LengthSettings, Pool, Sink, workers_of
 from fse._runtime._lengths import LengthLevel
-from fse._validation import F, PositiveInt, validate_arguments
+from fse._validation import (
+    F,
+    TextInput,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _run
 
@@ -27,9 +32,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -41,9 +46,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: None = None,
@@ -55,9 +60,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -69,9 +74,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: LengthLevel,
@@ -83,9 +88,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -97,9 +102,9 @@ class _Scoring:
     @overload
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
@@ -111,9 +116,9 @@ class _Scoring:
     @_validated
     def predict_proba(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,
@@ -133,9 +138,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: None = None,
@@ -147,9 +152,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: None = None,
@@ -161,9 +166,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: None = None,
         lengths: LengthLevel,
@@ -175,9 +180,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Sink,
         lengths: LengthLevel,
@@ -189,9 +194,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: None = None,
@@ -203,9 +208,9 @@ class _Scoring:
     @overload
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: LengthLevel,
@@ -217,9 +222,9 @@ class _Scoring:
     @_validated
     def decision_function(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         sink: Any = None,
         lengths: Any = None,

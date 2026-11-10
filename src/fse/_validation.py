@@ -18,6 +18,7 @@ from pydantic import (
     ConfigDict,
     Field,
     PlainValidator,
+    SkipValidation,
     StrictInt,
     StrictStr,
     validate_call,
@@ -73,6 +74,12 @@ def _file_path(value: Any) -> str | Path:
 PathLike: TypeAlias = Annotated[str | os.PathLike[str], PlainValidator(_file_path)]
 #: A local model path, or a Hub identifier when supplied as a string.
 ModelRef: TypeAlias = PathLike
+# Bulk inputs are checked explicitly; their annotations must not consume iterators.
+TextInput: TypeAlias = object
+TextBatches: TypeAlias = Annotated[Iterable[object], SkipValidation]
+# Stores and sinks preserve their original TypeError boundary after pydantic validation.
+UncheckedPath: TypeAlias = Annotated[PathLike, SkipValidation]
+PathSequence: TypeAlias = Annotated[list[PathLike] | tuple[PathLike, ...], SkipValidation]
 
 
 def _numpy_integer_to_int(value: object) -> object:
@@ -84,6 +91,10 @@ def _numpy_integer_to_int(value: object) -> object:
 
 # bool stays an error: np.bool_ is no np.integer, and strict mode rejects a Python bool.
 PositiveInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(gt=0)]
+#: A positive Python or NumPy integer, or None to use the available CPUs.
+WorkerCount: TypeAlias = (
+    Annotated[int | np.integer[Any], BeforeValidator(_numpy_integer_to_int), Field(gt=0)] | None
+)
 NonNegativeInt = Annotated[int, BeforeValidator(_numpy_integer_to_int), Field(ge=0)]
 # Infinity would pass gt=0 and fail only later, in the arithmetic it is given to.
 PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]

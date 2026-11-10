@@ -31,7 +31,14 @@ from numpy.typing import NDArray
 from fse import _codes, _log
 from fse._container import NpyContainer
 from fse._runtime import Pool, workers_of
-from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
+from fse._validation import (
+    NonNegativeInt,
+    PathLike,
+    PathSequence,
+    PositiveInt,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _search, _take, _vector_batches
 from ._bits_format import bits_name, check_content
@@ -70,12 +77,14 @@ class VectorStore(MemberReaders):
     _closed: bool
 
     @classmethod
-    def open(cls, path: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
+    def open(cls, path: PathLike, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
         """Open the store ``path``; with an ``encoder``, the store must hold its rows."""
         return open_store(cls, path, encoder=encoder, backend=backend)
 
     @classmethod
-    def open_view(cls, paths: Any, *, encoder: Any = None, backend: str = "cpu") -> VectorStore:
+    def open_view(
+        cls, paths: PathSequence, *, encoder: Any = None, backend: str = "cpu"
+    ) -> VectorStore:
         """Open the stores ``paths`` (a list of paths) as one store whose rows follow each
         other, without merging them on disk (``paths``, ``members``, ``source`` and
         ``locate`` describe them). Every search, score and read gives what one store holding
@@ -120,7 +129,7 @@ class VectorStore(MemberReaders):
         queries: Any,
         k: PositiveInt = 10,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         mode: Literal["auto", "exact", "blas", "binary"] = "auto",
         doc_ids: Any = None,
         rows: Any = None,
@@ -182,7 +191,7 @@ class VectorStore(MemberReaders):
         /,
         k: PositiveInt = 10,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         max_per_doc: PositiveInt | None = None,
         pool: Pool | None = None,
     ) -> SearchResult:
@@ -207,7 +216,7 @@ class VectorStore(MemberReaders):
         weights: Any,
         bias: Any = 0.0,
         *,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         mode: Literal["auto", "exact", "blas"] = "auto",
         pool: Pool | None = None,
     ) -> NDArray[np.float32]:

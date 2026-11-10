@@ -16,7 +16,14 @@ from fse._runtime import (
     workers_of,
 )
 from fse._runtime._lengths import LengthLevel
-from fse._validation import F, PositiveInt, validate_arguments
+from fse._store import VectorStore
+from fse._validation import (
+    F,
+    TextBatches,
+    TextInput,
+    WorkerCount,
+    validate_arguments,
+)
 
 from . import _heads_run, _resume_run
 from ._heads_run import OutputInput
@@ -36,10 +43,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -55,10 +62,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -74,10 +81,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -93,10 +100,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -112,10 +119,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -131,10 +138,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -153,10 +160,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -172,10 +179,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -191,10 +198,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -210,10 +217,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -229,10 +236,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: None = None,
         count_truncated: bool = False,
@@ -250,10 +257,10 @@ class _HeadsPredicting:
     @overload
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: OutputInput = None,
-        workers: int | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: LengthLevel,
         count_truncated: bool = False,
@@ -273,10 +280,10 @@ class _HeadsPredicting:
     @_validated
     def predict(
         self,
-        texts: Any,
+        texts: TextInput,
         *,
         output: Any = None,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         lengths: Any = None,
         count_truncated: Any = False,
@@ -339,11 +346,11 @@ class _HeadsPredicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: None = None,
         return_vectors: bool = False,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
@@ -358,11 +365,11 @@ class _HeadsPredicting:
     @overload
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: OutputInput,
         return_vectors: bool = False,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,
@@ -377,11 +384,11 @@ class _HeadsPredicting:
     @_validated
     def predict_batches(
         self,
-        batches: Any,
+        batches: TextBatches | VectorStore,
         *,
         output: Any = None,
         return_vectors: bool = False,
-        workers: PositiveInt | None = None,
+        workers: WorkerCount = None,
         backend: str = "cpu",
         vector_sink: Any = None,
         score_sink: Any = None,

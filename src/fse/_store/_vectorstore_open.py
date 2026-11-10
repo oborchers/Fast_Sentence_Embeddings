@@ -19,7 +19,11 @@ from typing import Any
 from fse import _log
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._encoder import Encoder
-from fse._validation import file_path, validate_arguments
+from fse._validation import (
+    UncheckedPath,
+    file_path,
+    validate_arguments,
+)
 
 from ._layout import read_store
 from ._recovery import clear_exception_frames, snapshot
@@ -28,7 +32,7 @@ from ._view import open_view
 
 
 @validate_arguments
-def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> Any:
+def _open(cls: Any, path: UncheckedPath, *, encoder: Any = None, backend: str = "cpu") -> Any:
     try:
         return _opened(cls, path, encoder=encoder, backend=backend)
     except BaseException as error:
@@ -36,7 +40,7 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
         raise
 
 
-def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
+def _opened(cls: Any, path: UncheckedPath, *, encoder: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
     path = Path(file_path(path, "path"))

@@ -27,6 +27,7 @@ from typing import Any, NamedTuple, ParamSpec, TypeVar
 import numpy as np
 
 from fse._cpus import usable_cpus
+from fse._validation import WorkerCount
 
 # Waits wake up this often, so an interrupt reaches the calling thread (also on Windows).
 _POLL_SECONDS = 0.25
@@ -56,7 +57,7 @@ class Pool:
     """
 
     def __init__(
-        self, workers: int | None = None, *, start: bool = False, max_tasks: int | None = None
+        self, workers: WorkerCount = None, *, start: bool = False, max_tasks: int | None = None
     ):
         self._workers = usable_cpus() if workers is None else _positive(workers, "workers")
         self._max_tasks = (
