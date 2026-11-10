@@ -9,8 +9,8 @@ Keep an isolated 1.x environment while moving your application.
 Use Python 3.11 to 3.13 for code that needs gensim.
 2.0 itself supports Python 3.11 to 3.15, with gensim available through `fse[gensim]` on supported Python versions.
 Free-threaded Python builds are unsupported.
-Until 2.0 is released, install its development checkout with `UV_PYTHON=3.13 make install`.
-Do not replace a production 1.x environment with the development branch.
+Install it with `pip install "fse>=2.0"` into a new environment.
+Do not replace a production 1.x environment in place.
 
 ## Choose the replacement
 

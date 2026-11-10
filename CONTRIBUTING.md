@@ -1,7 +1,7 @@
 # Contributing
 
-fse 2.0 is an inference engine for finished static embeddings. It trains nothing.
-The maintainer plans the 2.0 rewrite on `master`. Feature requests and unsolicited feature PRs are out of scope.
+fse 2 is an inference engine for finished static embeddings. It trains nothing.
+The maintainer plans the next release, 2.1, on `master`. Feature requests and unsolicited feature PRs are out of scope.
 Bug reports and fixes are welcome. The `1.x` branch accepts bug and compatibility fixes for the released API.
 
 ## AI assistance is welcome

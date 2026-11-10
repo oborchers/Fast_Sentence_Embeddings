@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: >-
-        fse is in maintenance mode. Bugs and compatibility problems with current
-        Python, numpy, scipy or gensim versions are in scope.
+        Bugs and compatibility problems with supported Python and numpy versions and
+        the optional gensim integration are in scope. Feature requests are out of scope.
   - type: textarea
     id: what-happened
     attributes:
