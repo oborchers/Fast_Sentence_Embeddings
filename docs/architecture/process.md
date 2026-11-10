@@ -243,18 +243,29 @@ It is a different operation from targeted PR verification.
 
 ## Wheel verification
 
-CI uses cibuildwheel 4.3.4, pinned by commit in `.github/workflows/ci.yml`. It selects
+CI uses cibuildwheel 4.3.5, the action pinned by commit in `.github/workflows/ci.yml`
+(the local tool of the dev group and the Linux images below are pinned to 4.3.4). It selects
 CPython 3.11 to 3.15, without free-threaded variants. Tags and full `workflow_dispatch` runs
-build and test all 30 wheels: manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64,
-macOS arm64, and Windows x86_64. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
+build and test all 30 wheels (manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64, macOS
+arm64, and Windows x86_64), with one difference on Windows (DR-344): the full suite runs on
+the CPython 3.15 wheel only, on every event, and the other four Windows wheels run a short
+check (`tools/wheel_smoke.py`, selected in `pyproject.toml` under
+`[[tool.cibuildwheel.overrides]]`): it imports `fse` and its extension and encodes a few
+texts for float32, float16 and int8 tables, with the kernel and with the numpy reference, and
+requires the same bits. Unix keeps the only full suite over all versions; Windows adds the
+real Windows filesystem and process semantics once. The newest Python is where the
+Windows-specific risks (native extension, files, processes) show first; the optional gensim
+tests are pure Python, skipped on 3.14 and newer, and run on Linux for 3.11 to 3.13.
+Every Windows wheel is built and uploaded, and the release job publishes all of them. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
 with `RENAME_NOREPLACE` when libc has no wrapper. It never falls back to a rename
 that could overwrite an existing directory. Unsupported syscall architectures fail
 explicitly. Linux images are pinned by digest to
 [cibuildwheel's 2026.10.21-1 images](https://github.com/pypa/cibuildwheel/blob/v4.3.4/cibuildwheel/resources/pinned_docker_images.cfg).
 A manual run on a branch verifies the release matrix without publishing. Publication
 requires a tag push and approval in the release environment. Automatic PRs keep the three
-Linux/Windows runner jobs, without musllinux, and test only CPython 3.15
-(Windows also tests 3.11). macOS wheel builds explicitly select arm64.
+Linux/Windows runner jobs, without musllinux, and test only CPython 3.15 on Linux
+(Windows: the full suite on 3.15 and the short check on the other four wheels, on every
+event). macOS wheel builds explicitly select arm64.
 The path filter still omits wheels when an unrelated file changes. Store/container source changes and their tests trigger the wheel jobs so the store suite also runs on real Windows.
 
 [cibuildwheel's selectors](https://cibuildwheel.pypa.io/en/stable/options/#build-skip)
@@ -271,7 +282,8 @@ gensim and scikit-learn lack musllinux wheels. The musllinux test command exclud
 `test_gensim.py` and the native random-Unicode comparison that imports gensim.
 The native hash tests against pinned gensim values still run. Scikit-learn adapter
 tests skip through `pytest.importorskip`.
-PyArrow, pandas, Polars and datasets remain installed on every target interpreter.
+PyArrow, pandas, Polars and datasets remain installed on every target interpreter that runs
+the full suite (not on the four Windows wheels that run the short check).
 PyYAML, required by huggingface-hub and datasets, builds from source on CPython 3.15
 musllinux because its current release has no wheel for that interpreter.
 On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show

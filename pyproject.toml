@@ -286,6 +286,14 @@ manylinux-aarch64-image = "quay.io/pypa/manylinux_2_28_aarch64@sha256:0333f44c4e
 musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2_x86_64@sha256:767e9118e48b4b8de84d3262ba95a3bc5f6679a09247f0bf9e283445608f37c1"
 musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce3dcfb1a6dd2ac99f077b78fb0f3cec8a2fed65bb999823c6a8fa0"
 
+# DR-344: Windows runs the full suite on one Python (cp315, see .github/workflows/ci.yml).
+# The wheels of the other four versions run a short check instead: they import fse and its
+# extension and encode a few texts against the numpy reference (tools/wheel_smoke.py).
+[[tool.cibuildwheel.overrides]]
+select = "cp311-win* cp312-win* cp313-win* cp314-win*"
+test-groups = []
+test-command = "python -I {project}/tools/wheel_smoke.py"
+
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux_*"
 # gensim and scikit-learn have no musllinux wheels. Keep the Arrow producers and
