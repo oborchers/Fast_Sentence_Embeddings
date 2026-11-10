@@ -293,7 +293,7 @@ Run both environments on your own inputs and rebuild stored vectors when you cha
 Do not mix 1.x and 2.0 vectors merely because their dimensions agree.
 
 The repository records a small, offline comparison in [migration-comparison.json](migration-comparison.json).
-Its [script](../benchmarks/compare_migration.py) uses the same fixed word table and token lists in both versions.
+Its [script](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/41fc5d774c88db48a05fdc27c51cc4af773298cd/benchmarks/compare_migration.py) (a permalink: the file is no longer on master) uses the same fixed word table and token lists in both versions.
 It checks Average, SIF, and uSIF, with folded tables exported by 1.x.
 The recorded run distinguishes known words, an unknown word, an unknown-only sentence, and an empty sentence.
 It compares raw outputs and normalized outputs separately. There are no timing measurements.
@@ -313,12 +313,13 @@ These are observations on this fixed float32 table, not bounds for other inputs.
 Normalization uses the 2.0 numerical contract, and folding changes the order of arithmetic.
 Keep `normalize=False` when moving a raw-mean application and validate any further numerical requirements yourself.
 
-Reproduce from the repository root, with each environment using its own installed fse:
+Reproduce from the repository root, with each environment using its own installed fse and the script of that commit:
 
 ```sh
-/path/to/1x/bin/python benchmarks/compare_migration.py export /tmp/migration.npz \
+git show 41fc5d77:benchmarks/compare_migration.py > /tmp/compare_migration.py
+/path/to/1x/bin/python /tmp/compare_migration.py export /tmp/migration.npz \
     --legacy-commit "$(git rev-parse origin/1.x)"
-.venv/bin/python benchmarks/compare_migration.py compare /tmp/migration.npz
+.venv/bin/python /tmp/compare_migration.py compare /tmp/migration.npz
 ```
 
 Read the recorded metrics with their scope. This tiny plain-vector example cannot establish equivalence for other models,
