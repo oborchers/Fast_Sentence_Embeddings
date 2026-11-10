@@ -105,10 +105,12 @@ class VectorStore(MemberReaders):
 
     @property
     def dim(self) -> int:
+        """The number of columns of a row."""
         return self._info.dim
 
     @property
     def dtype(self) -> str:
+        """The stored dtype of the rows: ``"float32"``, ``"float16"`` or ``"int8"``."""
         return self._info.dtype
 
     @property
@@ -424,6 +426,9 @@ class VectorStore(MemberReaders):
     # --- life cycle ---------------------------------------------------------------------
 
     def close(self) -> None:
+        """Release the mapped shards. Later calls raise ``RuntimeError``, and arrays that were
+        returned as views of the rows must not be used afterwards. Raises ``RuntimeError``
+        while a search, score or read is running."""
         with self._lock:
             if self._active:
                 raise RuntimeError(

@@ -35,9 +35,10 @@ instead. Only the value 1 is allowed in this version; any other value raises a
 ordinary search.
 
 ```python
-found = store.search(query, 10, max_per_doc=1, mode="exact")
-found.ids        # the position of the best chunk of each document
-found.doc_ids    # ten different document IDs
+with fse.VectorStore.open(path) as store:
+    found = store.search(query, 10, max_per_doc=1, mode="exact")
+    found.ids        # the position of the best chunk of each document
+    found.doc_ids    # ten different document IDs
 ```
 
 Of every document ID only its best row counts: the largest score, and for equal scores

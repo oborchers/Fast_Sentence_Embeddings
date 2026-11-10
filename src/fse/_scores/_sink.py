@@ -80,7 +80,8 @@ class ScoreSink(ShardSinkBase):
     With ``resume=True`` the sink resumes: give it to ``predict(texts, score_sink=sink,
     shard=)`` of the same heads, which reads a source that can be read again, compares its
     identity with the store and runs the rows the store does not hold yet
-    (docs/architecture/scores.md, "Resuming"). It takes rows from nothing else.
+    (docs/architecture/scores.md, "Resuming"). Its rows come from nothing else, except the
+    batches of ``predict_batches(..., positions=True)`` ("Resuming a stream").
     """
 
     inverse_norms = False

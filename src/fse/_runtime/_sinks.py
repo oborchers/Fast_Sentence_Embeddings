@@ -4,7 +4,7 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""Where the runtime puts finished rows (docs/architecture/runtime.md, "Runtime"; PR 6 adds more).
+"""Where the runtime puts finished rows (docs/architecture/runtime.md, "Runtime").
 
 The runtime calls both methods in the calling thread: ``target`` reserves the rows of a
 task before the task is submitted, ``commit`` hands them back once they are finished, in

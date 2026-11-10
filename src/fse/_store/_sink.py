@@ -116,6 +116,15 @@ class ShardSink(ShardSinkBase):
     rows published and synced with ``durability="full"`` and stays zero under "none".
     ``seal`` ends the current shard early, so ``publish`` can publish its rows without
     waiting for a full shard. Store creation always uses full durability.
+
+    ``dtype`` is the stored dtype of the rows (``"float32"``, ``"float16"`` or ``"int8"``).
+    ``shard_rows`` is the rows of a shard (default: the largest multiple of 16,384 rows
+    within 256 MiB of vectors, at most 2**20; fewer rows for very wide vectors). ``doc_ids=True`` makes a store with a
+    document ID per row; ``Encoder.encode(..., doc_ids=ids)`` then requires the IDs, and
+    appending to a store needs the same ID mode. ``resume=True`` makes the store
+    resumable (``Encoder.encode`` with the same source, or ``encode_batches`` with
+    ``positions=True``); the sink then takes rows only from those calls. ``sign_bits=True``
+    also writes the sign bits of each shard for ``search(mode="binary")``.
     """
 
     inverse_norms = True

@@ -15,7 +15,7 @@ uv venv -p 3.12 .venv-baseline
 uv pip install -p .venv-baseline/bin/python "fse==1.1.0" -r benchmarks/quality/requirements.txt psutil
 ```
 
-The scripts that measure only fse 1.1.0 (`sts.py`, `numerics.py`, `bench_train.py`, `bench_lifecycle.py`) were removed from the repository with the 1.x API; they are at commit 4931f5e. Run them from a checkout of that commit, so their paths to `evaluation/` and `benchmarks/baseline/results/` hold: `git worktree add ../fse-4931f5e 4931f5e && cd ../fse-4931f5e` first, then the setup and the commands below there. `make_v1_fixture.py` stays, frozen: it wrote the fixture `tests/test_data/v1_reference/` that the tests read. The results below never change.
+The scripts that measure only fse 1.1.0 ([`sts.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4931f5eb084404a001b83256e3cf6d9f7ba39738/benchmarks/baseline/sts.py), [`numerics.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4931f5eb084404a001b83256e3cf6d9f7ba39738/benchmarks/baseline/numerics.py), [`bench_train.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4931f5eb084404a001b83256e3cf6d9f7ba39738/benchmarks/bench_train.py), [`bench_lifecycle.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/4931f5eb084404a001b83256e3cf6d9f7ba39738/benchmarks/bench_lifecycle.py)) were removed from the repository with the 1.x API; they are at commit 4931f5e (the links point there). Run them from a checkout of that commit, so their paths to `evaluation/` and `benchmarks/baseline/results/` hold: `git worktree add ../fse-4931f5e 4931f5e && cd ../fse-4931f5e` first, then the setup and the commands below there. `make_v1_fixture.py` stays, frozen: it wrote the fixture `tests/test_data/v1_reference/` that the tests read. The results below never change.
 
 | Result | Command (from the repository root; for removed scripts, of the checkout of 4931f5e) |
 |---|---|
@@ -27,7 +27,7 @@ The scripts that measure only fse 1.1.0 (`sts.py`, `numerics.py`, `bench_train.p
 | `results/train-dtypes-1.1.0-m1pro.json` | `... bench_train.py --inputs IndexedList TextList CorpusFile --models Average SIF --dims 300 --wv-dtypes float32 int8 --sv-dtypes float32 int8 --workers 1 4 10 --repeats 3 --json ...` |
 | `results/lifecycle-1.1.0-m1pro-sif-<sv>.json` | `.venv-baseline/bin/python benchmarks/bench_lifecycle.py --vectors glove-wiki-gigaword-300 --corpus ~/.cache/fse-quality/wikitext-103-b08601e0.txt --model SIF --sv-dtype <sv> --json ...` |
 
-The MTEB and numerics scripts use the WikiText-103 fit corpus of `benchmarks/quality/run_mteb.py` (859,346 tokenized paragraphs, written once to `~/.cache/fse-quality`).
+The MTEB and numerics scripts use the WikiText-103 fit corpus of [`benchmarks/quality/run_mteb.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/066e4a3a48a3dec959d6ecdcfa1c601e20065778/benchmarks/quality/run_mteb.py) (removed; 859,346 tokenized paragraphs, written once to `~/.cache/fse-quality`).
 
 ## STS
 
@@ -42,7 +42,7 @@ The procedure of `notebooks/STS-Benchmarks.ipynb` on the branch `1.x` (Pearson �
 
 ## MTEB
 
-35 tasks: the 9 STS, 3 PairClassification, 3 Classification, 4 Clustering, 1 Reranking, ArguAna and SummEval tasks of `MTEB(eng, v2)` (`BASELINE_TASKS` in `run_mteb.py`) and the 13 tasks of NanoBEIR. SIF and uSIF are fitted once on the WikiText corpus and frozen. Mean main score × 100 per task type (Retrieval includes NanoBEIR):
+35 tasks: the 9 STS, 3 PairClassification, 3 Classification, 4 Clustering, 1 Reranking, ArguAna and SummEval tasks of `MTEB(eng, v2)` (`BASELINE_TASKS` in [`run_mteb.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/066e4a3a48a3dec959d6ecdcfa1c601e20065778/benchmarks/quality/run_mteb.py), removed) and the 13 tasks of NanoBEIR. SIF and uSIF are fitted once on the WikiText corpus and frozen. Mean main score × 100 per task type (Retrieval includes NanoBEIR):
 
 | Model | Classification | Clustering | PairClassification | Reranking | Retrieval | STS | Summarization |
 |---|---|---|---|---|---|---|---|

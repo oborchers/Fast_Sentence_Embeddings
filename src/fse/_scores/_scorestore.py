@@ -4,14 +4,12 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md,
-"Reading").
+"""``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md, "Reading").
 The shards published when the store is opened are mapped read-only (a snapshot: ``refresh``
 adds the shards published since). ``iter_batches`` gives the stored values as they are, read-only
 views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
 from what is stored, with the thresholds of the multilabel heads replaced if asked. No
-encoder, tokenizer or weight table is loaded.
-"""
+encoder, tokenizer or weight table is loaded."""
 
 from __future__ import annotations
 
@@ -319,6 +317,8 @@ class ScoreStore(MemberReaders):
     # --- life cycle -----------------------------------------------------------------
 
     def close(self) -> None:
+        """Release the mapped shards. Later calls raise, and arrays returned as views of the
+        scores must not be used afterwards."""
         with self._lock:
             self._shards = []
             self._closed = True

@@ -204,6 +204,13 @@ class _Encoding:
         never a path: pass ``[text]`` for one sentence); or any other iterable of str, a
         stream read once.
 
+        ``workers`` is the number of threads (None: the usable CPUs, or the workers of
+        ``pool``, which it may not exceed). ``pool`` is an ``fse.Pool`` to share between
+        calls; none starts threads for this call. ``backend`` names the backend that runs
+        the kernels (``"cpu"``). ``doc_ids`` is one integer ID per text (a list or a
+        one-dimensional int64 array), only with a sink made with ``doc_ids=True``, which
+        needs them; keep the array unchanged until the call returns.
+
         ``lengths="summary"`` or ``"per_row"`` returns ``(result, fse.LengthReport)``: what
         the length rule of the encoder (``max_tokens`` and ``max_chars``) cut, as sums or
         also per row (with a sink the result is ``None``). ``count_truncated=True`` adds how

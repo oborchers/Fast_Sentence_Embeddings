@@ -75,14 +75,17 @@ class Pool:
 
     @property
     def workers(self) -> int:
+        """The number of threads of the pool."""
         return self._workers
 
     @property
     def max_tasks(self) -> int:
+        """The most tasks that may be waiting or running at once."""
         return self._max_tasks
 
     @property
     def closed(self) -> bool:
+        """True after ``close``."""
         return self._closed
 
     def close(self) -> None:

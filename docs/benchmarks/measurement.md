@@ -902,9 +902,8 @@ The regression screen of DR-162 (Scores und Vorhersagen dauerhaft speichern) use
 ```sh
 python benchmarks/speed.py --diagnose \
   --development-input benchmarks/config/linear-heads-scores-local.json \
-  --base-python /external/candidate/bin/python \
   --candidate-python /external/candidate/bin/python \
-  --cells heads-score-sink-full,heads-score-memory --local-phase descriptive \
+  --cells heads-score-sink-full heads-score-memory --local-phase descriptive \
   --descriptive-repetitions 5 --worker-name dr162-score-store \
   --wall-time-seconds 2700 --results /external/dr162/results-01 --work /external/dr162/work-01
 ```

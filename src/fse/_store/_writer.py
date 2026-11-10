@@ -4,16 +4,17 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""The file work of a ShardSink in one thread of its own, in the order it was handed over.
+"""A worker thread with a bounded queue for the file work of a sink.
 
-The calling thread of a run reads the source, reserves rows and commits them; writing the
+The work runs in the order it was handed over. The calling thread of a run reads the source, reserves rows and commits them; writing the
 committed rows into their shard (``pwrite``), hashing them (the checksum, which must see the
 rows in order) and publishing finished shards (syncs and a rename) would make it the
-bound of the run. A ShardSink therefore hands this work to one writer thread through a
-bounded queue: the order of the work stays the order of the commits, and a full queue
-makes the calling thread wait, so the rows waiting for their write stay bounded. Both
-``pwrite`` and hashing release the GIL. An error of the writer thread is kept and raised
-at the next call of the sink; work handed over after it is dropped.
+bound of the run. A sink therefore hands this work to ``WriterThread`` objects (the shared
+sink base starts three of them: hash, write and publish) through bounded queues: the
+order of the work stays the order of the commits, and a full queue makes the calling
+thread wait, so the rows waiting for their write stay bounded. Both ``pwrite`` and hashing
+release the GIL. The first error of any of the threads is kept in a ``WriterFailure`` and
+raised at the next call of the sink; work handed over after it is dropped.
 
 A thread that is abandoned (an interrupt while the sink closes) finishes the piece it
 runs, drops the rest and ends. Whether it ended is an event the thread sets itself as its
