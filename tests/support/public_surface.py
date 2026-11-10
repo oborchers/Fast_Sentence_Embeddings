@@ -149,10 +149,7 @@ def _field_hints(cls):
         if annotations:
             # Resolve only public fields, in their declaring class's namespace.
             # Private fields can intentionally reference names from another module.
-            def declared_fields():
-                pass
-
-            declared_fields.__annotations__ = annotations
+            declared_fields = type("DeclaredFields", (), {"__annotations__": annotations})
             namespace = vars(importlib.import_module(base.__module__))
             resolved.update(get_type_hints(declared_fields, globalns=namespace))
     return resolved
