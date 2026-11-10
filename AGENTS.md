@@ -50,6 +50,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 
 ## Rules
 
+- **Validate before converting.** Validate a public input in its original form for both type and value before converting it with `np.asarray`, `list()`, `dict()` or another conversion. Reject booleans where a number is required, and reject sets and dictionaries where an ordered sequence is required. Conversion must never hide invalid input or change which values are accepted. Review every new or changed public input against this rule.
 - Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
 - 2.0 artifacts store no class paths. From the first release of 2.0 on, never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names, artifact kinds and format versions). Before that release, the maintainer may remove names that are no longer needed (not reserve them); artifacts of a pre-release that hold them are refused with `UnsupportedArtifactError`. See docs/architecture/persistence.md, "Persistence names replace class paths".
 - New 2.0 code on the CPU follows the numerical contract in docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)" and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
@@ -65,7 +66,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 
 `make lint` enforces, and CI and the pre-commit hooks run the same:
 
-- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (src, tests, tools, benchmarks, docs/assets, recipes, integrations, setup.py; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
+- at most 500 lines per source file under the `paths` of `[tool.fse.guardrails]` (see [the configuration](pyproject.toml) for the complete path list; the generated Unicode tables excepted); a new top-level folder of code joins `paths`;
 - the ruff complexity limits (C901 10, PLR0911 6, PLR0912 12, PLR0913 and PLR0917 15, PLR0915 50) and a cognitive complexity of at most 15 per Python function (complexipy; Cython and C functions are limited by their file length);
 - the import layers and forbidden packages in `[tool.importlinter]`;
 - that only `fse._text` (stages 1 and 2) and the cpu backend `fse._backends._cpu` (the kernels) import `fse._native`, and the extension imports only `fse._contract` from fse;

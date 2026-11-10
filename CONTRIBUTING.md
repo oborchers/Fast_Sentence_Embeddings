@@ -78,3 +78,31 @@ The `1.x` branch retains its own license and contribution instructions.
 Maintainers release from `master` with a `v*` tag.
 CI builds the source archive and wheels, then requires approval in the `release` environment before publishing to PyPI.
 Opening a PR does not authorize a release.
+
+
+## Local documentation references
+
+`make lint` checks tracked Markdown files and notebooks with `tools/check_doc_links.py`.
+The check reads notebook Markdown cells, including their embedded attachments. It never
+executes code or accesses the network. External URLs and heading anchors are not checked.
+
+Markdown links, images and HTML `href`/`src` targets are relative to their document.
+A leading slash selects the repository root. Query strings and fragments are removed,
+and URL escapes are decoded. Local targets must exist inside the checkout, including
+when reached through symlinks. Attachments must exist in the same notebook cell.
+
+A whole inline-code literal is also checked when it names a file or starts with a
+tracked top-level directory, `./` or `../`. Top-level directory paths start at the
+repository root. Explicit `./` and `../` paths start at the document. Bare filenames
+may name a file beside the document, at the root, or one uniquely named tracked file.
+Use a relative Markdown link when a bare name is ambiguous.
+
+Commands, code blocks and HTML comments are examples, not links. Inline placeholders,
+globs and absolute machine paths are also examples. A deliberately absent inline file
+needs an exact document/target exception with a reason under
+`[tool.fse.doc-links]` in `pyproject.toml`.
+Unused exceptions fail. Exceptions never suppress Markdown links or HTML references.
+
+Run `uv run python tools/check_doc_links.py` for this check alone. Stage new documents
+first so the tracked-file inventory includes them. Missing targets report the document,
+Markdown block line and, for notebooks, the cell number.
