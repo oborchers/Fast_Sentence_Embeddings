@@ -15,17 +15,19 @@ is read. With a sink, every batch is committed to it, numbered on from the rows 
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager
 from typing import Any, NamedTuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fse import _codes
 from fse._runtime import (
     LengthCollector,
     LengthSettings,
     Pipeline,
+    QuantizedRows,
     check_workers,
     streaming,
     wants_inverse_norms,
@@ -56,11 +58,11 @@ class EncodedBatch(NamedTuple):
 
     first_row: int
     n_rows: int
-    rows: Any
+    rows: NDArray[Any] | QuantizedRows | None
     durable_rows: int | None
 
     @property
-    def vectors(self) -> Any:
+    def vectors(self) -> NDArray[Any] | QuantizedRows | None:
         """An alias of ``rows``."""
         return self.rows
 
@@ -245,7 +247,7 @@ def batches(
     doc_ids: bool = False,
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
     lists) or an Arrow string column each; with ``lengths`` of a level, the pair of it and
     the ``LengthReport`` of its rows (``rule`` is the encoder's)."""

@@ -8,6 +8,7 @@ Scope: outside the former "2.0 design" section.
 ```
 src/fse/
   __init__.py            # public API, __all__, version, the hint for removed 1.x names
+  typing.py              # public annotation types: Encoding, LengthLevel, ScoreHead, SinkRows, Tokenizer
   _contract.py           # Batch, identifiers, the step list, errors
   _tokenizer_spec.py     # TokenizerSpec: a tokenizer with its parameters (wordpiece@1)
   _tokenizer_unigram.py  # UnigramConfig: the parameters of unigram@1, its scores and charsmap
@@ -81,6 +82,9 @@ src/fse/
     _search.py           #   search and score by blocks, the top-k merge,
     _vectorstore.py      #   VectorStore
   _head/                 # linear heads (linear_head 1):
+    _predict_scores.py   #   Classifier probability and decision methods,
+    _regressor_predict.py #  Regressor predict and predict_batches,
+    _heads_predict.py    #   Heads predict and predict_batches,
     _content.py          #   what a head is: A, b, labels, link, flag, and their checks,
     _format.py           #   the format rules of linear_head 1 and the adapter to encoder 1,
     _sklearn.py          #   the heads of fitted scikit-learn estimators, read by attribute,

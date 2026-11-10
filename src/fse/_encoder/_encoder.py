@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from numpy import ndarray
 
@@ -87,7 +87,7 @@ class Encoder(_Encoding):
         checksums: dict[str, str] | None = None,
         fingerprint_: str | None = None,
         vocabulary: Vocabulary | None = None,
-    ) -> Encoder:
+    ) -> Self:
         out = object.__new__(cls)
         out._content = content
         out._word_vectors = word_vectors
@@ -110,7 +110,7 @@ class Encoder(_Encoding):
         normalize: bool = True,
         max_ngrams: PositiveInt | None = None,
         oov_weight: float | None = None,
-    ):  # -> Encoder; pydantic cannot resolve it here
+    ) -> Self:
         """The encoder of a finished table ``word_vectors`` (``fse.WordVectors``): every
         sentence becomes the mean of the rows of its known words, with ``tokenizer``
         (``fse_words@1`` or ``external``), and with ``normalize`` scaled to unit length.
@@ -146,7 +146,7 @@ class Encoder(_Encoding):
         normalize: bool = True,
         max_ngrams: PositiveInt | None = None,
         oov_weight: float | None = None,
-    ):  # -> Encoder
+    ) -> Self:
         """``from_word_vectors`` of ``fse.WordVectors.from_arrays`` of the same arrays:
         the rows (float32, float16 or int8 with ``scales``), the vocabulary (``words``, or
         ``vocab_bytes`` and ``vocab_offsets``) and for FastText ``fasttext`` and ``ngrams``
@@ -184,7 +184,7 @@ class Encoder(_Encoding):
         truncate_dim: PositiveInt | Literal["model"] | None = "model",
         normalize: bool | Literal["model"] = "model",
         mmap: bool = False,
-    ):  # -> Encoder
+    ) -> Self:
         """The encoder of a pretrained model: a local ``.safetensors`` file or folder, or
         a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit. An fse encoder
@@ -242,14 +242,13 @@ class Encoder(_Encoding):
         normalize: bool,
         source: Source | None = None,
         license: str | tuple[str, ...] | None = None,
-    ) -> Encoder:
+    ) -> Self:
         """The encoder of a model converted from another library (the readers of PR 12a2):
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""
         content = _persist.converted(word_vectors, tokenizer, normalize, source, license)
         return cls._new(content, word_vectors)
 
-    @validate_arguments
-    def quantize(self, dtype: Literal["float16", "int8"]):  # -> Encoder
+    def quantize(self, dtype: Literal["float16", "int8"]) -> Encoder:
         """A new encoder with a float16 or int8 copy of this encoder's float32 table
         (``quantize_rows@1``, int8 with one scale per row), in memory; ``save`` writes it.
         Its rows are those of the quantized table, on the cpu backend bit for bit as its
@@ -283,7 +282,7 @@ class Encoder(_Encoding):
     # --- persistence ------------------------------------------------------------------
 
     @validate_arguments
-    def save(self, path: PathLike):
+    def save(self, path: PathLike) -> None:
         """Write the encoder, with its table, into the new ``.safetensors`` file ``path``.
         Data loaded from a file are compared with the checksums they were loaded with
         while they are written."""
@@ -340,7 +339,7 @@ class Encoder(_Encoding):
 
     @classmethod
     @validate_arguments
-    def load(cls, path: PathLike, mmap: bool = False):  # -> Encoder
+    def load(cls, path: PathLike, mmap: bool = False) -> Self:
         """Open an encoder saved with ``save``; it holds its table. With ``mmap`` the
         arrays are mapped read-only (see ``verify``). An encoder written by a pre-release
         of 2.0 raises ``fse.UnsupportedArtifactError``: rebuild it."""
@@ -360,7 +359,7 @@ class Encoder(_Encoding):
         metadata: dict[str, str],
         path: Path | None,
         fingerprint_: str | None,
-    ) -> Encoder:
+    ) -> Self:
         """The encoder of an encoder artifact opened from ``path`` (also the encoder part of
         a head file), with its recorded checksums and ``fingerprint_``."""
         content, table, checksums = _persist.opened(tensors, metadata, path)
@@ -372,7 +371,7 @@ class Encoder(_Encoding):
             fingerprint_=fingerprint_,
         )
 
-    def verify(self):
+    def verify(self) -> None:
         """Check the data this encoder holds (as it encodes with them) against the
         checksums it was loaded with, its file (if loaded), and its table."""
         _persist.check_held(self._artifact()[0], self._checksums, self._path)
@@ -420,3 +419,7 @@ class Encoder(_Encoding):
             f"Encoder({len(wv)} words, {self.output_dim} dimensions, {wv.dtype}{kind}, "
             f"{self._content.tokenizer.describe()}{steps})"
         )
+
+
+# pydantic resolves the return annotation when wrapping; the class is bound only here.
+Encoder.quantize = validate_arguments(Encoder.quantize)  # type: ignore[method-assign]

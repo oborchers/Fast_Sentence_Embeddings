@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._runtime import QuantizedRows
 
@@ -35,11 +36,11 @@ class VectorBatch:
 
     store_row: int
     n_rows: int
-    vectors: ndarray | QuantizedRows
-    doc_ids: ndarray | None = None
-    inv_norms: ndarray | None = None
+    vectors: NDArray[Any] | QuantizedRows
+    doc_ids: NDArray[np.int64] | None = None
+    inv_norms: NDArray[np.float32] | None = None
 
-    def normalized(self) -> ndarray:
+    def normalized(self) -> NDArray[np.float32]:
         """The rows as a new, writable, C-contiguous float32 array ``(n_rows, dim)`` with
         every element ``float32(stored) * inv_norm``, for an index that takes float32 rows
         (FAISS, hnswlib). An int8 row uses its codes without the scale, which cancels out of

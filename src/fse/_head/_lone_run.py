@@ -17,7 +17,7 @@ the order of 2.0.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import Any
 
 from fse._encoder._doc_ids import check_switch
@@ -45,7 +45,7 @@ def batches(
     doc_ids: Any = False,
     settings: LengthSettings | None = None,
     positions: bool = False,
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
     the first batch is read. With ``positions=True`` the batches are ``(texts, position)``

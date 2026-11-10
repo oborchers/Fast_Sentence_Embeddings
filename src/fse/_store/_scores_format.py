@@ -119,10 +119,10 @@ def _check_tensors(tensors: dict[str, ndarray], info: ScoreInfo, n: int, file: P
         raise CorruptArtifactError(f"{file}: doc_ids must be int64, one per row")
     for head in info.heads:
         if head.multilabel:
-            limits = tensors[head.threshold_name]
+            limits = tensors[head._threshold_name]
             if limits.shape != (len(head.labels or ()),) or limits.dtype != np.float32:
                 raise CorruptArtifactError(
-                    f"{file}: {head.threshold_name} must be float32, one value per label"
+                    f"{file}: {head._threshold_name} must be float32, one value per label"
                 )
 
 

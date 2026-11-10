@@ -18,7 +18,7 @@ only. The runtime (``fse._runtime``) is not changed: it takes a vector sink and 
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Generator, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -138,7 +138,7 @@ def run_batches(
     make: Callable[[int, int, list, Any, int | None, Any], Any],
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The batches of ``items`` through ``pipeline`` (a ``HeadsPipeline``), into the sinks of
     ``run`` if there is one. ``make(first_row, n_rows, rows, vectors, durable_rows, report)``
     builds each batch from the arrays of the heads and the ``LengthReport`` of its rows

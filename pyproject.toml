@@ -206,7 +206,8 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/fse"]
+files = ["src/fse", "tests/test_typing_static_encoder.py", "tests/test_typing_static_heads.py", "tests/test_typing_static_stores.py"]
+mypy_path = "src"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
@@ -366,6 +367,7 @@ containers = ["fse"]
 exhaustive = true
 exhaustive_ignores = ["_version"]
 layers = [
+    "typing",
     # The scores of a group of heads, stored in a score store and read from it.
     "_scores",
     # Linear heads on an encoder; they read stores in store mode.
@@ -430,7 +432,7 @@ name = "Heads: the classes on the model, that on its runs, the readers and forma
 type = "layers"
 containers = ["fse._head"]
 exhaustive = true
-layers = ["_heads", "_classifier | _regressor", "_predict", "_resume_run", "_heads_run | _lone_run", "_positions_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
+layers = ["_heads", "_heads_predict | _classifier | _regressor", "_predict | _predict_scores | _regressor_predict", "_resume_run", "_heads_run | _lone_run", "_positions_run", "_sink_run", "_score_target", "_model", "_run | _model_hub", "_sklearn | _format | _outputs | _model2vec_files | _model2vec_objects", "_sklearn_ovr | _sklearn_calibrated | _thresholds | _derive | _model2vec", "_calibration", "_content"]
 
 [[tool.importlinter.contracts]]
 name = "Encoder: the encoder on its batches and format, those on its inputs"

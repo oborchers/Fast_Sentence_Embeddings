@@ -21,7 +21,7 @@ completely gives empty outputs, so every batch of the stream gives one result.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Generator, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -242,7 +242,7 @@ def stream_batches(
     make: Callable[[int, int, list, Any, int | None, Any], Any],
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The batches of ``items`` through ``pipeline`` (a ``HeadsPipeline``) into the sinks of
     ``stream``. ``make(first_row, n_rows, rows, vectors, durable_rows, report)`` builds each
     result from the arrays of the heads, the vectors and the ``LengthReport`` of the records

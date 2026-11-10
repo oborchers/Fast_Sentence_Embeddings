@@ -19,10 +19,10 @@ import inspect
 import os
 import threading
 import weakref
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from contextlib import contextmanager
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, ParamSpec, TypeVar
 
 import numpy as np
 
@@ -235,14 +235,20 @@ def iteration(workers: Workers) -> Iterator[Workers]:
         own.close()
 
 
-def streaming(function: Callable[..., Iterator[Any]]) -> Callable[..., Iterator[Any]]:
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+def streaming(
+    function: Callable[P, Generator[T, None, None]],
+) -> Callable[P, Generator[T, None, None]]:
     """A generator function with a ``workers`` argument whose iteration runs on one pool:
     the ``Workers`` it is given become those of ``iteration``, so its batches share threads
     and the iteration closes them (exhausted, failed, closed or collected)."""
     signature = inspect.signature(function)
 
     @functools.wraps(function)
-    def wrapper(*args: Any, **kwargs: Any) -> Iterator[Any]:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> Generator[T, None, None]:
         bound = signature.bind(*args, **kwargs)
         with iteration(workers_of(bound.arguments["workers"])) as workers:
             bound.arguments["workers"] = workers

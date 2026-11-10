@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
-from numpy import ndarray
+import numpy as np
+from numpy.typing import NDArray
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -27,5 +29,5 @@ class ScoreBatch:
 
     store_row: int
     n_rows: int
-    outputs: Mapping[str, ndarray]
-    doc_ids: ndarray | None = None
+    outputs: Mapping[str, NDArray[Any]]
+    doc_ids: NDArray[np.int64] | None = None

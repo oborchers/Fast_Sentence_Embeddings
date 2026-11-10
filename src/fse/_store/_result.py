@@ -5,14 +5,15 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, NamedTuple, Self
 
-from numpy import ndarray
+import numpy as np
+from numpy.typing import NDArray
 
 
 class SearchResult(NamedTuple):
     """Positions (int64) and cosine scores (float32), best first."""
 
-    ids: ndarray
-    scores: ndarray
+    ids: NDArray[np.int64]
+    scores: NDArray[np.float32]
 
 
 _FIELDS = ("ids", "scores", "doc_ids")
@@ -26,9 +27,11 @@ class DocumentSearchResult(SearchResult):
     keep; ``_make`` raises because two values hold no document IDs.
     """
 
-    doc_ids: ndarray
+    doc_ids: NDArray[np.int64]
 
-    def __new__(cls, ids: ndarray, scores: ndarray, doc_ids: ndarray):
+    def __new__(
+        cls, ids: NDArray[np.int64], scores: NDArray[np.float32], doc_ids: NDArray[np.int64]
+    ):
         result = super().__new__(cls, ids, scores)
         result.doc_ids = doc_ids
         return result
@@ -42,7 +45,7 @@ class DocumentSearchResult(SearchResult):
             f"doc_ids={self.doc_ids!r})"
         )
 
-    def _asdict(self) -> dict[str, ndarray]:
+    def _asdict(self) -> dict[str, NDArray[Any]]:
         return {"ids": self.ids, "scores": self.scores, "doc_ids": self.doc_ids}
 
     def _replace(self, /, **changes: Any) -> DocumentSearchResult:
