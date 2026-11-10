@@ -1,5 +1,6 @@
 """One text-path protocol across model persistence, stores, and text inputs."""
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -145,7 +146,7 @@ def test_text_paths_give_the_same_bits_as_the_lines(tmp_path, method):
     expected = call(texts)
     for value in (path, OwnPath(path)):
         actual = call(value)
-        if isinstance(expected, dict):
+        if isinstance(expected, Mapping):
             assert actual.keys() == expected.keys()
             for name, rows in expected.items():
                 assert actual[name].tobytes() == rows.tobytes()

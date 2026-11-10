@@ -1,5 +1,7 @@
 """NumPy text batches follow the same paths and resume rules as list batches."""
 
+from collections.abc import Mapping
+
 import numpy as np
 import pytest
 
@@ -108,7 +110,7 @@ def test_prediction_array_batches_match_lists(kind, output):
     )
     for want, got in zip(expected, actual, strict=True):
         assert got.n_rows == want.n_rows
-        if isinstance(want.outputs, dict):
+        if isinstance(want.outputs, Mapping):
             for name, rows in want.outputs.items():
                 assert got.outputs[name].tobytes() == rows.tobytes()
         else:
