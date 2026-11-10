@@ -7,17 +7,21 @@ datasets: [nvidia/Aegis-AI-Content-Safety-Dataset-2.0]
 base_model: hotchpotch/bekko-static-embedding-v1
 ---
 
-# fse/prompt-safety-aegis2-bekko
+# fse/bekko-aegis2-prompt-safety-classifier
 
-A linear prompt classifier trained outside fse using scikit-learn. This is a complete head, retaining its encoder for use with fse.Heads. The local artifact has not been uploaded.
+A linear prompt classifier trained outside fse using scikit-learn. This is a complete head, retaining its encoder for use with fse.Heads.
 
 ## Use
+
+This safety artifact loads with fse 2.0.0. Identical probability bits and predictions were verified in a fresh fse 2.0.0 environment.
+
+The example groups both heads and requires an fse master build with multilabel support, or fse 2.1 when released.
 
 ```python
 import fse
 
-safety = fse.Classifier.from_pretrained("/path/to/safety-complete")
-categories = fse.Classifier.from_pretrained("/path/to/categories-complete")
+safety = fse.Classifier.from_pretrained("fse/bekko-aegis2-prompt-safety-classifier")
+categories = fse.Classifier.from_pretrained("fse/bekko-aegis2-prompt-categories-classifier")
 heads = fse.Heads(safety=safety, categories=categories)
 scores = heads.predict(["How do I bake sourdough bread?"], output="proba")
 ```
@@ -80,7 +84,7 @@ prompt_only excludes response-bearing rows. without_exact_aart means without exa
 
 ## Compatibility and limits
 
-The category head needs a master build with multilabel support, or fse 2.1. A fresh fse 2.0.0 environment was checked: Safety loads with identical probability bits and predictions; categories raises UnsupportedArtifactError.
+A fresh fse 2.0.0 environment was checked: Safety loads with identical probability bits and predictions; categories raises UnsupportedArtifactError.
 
 Only this predominantly English dataset has been evaluated. It also contains non-English prompts. Other language performance is unknown. Annotations are noisy and conversation context can influence them. Static embeddings can miss intent, negation, quotation and context. Use for assisted screening with human review, not automatic blocking without human oversight. The source contains harmful text. Examples here are harmless and independently written.
 
