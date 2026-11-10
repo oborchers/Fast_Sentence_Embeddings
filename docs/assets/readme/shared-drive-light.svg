@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="440" viewBox="0 0 1100 440" role="img" aria-labelledby="title desc">
+<title id="title">Three machines write to a network drive and a fourth reads</title>
+<desc id="desc">Three machines each write their own store to a network drive. A fourth machine opens one view over the three stores. It opens the view again to see new shards.</desc>
+<rect width="1100" height="440" rx="12" fill="#FAFAF8"/>
+<g font-family="Geist, Arial, sans-serif">
+<text x="40" y="53" font-size="30" fill="#1E1B18" font-weight="700" text-anchor="start">Three machines write. A fourth reads.</text>
+<rect x="40" y="100" width="250" height="80" rx="12" fill="#F0EBE3" stroke="#E0D9CF"/>
+<rect x="40" y="200" width="250" height="80" rx="12" fill="#F0EBE3" stroke="#E0D9CF"/>
+<rect x="40" y="300" width="250" height="80" rx="12" fill="#F0EBE3" stroke="#E0D9CF"/>
+<rect x="420" y="100" width="260" height="280" rx="12" fill="#F0EBE3" stroke="#E0D9CF"/>
+<rect x="810" y="190" width="250" height="100" rx="12" fill="#F0EBE3" stroke="#E0D9CF"/>
+<text x="165" y="135" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="middle">Machine 1</text>
+<text x="165" y="162" font-size="17" fill="#4F463E" font-weight="400" text-anchor="middle">writes store-0</text>
+<rect x="450" y="112" width="200" height="56" rx="8" fill="#FAFAF8" stroke="#E0D9CF"/>
+<text x="550" y="147" font-size="20" fill="#2D6A4F" font-weight="700" text-anchor="middle">store-0</text>
+<path d="M290 140 H434" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<path d="M425 134 L434 140 L425 146" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<text x="165" y="235" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="middle">Machine 2</text>
+<text x="165" y="262" font-size="17" fill="#4F463E" font-weight="400" text-anchor="middle">writes store-1</text>
+<rect x="450" y="212" width="200" height="56" rx="8" fill="#FAFAF8" stroke="#E0D9CF"/>
+<text x="550" y="247" font-size="20" fill="#2D6A4F" font-weight="700" text-anchor="middle">store-1</text>
+<path d="M290 240 H434" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<path d="M425 234 L434 240 L425 246" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<text x="165" y="335" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="middle">Machine 3</text>
+<text x="165" y="362" font-size="17" fill="#4F463E" font-weight="400" text-anchor="middle">writes store-2</text>
+<rect x="450" y="312" width="200" height="56" rx="8" fill="#FAFAF8" stroke="#E0D9CF"/>
+<text x="550" y="347" font-size="20" fill="#2D6A4F" font-weight="700" text-anchor="middle">store-2</text>
+<path d="M290 340 H434" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<path d="M425 334 L434 340 L425 346" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<text x="550" y="85" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="middle">Network drive</text>
+<text x="935" y="232" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="middle">Machine 4</text>
+<text x="935" y="262" font-size="17" fill="#4F463E" font-weight="400" text-anchor="middle">reads one view</text>
+<path d="M680 240 H795" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<path d="M786 234 L795 240 L786 246" fill="none" stroke="#2D6A4F" stroke-width="3"/>
+<text x="40" y="412" font-size="18" fill="#4F463E" font-weight="400" text-anchor="start">One store for each writing machine. The reader opens the view again to see new shards.</text>
+</g></svg>
