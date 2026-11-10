@@ -1,6 +1,7 @@
 """Permanent guards for caller annotations, including optional adapter sources."""
 
 import ast
+import collections.abc
 import importlib
 import inspect
 import re
@@ -14,6 +15,7 @@ from numpy.typing import NDArray
 import fse
 import fse.typing
 from fse._validation import PathSequence, TextBatches, TextInput
+from support import public_surface
 from support.public_surface import core_entries, integration_entries
 
 # ARRAY_DTYPE_ONLY: model labels, mixed heads and storage options select the dtype.
@@ -79,6 +81,9 @@ def _any_kinds(annotation):
     annotation = _plain(annotation)
     if annotation is Any:
         return {"any"}
+    bare = _bare_unknowns(annotation)
+    if bare is not None:
+        return bare
     origin, args = get_origin(annotation), get_args(annotation)
     if origin is NDArray or annotation is NDArray:
         # New NumPy versions preserve NDArray as a runtime TypeAliasType.
@@ -102,6 +107,15 @@ def _any_kinds(annotation):
     return kinds
 
 
+def _bare_unknowns(annotation):
+    origin = get_origin(annotation) or annotation
+    if origin in (dict, Mapping) and not get_args(annotation):
+        return {"mapping_key", "mapping_value"}
+    names = ("Sequence", "Iterable", "Iterator", "Generator", "Callable")
+    bare = (list, tuple, set, *(getattr(collections.abc, name) for name in names))
+    return {"any"} if origin in bare and not get_args(annotation) else None
+
+
 def _name(entry):
     return re.sub(r"\[\d+\]$", "", entry.name)
 
@@ -117,12 +131,69 @@ def _unknown_results(entry):
     source = entry.written.get("return")
     if source is None:
         return {"missing"}
-    node = ast.parse(source, mode="eval").body
+    node = _expand_integration(entry, source)
     outer = node.value if isinstance(node, ast.Subscript) else node
     mapping = isinstance(outer, ast.Name) and outer.id in ("dict", "Dict", "Mapping")
-    if source == "dict" or "Any" in source:
+    has_any = _unknown_ast(node)
+    if (isinstance(node, ast.Name) and mapping) or has_any:
         return {"framework_dict"} if mapping else {"any"}
     return set()
+
+
+class _ExpandAliases(ast.NodeTransformer):
+    def __init__(self, entry):
+        self.entry = entry
+        self.active = set()
+
+    def visit_Name(self, node):
+        module, _, name = self.entry.imports.get(node.id, "").rpartition(".")
+        if module in ("typing", "typing_extensions"):
+            return ast.Name(id=name, ctx=ast.Load())
+        if node.id in self.entry.aliases and node.id not in self.active:
+            self.active.add(node.id)
+            result = self.visit(ast.parse(self.entry.aliases[node.id], mode="eval").body)
+            self.active.remove(node.id)
+            return result
+        return node
+
+    def visit_Attribute(self, node):
+        node = self.generic_visit(node)
+        if isinstance(node.value, ast.Name) and self.entry.imports.get(node.value.id) in (
+            "typing",
+            "typing_extensions",
+        ):
+            return ast.Name(id=node.attr, ctx=ast.Load())
+        return node
+
+
+def _expand_integration(entry, source):
+    return _ExpandAliases(entry).visit(ast.parse(source, mode="eval").body)
+
+
+def _unknown_ast(node):
+    parts = list(ast.walk(node))
+    parameterized = {id(part.value) for part in parts if isinstance(part, ast.Subscript)}
+    bare = {
+        "dict",
+        "Dict",
+        "Mapping",
+        "list",
+        "List",
+        "tuple",
+        "Tuple",
+        "Sequence",
+        "Iterable",
+        "Iterator",
+        "Generator",
+        "Callable",
+        "set",
+        "Set",
+    }
+    return any(
+        isinstance(part, ast.Name)
+        and (part.id == "Any" or (part.id in bare and id(part) not in parameterized))
+        for part in parts
+    )
 
 
 def _allowed_results(entry):
@@ -192,14 +263,25 @@ def _core_private_types(entry, public):
 def _integration_private_types(entry, public):
     failures = []
     for source in entry.written.values():
-        for node in ast.walk(ast.parse(source, mode="eval")):
-            path = entry.imports.get(node.id) if isinstance(node, ast.Name) else None
+        for node in ast.walk(_expand_integration(entry, source)):
+            if isinstance(node, ast.Name) and node.id in entry.private_classes:
+                failures.append((entry.name, source, node.id))
+            path = _import_path(entry, node)
             if path and path.startswith("fse."):
                 module, _, name = path.rpartition(".")
                 missing = _private_types(getattr(importlib.import_module(module), name), public)
                 if missing:
                     failures.append((entry.name, source, missing))
     return failures
+
+
+def _import_path(entry, node):
+    if isinstance(node, ast.Name):
+        return entry.imports.get(node.id)
+    if isinstance(node, ast.Attribute):
+        parent = _import_path(entry, node.value)
+        return parent + "." + node.attr if parent else None
+    return None
 
 
 def test_annotation_classes_are_publicly_reachable(entries):
@@ -287,3 +369,31 @@ def test_scalar_text_and_inference_paths_keep_their_meaning(entries):
     assert by_name["fse.typing.ScoreHead.path"].hints["return"] is str
     routes = get_args(by_name["fse.Heads.paths"].hints["return"])[1]
     assert set(get_args(routes)) == {"folded", "normalized", "unfolded", "standalone"}
+
+
+@pytest.mark.parametrize(
+    ("definition", "unknown"),
+    [
+        ("from typing import Any as Dynamic\nResult = Dynamic", True),
+        ("Result = dict", True),
+        ('from typing import Literal\nResult = Literal["Any"]', False),
+    ],
+)
+def test_adapter_aliases_cannot_hide_unknown_results(tmp_path, monkeypatch, definition, unknown):
+    file = tmp_path / "integrations/demo/src/example/__init__.py"
+    file.parent.mkdir(parents=True)
+    file.write_text(definition + "\nclass Adapter:\n    def run(self) -> Result: ...\n")
+    monkeypatch.setattr(public_surface, "ROOT", tmp_path)
+    (entry,) = integration_entries()
+    assert bool(_unknown_results(entry) - _allowed_results(entry)) is unknown
+
+
+def test_adapter_aliases_cannot_hide_private_classes(tmp_path, monkeypatch):
+    file = tmp_path / "integrations/demo/src/example/__init__.py"
+    file.parent.mkdir(parents=True)
+    file.write_text(
+        "class _Hidden: pass\nResult = _Hidden\nclass Adapter:\n    def run(self) -> Result: ...\n"
+    )
+    monkeypatch.setattr(public_surface, "ROOT", tmp_path)
+    (entry,) = integration_entries()
+    assert _integration_private_types(entry, set())

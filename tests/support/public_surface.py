@@ -3,7 +3,7 @@
 import ast
 import importlib
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import get_type_hints
@@ -31,6 +31,8 @@ class Entry:
     written: dict[str, str]
     imports: dict[str, str]
     integration: bool = False
+    aliases: dict[str, str] = field(default_factory=dict)
+    private_classes: set[str] = field(default_factory=set)
 
 
 def _public_method(name):
@@ -155,6 +157,9 @@ def _field_hints(cls):
 def _imports(tree):
     imports = {}
     for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports[alias.asname or alias.name.split(".")[0]] = alias.name
         if isinstance(node, ast.ImportFrom) and node.module:
             for alias in node.names:
                 imports[alias.asname or alias.name] = node.module + "." + alias.name
@@ -200,6 +205,20 @@ def _integration_entry(full_name, node, imports):
     return Entry(full_name, kind, {}, written, imports, True)
 
 
+def _aliases(tree):
+    aliases = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            aliases[node.targets[0].id] = ast.unparse(node.value)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value:
+            aliases[node.target.id] = ast.unparse(node.value)
+    return aliases
+
+
 def _integration_module(file):
     tree = ast.parse(file.read_text())
     classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
@@ -208,7 +227,10 @@ def _integration_module(file):
     for name in _exports(tree, classes):
         assert name in classes, f"Extend surface enumeration for moved export {prefix}.{name}"
         for member, node in _integration_members(classes[name], classes).items():
-            yield _integration_entry(prefix + "." + name + "." + member, node, _imports(tree))
+            entry = _integration_entry(prefix + "." + name + "." + member, node, _imports(tree))
+            entry.aliases = _aliases(tree)
+            entry.private_classes = {name for name in classes if name.startswith("_")}
+            yield entry
 
 
 def integration_entries():
