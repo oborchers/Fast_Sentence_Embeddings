@@ -6,8 +6,8 @@
 
 """The runtime of encoding: tasks, the executor, sinks and the pipeline.
 
-docs/architecture/runtime.md, "Runtime". Private: PR 5's Encoder builds an EncodeSpec and calls a
-Pipeline; the public entry points come with it.
+docs/architecture/runtime.md, "Runtime". Private: the Encoder builds an EncodeSpec and calls a
+Pipeline; the public entry points are those of the Encoder.
 """
 
 from ._head import OUTPUTS, HeadPipeline, make_head

@@ -1,8 +1,8 @@
 """Strict argument validation for the public entry points.
 
 Only entry points whose own work dwarfs the validation cost use it: constructors, model
-loading and the similarity searches. Per-element methods such as ``similarity`` or
-``get_vector`` and the training data itself are checked explicitly instead.
+loading and the searches. Per-element methods and bulk data (texts, vectors) are checked
+explicitly instead.
 """
 
 import functools

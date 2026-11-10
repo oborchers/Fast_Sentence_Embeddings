@@ -44,7 +44,8 @@ _FORMS = {StringSource: "strings", TokenListSource: "tokens", FileSource: "lines
 
 class ResumableSinkMarker(ShardSinkMarker):
     """Base of the sinks that can resume (``ShardSinkBase``). ``resume`` is True for one
-    made with ``resume=True``: it takes the rows of ``encode(texts, shard=)`` only."""
+    made with ``resume=True``: it takes the rows of ``encode(texts, shard=)`` or, with
+    ``positions=True``, of ``encode_batches``."""
 
     resume = False
 

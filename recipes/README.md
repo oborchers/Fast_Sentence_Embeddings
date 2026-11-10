@@ -96,7 +96,8 @@ The SIF recipe fits weights and directions on STS Benchmark training texts only.
 It reports test Pearson correlation times 100, then checks the separate historical experiment that used test-fitted directions.
 A historical reproduction is not evidence of quality on unseen data.
 
-The fse 101 speed demonstration is labeled **measured on a MacBook in everyday use, not a controlled benchmark**.
+The fse 101 speed demonstration is labeled **measured on one Apple M1 Pro MacBook in everyday use: numbers of this machine, not a controlled benchmark**.
+Recipes may show numbers of the machine that ran them, always with that machine named and without a claim of comparison. The README and the comparison guide carry the speed claims.
 It prints its machine, CPU, Python, commit, date, and load averages beside the result.
 The HTTP recipe retains its historical 1 November 2026 outputs and [machine provenance](run-environment.json).
 Use the [comparison guide](../docs/fse-comparison.md) for measurements, methods, and their limits.

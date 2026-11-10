@@ -96,7 +96,7 @@ def converted(
     source: Source | None,
     license: str | tuple[str, ...] | None,
 ) -> EncoderContent:
-    """The content of an encoder converted from another library (the readers of PR 12a2):
+    """The content of an encoder converted from another library (the readers of the converted formats):
     its tokenizer with parameters, whether it normalizes, its provenance."""
     if not isinstance(word_vectors, WordVectors):
         raise TypeError(f"word_vectors must be WordVectors, not {type(word_vectors).__name__}")

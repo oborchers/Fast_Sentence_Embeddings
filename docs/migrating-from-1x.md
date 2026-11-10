@@ -9,8 +9,8 @@ Keep an isolated 1.x environment while moving your application.
 Use Python 3.11 to 3.13 for code that needs gensim.
 2.0 itself supports Python 3.11 to 3.15, with gensim available through `fse[gensim]` on supported Python versions.
 Free-threaded Python builds are unsupported.
-Until 2.0 is released, install its development checkout with `UV_PYTHON=3.13 make install`.
-Do not replace a production 1.x environment with the development branch.
+Install it with `pip install "fse>=2.0"` into a new environment.
+Do not replace a production 1.x environment in place.
 
 ## Choose the replacement
 
@@ -293,7 +293,7 @@ Run both environments on your own inputs and rebuild stored vectors when you cha
 Do not mix 1.x and 2.0 vectors merely because their dimensions agree.
 
 The repository records a small, offline comparison in [migration-comparison.json](migration-comparison.json).
-Its [script](../benchmarks/compare_migration.py) uses the same fixed word table and token lists in both versions.
+Its [script](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/41fc5d774c88db48a05fdc27c51cc4af773298cd/benchmarks/compare_migration.py) (a permalink: the file is no longer on master) uses the same fixed word table and token lists in both versions.
 It checks Average, SIF, and uSIF, with folded tables exported by 1.x.
 The recorded run distinguishes known words, an unknown word, an unknown-only sentence, and an empty sentence.
 It compares raw outputs and normalized outputs separately. There are no timing measurements.
@@ -313,12 +313,15 @@ These are observations on this fixed float32 table, not bounds for other inputs.
 Normalization uses the 2.0 numerical contract, and folding changes the order of arithmetic.
 Keep `normalize=False` when moving a raw-mean application and validate any further numerical requirements yourself.
 
-Reproduce from the repository root, with each environment using its own installed fse:
+Reproduce from the repository root, with each environment using its own installed fse and the script of that commit.
+The script reads the commit of the repository it sits in, so restore it to its old path first:
 
 ```sh
+git show 41fc5d77:benchmarks/compare_migration.py > benchmarks/compare_migration.py
 /path/to/1x/bin/python benchmarks/compare_migration.py export /tmp/migration.npz \
     --legacy-commit "$(git rev-parse origin/1.x)"
 .venv/bin/python benchmarks/compare_migration.py compare /tmp/migration.npz
+rm benchmarks/compare_migration.py
 ```
 
 Read the recorded metrics with their scope. This tiny plain-vector example cannot establish equivalence for other models,
