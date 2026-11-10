@@ -243,6 +243,10 @@ def test_towncrier_errors_are_not_hidden_by_valid_fragment(repository):
 
 
 def test_ci_selection_keeps_source_deletion_when_moved_to_docs(repository):
+    # This shell step runs only on ubuntu-latest. On Windows, an available bash
+    # may be the WSL launcher without a distribution, not the workflow shell.
+    if sys.platform != "linux":
+        pytest.skip("the CI selection runs on Linux (ubuntu-latest), not this platform")
     if not shutil.which("bash") or not shutil.which("jq"):
         pytest.skip("the Linux CI selection requires bash and jq")
     root, base, commit = repository
