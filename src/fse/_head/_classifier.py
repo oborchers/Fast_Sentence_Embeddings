@@ -194,8 +194,9 @@ class Classifier(_Predicting, _Scoring, LinearModel):
         """Open a classifier saved with ``save``, complete or standalone.
 
         Without ``mmap`` the arrays are read into memory and every checksum is checked.
-        With ``mmap=True`` they are mapped read-only and only the structure is checked, so
-        the file must stay unchanged while the classifier is in use (as for ``WordVectors.load``)."""
+        With ``mmap=True`` they are mapped read-only; the data checksums are skipped, while the
+        structure and the finite values of the head are still checked. The file must stay
+        unchanged while the classifier is in use (as for ``WordVectors.load``)."""
         return cls._load(path, mmap)
 
     @classmethod

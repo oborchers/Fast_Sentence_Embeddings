@@ -113,7 +113,7 @@ class ShardSink(ShardSinkBase):
 
     ``dtype`` is the stored dtype of the rows (``"float32"``, ``"float16"`` or ``"int8"``).
     ``shard_rows`` is the rows of a shard (default: the largest multiple of 16,384 rows
-    within 256 MiB of vectors, at most 2**20). ``doc_ids=True`` makes a store with a
+    within 256 MiB of vectors, at most 2**20; fewer rows for very wide vectors). ``doc_ids=True`` makes a store with a
     document ID per row; ``Encoder.encode(..., doc_ids=ids)`` then requires the IDs, and
     appending to a store needs the same ID mode. ``resume=True`` makes the store
     resumable (``Encoder.encode`` with the same source, or ``encode_batches`` with

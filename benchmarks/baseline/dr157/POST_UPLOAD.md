@@ -55,7 +55,7 @@ No failure triggers Hub deletion, overwrite or repair.
 
 Hand raw `evidence.json`, reports, per-repo JSON and logs to dr151-compare, the sole
 writer of `benchmark-evidence-2.0`, for archival under
-`benchmarks/baseline/results/dr157-20261101/`. Verify the published archive bytes.
+[`benchmarks/baseline/results/dr157-20261101/`](https://github.com/oborchers/Fast_Sentence_Embeddings/tree/b0aa865e13ec1d0d49459aa75cfdf2bd3bd1ef27/benchmarks/baseline/results/dr157-20261101) (removed; shown at its last commit). Verify the published archive bytes.
 Only a compact summary and immutable archive reference belong in this folder.
 Report the complete per-repo table and the archive commit to fse-main. Actual
 post-upload checks remain pending until release 2.0.0, release cards and completed
