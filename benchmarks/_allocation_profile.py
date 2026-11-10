@@ -77,10 +77,6 @@ def select(root, default_cell):
     pairs = paired_rounds(root, cell)
     median = statistics.median(factor for factor, _ in pairs)
     _, number = min(pairs, key=lambda pair: (abs(pair[0] - median), pair[1]))
-    if min(f for f, _ in pairs) <= SLOWDOWN < max(f for f, _ in pairs):
-        open_evidence.append(
-            {"cell": cell["cell_id"], "reason": "rounds cross regression boundary"}
-        )
     return {
         "cell": cell["cell_id"],
         "round": number,
