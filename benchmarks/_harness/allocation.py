@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -53,6 +54,8 @@ class Allocation:
             {
                 "definition": self.definition,
                 "allocated_at": self.allocated_at,
+                "billing_profile": self.budget.profile,
+                "billing": self.budget.billing,
                 "budget_ceiling_seconds": self.budget.ceiling_seconds,
                 "collection_reserve_seconds": self.budget.reserve_seconds,
             },
@@ -96,7 +99,8 @@ class Allocation:
     def start(self, step, command):
         logs = self.root / f"{step['name']}-logs"
         logs.mkdir(exist_ok=True)
-        process = subprocess.Popen(command)
+        env = {**os.environ, "MEASURE_BILLING_PROFILE": self.budget.profile or ""}
+        process = subprocess.Popen(command, env=env)
         self.active = process  # registered at once: a stop signal reaches it from here on
         try:
             (logs / "measurement.pid").write_text(f"{process.pid}\n")
@@ -159,6 +163,7 @@ class Allocation:
     def run(self, values):
         if not self.record.is_dir() or (self.record / "DONE").exists():
             raise RuntimeError("run needs a begun allocation that is not sealed yet")
+        self.check_budget()
         previous = {s: signal.signal(s, self.forward) for s in (signal.SIGINT, signal.SIGTERM)}
         try:
             codes = [self.run_step(step, values) for step in self.definition["steps"]]
@@ -166,6 +171,19 @@ class Allocation:
             for signum, handler in previous.items():
                 signal.signal(signum, handler)
         return self.finish(int(any(codes)))
+
+    def check_budget(self):
+        """Refuse a changed profile, limit or clock after the machine check."""
+        saved = document(self.record / "allocation.json")
+        expected = {
+            "allocated_at": self.allocated_at,
+            "billing_profile": self.budget.profile,
+            "billing": self.budget.billing,
+            "budget_ceiling_seconds": self.budget.ceiling_seconds,
+            "collection_reserve_seconds": self.budget.reserve_seconds,
+        }
+        if any(saved.get(key) != value for key, value in expected.items()):
+            raise ValueError("allocation budget differs from the machine-check budget")
 
     def finish(self, code):
         rows = read_rows(self.record, "steps.jsonl")
@@ -180,10 +198,10 @@ class Allocation:
         return [self.record, *(self.results(step) for step in self.definition["steps"])]
 
 
-def budget_of(study_file, pins_file, profile, allocated_at):
-    study, pins = json.loads(study_file.read_text()), json.loads(pins_file.read_text())
-    billing = select_billing(study, profile)["billing"]
-    return Budget(billing, pins["machine"]["disk_gb"], allocated_at)
+def budget_of(study_file, pins_file, profile, allocated_at, study=None):
+    contract, pins = json.loads(study_file.read_text()), json.loads(pins_file.read_text())
+    resolved = select_billing(contract, profile, study)
+    return Budget.from_contract({**resolved, "machine": pins["machine"]}, allocated_at)
 
 
 def collect_all(root, archives):
@@ -206,6 +224,7 @@ def _parser():
     parser.add_argument("--study-file", type=Path)
     parser.add_argument("--pins-file", type=Path)
     parser.add_argument("--billing-profile")
+    parser.add_argument("--study")
     parser.add_argument("--rehearsal", action="store_true")
     parser.add_argument("--archives", type=Path)
     parser.add_argument("--param", action="append", default=[], help="NAME=VALUE for step fields")
@@ -216,6 +235,10 @@ def _values(args, definition):
     """Fields every step may use: the source folder, --param values and
     the interpreter of each environment."""
     params = dict(item.split("=", 1) for item in args.param)
+    if args.study is not None:
+        if "study" in params and params["study"] != args.study:
+            raise ValueError("--study and --param study disagree")
+        params["study"] = args.study
     values = {"source": str(Path(__file__).resolve().parents[2]), **params}
     for environment in definition["environments"]:
         python = args.root / f"{args.entry}-env" / environment["name"] / "bin/python"
@@ -229,11 +252,19 @@ def main(argv=None):
         print(json.dumps(collect_all(args.root, args.archives)))
         return 0
     definition = spec.load(args.spec, args.entry)
-    budget = budget_of(args.study_file, args.pins_file, args.billing_profile, args.allocated_at)
+    values = _values(args, definition)
+    budget = budget_of(
+        args.study_file,
+        args.pins_file,
+        args.billing_profile,
+        args.allocated_at,
+        values.get("study"),
+    )
+    values["billing_profile"] = budget.profile or ""
     allocation = Allocation(args.root, args.entry, definition, args.allocated_at, budget)
     if args.action == "begin":
         return int(allocation.begin(args.rehearsal, args.root)["status"] == "rejected")
-    return allocation.run(_values(args, definition))
+    return allocation.run(values)
 
 
 if __name__ == "__main__":

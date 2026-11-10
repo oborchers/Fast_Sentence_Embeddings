@@ -75,19 +75,19 @@ mode=--run
 rehearsal=()
 if test "${MEASURE_REHEARSAL:-0}" = 1; then mode=--rehearse; rehearsal=(--rehearsal); fi
 profile=()
-# Resolve once before setup; export to every measurement and profile step.
+# Resolve once before setup; export the same profile to every allocation step.
+export PYTHONPATH="$source/benchmarks"
 if test "$entry" = speed; then
   MEASURE_BILLING_PROFILE=$(/usr/local/bin/python - "$input" "${MEASURE_STUDY:-libraries}" <<'BILLING_PROFILE'
 import json, sys
-study = json.load(open(sys.argv[1]))
-name = sys.argv[2] + "_billing"
-print(name if name in study else "")
+from _harness.budget import select_billing
+print(select_billing(json.load(open(sys.argv[1])), study=sys.argv[2])["billing_profile"] or "")
 BILLING_PROFILE
 )
   export MEASURE_BILLING_PROFILE
-  if test -n "$MEASURE_BILLING_PROFILE"; then profile=(--billing-profile "$MEASURE_BILLING_PROFILE"); fi
+  profile=(--study "${MEASURE_STUDY:-libraries}")
+  if test -n "$MEASURE_BILLING_PROFILE"; then profile+=(--billing-profile "$MEASURE_BILLING_PROFILE"); fi
 fi
-export PYTHONPATH="$source/benchmarks"
 lifecycle=(/usr/local/bin/python -m _harness.allocation)
 common=(--spec "$allocation" --entry "$entry" --root "${root:-/}" --allocated-at "$MEASURE_ALLOCATED_AT" --study-file "$input" --pins-file "$source/benchmarks/config/pins.json" "${profile[@]}")
 # The machine check comes before any installation: a rejected machine starts no step.

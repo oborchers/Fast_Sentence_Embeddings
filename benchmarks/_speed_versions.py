@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import os
-
 import _speed_cells as inputs
 from _harness.budget import select_billing
 
 
 def billing_contract(contract, study):
     """Use the same selected profile for setup and every step of an allocation."""
-    profile = os.environ.get("MEASURE_BILLING_PROFILE") or None
-    declared = study + "_billing"
-    if profile is None and declared in contract:
-        profile = declared
-    return select_billing(contract, profile)
+    return select_billing(contract, study=study)
 
 
 def pair_rounds(cell):

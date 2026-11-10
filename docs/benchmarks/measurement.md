@@ -678,7 +678,13 @@ allocation budget. Direct setup and run commands select the same study profile.
 Setup records the effective billing in `<environment>/setup.json`. All allocation steps,
 including future profile steps, share the original allocation timestamp and
 budget admission checks. `--study all` retains the whole-study billing.
-Unknown explicit profiles are refused. Profile contracts retain their own shorter
+Standalone allocation commands select the same profile with `--study versions`
+(or `--param study=versions`), or inherit `MEASURE_BILLING_PROFILE`. The machine
+check records the resolved budget. Starting its steps with another profile, limit
+or allocation timestamp is refused. Each child inherits the resolved profile.
+Unknown profiles, conflicting explicit and inherited profiles, boolean or
+nonfinite numeric budget fields, nonpositive planning values and negative
+collection reserves are refused before merging profile overrides. Profile contracts retain their own shorter
 diagnostic deadlines within the allocation's admission budget.
 
 These limits admit work but do not kill an active setup command, cell or step.
