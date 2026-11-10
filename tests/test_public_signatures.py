@@ -5,6 +5,7 @@ import collections.abc
 import importlib
 import inspect
 import re
+import runpy
 from collections.abc import Mapping
 from typing import Annotated, Any, get_args, get_origin
 
@@ -153,6 +154,17 @@ class _ExpandAliases(ast.NodeTransformer):
     def __init__(self, entry):
         self.entry = entry
         self.active = set()
+
+    def visit_Constant(self, node):
+        if isinstance(node.value, str):
+            return self.visit(ast.parse(node.value, mode="eval").body)
+        return node
+
+    def visit_Subscript(self, node):
+        node.value = self.visit(node.value)
+        if not (isinstance(node.value, ast.Name) and node.value.id == "Literal"):
+            node.slice = self.visit(node.slice)
+        return node
 
     def visit_Name(self, node):
         module, _, name = self.entry.imports.get(node.id, "").rpartition(".")
@@ -362,7 +374,8 @@ def test_common_input_types(entries):
             continue
         if entry.kind == "field":
             continue  # ScoreHead.path is an inference route, not a file-path input.
-        for parameter, annotation in entry.hints.items():
+        for parameter in entry.parameters:
+            annotation = entry.hints.get(parameter)
             expected = _expected_input(_name(entry), parameter)
             if expected is not None and _plain(annotation) != _plain(expected):
                 failures.append((entry.name, parameter, annotation, expected))
@@ -386,6 +399,8 @@ def test_scalar_text_and_inference_paths_keep_their_meaning(entries):
     [
         ("from typing import Any as Dynamic\nResult = Dynamic", True),
         ("Result = dict", True),
+        ('from typing import Any\nResult = "Any"', True),
+        ('from typing import Any\nResult = list["Any"]', True),
         ('from typing import Literal\nResult = Literal["Any"]', False),
     ],
 )
@@ -398,12 +413,55 @@ def test_adapter_aliases_cannot_hide_unknown_results(tmp_path, monkeypatch, defi
     assert bool(_unknown_results(entry) - _allowed_results(entry)) is unknown
 
 
-def test_adapter_aliases_cannot_hide_private_classes(tmp_path, monkeypatch):
+@pytest.mark.parametrize("annotation", ["_Hidden", '"_Hidden"', 'list["_Hidden"]'])
+def test_adapter_aliases_cannot_hide_private_classes(tmp_path, monkeypatch, annotation):
     file = tmp_path / "integrations/demo/src/example/__init__.py"
     file.parent.mkdir(parents=True)
     file.write_text(
-        "class _Hidden: pass\nResult = _Hidden\nclass Adapter:\n    def run(self) -> Result: ...\n"
+        f"class _Hidden: pass\nResult = {annotation}\nclass Adapter:\n    def run(self) -> Result: ...\n"
     )
     monkeypatch.setattr(public_surface, "ROOT", tmp_path)
     (entry,) = integration_entries()
     assert _integration_private_types(entry, set())
+
+
+def test_core_forward_references_resolve(tmp_path):
+    file = tmp_path / "annotations.py"
+    file.write_text('from typing import Any\ndef call() -> list["Any"]: ...\n')
+    function = runpy.run_path(str(file))["call"]
+    (entry,) = public_surface._function_entries("example.call", function, "method")
+    assert _unknown_results(entry) == {"any"}
+
+
+@pytest.mark.parametrize("parameter", ["workers", "path"])
+def test_common_parameter_without_annotation_is_visible(tmp_path, parameter):
+    file = tmp_path / "annotations.py"
+    file.write_text(f"def call({parameter}): ...\n")
+    function = runpy.run_path(str(file))["call"]
+    (entry,) = public_surface._function_entries("example.call", function, "method")
+    assert entry.parameters == (parameter,)
+    assert entry.hints.get(parameter) != _expected_input(entry.name, parameter)
+
+
+def test_adapter_overloads_are_all_visible(tmp_path, monkeypatch):
+    file = tmp_path / "integrations/demo/src/example/__init__.py"
+    file.parent.mkdir(parents=True)
+    file.write_text(
+        "from typing import Any, overload\nclass Adapter:\n"
+        "    @overload\n    def run(self, x: int) -> Any: ...\n"
+        "    @overload\n    def run(self, x: str) -> str: ...\n"
+        "    def run(self, x) -> str: ...\n"
+    )
+    monkeypatch.setattr(public_surface, "ROOT", tmp_path)
+    entries = list(integration_entries())
+    assert len(entries) == 2
+    assert [_unknown_results(entry) for entry in entries] == [{"any"}, set()]
+
+
+def test_core_quoted_private_class_is_not_public(tmp_path):
+    file = tmp_path / "annotations.py"
+    file.write_text('class _Hidden: pass\ndef call() -> "_Hidden": ...\n')
+    namespace = runpy.run_path(str(file))
+    namespace["_Hidden"].__module__ = "fse._example"
+    (entry,) = public_surface._function_entries("example.call", namespace["call"], "method")
+    assert _private_types(entry.hints["return"], set()) == {"fse._example._Hidden"}

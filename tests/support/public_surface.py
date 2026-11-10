@@ -31,6 +31,7 @@ class Entry:
     written: dict[str, str]
     imports: dict[str, str]
     integration: bool = False
+    parameters: tuple[str, ...] = ()
     aliases: dict[str, str] = field(default_factory=dict)
     private_classes: set[str] = field(default_factory=set)
 
@@ -96,9 +97,10 @@ def _function_entries(name, function, kind):
             key: ast.unparse(value) for key, value in annotations.items() if value is not None
         }
         # Only repository annotation expressions are evaluated, never caller input.
-        hints = {key: eval(value, namespace) for key, value in written.items()}
+        holder = type("CallerAnnotations", (), {"__annotations__": written})
+        hints = get_type_hints(holder, globalns=namespace, include_extras=True)
         suffix = f"[{index}]" if len(nodes) > 1 else ""
-        yield Entry(name + suffix, kind, hints, written, {})
+        yield Entry(name + suffix, kind, hints, written, {}, parameters=tuple(_arguments(node)))
 
 
 def core_entries():
@@ -160,7 +162,8 @@ def _imports(tree):
     for node in tree.body:
         if isinstance(node, ast.Import):
             for alias in node.names:
-                imports[alias.asname or alias.name.split(".")[0]] = alias.name
+                root = alias.name.split(".")[0]
+                imports[alias.asname or root] = alias.name if alias.asname else root
         if isinstance(node, ast.ImportFrom) and node.module:
             for alias in node.names:
                 imports[alias.asname or alias.name] = node.module + "." + alias.name
@@ -172,16 +175,17 @@ def _integration_members(cls, classes):
     for base in cls.bases:
         if isinstance(base, ast.Name) and base.id in classes:
             members.update(_integration_members(classes[base.id], classes))
+    own = {}
     for node in cls.body:
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and _public_method(node.name):
-            members[node.name] = node
+            own.setdefault(node.name, []).append(node)
         elif (
             isinstance(node, ast.AnnAssign)
             and isinstance(node.target, ast.Name)
             and not node.target.id.startswith("_")
         ):
-            members[node.target.id] = node
-    return members
+            own[node.target.id] = [node]
+    return members | own
 
 
 def _exports(tree, classes):
@@ -203,7 +207,7 @@ def _integration_entry(full_name, node, imports):
     if kind != "constructor":
         annotations["return"] = node.returns
     written = {key: ast.unparse(value) for key, value in annotations.items() if value is not None}
-    return Entry(full_name, kind, {}, written, imports, True)
+    return Entry(full_name, kind, {}, written, imports, True, tuple(_arguments(node)))
 
 
 def _aliases(tree):
@@ -227,11 +231,27 @@ def _integration_module(file):
     prefix = ".".join(parts)
     for name in _exports(tree, classes):
         assert name in classes, f"Extend surface enumeration for moved export {prefix}.{name}"
-        for member, node in _integration_members(classes[name], classes).items():
-            entry = _integration_entry(prefix + "." + name + "." + member, node, _imports(tree))
-            entry.aliases = _aliases(tree)
-            entry.private_classes = {name for name in classes if name.startswith("_")}
+        yield from _integration_class_entries(prefix + "." + name, classes[name], classes, tree)
+
+
+def _integration_class_entries(prefix, cls, classes, tree):
+    imports, aliases = _imports(tree), _aliases(tree)
+    private = {name for name in classes if name.startswith("_")}
+    for member, nodes in _integration_members(cls, classes).items():
+        overloads = [node for node in nodes if _overloaded(node, imports)]
+        for index, node in enumerate(overloads or nodes):
+            suffix = f"[{index}]" if overloads else ""
+            entry = _integration_entry(prefix + "." + member + suffix, node, imports)
+            entry.aliases, entry.private_classes = aliases, private
             yield entry
+
+
+def _overloaded(node, imports):
+    decorators = getattr(node, "decorator_list", [])
+    return any(
+        imports.get(ast.unparse(decorator), ast.unparse(decorator)).endswith("overload")
+        for decorator in decorators
+    )
 
 
 def integration_entries():
