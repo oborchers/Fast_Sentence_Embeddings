@@ -1,0 +1,1 @@
+{"fse":"2.0.0","rows":256,"safety_probability_bits":true,"safety_predictions":true,"categories_unsupported":true,"summary":"Safety loads with identical probability bits and predictions; categories raises UnsupportedArtifactError."}

@@ -45,11 +45,12 @@ from fse._store._recovery import (
 )
 from fse._store._refresh import refreshed
 from fse._store._scores_info import ScoreHead, ScoreInfo
+from fse._store._vector_batches import blocks
 from fse._store._view import Joined, MemberReaders, open_view, verify_members
 from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
 
 from . import _predict
-from ._batches import ScoreBatch, blocks
+from ._batches import ScoreBatch
 from ._schema import group_of
 
 DEFAULT_BLOCK_ROWS = 65_536
