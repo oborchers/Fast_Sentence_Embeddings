@@ -18,8 +18,9 @@ from _harness import resources
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append, atomic
 
+from _quality.binary2_decision import decide as decide_2
 from _quality.binary_decision import decide
-from _quality.binary_inputs import CORPUS, CORPUS_ROWS, PROFILE
+from _quality.binary_inputs import CORPUS, CORPUS_ROWS, PROFILE_2, PROFILES
 
 
 def admission(cell, prepared, work, requested_limit, kind):
@@ -35,6 +36,11 @@ def admission(cell, prepared, work, requested_limit, kind):
         "python_texts": corpus["timing_utf8_bytes"] * 8,
     }
     disk = CORPUS_ROWS * 4 * dim + corpus["timing_utf8_bytes"] * 4 + 3 * table
+    if cell["profile"] == PROFILE_2:  # an int8 store, its codes, the unpacked bits and the sums
+        components["int8_store_and_variant_sums"] = (
+            CORPUS_ROWS * (dim + 4) * 2 + 8192 * dim * 8 + CORPUS_ROWS * 64 * 4
+        )
+        disk += CORPUS_ROWS * (dim + 4)
     return resources.assess(
         components, limit=limit, work=work, disk=disk, disk_fraction=0.85, kind=kind, **LABEL
     )
@@ -49,7 +55,8 @@ def plans(args, cells, prepared, kind):
 
 def _job(cell, prepared):
     return {
-        "action": "binary-recall",
+        "action": "binary-recall-2" if cell["profile"] == PROFILE_2 else "binary-recall",
+        "queries": cell["queries_per_set"],
         "model": cell["model"],
         "workers": cell["workers"],
         "artifact": prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]],
@@ -89,11 +96,11 @@ def _preflight(args):
 
 
 def selected(cells):
-    """Whether the cells are of the profile; it runs alone."""
+    """Whether the cells are of a profile of this probe; one profile runs alone."""
     profiles = {cell["profile"] for cell in cells}
-    if PROFILE in profiles and len(profiles) > 1:
-        raise ValueError(f"{PROFILE} cells run alone")
-    return PROFILE in profiles
+    if profiles & set(PROFILES) and (len(profiles) > 1 or not profiles <= set(PROFILES)):
+        raise ValueError(f"{PROFILES} cells run alone, one profile at a time")
+    return bool(profiles & set(PROFILES))
 
 
 def run_cells(args, spec):
@@ -139,7 +146,8 @@ def run_cells(args, spec):
                 ledger, cell, started, status="valid", binary={"records": len(receipt["records"])}
             )
     failed = any(r["status"] == "failed" for r in ledger.finished)
-    outcome = decide(args.results / "binary.jsonl", cells, ledger.finished, failed)
+    judge = decide_2 if cells[0]["profile"] == PROFILE_2 else decide
+    outcome = judge(args.results / "binary.jsonl", cells, ledger.finished, failed)
     atomic(args.results / "decision.json", {**LABEL, **outcome})
     print(json.dumps(outcome), flush=True)
     return ledger.done()
