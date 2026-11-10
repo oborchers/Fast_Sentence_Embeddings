@@ -1,5 +1,6 @@
 """Offline references must fail for missing targets, without executing documents."""
 
+import errno
 import json
 import subprocess
 import sys
@@ -93,12 +94,11 @@ def test_external_targets_and_anchors_need_no_network(tmp_path, monkeypatch):
     assert check(tmp_path, inventory(tmp_path, text)) == []
 
 
-@pytest.mark.parametrize("target", ["../../outside.md", "../../%6futside.md", "../escape.md"])
+@pytest.mark.parametrize("target", ["../../outside.md", "../../%6futside.md"])
 def test_existing_targets_outside_checkout_are_rejected(tmp_path, target):
     root = tmp_path / "checkout"
     root.mkdir()
     (tmp_path / "outside.md").write_text("outside")
-    (root / "escape.md").symlink_to(tmp_path / "outside.md")
     errors = check(root, inventory(root, f"[outside]({target})"))
     assert len(errors) == 1
     assert "escapes checkout" in errors[0]
@@ -215,3 +215,81 @@ def test_inline_exception_requires_a_reason(tmp_path):
     example_config(tmp_path, reason="")
     with pytest.raises(ValueError, match="nonempty strings"):
         check(tmp_path, paths)
+
+
+def symlink(source, target):
+    try:
+        target.symlink_to(source)
+    except OSError as error:
+        if (
+            error.errno in {errno.EACCES, errno.EPERM, errno.ENOSYS}
+            or getattr(error, "winerror", None) == 1314
+        ):
+            pytest.skip("symlink creation is unavailable or not permitted")
+        raise
+
+
+def test_symlink_target_outside_checkout_is_rejected(tmp_path):
+    root = tmp_path / "checkout"
+    root.mkdir()
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside")
+    symlink(outside, root / "escape.md")
+    errors = check(root, inventory(root, "[outside](../escape.md)"))
+    assert errors == ["docs/guide.md:1: target escapes checkout: ../escape.md"]
+
+
+def test_source_document_cannot_be_a_symlink_outside_checkout(tmp_path):
+    root = tmp_path / "checkout"
+    root.mkdir()
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside")
+    symlink(outside, root / "guide.md")
+    assert check(root, ["guide.md"]) == ["guide.md: document escapes checkout"]
+
+
+def test_root_prefix_does_not_resolve_beside_document(tmp_path):
+    paths = inventory(tmp_path, "`tools/gone.py`", ["docs/tools/gone.py"])
+    assert check(tmp_path, paths) == ["docs/guide.md:1: missing local target: tools/gone.py"]
+
+
+def test_deleted_root_directory_is_still_a_file_reference(tmp_path):
+    paths = inventory(tmp_path, "`integrations/gone.py`")
+    assert check(tmp_path, paths) == ["docs/guide.md:1: missing local target: integrations/gone.py"]
+
+
+def test_inline_root_path_can_contain_spaces(tmp_path):
+    paths = inventory(tmp_path, "`tools/with space.py`", ["tools/with space.py"])
+    assert check(tmp_path, paths) == []
+    (tmp_path / "tools/with space.py").unlink()
+    assert check(tmp_path, paths[:1]) == [
+        "docs/guide.md:1: missing local target: tools/with space.py"
+    ]
+
+
+@pytest.mark.parametrize("cell", [{}, {"cell_type": "markdwon", "source": "[x](no.md)"}])
+def test_unknown_notebook_cell_type_fails(tmp_path, cell):
+    path = tmp_path / "bad.ipynb"
+    path.write_text(notebook(cell))
+    assert check(tmp_path, [path.name]) == ["bad.ipynb: cell 1 has a missing or unknown cell_type"]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "[tool]\nfse = 3\n",
+        "[tool.fse]\ndoc-links = 3\n",
+        "[tool.fse.doc-links]\ninline-examples = 3\n",
+    ],
+)
+def test_invalid_exception_configuration_fails_clearly(tmp_path, config):
+    (tmp_path / "pyproject.toml").write_text(config)
+    with pytest.raises(ValueError, match="must be"):
+        check(tmp_path, [])
+
+
+def test_external_link_label_is_not_a_local_file_path(tmp_path):
+    assert (
+        check(tmp_path, inventory(tmp_path, "[`missing.py`](https://invalid.test/missing.py)"))
+        == []
+    )

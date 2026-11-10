@@ -222,11 +222,8 @@ jobs:
           if [ -n "$other" ] || touches '^README\.md$|^\.agents/skills/'; then code=true; else code=false; fi
           {
             echo "code=$code"
-            if [ "$code" = "true" ] || touches '\.(md|ipynb)$'; then
-              echo "lint=true"
-            else
-              echo "lint=false"
-            fi
+            # A deleted image or other target can break unchanged documentation.
+            echo "lint=true"
             # The extension sources, setup.py, the project metadata, the sdist manifest,
             # the lockfile. Store/container changes also need the real Windows suite.
             flag native '^tools/hub/|^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
@@ -411,8 +408,8 @@ jobs:
         # below makes sure they run.
         run: |
           uv venv --python 3.13 /tmp/sdist-env
-          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
-          /tmp/sdist-env/bin/python -c "import huggingface_hub, tokenizers, model2vec, safetensors; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
+          uv pip install --python /tmp/sdist-env "$(ls dist/*.tar.gz)[gensim]" pytest "markdown-it-py>=3,<5" "tokenizers==0.23.3" "model2vec==0.10.0" "safetensors>=0.4.0"
+          /tmp/sdist-env/bin/python -c "import huggingface_hub, tokenizers, model2vec, safetensors, markdown_it; assert tokenizers.__version__ == '0.23.3', tokenizers.__version__"
           /tmp/sdist-env/bin/python -m pytest tests -m "not network" -p no:cacheprovider
       - name: Use the sdist without gensim
         run: |

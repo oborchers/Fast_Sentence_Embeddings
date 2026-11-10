@@ -79,7 +79,10 @@ def markdown_references(text, cell=None, attachments=()):
 def cell_markdown(cell, number):
     if not isinstance(cell, dict):
         raise ValueError(f"cell {number} must be an object")
-    if cell.get("cell_type") != "markdown":
+    kind = cell.get("cell_type")
+    if kind not in ("markdown", "code", "raw"):
+        raise ValueError(f"cell {number} has a missing or unknown cell_type")
+    if kind != "markdown":
         return []
     source = cell.get("source")
     if isinstance(source, list) and all(isinstance(part, str) for part in source):

@@ -35,7 +35,9 @@ def commit(root):
     )
 
 
-def selection(root, event="pull_request", targeted="false"):
+def selection(
+    root, event="pull_request", targeted="false", ref="refs/pull/1/merge", before="", base="master"
+):
     source = WORKFLOW.read_text()
     step = source.split("      - id: diff\n", 1)[1].split("\n  lint:", 1)[0]
     script = textwrap.dedent(step.split("        run: |\n", 1)[1])
@@ -43,9 +45,9 @@ def selection(root, event="pull_request", targeted="false"):
     env = {
         **os.environ,
         "EVENT": event,
-        "BASE": "master",
-        "REF": "refs/pull/1/merge",
-        "BEFORE": "",
+        "BASE": base,
+        "REF": ref,
+        "BEFORE": before,
         "TARGETED": targeted,
         "GITHUB_OUTPUT": str(output),
     }
@@ -95,3 +97,45 @@ def test_document_deletion_selects_lint(repository):
 def test_full_and_targeted_selections_keep_lint_policy(repository):
     assert selection(repository, event="schedule")["lint"] == "true"
     assert selection(repository, event="workflow_dispatch", targeted="true")["lint"] == "false"
+
+
+def test_deleted_non_markdown_target_selects_lint(repository):
+    asset = repository / "docs" / "assets" / "image.svg"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("svg")
+    commit(repository)
+    git(repository, "update-ref", "refs/remotes/origin/master", "HEAD")
+    asset.unlink()
+    commit(repository)
+    outputs = selection(repository)
+    assert outputs["lint"] == "true"
+    assert outputs["code"] == "false"
+
+
+def test_skill_only_master_push_selects_lint(repository):
+    before = git(repository, "rev-parse", "HEAD")
+    skill = repository / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("skill")
+    commit(repository)
+    outputs = selection(repository, event="push", ref="refs/heads/master", before=before)
+    assert outputs["lint"] == "true"
+    assert outputs["code"] == "false"
+
+
+def test_unknown_pr_base_requires_full_selection(repository):
+    outputs = selection(repository, base="missing-base")
+    assert all(
+        outputs[name] == "true" for name in ("code", "lint", "native", "deps", "st", "sdist")
+    )
+
+
+def test_workflow_change_requires_full_selection(repository):
+    workflow = repository / ".github" / "workflows" / "example.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("workflow")
+    commit(repository)
+    outputs = selection(repository)
+    assert all(
+        outputs[name] == "true" for name in ("code", "lint", "native", "deps", "st", "sdist")
+    )

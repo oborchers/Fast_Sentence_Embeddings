@@ -92,7 +92,7 @@ and URL escapes are decoded. Local targets must exist inside the checkout, inclu
 when reached through symlinks. Attachments must exist in the same notebook cell.
 
 A whole inline-code literal is also checked when it names a file or starts with a
-tracked top-level directory, `./` or `../`. Top-level directory paths start at the
+known repository directory, another tracked top-level directory, `./` or `../`. Top-level directory paths start at the
 repository root. Explicit `./` and `../` paths start at the document. Bare filenames
 may name a file beside the document, at the root, or one uniquely named tracked file.
 Use a relative Markdown link when a bare name is ambiguous.
@@ -104,5 +104,6 @@ needs an exact document/target exception with a reason under
 Unused exceptions fail. Exceptions never suppress Markdown links or HTML references.
 
 Run `uv run python tools/check_doc_links.py` for this check alone. Stage new documents
-first so the tracked-file inventory includes them. Missing targets report the document,
+first so the tracked-file inventory includes them. CI runs lint for every regular change,
+including changes that only delete a referenced image or another document target. Missing targets report the document,
 Markdown block line and, for notebooks, the cell number.

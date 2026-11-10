@@ -8,7 +8,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from doc_paths import path_error
+from doc_paths import REPOSITORY_ROOTS, path_error
 from doc_references import markdown_references, notebook_references
 
 
@@ -17,14 +17,25 @@ def tracked_paths(root):
     return sorted({part.decode("utf-8") for part in data.split(b"\0") if part})
 
 
-def inline_examples(root):
+def example_entries(root):
     config = root / "pyproject.toml"
     if not config.exists():
-        return {}
+        return []
     data = tomllib.loads(config.read_text(encoding="utf-8"))
-    entries = data.get("tool", {}).get("fse", {}).get("doc-links", {}).get("inline-examples", [])
+    table = data
+    for name in ("tool", "fse", "doc-links"):
+        table = table.get(name, {})
+        if not isinstance(table, dict):
+            raise ValueError(f"{name} must be a configuration table")
+    entries = table.get("inline-examples", [])
+    if not isinstance(entries, list):
+        raise ValueError("inline-examples must be a list")
+    return entries
+
+
+def inline_examples(root):
     examples = {}
-    for entry in entries:
+    for entry in example_entries(root):
         if not isinstance(entry, dict) or set(entry) != {"document", "target", "reason"}:
             raise ValueError("inline examples require document, target and reason")
         if any(not isinstance(value, str) or not value.strip() for value in entry.values()):
@@ -38,6 +49,8 @@ def inline_examples(root):
 
 def reference_errors(root, name, tracked, roots, examples, used):
     document = root / name
+    if not document.resolve().is_relative_to(root):
+        raise ValueError("document escapes checkout")
     text = document.read_text(encoding="utf-8")
     parse = notebook_references if document.suffix == ".ipynb" else markdown_references
     errors = []
@@ -55,7 +68,7 @@ def reference_errors(root, name, tracked, roots, examples, used):
 
 def check(root, tracked):
     root = root.resolve()
-    roots = {path.split("/", 1)[0] for path in tracked if "/" in path}
+    roots = REPOSITORY_ROOTS | {path.split("/", 1)[0] for path in tracked if "/" in path}
     errors = []
     examples = inline_examples(root)
     used = set()

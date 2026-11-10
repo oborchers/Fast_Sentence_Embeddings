@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 # These are syntactic examples, not repository references. Commands are not paths.
-EXAMPLE = re.compile(r"[<>*{}\[\]?]|\$|\s|^~|^/|^[A-Za-z]:")
+EXAMPLE = re.compile(r"[<>*{}\[\]?]|\$|^~|^/|^[A-Za-z]:")
 SUFFIXES = {
     ".py",
     ".pyx",
@@ -23,6 +23,27 @@ SUFFIXES = {
     ".sh",
 }
 ROOT_FILES = {"Makefile", "LICENSE", "NOTICE", "MANIFEST.in"}
+# Keep recognizing a repository directory after its last tracked file is deleted.
+REPOSITORY_ROOTS = {
+    "src",
+    "tests",
+    "tools",
+    "benchmarks",
+    "docs",
+    "recipes",
+    "integrations",
+    ".github",
+    ".agents",
+    ".claude",
+    "media",
+}
+
+
+def command_literal(target, roots):
+    if not any(character.isspace() for character in target):
+        return False
+    prefix = target.split("/", 1)[0]
+    return prefix not in roots or Path(target).suffix not in SUFFIXES or " --" in target
 
 
 def inline_path(target, roots):
@@ -31,6 +52,8 @@ def inline_path(target, roots):
     if "/.../" in target:
         return False
     path = Path(target.split("::", 1)[0])
+    if command_literal(target, roots):
+        return False
     if target.startswith(("./", "../")):
         return True
     if "/" in target:
@@ -55,6 +78,8 @@ def candidates(root, document, target, inline, tracked):
     paths = [document.parent / target]
     if not inline or target.startswith(("./", "../")):
         return paths
+    if "/" in target:
+        return [root / target]
     paths.append(root / target)
     if "/" not in target:
         matches = [root / path for path in tracked if Path(path).name == target]
