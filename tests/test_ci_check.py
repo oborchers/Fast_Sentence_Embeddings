@@ -117,3 +117,39 @@ def test_failed_only_reruns_keep_previous_successes_and_latest_failure(monkeypat
     rows = MODULE["inventory"]("owner/repo", "123", 2)
     assert rows == [current, retained]
     assert FAILURES(needs(), "push", rows)
+
+
+@pytest.mark.parametrize("failed_test", [False, True])
+def test_failed_only_rerun_ignores_retained_downstream_skips(monkeypatch, failed_test):
+    import json
+
+    def completed(name, conclusion):
+        return {"name": name, "status": "completed", "conclusion": conclusion}
+
+    test_name = "test (ubuntu-latest, 3.13, latest)"
+    previous = [
+        completed(test_name, "failure"),
+        completed("wheels (macos-latest, manylinux)", "success"),
+        completed("release", "skipped"),
+        completed("github-release", "skipped"),
+    ]
+    current = [completed(test_name, "failure" if failed_test else "success")]
+    answers = iter(json.dumps([{"jobs": jobs}]).encode() for jobs in (previous, current))
+    monkeypatch.setattr(MODULE["subprocess"], "check_output", lambda _command: next(answers))
+    observed = MODULE["inventory"]("owner/repo", "123", 2)
+    expected = [f"observed {test_name}: completed/failure"] if failed_test else []
+    assert FAILURES(needs(), "workflow_dispatch", observed) == expected
+
+
+@pytest.mark.parametrize("name", ["release", "github-release"])
+@pytest.mark.parametrize("conclusion", ["success", "failure", "cancelled", "skipped", None])
+def test_downstream_jobs_never_supply_gate_evidence(name, conclusion):
+    observed = [{"name": name, "status": "completed", "conclusion": conclusion}]
+    rows = needs()
+    rows["test"]["result"] = "failure"
+    assert FAILURES(rows, "push", observed) == ["test: failure"]
+
+
+def test_unknown_skipped_job_still_fails_closed():
+    observed = [{"name": "unexpected", "status": "completed", "conclusion": "skipped"}]
+    assert FAILURES(needs(), "push", observed) == ["observed unexpected: completed/skipped"]
