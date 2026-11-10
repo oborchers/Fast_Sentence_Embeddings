@@ -14,6 +14,7 @@ def needs(targeted=False, code=True):
     rows = {name: {"result": "success"} for name in MODULE["JOBS"]}
     rows["changes"]["outputs"] = {
         "code": str(code).lower(),
+        "lint": str(code and not targeted).lower(),
         "native": "true",
         "sdist": "true",
         "st": "true",
@@ -153,3 +154,22 @@ def test_downstream_jobs_never_supply_gate_evidence(name, conclusion):
 def test_unknown_skipped_job_still_fails_closed():
     observed = [{"name": "unexpected", "status": "completed", "conclusion": "skipped"}]
     assert FAILURES(needs(), "push", observed) == ["observed unexpected: completed/skipped"]
+
+
+@pytest.mark.parametrize("result", ["success", "skipped", "failure"])
+def test_documentation_only_requires_successful_lint(result):
+    rows = needs(code=False)
+    rows["changes"]["outputs"]["lint"] = "true"
+    for name in rows.keys() - {"changes", "lint"}:
+        rows[name]["result"] = "skipped"
+    rows["lint"]["result"] = result
+    expected = [] if result == "success" else [f"lint: {result}"]
+    assert FAILURES(rows, "pull_request", []) == expected
+
+
+@pytest.mark.parametrize("value", [None, "invalid", True])
+def test_lint_selection_requires_an_explicit_boolean_string(value):
+    rows = needs()
+    rows["changes"]["outputs"]["lint"] = value
+    with pytest.raises(ValueError, match="explicit boolean strings"):
+        FAILURES(rows, "pull_request", [])
