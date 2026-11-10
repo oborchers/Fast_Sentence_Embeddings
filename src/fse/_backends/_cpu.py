@@ -58,9 +58,11 @@ _CAPABILITIES = Capabilities(
 
 # The prefilter variant of each instruction set, and the variants a search may use. A variant
 # is built (the compiler could), runnable (the CPU has the instructions) and enabled (a
-# measurement showed it pays) as three separate facts; none is enabled yet.
+# measurement showed it pays) as three separate facts. neon-sdot is enabled (DR-340, after the
+# measurement of DR-168 on Apple M1 Pro); avx2 stays off until DR-288 decides it, and the
+# portable kernel is never a search path.
 _PREFILTER_VARIANT = {"neon": "neon-sdot", "avx2": "avx2"}
-_PREFILTER_ENABLED: frozenset[str] = frozenset()
+_PREFILTER_ENABLED: frozenset[str] = frozenset({"neon-sdot"})
 
 
 @dataclass(frozen=True, eq=False)

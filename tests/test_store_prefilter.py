@@ -86,9 +86,10 @@ def test_blocks_of_every_size_give_the_same_survivors(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("selection", ["range", "scattered", "unsorted_duplicates", "missing"])
 @pytest.mark.parametrize("workers", [1, 4])
-def test_rows_selections_give_the_bits_of_the_search_without_it(
+def test_a_rows_selection_never_enters_the_prefilter_and_gives_the_previous_bits(
     tmp_path, monkeypatch, selection, workers
 ):
+    """DR-340: with ``rows=`` the call takes the previous exact path, code for code."""
     _store(tmp_path)
     ps.enable(monkeypatch)
     rng = np.random.default_rng(9)
@@ -101,11 +102,9 @@ def test_rows_selections_give_the_bits_of_the_search_without_it(
     qs = ps.queries(4, DIM)
     with fse.VectorStore.open(tmp_path / "s") as store:
         got, want, records = ps.both(monkeypatch, store, qs, 6, rows=rows.tolist(), workers=workers)
-        record = ps.prefilter_record(records)
-        assert record.fse_fallback == "none"
-        assert record.fse_rows == len(np.unique(rows))
-        assert ps.same(got, want)
+        assert not ps.events(records, "store.prefilter")
         assert len(ps.events(records, "store.search")) == 1
+        assert ps.same(got, want)
 
 
 def test_a_view_and_a_refreshed_store_give_the_bits_of_the_search_without_it(tmp_path, monkeypatch):
@@ -119,7 +118,7 @@ def test_a_view_and_a_refreshed_store_give_the_bits_of_the_search_without_it(tmp
         assert ps.prefilter_record(records).fse_rows == 2 * N
         assert ps.same(got, want)
         got, want, records = ps.both(monkeypatch, view, qs, 8, rows=list(range(N - 50, N + 50)))
-        assert ps.prefilter_record(records).fse_rows == 100
+        assert not ps.events(records, "store.prefilter")  # a selection takes the previous path
         assert ps.same(got, want)
     with fse.VectorStore.open(tmp_path / "a") as store:
         extra = ps.codes_like(1200, DIM, seed=6)

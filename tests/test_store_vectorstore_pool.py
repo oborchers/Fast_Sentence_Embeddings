@@ -165,7 +165,7 @@ def test_an_error_in_a_task_on_a_pool_gives_every_place_back(tmp_path, monkeypat
         assert store._active == 0
 
 
-def test_the_int8_prefilter_and_its_fallback_run_on_the_pool(tmp_path, monkeypatch):
+def test_the_int8_prefilter_and_the_rows_path_run_on_the_pool(tmp_path, monkeypatch):
     path = tmp_path / "int8"
     pf.write(path, pf.codes_like(600, 32), shard_rows=100)
     pf.enable(monkeypatch)  # the variant is not enabled in the library
@@ -189,7 +189,7 @@ def test_the_int8_prefilter_and_its_fallback_run_on_the_pool(tmp_path, monkeypat
             ]
             assert submits.count > 0
             assert free_places(pool) == 2
-    assert taken == [True, True]
+    assert taken == [True, False]  # DR-340: a rows= call takes the previous path, on the pool too
     assert got == want
 
 
