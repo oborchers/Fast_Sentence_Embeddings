@@ -7,43 +7,50 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.bridge.pydantic import Field, PrivateAttr
 
 from fse import Encoder
-from fse._validation import validate_arguments
+from fse.typing import ModelRef, WorkerCount
+
+from ._checks import configuration
+
+__all__ = ["FseEmbedding"]
 
 
 class FseEmbedding(BaseEmbedding):
     """Use LlamaIndex batching and fse encoding without a transformer runtime."""
 
     _encoder: Encoder = PrivateAttr()
+    model_name: str = "minishlab/potion-base-8M"
     dtype: str = "float32"
     workers: int | None = None
-    load_kwargs: dict = Field(default_factory=dict, exclude=True, repr=False)
+    load_kwargs: dict[str, object] = Field(default_factory=dict, exclude=True, repr=False)
     encoder_fingerprint: str = ""
     encoder_injected: bool = False
 
-    @validate_arguments
     def __init__(
         self,
-        model_name: str = "minishlab/potion-base-8M",
+        model_name: ModelRef = "minishlab/potion-base-8M",
         *,
         encoder: Encoder | None = None,
         dtype: str = "float32",
-        workers: int | None = None,
-        load_kwargs: dict | None = None,
+        workers: WorkerCount = None,
+        load_kwargs: dict[str, object] | None = None,
         encoder_fingerprint: str = "",
         encoder_injected: bool = False,
         **kwargs,
     ):
-        if dtype not in ("float32", "float16"):
-            raise ValueError("dtype must be float32 or float16 for float-list embeddings")
-        if encoder is not None and load_kwargs:
-            raise ValueError("load_kwargs cannot be used with an existing encoder")
+        model_name, workers, load_kwargs = configuration(
+            model_name, encoder, dtype, workers, load_kwargs
+        )
+        if not isinstance(encoder_fingerprint, str):
+            raise TypeError("encoder_fingerprint must be a string")
+        if not isinstance(encoder_injected, bool):
+            raise TypeError("encoder_injected must be a bool")
         if encoder_injected and encoder is None:
             raise ValueError("Reconstruction requires the injected encoder or a saved model path")
         unknown = kwargs.keys() - BaseEmbedding.model_fields.keys()
         if unknown:
             raise TypeError(f"Unknown BaseEmbedding options: {sorted(unknown)}")
         super().__init__(
-            model_name=model_name,
+            model_name=str(model_name),
             dtype=dtype,
             workers=workers,
             load_kwargs=dict(load_kwargs or {}),
@@ -65,7 +72,7 @@ class FseEmbedding(BaseEmbedding):
     def class_name(cls) -> str:
         return "FseEmbedding"
 
-    def to_dict(self, **kwargs) -> dict:
+    def to_dict(self, **kwargs) -> dict[str, object]:
         data = super().to_dict(**kwargs)
         data["load_kwargs"] = {
             k: str(v) if isinstance(v, Path) else v
@@ -74,7 +81,7 @@ class FseEmbedding(BaseEmbedding):
         }
         return data
 
-    def __getstate__(self) -> dict:
+    def __getstate__(self) -> dict[str, dict[str, object]]:
         if self.encoder_injected:
             raise ValueError(
                 "Save the injected encoder and use its local path before multiprocessing"

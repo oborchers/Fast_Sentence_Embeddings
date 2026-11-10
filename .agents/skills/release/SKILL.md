@@ -33,3 +33,5 @@ A pushed `v*` tag on `master` runs the release job in `.github/workflows/ci.yml`
 
 - **Before the PyPI upload** (CHANGELOG, tag or file names): nothing is published. Fix on `master` through a pull request. A tag already pushed points at the old commit; ask the maintainer how to proceed, never move or delete a tag yourself.
 - **After the PyPI upload, in `github-release`**: PyPI is final. Re-run the failed job. Only if that cannot work, and only with approval, create the release by hand with the flags of the job: `gh release create vX.Y.Z --verify-tag --title "fse X.Y.Z" --notes-file <notes> dist/*`, plus `--latest` for a final version or `--prerelease --latest=false` for a pre-release. The notes come from `tools/release_notes.py`, the files from the artifacts of the run.
+
+Adapter tags follow `integrations/README.md`: release fse 2.1.0 first, then test all adapters against `fse==2.1.0` from PyPI before separately approved 0.2.0 publications.

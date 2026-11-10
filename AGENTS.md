@@ -51,7 +51,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 ## Rules
 
 - **Validate before converting.** Validate a public input in its original form for both type and value before converting it with `np.asarray`, `list()`, `dict()` or another conversion. Reject booleans where a number is required, and reject sets and dictionaries where an ordered sequence is required. Conversion must never hide invalid input or change which values are accepted. Review every new or changed public input against this rule.
-- Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
+- Validate strictly and never fail silently: raise a clear exception instead of coercing, ignoring or truncating input. Integration packages import only public fse names and validate inputs with their own `_checks` modules. Decorate new public entry points with `fse._validation.validate_arguments` unless they are called per element or receive bulk data; measure the overhead when in doubt. See ARCHITECTURE.md.
 - 2.0 artifacts store no class paths. From the first release of 2.0 on, never rename or reuse their persistence names (identifiers such as `weighted_mean@1`, `fse.` metadata keys, tensor names, artifact kinds and format versions). Before that release, the maintainer may remove names that are no longer needed (not reserve them); artifacts of a pre-release that hold them are refused with `UnsupportedArtifactError`. See docs/architecture/persistence.md, "Persistence names replace class paths".
 - New 2.0 code on the CPU follows the numerical contract in docs/architecture/numerical-contract.md, "Numerical contract (`transform_version` 2)" and matches the numpy reference in `fse._reference` bit for bit; compare bit patterns, not values. Any change of arithmetic bumps the version of the aggregation or step it changes.
 - Every backend passes the conformance suite (`tests/test_conformance.py` and its siblings): every backend bit for bit. Never weaken a comparison, the bound or the meta-tests; only the maintainer changes the bound.
@@ -59,7 +59,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
 - Log only through `fse._log.emit` with an event of `fse._log.EVENTS`; errors raise and are never also logged; no paths, error texts or input data in records; nothing per task, row or sentence or in native code. See docs/architecture/logging.md, "Logging".
-- Record user-visible changes as `changelog.d/DR-<nnn>.<type>.md` fragments, following `changelog.d/README.md`. Only release preparation updates `CHANGELOG.md`.
+- Record user-visible changes as `changelog.d/DR-<nnn>.<type>.md` fragments, following `changelog.d/README.md`. Only release preparation updates the root `CHANGELOG.md`. Integration packages maintain their own handwritten `CHANGELOG.md` files instead of root fragments.
 - Test modules never import each other. Helpers several of them share live in `tests/support/` (on the pytest `pythonpath`); a long test module splits by topic into `test_<module>_<topic>.py`.
 
 ## Guardrails

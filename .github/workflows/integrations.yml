@@ -64,8 +64,8 @@ jobs:
       - name: Install only this framework and the local fse checkout
         run: uv pip install --python .venv/bin/python '../..' '.[test]'
         env:
-          # Local testing only. Published adapters still require fse>=2.0.0.
-          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE: "2.0.0"
+          # Local testing only. Prepared adapters require fse>=2.1.0,<3.
+          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE: "2.1.0"
       - name: Pin the minimum framework
         if: matrix.deps == 'minimum'
         run: |
@@ -79,3 +79,33 @@ jobs:
       - run: .venv/bin/python -m pytest -m 'not network'
       - run: uv build --out-dir dist
       - run: uvx twine check dist/*
+      - name: Verify wheel typing marker
+        run: |
+          .venv/bin/python - <<'PYCODE'
+          from pathlib import Path
+          from zipfile import ZipFile
+          wheel, = Path("dist").glob("*.whl")
+          with ZipFile(wheel) as archive:
+              assert any(name.endswith("/py.typed") for name in archive.namelist())
+          PYCODE
+
+  published-compatibility:
+    # Keep until fse 3: published adapters 0.1.0 import the private validator.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [langchain-fse, llama-index-embeddings-fse, fse-haystack]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - run: uv venv --python 3.13 .compat
+      - name: Install published adapter and the current core
+        run: uv pip install --python .compat/bin/python . '${{ matrix.package }}==0.1.0'
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE: "2.1.0"
+      - run: uv pip check --python .compat/bin/python
+      - run: .compat/bin/python integrations/check_published.py '${{ matrix.package }}'

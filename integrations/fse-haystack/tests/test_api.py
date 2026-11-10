@@ -77,7 +77,7 @@ def test_validation(encoder):
         FseDocumentEmbedder(encoder=encoder).run([Document()])
     with pytest.raises(TypeError, match="Documents"):
         FseDocumentEmbedder(encoder=encoder).run(["hello"])
-    for batch in [0, -1, True, 1.5]:
+    for batch in [0, -1]:
         with pytest.raises(ValueError, match="batch_size"):
             FseDocumentEmbedder(batch_size=batch)
 
@@ -115,3 +115,9 @@ async def test_cold_async_pipeline_loads_off_loop(encoder, monkeypatch):
     assert result["embed"]["embedding"] == encoder.encode(["hello"]).tolist()[0]
     assert threads
     assert all(thread != loop_thread for thread in threads)
+
+
+@pytest.mark.parametrize("batch", [True, 1.5])
+def test_invalid_batch_type(batch):
+    with pytest.raises(TypeError, match="batch_size"):
+        FseDocumentEmbedder(batch_size=batch)
