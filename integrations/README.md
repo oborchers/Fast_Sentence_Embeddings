@@ -8,9 +8,9 @@ This work can merge before publication.
 
 | Package | Interface | Runtime dependencies |
 |---|---|---|
-| langchain-fse | `FseEmbeddings` | fse, langchain-core |
-| llama-index-embeddings-fse | `FseEmbedding` | fse, llama-index-core |
-| fse-haystack | `FseTextEmbedder`, `FseDocumentEmbedder` | fse, haystack-ai |
+| langchain-fse | `FseEmbeddings` | fse, NumPy, langchain-core |
+| llama-index-embeddings-fse | `FseEmbedding` | fse, NumPy, llama-index-core |
+| fse-haystack | `FseTextEmbedder`, `FseDocumentEmbedder` | fse, NumPy, haystack-ai |
 
 ## Development and CI
 

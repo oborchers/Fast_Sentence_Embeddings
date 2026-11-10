@@ -3,12 +3,12 @@
 Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for fse 2.1 and requires separate maintainer approval before publication.
 This package lives in `integrations/llama-index-embeddings-fse/` in the fse repository.
 
-This package depends on fse and `llama-index-core` only. Framework dependencies never enter
+This package depends on fse, NumPy and `llama-index-core`. Framework dependencies never enter
 fse core. This package has its own CI environment and release workflow.
 
 ## Use
 
-After an fse 2.0 build and this package are installed:
+After an fse 2.1 build and this package are installed:
 
 ```python
 from llama_index.embeddings.fse import FseEmbedding
@@ -37,7 +37,7 @@ LlamaIndex requires new integrations to live outside its monorepo.
 
 ## Framework baseline and guides
 
-The supported minimum for version 0.1.0 is `llama-index-core==0.14.25`, the current stable
+The supported framework minimum for version 0.2.0 is `llama-index-core==0.14.25`, the tested lower bound
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/llama-index-core/0.14.25/).
 This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
@@ -59,7 +59,8 @@ Use the Hub credential store rather than putting tokens in application configura
 
 `dtype="float32"` (default) or `"float16"` controls fse output precision.
 `workers=None` uses fse's worker policy. `workers=1` requests one worker.
-The adapter passes text and worker validation to fse without replacing its errors.
+The adapter validates workers during construction using the fse rule and error text.
+Text validation stays with fse.
 Integer embeddings are unsupported because this interface requires float vectors.
 
 Every result converts a numpy array into Python float lists. This copies values
