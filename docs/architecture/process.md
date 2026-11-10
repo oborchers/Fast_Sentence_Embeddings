@@ -244,14 +244,15 @@ CI uses cibuildwheel 4.3.5, the action pinned by commit in `.github/workflows/ci
 CPython 3.11 to 3.15, without free-threaded variants. Tags and full `workflow_dispatch` runs
 build and test all 30 wheels (manylinux 2.28 and musllinux 1.2 on x86_64 and aarch64, macOS
 arm64, and Windows x86_64), with one difference on Windows (DR-344): the full suite runs on
-the CPython 3.13 wheel only, on every event, and the other four Windows wheels run a short
+the CPython 3.15 wheel only, on every event, and the other four Windows wheels run a short
 check (`tools/wheel_smoke.py`, selected in `pyproject.toml` under
 `[[tool.cibuildwheel.overrides]]`): it imports `fse` and its extension and encodes a few
 texts for float32, float16 and int8 tables, with the kernel and with the numpy reference, and
 requires the same bits. Unix keeps the only full suite over all versions; Windows adds the
-real Windows filesystem and process semantics once. Python 3.13 additionally runs the
-optional gensim tests, which are skipped on 3.14 and newer. Every Windows wheel is built and
-uploaded, and the release job publishes all of them. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
+real Windows filesystem and process semantics once. The newest Python is where the
+Windows-specific risks (native extension, files, processes) show first; the optional gensim
+tests are pure Python, skipped on 3.14 and newer, and run on Linux for 3.11 to 3.13.
+Every Windows wheel is built and uploaded, and the release job publishes all of them. On musl Linux, atomic artifact publication calls the Linux `renameat2` syscall
 with `RENAME_NOREPLACE` when libc has no wrapper. It never falls back to a rename
 that could overwrite an existing directory. Unsupported syscall architectures fail
 explicitly. Linux images are pinned by digest to
@@ -259,7 +260,7 @@ explicitly. Linux images are pinned by digest to
 A manual run on a branch verifies the release matrix without publishing. Publication
 requires a tag push and approval in the release environment. Automatic PRs keep the three
 Linux/Windows runner jobs, without musllinux, and test only CPython 3.15 on Linux
-(Windows: the full suite on 3.13 and the short check on the other four wheels, on every
+(Windows: the full suite on 3.15 and the short check on the other four wheels, on every
 event). macOS wheel builds explicitly select arm64.
 The path filter still omits wheels when an unrelated file changes. Store/container source changes and their tests trigger the wheel jobs so the store suite also runs on real Windows.
 
