@@ -862,6 +862,7 @@ all = [
     { name = "safetensors" },
     { name = "scikit-learn" },
     { name = "tokenizers" },
+    { name = "towncrier" },
     { name = "vulture" },
 ]
 dev = [
@@ -876,6 +877,7 @@ lint = [
     { name = "import-linter" },
     { name = "mypy" },
     { name = "ruff" },
+    { name = "towncrier" },
     { name = "vulture" },
 ]
 st = [
@@ -933,6 +935,7 @@ all = [
     { name = "safetensors", specifier = ">=0.4.0" },
     { name = "scikit-learn", specifier = ">=1.5.0" },
     { name = "tokenizers", specifier = "==0.23.3" },
+    { name = "towncrier", specifier = "==26.9.0" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 dev = [
@@ -947,6 +950,7 @@ lint = [
     { name = "import-linter", specifier = ">=2.15" },
     { name = "mypy", specifier = ">=1.18.0" },
     { name = "ruff", specifier = ">=0.17.2" },
+    { name = "towncrier", specifier = "==26.9.0" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 st = [
@@ -3520,6 +3524,19 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp315-cp315t-manylinux_2_28_aarch64.whl", hash = "sha256:3fb23f534fdffdd3a178f8ef3327ab5fff833f291e5955be7edcaa7547a3f1fa", upload-time = "2026-10-28T13:20:26Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp315-cp315t-manylinux_2_28_x86_64.whl", hash = "sha256:92551daf5873fc6db15be48fe9644398f13143291c151ab6769f19e7c5ebd10c", upload-time = "2026-10-28T13:20:33Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp315-cp315t-win_amd64.whl", hash = "sha256:694b58039c3b1df7f5a890e97494728de849adb168a4617dd6024ca19eb8598e", upload-time = "2026-10-28T13:20:39Z" },
+]
+
+[[package]]
+name = "towncrier"
+version = "26.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "jinja2" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/d4/e85ce614bf45b1a7fe13b82cc687819c2eaac5a1dd94b84834322095fd98/towncrier-26.9.0.tar.gz", hash = "sha256:ace9031631c718cc0709107b8755e6e31350eb8acdc877af43df3177addb9a55", size = 79338, upload-time = "2026-09-04T12:57:25.341Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/88/f9340b545dafa64de053798e760515a2736fbb60092cf9aa6b146ccf3ede/towncrier-26.9.0-py3-none-any.whl", hash = "sha256:ae4d223e6aadaff98d29b7f09e58d9c9ccf4cd3b455a2d2e0486d432cd8bf660", size = 67030, upload-time = "2026-09-04T12:57:23.986Z" },
 ]
 
 [[package]]

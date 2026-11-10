@@ -245,6 +245,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync "$UV_SYNC_FLAGS" --group lint
+      - name: Require a changelog fragment for library and selected package changes
+        if: github.event_name == 'pull_request'
+        env:
+          CHANGELOG_BASE: origin/${{ github.base_ref }}
+        run: uv run --group lint python tools/check_changelog.py --base "$CHANGELOG_BASE"
       - run: make format-check
       - run: make lint
       - name: The ratchet of the guardrails does not grow against the base branch
