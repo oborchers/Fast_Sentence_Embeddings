@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from aegis import dataset, prepare, sha256, write
 from aegis_checks import verify
-from aegis_final import finalize
+from aegis_final import finalize, stage_saved
 from aegis_training import AegisBudget, download_encoders, load_config, select
 from inputs import external
 from threadpoolctl import threadpool_limits
@@ -84,7 +84,9 @@ def run(work, config, *, ensure_probe=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("preflight", "prepare", "probe", "run", "night"))
+    parser.add_argument(
+        "command", choices=("preflight", "prepare", "probe", "run", "night", "stage")
+    )
     parser.add_argument("--work", type=external, required=True)
     parser.add_argument(
         "--config", type=Path, default=Path(__file__).with_name("aegis-prompts.json")
@@ -97,7 +99,9 @@ def main():
     os.environ.update(
         HF_HUB_DISABLE_TELEMETRY="1", HF_HUB_DISABLE_XET="1", TOKENIZERS_PARALLELISM="false"
     )
-    if args.command == "prepare":
+    if args.command == "stage":
+        stage_saved(args.work)
+    elif args.command == "prepare":
         args.work.mkdir(parents=True, exist_ok=True)
         write(args.work / "config.json", config)
         prepare(args.work, config)

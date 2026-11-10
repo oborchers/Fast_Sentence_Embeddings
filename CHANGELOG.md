@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-- Add a local Aegis prompt-head preparation recipe (DR-318: Prompt-Köpfe aus dem Aegis-2.0-Datensatz außerhalb von fse trainieren und mit Modellkarte vorbereiten). It compares two pinned encoders, trains binary safety and ten-category heads outside fse, and prepares complete artifacts for grouped inference, with source reports, subset metrics and model cards. No upload or library change.
+- Add a local Aegis prompt-head preparation recipe (DR-318: Prompt-Köpfe aus dem Aegis-2.0-Datensatz außerhalb von fse trainieren und mit Modellkarte vorbereiten). It compares two pinned encoders, trains binary safety and ten-category heads outside fse, and prepares complete artifacts for grouped inference, with source reports, subset metrics and model cards. No upload or library change. File-only recovery preserves the frozen test result; the deliverable scan audits its narrow exception for pinned source URL literals.
 
 - Fix the unreleased 2.1 ScoreStore outputs of a one-label multilabel classifier to keep shape `(n, 1)`, including empty selections and joined views. Head and store outputs now share one shape rule. Threshold updates validate supplied label keys before overlaying current cutoffs.
 - Changed: reject unordered sets and mappings as class labels, boolean elements mixed into head weights, biases or word-vector indices, and masked arrays before conversion discards their masks, including temperature imports. These stricter checks affect existing 2.0 APIs. Ordered dictionary keys remain accepted. Valid inputs retain their float32 bits.

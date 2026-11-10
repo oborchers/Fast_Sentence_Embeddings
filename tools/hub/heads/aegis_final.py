@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from aegis import dataset, sha256, write
 from aegis_cards import render
 from aegis_checks import verify
 from aegis_metrics import evaluate
+from aegis_scan import compact_json, text_scan
 from aegis_training import selected_models
 from evaluation import environment
 from inputs import ROOT
@@ -47,17 +49,6 @@ def manifest(folder):
     (folder / "manifest.sha256").write_text("\n".join(lines) + "\n")
 
 
-def text_scan(work, cards):
-    """No verbatim source substring of 30+ characters may enter deliverables."""
-    windows = {card[i : i + 30] for card in cards for i in range(max(0, len(card) - 29))}
-    for split in ("train", "validation", "test"):
-        raw = json.loads((work / "raw" / (split + ".json")).read_text())
-        for row in raw:
-            prompt = row["prompt"]
-            if any(prompt[i : i + 30] in windows for i in range(max(0, len(prompt) - 29))):
-                raise ValueError("source prompt substring found in a deliverable")
-
-
 def artifact_member(source, target):
     """Frozen weights share storage; cards remain independently writable copies."""
     if Path(source).name == "model.safetensors":
@@ -67,9 +58,9 @@ def artifact_member(source, target):
     return target
 
 
-def publish(work, record, budget):
+def publish(work, record, budget, *, staging="pending"):
     budget.check()
-    pending = work / "pending"
+    pending = work / staging
     pending.mkdir()
     cards = {name: render(record, name) for name in record["config"]["labels"]}
     for name, card in cards.items():
@@ -105,16 +96,70 @@ def publish(work, record, budget):
     )
     write(pending / "metrics.json", record)
     shutil.copyfile(ROOT / "benchmarks/baseline/dr318/licenses.json", pending / "licenses.json")
-    text_scan(
-        work,
-        [
-            *(p.read_text() for p in pending.rglob("*") if p.suffix in (".md", ".json")),
-            (ROOT / "CHANGELOG.md").read_text(),
-        ],
-    )
+    if staging != "pending":
+        write(
+            pending / "staging-provenance.json",
+            {
+                "operation": "file-only recovery from saved test-result.json",
+                "training_source_commit": record["environment"]["git_revision"],
+                "staging_source_commit": subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+                ).strip(),
+                "new_fits": 0,
+                "new_test_evaluations": 0,
+                "original_pending_preserved": True,
+            },
+        )
+    for path in pending.rglob("*.json"):
+        compact_json(path)
+    documents = {
+        str(p.relative_to(pending)): p.read_text()
+        for p in pending.rglob("*")
+        if p.suffix in (".md", ".json")
+    }
+    documents["CHANGELOG.md"] = (ROOT / "CHANGELOG.md").read_text()
+    text_scan(work, documents, diagnosis=pending / "text-scan-diagnosis.json")
     manifest(pending)
     budget.check()
     pending.rename(work / "prepared")
+
+
+class StagingBudget:
+    """Explicitly authorized file-only completion, never a training budget reset."""
+
+    def __init__(self, work, minimum_free_bytes):
+        self.work, self.minimum_free_bytes = work, minimum_free_bytes
+        self.started = time.monotonic()
+
+    def check(self):
+        if time.monotonic() - self.started >= 300:
+            raise RuntimeError("file-only staging exceeded five minutes; no retry")
+        if shutil.disk_usage(self.work).free <= self.minimum_free_bytes:
+            raise RuntimeError("file-only staging requires more than 40 GiB free")
+
+
+def stage_saved(work):
+    """Resume only packaging from the one completed, frozen test receipt."""
+    record = json.loads((work / "test-result.json").read_text())
+    if record["status"] != "complete" or record["test_evaluations"] != 1:
+        raise ValueError("staging requires exactly one completed test evaluation")
+    canonical = json.loads(Path(__file__).with_name("aegis-prompts.json").read_text())
+    if record["config"] != canonical or json.loads((work / "config.json").read_text()) != canonical:
+        raise ValueError("staging configuration differs from the frozen recipe")
+    budget = StagingBudget(work, canonical["minimum_free_bytes"])
+    budget.check()
+    frozen = json.loads((work / "frozen.json").read_text())
+    if json.loads((work / "test-started").read_text()) != frozen:
+        raise ValueError("test receipt does not identify the frozen artifacts")
+    if frozen["selection_sha256"] != sha256(work / "selection.json"):
+        raise ValueError("selection changed after freezing")
+    if record["selection"] != json.loads((work / "selection.json").read_text()):
+        raise ValueError("test result selection differs from the frozen selection")
+    for name, expected in frozen["models"].items():
+        budget.check()
+        if sha256(work / (name + "-complete/model.safetensors")) != expected:
+            raise ValueError("frozen model changed after the one test evaluation")
+    publish(work, record, budget, staging="pending-staging-02")
 
 
 def finalize(work, config, budget):

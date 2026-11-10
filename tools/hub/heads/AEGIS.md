@@ -70,3 +70,25 @@ Prior art and source contracts, checked 2026-11-09:
   non-interpolated AP defines selection and reporting, rather than trapezoidal area.
 - [AART same-commit source copy](https://github.com/xxxx-dddd/aart-ai-safety-dataset/tree/fcdb2a8a3343a992cd8cbfd53eac797ac047c26f):
   pins exact-match identification and preserves the license provenance limitation.
+
+File-only recovery is available after a successful frozen test evaluation:
+
+```sh
+uv run python tools/hub/heads/aegis_run.py stage --work /external/aegis-01
+```
+
+This command checks the saved selection, frozen weight hashes and the original
+one-test marker. It does not fit, predict or evaluate again. It creates a fresh
+`pending-staging-02/` and, on success, `prepared/`; the failed `pending/` and all
+original receipts remain. Existing targets are refused. This authorized recovery
+has a separate five-minute file-only limit and retains the 40 GiB disk floor;
+it does not reset or extend the training budget.
+
+Staged JSON uses compact presentation, checked against its decoded original,
+including canonical float representations. URLs keep ordinary slashes. The
+30-character source scan has one explicit exception: a window wholly contained
+in one of the five dataset/license URL literals from the pinned recipe config.
+The list freezes before any prompt is read. `text-scan-diagnosis.json` records
+every ignored window, source split/index and deliverable occurrence. Other source
+text, including material adjacent to those URLs, remains a rejection. This is an
+explicitly approved deviation from the original unconditional substring rule.
