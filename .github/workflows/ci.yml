@@ -182,7 +182,8 @@ jobs:
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          files=$(git diff --name-only "origin/$BASE...HEAD")
+          # Preserve source deletions when a file moves to an otherwise exempt docs path.
+          files=$(git diff --name-only --no-renames "origin/$BASE...HEAD")
           echo "$files"
           # Whether a changed file matches an extended regular expression.
           touches() { echo "$files" | grep -qE "$1"; }
@@ -245,6 +246,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync "$UV_SYNC_FLAGS" --group lint
+      - name: Require a changelog fragment for library and selected package changes
+        if: github.event_name == 'pull_request'
+        env:
+          CHANGELOG_BASE: origin/${{ github.base_ref }}
+        run: uv run --group lint python tools/check_changelog.py --base "$CHANGELOG_BASE"
       - run: make format-check
       - run: make lint
       - name: The ratchet of the guardrails does not grow against the base branch

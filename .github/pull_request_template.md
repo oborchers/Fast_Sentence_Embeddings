@@ -25,7 +25,7 @@ Otherwise state why these do not apply.
 - [ ] Relevant network and sentence-transformers checks pass, or omissions are explained.
 - [ ] Conformance and bit identity are unchanged.
 - [ ] No new ratchet entries or suppressions.
-- [ ] User-visible changes have a `CHANGELOG.md` entry.
+- [ ] User-visible changes have a `changelog.d/DR-<nnn>.<type>.md` fragment.
 - [ ] Measurements cover the target environment. Limits and skipped checks are explicit.
 - [ ] AI tools and model versions are disclosed below, or no AI assistance was used.
 - [ ] I agree that my contribution is licensed under the MIT license as part of fse 2.0.

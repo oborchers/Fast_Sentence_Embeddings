@@ -176,3 +176,61 @@ def test_section_ignores_headings_in_code_blocks():
         section(text, "9.9.9")
     with pytest.raises(ValueError, match="no section"):
         section(text, "1.0.0")
+
+
+@pytest.mark.parametrize("name", ["DR-343.changed.md", "unknown.txt", "nested/entry.md"])
+def test_prepare_refuses_remaining_fragments_before_writing(tmp_path, name):
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(CHANGELOG)
+    fragment = tmp_path / "changelog.d" / name
+    fragment.parent.mkdir(parents=True)
+    fragment.write_text("Remaining entry.\n")
+    notes = tmp_path / "notes.md"
+    with pytest.raises(ValueError, match="unbuilt changelog fragment"):
+        prepare("v2.0.0", changelog, notes)
+    assert not notes.exists()
+
+
+def test_prepare_allows_only_fragment_metadata(tmp_path):
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(CHANGELOG)
+    directory = tmp_path / "changelog.d"
+    directory.mkdir()
+    for name in ("README.md", "template.md"):
+        (directory / name).write_text("Metadata.\n")
+    assert prepare("v2.0.0", changelog, tmp_path / "notes.md") == ("2.0.0", False)
+
+
+@pytest.mark.parametrize("root_link", [False, True])
+def test_prepare_refuses_fragment_symlinks(tmp_path, root_link):
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(CHANGELOG)
+    target = tmp_path / "target"
+    target.mkdir()
+    directory = tmp_path / "changelog.d"
+    try:
+        if root_link:
+            directory.symlink_to(target, target_is_directory=True)
+        else:
+            directory.mkdir()
+            (directory / "README.md").symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are unavailable for this account")
+    with pytest.raises(ValueError, match=r"symlink|unexpected entry"):
+        prepare("v2.0.0", changelog, tmp_path / "notes.md")
+    assert not (tmp_path / "notes.md").exists()
+
+
+def test_fragment_error_does_not_write_cli_outputs(tmp_path, monkeypatch, capsys):
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(CHANGELOG)
+    directory = tmp_path / "changelog.d"
+    directory.mkdir()
+    (directory / "DR-343.changed.md").write_text("Remaining entry.\n")
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    notes = tmp_path / "notes.md"
+    assert main(["--tag", "v2.0.0", "--changelog", str(changelog), "--output", str(notes)]) == 1
+    assert "unbuilt changelog fragment" in capsys.readouterr().err
+    assert not notes.exists()
+    assert not output.exists()
