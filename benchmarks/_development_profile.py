@@ -23,10 +23,13 @@ ENTRY = HERE / "speed.py"
 
 
 class Runner:
-    def __init__(self, spec, state, deadline):
+    def __init__(self, spec, state, deadline, prepare=None):
         self.spec, self.state, self.deadline = spec, state, deadline
         self.root = Path(spec["output"])
         self.probes = 0
+        self.prepare = prepare
+        self.tool_executable = None
+        self.open_evidence = []
 
     def notify(self, value):
         append(self.root / "events.jsonl", value)
@@ -86,7 +89,7 @@ class Runner:
             value = self.probe("version")
             value["sha256"] = sha256(Path(value["path"]))
             return value
-        executable = shutil.which(self.spec["tool"])
+        executable = self.tool_executable or shutil.which(self.spec["tool"])
         if executable is None:
             raise ValueError("profile tool is not installed")
         self.launch([executable, "--version"], "version")
@@ -160,6 +163,10 @@ def _operations(runner, check_only, result):
     with held(
         runner.state, spec["name"], "profile " + spec["name"], runner.notify, runner.deadline
     ):
+        if runner.prepare is not None:
+            runner.prepare(runner, origin)
+            environment = document(runner.root / "environment.json")
+            atomic(runner.root / "environment.json", {**environment, "profile": spec})
         profiler = runner.profiler()
         if spec["extra_lock"] is not None:
             profiler.update(extra_lock_sha256=sha256(Path(spec["extra_lock"])), packages=extra)
@@ -211,6 +218,10 @@ def _attempt(runner, check_only):
     }
     try:
         _operations(runner, check_only, result)
+        if runner.prepare is not None:
+            result["open_evidence"] = runner.open_evidence
+            if runner.open_evidence:
+                result["status"] = "incomplete_evidence"
     except (Exception, KeyboardInterrupt) as error:
         result["causes"].append({"type": type(error).__name__, "reason": str(error)})
         if isinstance(error, WallBudgetExpiredError):
@@ -234,7 +245,7 @@ def _terminal(result, state, deadline):
     return result
 
 
-def run(file, check_only=False):
+def run(file, check_only=False, *, prepare=None):
     started = time.monotonic()
     spec = validate(document(file), check_only)
     for key in ("output", "work"):
@@ -275,7 +286,7 @@ def run(file, check_only=False):
             ledger = LocalLedger(root, contract, time.time())
             ledger.wall_deadline = deadline
             with beating(ledger.progress):
-                result = _attempt(Runner(spec, state, deadline), check_only)
+                result = _attempt(Runner(spec, state, deadline, prepare), check_only)
             state.finish()
             result = _terminal(result, state, deadline)
             ledger.result(cell, started, **LABEL, decision="diagnostic_profile", **result)

@@ -45,7 +45,7 @@ def _step(item, environments):
         raise ValueError(f"step needs name, command and a declared environment: {item}")
     if not isinstance(command, list) or not command or not all(isinstance(a, str) for a in command):
         raise ValueError("step command must be a nonempty list of strings")
-    if not isinstance(estimate, int | float) or not math.isfinite(estimate) or estimate <= 0:
+    if type(estimate) not in (int, float) or not math.isfinite(estimate) or estimate <= 0:
         raise ValueError("positive finite estimate_seconds required for every step")
     return {**item, "name": _safe_name("step", item.get("name"))}
 

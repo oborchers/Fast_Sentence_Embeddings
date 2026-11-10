@@ -116,6 +116,7 @@ class Allocation:
         python = self.root / f"{self.entry}-env" / step["environment"] / "bin/python"
         return {
             **values,
+            "root": str(self.root),
             "allocated_at": str(self.allocated_at),
             "results": str(self.results(step)),
             "work": str(self.root / f"{name}-work"),
@@ -124,6 +125,7 @@ class Allocation:
 
     def run_step(self, step, values):
         """Run one step to its end; the exit status of the step."""
+        self.check_budget()
         try:
             command = spec.render(step, self.step_values(values, step))
         except ValueError as error:
