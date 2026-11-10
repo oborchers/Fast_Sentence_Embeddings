@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 import fse
 from fse.typing import Encoding, LengthLevel, SinkRows, Tokenizer
+from support.paths import OwnPath
 
 TEXTS = ["a b", "c", ""]
 
@@ -43,7 +44,7 @@ def test_encoder_factory_types(tmp_path: Path) -> None:
     path = tmp_path / "encoder.safetensors"
     assert_type(encoder.save(path), None)
     assert_type(encoder.verify(), None)
-    loaded = fse.Encoder.load(path)
+    loaded = fse.Encoder.load(OwnPath(path))
     assert_type(loaded, fse.Encoder)
     assert isinstance(loaded, fse.Encoder)
     folder = encoder.save_pretrained(tmp_path / "folder", license="mit")

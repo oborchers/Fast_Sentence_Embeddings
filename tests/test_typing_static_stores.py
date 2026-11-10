@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 import fse
 from fse.typing import ScoreHead
+from support.paths import OwnPath
 
 TEXTS = ["a b", "c", ""]
 
@@ -46,7 +47,7 @@ def test_vector_store_types_and_closing(tmp_path: Path) -> None:
         result = encoder.encode(TEXTS, sink=protocol, doc_ids=np.array([4, 5, 6], np.int64))
         assert_type(result, None)
         assert result is None
-    with fse.VectorStore.open(tmp_path / "vectors", encoder=encoder) as store:
+    with fse.VectorStore.open(OwnPath(tmp_path / "vectors"), encoder=encoder) as store:
         _check_vector_batches(store)
         vectors = store.get_vectors()
         ids = store.get_doc_ids()

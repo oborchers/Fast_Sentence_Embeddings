@@ -4,7 +4,7 @@ import os
 
 
 class OwnPath:
-    def __init__(self, path):
+    def __init__(self, path: str | os.PathLike[str]) -> None:
         self.path = os.fspath(path)
 
     def __fspath__(self) -> str:
