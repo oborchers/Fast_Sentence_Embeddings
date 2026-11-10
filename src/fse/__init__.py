@@ -1,7 +1,6 @@
 """fse: fast sentence embeddings.
 
-fse is an inference engine for static embeddings (master is the development branch of
-fse 2.1): an ``Encoder`` is a finished model (a table of word rows, a tokenizer and an
+fse is an inference engine for static embeddings: an ``Encoder`` is a finished model (a table of word rows, a tokenizer and an
 optional normalization) that turns sentences into vectors; ``Classifier`` and
 ``Regressor`` add a linear head trained elsewhere (scikit-learn). It trains nothing. The 1.x
 API (``Average``, ``SIF``, ``uSIF``, the input classes, ``Vectors``) was removed here; it
