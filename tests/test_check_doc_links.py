@@ -308,3 +308,37 @@ def test_inline_space_paths_fail_after_the_target_is_removed(tmp_path, target, f
     assert check(tmp_path, paths) == []
     (tmp_path / filename).unlink()
     assert check(tmp_path, paths[:1]) == [f"docs/guide.md:1: missing local target: {target}"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "benchmarks/quality.py --diagnose --development-input plan.json",
+        "benchmarks/quality.py --diagnose --development-input <plan.json>",
+        "benchmarks/quality.py latency",
+        "./run.py argument another-word",
+        "../run.py --diagnose",
+    ],
+)
+def test_inline_script_commands_check_only_the_script(tmp_path, command):
+    script = command.split()[0]
+    filename = (
+        "docs/run.py"
+        if script.startswith("./")
+        else "run.py"
+        if script.startswith("../")
+        else script
+    )
+    paths = inventory(tmp_path, f"`{command}`", [filename])
+    assert check(tmp_path, paths) == []
+    (tmp_path / filename).unlink()
+    assert check(tmp_path, paths[:1]) == [f"docs/guide.md:1: missing local target: {script}"]
+
+
+def test_inline_command_with_quoted_script_path_checks_that_path(tmp_path):
+    paths = inventory(tmp_path, '`"tools/with space.py" --diagnose`', ["tools/with space.py"])
+    assert check(tmp_path, paths) == []
+    (tmp_path / "tools/with space.py").unlink()
+    assert check(tmp_path, paths[:1]) == [
+        "docs/guide.md:1: missing local target: tools/with space.py"
+    ]

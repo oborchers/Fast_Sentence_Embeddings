@@ -97,9 +97,10 @@ repository root. Explicit `./` and `../` paths start at the document. Bare filen
 may name a file beside the document, at the root, or one uniquely named tracked file.
 Use a relative Markdown link when a bare name is ambiguous.
 
-Shell invocations, code blocks and HTML comments are examples, not links.
-Whole literals starting with a repository prefix, `./` or `../` are file paths,
-including names with spaces. Put command examples starting with such a path in a code block. Inline placeholders,
+Code blocks and HTML comments are examples, not links. An inline script invocation
+checks its first word as a file path and does not treat its arguments as a path.
+This also applies to deleted scripts. Whole file literals starting with a repository
+prefix, `./` or `../` keep their spaces when their first word is not a script. Inline placeholders,
 globs and absolute machine paths are also examples. A deliberately absent inline file
 needs an exact document/target exception with a reason under
 `[tool.fse.doc-links]` in `pyproject.toml`.

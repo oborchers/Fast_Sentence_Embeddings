@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -39,6 +40,20 @@ REPOSITORY_ROOTS = {
 }
 
 
+def inline_target(content):
+    # A script followed by arguments is a command, even when that script is gone.
+    # A filename such as "docs/with space.svg" has no script as its first word.
+    try:
+        words = shlex.split(content)
+    except ValueError:
+        return content
+    if len(words) > 1 and Path(words[0]).suffix.lower() in {".py", ".sh", ".bash", ".ps1"}:
+        return words[0]
+    if len(words) == 1 and content.startswith(("'", '"')):
+        return words[0]
+    return content
+
+
 def inline_path(target, roots):
     if not target or target in {"./", "../"} or EXAMPLE.search(target) or "://" in target:
         return False
@@ -54,8 +69,8 @@ def inline_path(target, roots):
     )
 
 
-def local_target(reference):
-    target = reference.target.split("::", 1)[0] if reference.inline else reference.target
+def local_target(reference, target):
+    target = target.split("::", 1)[0] if reference.inline else target
     if target.startswith("attachment:"):
         name = unquote(target.removeprefix("attachment:"))
         return None, None if name in reference.attachments else f"missing cell attachment: {target}"
@@ -82,15 +97,16 @@ def candidates(root, document, target, inline, tracked):
 
 
 def path_error(root, document, reference, tracked, roots):
-    if reference.inline and not inline_path(reference.target, roots):
+    literal = inline_target(reference.target) if reference.inline else reference.target
+    if reference.inline and not inline_path(literal, roots):
         return None
-    target, error = local_target(reference)
+    target, error = local_target(reference, literal)
     if error or target is None:
         return error
     paths = candidates(root, document, target, reference.inline, tracked)
     resolved = [path.resolve() for path in paths]
     if any(not path.is_relative_to(root) for path in resolved):
-        return f"target escapes checkout: {reference.target}"
+        return f"target escapes checkout: {literal}"
     if any(path.exists() for path in resolved):
         return None
-    return f"missing local target: {reference.target}"
+    return f"missing local target: {literal}"
