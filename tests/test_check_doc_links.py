@@ -293,3 +293,18 @@ def test_external_link_label_is_not_a_local_file_path(tmp_path):
         check(tmp_path, inventory(tmp_path, "[`missing.py`](https://invalid.test/missing.py)"))
         == []
     )
+
+
+@pytest.mark.parametrize(
+    ("target", "filename"),
+    [
+        ("./with space.md", "docs/with space.md"),
+        ("../with space.md", "with space.md"),
+        ("docs/assets/with space.svg", "docs/assets/with space.svg"),
+    ],
+)
+def test_inline_space_paths_fail_after_the_target_is_removed(tmp_path, target, filename):
+    paths = inventory(tmp_path, f"`{target}`", [filename])
+    assert check(tmp_path, paths) == []
+    (tmp_path / filename).unlink()
+    assert check(tmp_path, paths[:1]) == [f"docs/guide.md:1: missing local target: {target}"]

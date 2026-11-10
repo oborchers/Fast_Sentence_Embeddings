@@ -39,26 +39,19 @@ REPOSITORY_ROOTS = {
 }
 
 
-def command_literal(target, roots):
-    if not any(character.isspace() for character in target):
-        return False
-    prefix = target.split("/", 1)[0]
-    return prefix not in roots or Path(target).suffix not in SUFFIXES or " --" in target
-
-
 def inline_path(target, roots):
     if not target or target in {"./", "../"} or EXAMPLE.search(target) or "://" in target:
         return False
     if "/.../" in target:
         return False
     path = Path(target.split("::", 1)[0])
-    if command_literal(target, roots):
-        return False
     if target.startswith(("./", "../")):
         return True
     if "/" in target:
         return target.split("/", 1)[0] in roots
-    return path.suffix in SUFFIXES or target in ROOT_FILES
+    return not any(character.isspace() for character in target) and (
+        path.suffix in SUFFIXES or target in ROOT_FILES
+    )
 
 
 def local_target(reference):
