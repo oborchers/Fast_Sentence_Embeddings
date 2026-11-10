@@ -77,8 +77,24 @@ def check_files(directory, version):
     return [path.name for path in files]
 
 
+def check_fragments(changelog_path):
+    """Refuse forgotten fragments before either release job can write notes."""
+    directory = Path(changelog_path).parent / "changelog.d"
+    if directory.is_symlink():
+        raise ValueError("changelog.d must not be a symlink")
+    if not directory.exists():
+        return
+    if not directory.is_dir():
+        raise ValueError("changelog.d must be a directory")
+    metadata = {"README.md", "template.md"}
+    for path in sorted(directory.iterdir()):
+        if path.is_symlink() or not path.is_file() or path.name not in metadata:
+            raise ValueError(f"unbuilt changelog fragment or unexpected entry: {path.name}")
+
+
 def prepare(tag, changelog_path, output_path, dist=None):
     version = version_of(tag)
+    check_fragments(changelog_path)
     body = section(Path(changelog_path).read_text(encoding="utf-8"), version)
     if dist is not None:
         check_files(dist, version)

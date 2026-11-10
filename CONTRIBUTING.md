@@ -35,7 +35,8 @@ After editing Cython or native headers, run `make rebuild-ext`.
 Read [ARCHITECTURE.md](ARCHITECTURE.md) and [AGENTS.md](AGENTS.md) before changing a contract or native code.
 Keep conformance tests and bit identity unchanged. Bit identity means equal output bits, not just close numbers.
 Do not add guardrail ratchet entries or suppressions. Split code that exceeds a limit.
-Record user-visible changes in [CHANGELOG.md](CHANGELOG.md).
+Record user-visible changes as [changelog fragments](changelog.d/README.md).
+Only release preparation updates CHANGELOG.md.
 
 ## Make the result reproducible
 

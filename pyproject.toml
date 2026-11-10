@@ -91,6 +91,8 @@ dev = [
     "memray>=1.17; sys_platform != 'win32'",
 ]
 lint = [
+    # Fragment CLI used by the PR gate and release preparation, never imported by fse.
+    "towncrier==26.9.0",
     "ruff>=0.17.2",
     "mypy>=1.18.0",
     # Import contracts of the layers ([tool.importlinter]).
@@ -103,6 +105,8 @@ lint = [
     "deptry>=0.23",
 ]
 test = [
+    # The gate and release-format tests execute the real towncrier CLI.
+    "towncrier==26.9.0",
     # The tests of fse.gensim; gensim does not build on Python 3.14 and newer yet (gensim#3640).
     "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
@@ -285,6 +289,14 @@ manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28_x86_64@sha256:b74a5b6f1705
 manylinux-aarch64-image = "quay.io/pypa/manylinux_2_28_aarch64@sha256:0333f44c4eb759ec8f47b27bc9dc27b1c929932a267cf13ce0cff1a4b758cccb"
 musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2_x86_64@sha256:767e9118e48b4b8de84d3262ba95a3bc5f6679a09247f0bf9e283445608f37c1"
 musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce3dcfb1a6dd2ac99f077b78fb0f3cec8a2fed65bb999823c6a8fa0"
+
+# DR-344: Windows runs the full suite on one Python (cp315, see .github/workflows/ci.yml).
+# The wheels of the other four versions run a short check instead: they import fse and its
+# extension and encode a few texts against the numpy reference (tools/wheel_smoke.py).
+[[tool.cibuildwheel.overrides]]
+select = "cp311-win* cp312-win* cp313-win* cp314-win*"
+test-groups = []
+test-command = "python -I {project}/tools/wheel_smoke.py"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux_*"
@@ -502,3 +514,46 @@ known_first_party = ["fse"]
 
 [tool.deptry.package_module_name_map]
 pytest-cov = "pytest_cov"
+
+# --- Changelog fragments ---
+
+[tool.towncrier]
+package = ""
+directory = "changelog.d"
+filename = "CHANGELOG.md"
+template = "changelog.d/template.md"
+start_string = "## [Unreleased]\n"
+title_format = "## [{version}] - {project_date}"
+issue_pattern = "DR-[0-9]+"
+ignore = []
+wrap = false
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true

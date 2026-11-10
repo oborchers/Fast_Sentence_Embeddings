@@ -58,7 +58,7 @@ Never wait for pull request checks or CI in the foreground. Start the wait as a 
 - The dependency lower bounds in pyproject.toml must match the pins of the minimum job in `.github/workflows/ci.yml`.
 - pytest treats warnings as errors. Add a narrow, commented `filterwarnings` ignore only for warnings from third-party code.
 - Log only through `fse._log.emit` with an event of `fse._log.EVENTS`; errors raise and are never also logged; no paths, error texts or input data in records; nothing per task, row or sentence or in native code. See docs/architecture/logging.md, "Logging".
-- Record user-visible changes in `CHANGELOG.md`.
+- Record user-visible changes as `changelog.d/DR-<nnn>.<type>.md` fragments, following `changelog.d/README.md`. Only release preparation updates `CHANGELOG.md`.
 - Test modules never import each other. Helpers several of them share live in `tests/support/` (on the pytest `pythonpath`); a long test module splits by topic into `test_<module>_<topic>.py`.
 
 ## Guardrails
