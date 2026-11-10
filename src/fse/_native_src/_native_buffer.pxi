@@ -37,26 +37,10 @@ cdef int _reserve(_Buffer *b, Py_ssize_t extra) except -1:
     return 0
 
 
-cdef inline int _push_u32(_Buffer *b, uINT_t value) except -1:
-    _reserve(b, sizeof(uINT_t))
-    (<uINT_t *>(b.data + b.size))[0] = value
-    b.size += sizeof(uINT_t)
-    return 0
-
-
 cdef inline int _push_i64(_Buffer *b, np.int64_t value) except -1:
     _reserve(b, sizeof(np.int64_t))
     (<np.int64_t *>(b.data + b.size))[0] = value
     b.size += sizeof(np.int64_t)
-    return 0
-
-
-cdef inline int _push_bytes(_Buffer *b, const char *data, Py_ssize_t n) except -1:
-    if n == 0:
-        return 0  # b.data may still be NULL, and memcpy needs valid pointers
-    _reserve(b, n)
-    memcpy(b.data + b.size, data, n)
-    b.size += n
     return 0
 
 
