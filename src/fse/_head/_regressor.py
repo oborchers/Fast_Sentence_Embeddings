@@ -8,21 +8,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any, Literal, overload
-
-from numpy import ndarray
+from typing import Any, Self
 
 from fse._encoder import _pretrained
-from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._validation import PathLike, validate_arguments
 
-from . import _lone_run, _model2vec_files, _resume_run, _run, _sklearn
+from . import _model2vec_files, _sklearn
 from ._model import LinearModel
-from ._outputs import PredictedBatch
+from ._regressor_predict import _RegressorPredicting
 
 
-class Regressor(LinearModel):
+class Regressor(_RegressorPredicting, LinearModel):
     """Predicts values of texts with an encoder and a linear head ``z = A x + b`` on its
     rows, one value per target. Make one with ``Regressor.from_sklearn``,
     ``Regressor.from_arrays`` or ``Regressor.load``; fse trains nothing. A head trained on
@@ -34,7 +30,7 @@ class Regressor(LinearModel):
 
     @classmethod
     @validate_arguments
-    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None):
+    def from_sklearn(cls, encoder: Any, model: Any, *, normalized: bool | None = None) -> Self:
         """The head of a fitted scikit-learn linear regressor (or a Pipeline of an optional
         ``StandardScaler`` and the regressor) on the rows of
         ``encoder``; reads its attributes and imports nothing of scikit-learn."""
@@ -52,14 +48,14 @@ class Regressor(LinearModel):
     @validate_arguments
     def from_arrays(
         cls, encoder: Any, weight: Any, bias: Any = None, *, normalized: bool | None = None
-    ):
+    ) -> Self:
         """The head ``weight`` (targets, d) or (d,) and ``bias`` (targets, a scalar or None)
         on the rows of ``encoder``; ``normalized`` as for ``Classifier.from_arrays``."""
         return cls._build(encoder, weight, bias, normalized=normalized)
 
     @classmethod
     @validate_arguments
-    def load(cls, path: PathLike, mmap: bool = False):  # -> Regressor
+    def load(cls, path: PathLike, mmap: bool = False) -> Self:
         """Open a regressor saved with ``save``, complete or standalone."""
         return cls._load(path, mmap)
 
@@ -74,7 +70,7 @@ class Regressor(LinearModel):
         cache_dir: PathLike | None = None,
         local_files_only: bool = False,
         mmap: bool = False,
-    ):  # -> Regressor
+    ) -> Self:
         """The regressor of a local ``.safetensors`` file or of an fse folder written by
         ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit; ``mmap`` as for
@@ -88,291 +84,3 @@ class Regressor(LinearModel):
         )
         _model2vec_files.refuse_for_regressor(files)
         return cls._from_files(files, mmap)
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: Literal[False] = False,
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> ndarray | None: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: None = None,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: Literal[True],
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> tuple[ndarray, ndarray]: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: bool = False,
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> ndarray | tuple[ndarray, ndarray] | None: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Literal["summary", "per_row"],
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: Literal[False] = False,
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport]: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: None = None,
-        lengths: Literal["summary", "per_row"],
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: Literal[True],
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> tuple[ndarray, ndarray, LengthReport]: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Literal["summary", "per_row"],
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: bool = False,
-        vector_sink: None = None,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport] | tuple[ndarray, ndarray, LengthReport]: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: None = None,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: bool = False,
-        vector_sink: Any = None,
-        score_sink: Any,
-        doc_ids: Any = None,
-        shard: tuple[int, int] | None = None,
-        pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
-
-    @overload
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: None = None,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: bool = False,
-        vector_sink: Any,
-        score_sink: None = None,
-        doc_ids: Any = None,
-        shard: tuple[int, int] | None = None,
-        pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
-
-    @validate_arguments
-    def predict(
-        self,
-        texts: Any,
-        *,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        return_vectors: bool = False,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = None,
-        shard: Any = None,
-        pool: Pool | None = None,
-    ) -> Any:
-        """The values of every text (or row of a ``fse.VectorStore``), float32 (n,) for one
-        target, else (n, targets); with a ``sink`` the rows go there. ``lengths="summary"``
-        or ``"per_row"`` returns ``(values, fse.LengthReport)``, the values ``None`` for a
-        sink: what the length rule of the encoder cut (texts only; see ``Encoder.encode``).
-
-        With a ``score_sink`` (``fse.ScoreSink(path, regressor, name=..., resume=True)``) or
-        a ``vector_sink`` made with ``resume=True`` the call resumes and returns ``None``;
-        ``sink=`` is then not given. See ``Heads.predict`` for ``vector_sink``,
-        ``score_sink``, ``doc_ids``, ``shard`` and ``return_vectors``.
-
-        Without sinks, ``return_vectors=True`` returns ``(values, vectors)`` or, with
-        ``lengths``, ``(values, vectors, fse.LengthReport)``. Otherwise the result is
-        ``values`` or ``(values, fse.LengthReport)``. Vectors are the encoder's float32
-        rows, bit for bit as in ``predict_batches(return_vectors=True)``. Raw-mean heads
-        then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
-        Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
-        Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
-        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
-
-        ``sink=`` takes values and cannot be combined with ``return_vectors=True``."""
-        threads = workers_of(workers, pool)  # before anything is read
-        method = "Regressor.predict"
-        settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard):
-            if sink is not None:
-                raise ValueError(
-                    "sink= keeps its role: the values. Give the vectors as vector_sink= and the "
-                    "scores as score_sink=, without sink="
-                )
-            return _resume_run.predict_lone(
-                self, texts, return_vectors, threads, backend,
-                vector_sink, score_sink, doc_ids, shard, settings,
-            )  # fmt: skip
-        return _run.infer(
-            self, texts, "values", threads, backend, sink, settings, method,
-            return_vectors=return_vectors,
-        )  # fmt: skip
-
-    @overload
-    def predict_batches(
-        self,
-        batches: Any,
-        *,
-        output: Literal["values"] = "values",
-        return_vectors: bool = False,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = False,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        positions: bool = False,
-        pool: Pool | None = None,
-    ) -> Iterator[PredictedBatch]: ...
-
-    @overload
-    def predict_batches(
-        self,
-        batches: Any,
-        *,
-        output: Literal["values"] = "values",
-        return_vectors: bool = False,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = False,
-        lengths: Literal["summary", "per_row"],
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        positions: bool = False,
-        pool: Pool | None = None,
-    ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
-
-    @validate_arguments
-    def predict_batches(
-        self,
-        batches: Any,
-        *,
-        output: Literal["values"] = "values",
-        return_vectors: bool = False,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = False,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        positions: bool = False,
-        pool: Pool | None = None,
-    ) -> Iterator[Any]:
-        """Predict a stream batch by batch, as ``Classifier.predict_batches``, with the same
-        ``sink``, ``vector_sink``, ``score_sink``, ``doc_ids``, ``lengths`` and ``positions``."""
-        threads = workers_of(workers, pool)  # before anything is read
-        settings = LengthSettings.of(
-            lengths, count_truncated, on_truncation, "Regressor.predict_batches"
-        )
-        return _lone_run.batches(
-            self,
-            batches,
-            output,
-            return_vectors,
-            threads,
-            backend,
-            sink,
-            vector_sink,
-            score_sink,
-            doc_ids,
-            settings,
-            positions,
-        )

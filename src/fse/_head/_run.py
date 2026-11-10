@@ -16,7 +16,7 @@ whatever the size of the store. Every check runs before any text or row is read.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable
 from typing import Any
 
 import numpy as np
@@ -227,7 +227,7 @@ def batches(
     sink: Any,
     settings: LengthSettings | None = None,
     method: str = "predict_batches",
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The checks of ``predict_batches`` now, then its batches as a generator; with a level
     of ``settings`` every item is the pair of the batch and its ``LengthReport``."""
     check_workers(workers)
@@ -258,7 +258,7 @@ def batches(
 @streaming
 def _text_batches(
     model, head, items: Iterable[Any], output, return_vectors, workers, sink, settings=None
-):
+) -> Generator[Any, None, None]:
     row, last = 0, None
     for k, item in enumerate(items):
         with (
@@ -342,7 +342,7 @@ def _store_blocks(
 
 def _store_batches(
     model, store, output, workers, backend, sink, shards
-) -> Iterator[PredictedBatch]:
+) -> Generator[PredictedBatch, None, None]:
     last = None
     for first_row, block in _store_blocks(model, store, output, workers, backend, shards):
         n = len(block)

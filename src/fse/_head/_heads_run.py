@@ -16,10 +16,10 @@ head gives before any text is read.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Generator, Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from numpy import ndarray
 
@@ -37,6 +37,9 @@ from ._sink_run import SinkRun, run_batches, start
 METHOD = "Heads.predict_batches"
 
 # What a head can give: labels, probabilities or decisions of a classifier, values of a regressor.
+OutputName = Literal["labels", "proba", "decision", "values"]
+OutputInput = OutputName | Mapping[str, OutputName] | None
+
 OUTPUT_NAMES = ("labels", "proba", "decision", "values")
 
 
@@ -164,7 +167,7 @@ def batches(
     doc_ids: Any = False,
     settings: LengthSettings | None = None,
     positions: bool = False,
-) -> Iterator[HeadsBatch]:
+) -> Generator[HeadsBatch, None, None]:
     """The checks of ``predict_batches`` now, then its batches as a generator. With a
     ``score_sink`` the run attaches to it here, after every argument is checked and before
     the first batch is read: the sink learns the path of each head. With ``positions=True``
@@ -191,7 +194,7 @@ def _batches(
     run: SinkRun | Stream | None = None,
     doc_ids=False,
     settings: LengthSettings | None = None,
-) -> Iterator[HeadsBatch]:
+) -> Generator[HeadsBatch, None, None]:
     kinds = tuple(RUNTIME[o] for o in outputs)
 
     def make(row, n, rows, vectors, last, report):

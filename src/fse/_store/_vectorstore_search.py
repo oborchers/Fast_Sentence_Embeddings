@@ -67,11 +67,10 @@ def search_store(
             shards,
             matrix,
             k,
-            values,
-            kind,
             workers=threads,
             exact=exact,
             grouped=False,
+            filtered=values is not None,
         )
         if fast is not None:
             ids, scores = fast

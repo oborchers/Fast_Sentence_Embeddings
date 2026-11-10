@@ -12,9 +12,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._contract import Head, Link
 from fse._encoder import _pretrained
@@ -29,10 +29,11 @@ from . import _calibration, _model2vec_files, _model2vec_objects, _sklearn
 from ._content import classes
 from ._model import LinearModel
 from ._predict import _Predicting
+from ._predict_scores import _Scoring
 from ._thresholds import updated
 
 
-class Classifier(_Predicting, LinearModel):
+class Classifier(_Predicting, _Scoring, LinearModel):
     """Predicts labels of texts with an encoder and a linear head ``z = A x + b`` on its
     rows. Single-label heads choose one class. Multilabel heads independently compare
     each probability with its stored cutoff, returning a boolean matrix.
@@ -56,7 +57,7 @@ class Classifier(_Predicting, LinearModel):
         normalized: bool | None = None,
         labels: Any = None,
         thresholds: ThresholdInput = None,
-    ):
+    ) -> Self:
         """The head of a fitted scikit-learn classifier (or a Pipeline of an optional
         ``StandardScaler`` and the classifier) on the rows of
         ``encoder``, including a multilabel OneVsRestClassifier, with the probabilities of the installed version's rule. Reads its
@@ -107,7 +108,7 @@ class Classifier(_Predicting, LinearModel):
         normalized: bool | None = None,
         thresholds: ThresholdInput = None,
         temperature: Temperature | None = None,
-    ):
+    ) -> Self:
         """The head ``weight`` (k, d) or (d,) and ``bias`` (k, a scalar or None) on the rows
         of ``encoder``, d its ``output_dim``: ``labels`` are k labels for multilabel;
         other heads need two for k = 1 and k otherwise
@@ -162,7 +163,7 @@ class Classifier(_Predicting, LinearModel):
         return dict(zip(self._content.labels, map(float, self._head.thresholds), strict=True))
 
     @validate_arguments
-    def with_thresholds(self, thresholds: ThresholdInput):  # -> Classifier
+    def with_thresholds(self, thresholds: ThresholdInput) -> Self:
         """A new multilabel model with changed cutoffs, also after load or standalone.
 
         A partial mapping keeps unnamed current values. A scalar or full vector replaces
@@ -188,7 +189,7 @@ class Classifier(_Predicting, LinearModel):
 
     @classmethod
     @validate_arguments
-    def load(cls, path: PathLike, mmap: bool = False):  # -> Classifier
+    def load(cls, path: PathLike, mmap: bool = False) -> Self:
         """Open a classifier saved with ``save``, complete or standalone."""
         return cls._load(path, mmap)
 
@@ -203,7 +204,7 @@ class Classifier(_Predicting, LinearModel):
         cache_dir: PathLike | None = None,
         local_files_only: bool = False,
         mmap: bool = False,
-    ):  # -> Classifier
+    ) -> Self:
         """The classifier of a local ``.safetensors`` file or of an fse folder written by
         ``save_pretrained``, local or a Hugging Face Hub repository (``namespace/name``) at
         ``revision`` (default branch if None), checked against its commit; ``mmap`` as for
@@ -232,7 +233,7 @@ class Classifier(_Predicting, LinearModel):
 
     @classmethod
     @validate_arguments
-    def from_model2vec(cls, model: Any, *, thresholds: ThresholdInput = None):  # -> Classifier
+    def from_model2vec(cls, model: Any, *, thresholds: ThresholdInput = None) -> Self:
         """The head of a finished Model2Vec classifier: a ``StaticModelPipeline`` or a
         trained ``StaticModelForClassification`` (only its ``to_pipeline`` runs), with
         its tokenizer and table, which may have been fine-tuned. Files go through
@@ -248,7 +249,7 @@ class Classifier(_Predicting, LinearModel):
         return cls._imported(found, encoder, thresholds, "Model2Vec pipeline")
 
     @classmethod
-    def _imported(cls, found: Any, encoder: Any, thresholds: Any, source: str):
+    def _imported(cls, found: Any, encoder: Any, thresholds: Any, source: str) -> Self:
         return cls._build(
             encoder,
             found.weight,
@@ -262,7 +263,7 @@ class Classifier(_Predicting, LinearModel):
         )
 
     @property
-    def classes_(self) -> ndarray:
+    def classes_(self) -> NDArray[Any]:
         """The labels in output order (int64 or str)."""
         assert self._content.labels is not None
         return classes(self._content.labels)

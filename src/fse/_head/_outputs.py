@@ -18,7 +18,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
-from numpy import ndarray
+import numpy as np
+from numpy.typing import NDArray
 
 from fse._container import fingerprint
 from fse._runtime import LengthReport
@@ -37,8 +38,8 @@ class PredictedBatch(NamedTuple):
 
     first_row: int
     n_rows: int
-    outputs: Any
-    vectors: Any
+    outputs: NDArray[Any] | None
+    vectors: NDArray[np.float32] | None
     durable_rows: int | None
 
 
@@ -70,8 +71,8 @@ class HeadsBatch:
 
     first_row: int
     n_rows: int
-    outputs: Mapping[str, ndarray]
-    vectors: ndarray | None
+    outputs: Mapping[str, NDArray[Any]]
+    vectors: NDArray[np.float32] | None
     durable_rows: int | None = None
     lengths: LengthReport | None = None
 

@@ -17,12 +17,15 @@ the record of each task in commit order to a ``LengthCollector``, which makes th
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, cast
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._text import new_workspace
+
+LengthLevel = Literal["summary", "per_row"]
 
 LEVELS = ("summary", "per_row")
 # The bytes one row of a task holds until its commit: the cuts (1), the unknown tokens
@@ -35,7 +38,7 @@ _COUNT_ROW_BYTES = 16
 class LengthSettings:
     """The checked keywords of one call: what its workers record and whether a cut raises."""
 
-    lengths: str | None
+    lengths: LengthLevel | None
     count_truncated: bool
     raise_cut: bool
 
@@ -67,7 +70,7 @@ class LengthSettings:
             raise ValueError(f"{method}: count_truncated needs lengths='summary' or 'per_row'")
         if lengths is None and on_truncation == "keep":
             return None
-        return cls(lengths, count_truncated, on_truncation == "raise")
+        return cls(cast(LengthLevel | None, lengths), count_truncated, on_truncation == "raise")
 
     @property
     def watch(self) -> int:
@@ -131,7 +134,7 @@ class LengthReport:
 
     first_row: int
     n_rows: int
-    lengths: str
+    lengths: LengthLevel
     count_truncated: bool
     max_tokens: int | None
     max_chars: int | None
@@ -143,15 +146,15 @@ class LengthReport:
     dropped_unknown_total: int
     truncated_tokens_total: int | None = None
     truncated_chars_total: int | None = None
-    char_truncated: ndarray | None = None
-    token_truncated: ndarray | None = None
-    empty: ndarray | None = None
-    tokens: ndarray | None = None
-    dropped_unknown: ndarray | None = None
-    truncated_tokens: ndarray | None = None
-    truncated_chars: ndarray | None = None
+    char_truncated: NDArray[np.bool_] | None = None
+    token_truncated: NDArray[np.bool_] | None = None
+    empty: NDArray[np.bool_] | None = None
+    tokens: NDArray[np.int64] | None = None
+    dropped_unknown: NDArray[np.int64] | None = None
+    truncated_tokens: NDArray[np.int64] | None = None
+    truncated_chars: NDArray[np.int64] | None = None
 
-    def truncated_rows(self) -> ndarray:
+    def truncated_rows(self) -> NDArray[np.int64]:
         """The rows (numbered in the run, from ``first_row``) a rule cut, ascending."""
         if self.char_truncated is None or self.token_truncated is None:
             raise ValueError("truncated_rows needs a report of lengths='per_row'")

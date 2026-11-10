@@ -13,18 +13,18 @@ classifier offers (``_check_proba``) and does not import the classifier.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from typing import Any, Literal, overload
 
-from numpy import ndarray
+import numpy as np
+from numpy.typing import NDArray
 
-from fse._runtime import LengthReport, LengthSettings, Pool, workers_of
+from fse._runtime import LengthReport, LengthSettings, Pool, Sink, workers_of
+from fse._runtime._lengths import LengthLevel
 from fse._validation import PositiveInt, validate_arguments
 
 from . import _lone_run, _resume_run, _run
 from ._outputs import PredictedBatch
-
-Level = Literal["summary", "per_row"]
 
 
 class _Predicting:
@@ -40,15 +40,15 @@ class _Predicting:
         workers: int | None = None,
         backend: str = "cpu",
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: Literal[False] = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> ndarray: ...
+    ) -> NDArray[Any]: ...
 
     @overload
     def predict(
@@ -58,15 +58,15 @@ class _Predicting:
         workers: int | None = None,
         backend: str = "cpu",
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: Literal[True],
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray, ndarray]: ...
+    ) -> tuple[NDArray[Any], NDArray[np.float32]]: ...
 
     @overload
     def predict(
@@ -76,15 +76,15 @@ class _Predicting:
         workers: int | None = None,
         backend: str = "cpu",
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> ndarray | tuple[ndarray, ndarray]: ...
+    ) -> NDArray[Any] | tuple[NDArray[Any], NDArray[np.float32]]: ...
 
     @overload
     def predict(
@@ -93,16 +93,16 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: Literal[False] = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray, LengthReport]: ...
+    ) -> tuple[NDArray[Any], LengthReport]: ...
 
     @overload
     def predict(
@@ -111,16 +111,16 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: Literal[True],
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray, ndarray, LengthReport]: ...
+    ) -> tuple[NDArray[Any], NDArray[np.float32], LengthReport]: ...
 
     @overload
     def predict(
@@ -129,16 +129,18 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
         vector_sink: None = None,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: Any = None,
         pool: Pool | None = None,
-    ) -> tuple[ndarray, LengthReport] | tuple[ndarray, ndarray, LengthReport]: ...
+    ) -> (
+        tuple[NDArray[Any], LengthReport] | tuple[NDArray[Any], NDArray[np.float32], LengthReport]
+    ): ...
 
     @overload
     def predict(
@@ -147,16 +149,16 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
-        vector_sink: Any = None,
-        score_sink: Any,
+        vector_sink: Sink | None = None,
+        score_sink: Sink,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
         pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
+    ) -> None: ...
 
     @overload
     def predict(
@@ -165,16 +167,92 @@ class _Predicting:
         *,
         workers: int | None = None,
         backend: str = "cpu",
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         return_vectors: bool = False,
-        vector_sink: Any,
+        vector_sink: Sink | None = None,
+        score_sink: Sink,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> tuple[None, LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        return_vectors: bool = False,
+        vector_sink: Sink,
         score_sink: None = None,
         doc_ids: Any = None,
         shard: tuple[int, int] | None = None,
         pool: Pool | None = None,
-    ) -> tuple[None, LengthReport] | None: ...
+    ) -> None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        return_vectors: bool = False,
+        vector_sink: Sink,
+        score_sink: None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> tuple[None, LengthReport]: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: None = None,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        return_vectors: bool = False,
+        vector_sink: Sink | None = None,
+        score_sink: Sink | None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> NDArray[Any] | tuple[NDArray[Any], NDArray[np.float32]] | None: ...
+
+    @overload
+    def predict(
+        self,
+        texts: Any,
+        *,
+        workers: int | None = None,
+        backend: str = "cpu",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        return_vectors: bool = False,
+        vector_sink: Sink | None = None,
+        score_sink: Sink | None = None,
+        doc_ids: Any = None,
+        shard: tuple[int, int] | None = None,
+        pool: Pool | None = None,
+    ) -> (
+        tuple[NDArray[Any], LengthReport]
+        | tuple[NDArray[Any], NDArray[np.float32], LengthReport]
+        | tuple[None, LengthReport]
+    ): ...
 
     @validate_arguments
     def predict(
@@ -228,103 +306,24 @@ class _Predicting:
         )  # fmt: skip
 
     @overload
-    def predict_proba(
+    def predict_batches(
         self,
-        texts: Any,
+        batches: Any,
         *,
+        output: Literal["labels", "proba", "decision"] = "labels",
+        return_vectors: bool = False,
         workers: int | None = None,
         backend: str = "cpu",
         sink: Any = None,
+        vector_sink: Any = None,
+        score_sink: Any = None,
+        doc_ids: Any = False,
         lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
+        positions: bool = False,
         pool: Pool | None = None,
-    ) -> ndarray | None: ...
-
-    @overload
-    def predict_proba(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport]: ...
-
-    @validate_arguments
-    def predict_proba(
-        self,
-        texts: Any,
-        *,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        pool: Pool | None = None,
-    ) -> Any:
-        """The probability of every label for every text, float32 (n, classes); with a
-        ``sink`` the rows go there and nothing is returned. With ``lengths`` the pair
-        ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
-        threads = workers_of(workers, pool)  # before anything is read
-        method = "Classifier.predict_proba"
-        settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        self._check_proba()  # type: ignore[attr-defined]
-        return _run.infer(self, texts, "proba", threads, backend, sink, settings, method)
-
-    @overload
-    def decision_function(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        pool: Pool | None = None,
-    ) -> ndarray | None: ...
-
-    @overload
-    def decision_function(
-        self,
-        texts: Any,
-        *,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        pool: Pool | None = None,
-    ) -> tuple[ndarray | None, LengthReport]: ...
-
-    @validate_arguments
-    def decision_function(
-        self,
-        texts: Any,
-        *,
-        workers: PositiveInt | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        lengths: Any = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        pool: Pool | None = None,
-    ) -> Any:
-        """The logits of every text as float32. Multilabel always returns (n, k),
-        including k = 1. Single-label heads return (n,) for one output, else (n, k). With
-        ``lengths`` the pair ``(result, fse.LengthReport)``, the result ``None`` for a sink."""
-        threads = workers_of(workers, pool)  # before anything is read
-        method = "Classifier.decision_function"
-        settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
-        return _run.infer(self, texts, "decision", threads, backend, sink, settings, method)
+    ) -> Generator[PredictedBatch, None, None]: ...
 
     @overload
     def predict_batches(
@@ -339,32 +338,12 @@ class _Predicting:
         vector_sink: Any = None,
         score_sink: Any = None,
         doc_ids: Any = False,
-        lengths: None = None,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
+        lengths: LengthLevel,
+        count_truncated: bool = False,
+        on_truncation: Literal["keep", "raise"] = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[PredictedBatch]: ...
-
-    @overload
-    def predict_batches(
-        self,
-        batches: Any,
-        *,
-        output: Literal["labels", "proba", "decision"] = "labels",
-        return_vectors: bool = False,
-        workers: int | None = None,
-        backend: str = "cpu",
-        sink: Any = None,
-        vector_sink: Any = None,
-        score_sink: Any = None,
-        doc_ids: Any = False,
-        lengths: Level,
-        count_truncated: Any = False,
-        on_truncation: Any = "keep",
-        positions: bool = False,
-        pool: Pool | None = None,
-    ) -> Iterator[tuple[PredictedBatch, LengthReport]]: ...
+    ) -> Generator[tuple[PredictedBatch, LengthReport], None, None]: ...
 
     @validate_arguments
     def predict_batches(
@@ -384,7 +363,7 @@ class _Predicting:
         on_truncation: Any = "keep",
         positions: bool = False,
         pool: Pool | None = None,
-    ) -> Iterator[Any]:
+    ) -> Generator[Any, None, None]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
         yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
         rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with

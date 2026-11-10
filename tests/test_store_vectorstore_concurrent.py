@@ -230,7 +230,10 @@ def test_the_int8_prefilter_in_many_threads_gives_the_bits_without_it(tmp_path, 
 
         jobs = {f"{name}-{i}": reader(call) for name, call in calls.items() for i in range(2)}
         got = Readers(jobs).start().join()
-    assert taken == [True] * 3 * len(jobs)  # every concurrent call took the prefilter
+    # Three calls (exact, auto, single) took the prefilter, the rows= call did not (DR-340); the
+    # order of the calls is not fixed, their number is: 2 jobs and 3 rounds of each call.
+    assert taken.count(True) == 3 * 2 * 3
+    assert taken.count(False) == 1 * 2 * 3
     for job, outcomes in got.items():
         assert outcomes == [want[job.rsplit("-", 1)[0]]] * 3, job
 

@@ -23,7 +23,7 @@ hold different numbers of rows: ``Replay`` cuts a batch at the rows each of them
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -242,7 +242,7 @@ def batches(
     doc_ids: bool = False,
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
-) -> Iterator[Any]:
+) -> Generator[Any, None, None]:
     """The EncodedBatch of every item of ``items``, ``(texts, position)`` or
     ``(texts, doc_ids, position)``; with ``lengths`` of a level, the pair of it and the
     ``LengthReport`` of the records computed. ``first_row`` is the replay row of the first

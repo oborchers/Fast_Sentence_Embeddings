@@ -44,7 +44,8 @@ def _no_special_tokens(add_special_tokens: object) -> None:
 class Tokenizer:
     """The tokenizer of a ``StaticModel``: its ids, with the model's current ``max_length``
     as the cut in tokens and the unknown id kept. ``ids`` gives the lists of ids of a
-    list of texts; ``tokens`` is the vocabulary in the order of the ids."""
+    list of texts; ``tokens`` is the vocabulary in the order of the ids. Returned by
+    ``StaticModel.tokenizer``; users import this type rather than construct it."""
 
     __slots__ = ("_by_token", "_ids", "_tokens")
 

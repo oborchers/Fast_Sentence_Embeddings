@@ -24,7 +24,7 @@ exact path then gives the bits and the errors of a call without the prefilter.
 The survivors of a query are the rows with ``fl(a + E) >= fl(T_a - E)`` for the final k-th
 estimate ``T_a``. A running threshold of the blocks so far is never above ``T_a``, so a block
 that starts late keeps fewer rows but never one too few. That makes the set of survivors
-depend on the store, the selection and the query only, not on the order of the threads.
+depend on the store and the query only, not on the order of the threads.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from numpy import ndarray
 from fse import _log, _reference_prefilter
 from fse._contract import Normalize
 
-from . import _filtered, _rescore, _search, _selection
+from . import _rescore, _search
 
 F32 = np.float32
 MAX_QUERIES = 8
@@ -48,7 +48,6 @@ MIN_DIM, MAX_DIM = 256, 1024
 MIN_ROWS = 65_536
 _BUDGET_MIN = 65_536  # survivors per query the main thread holds: max(64 * k, this)
 _FRAGMENTS = 256  # pieces of a query's survivors kept before they are joined and cut
-_BLOCK_BYTES = 16 << 20  # the rows of one block of a selection
 
 
 def applies(
@@ -56,20 +55,19 @@ def applies(
     shards: Any,
     queries: ndarray,
     k: int,
-    selected: int,
+    rows: int,
     exact: bool,
     grouped: bool,
-    kind: str,
     filtered: bool,
 ) -> bool:
     """Whether a call is inside the domain of the prefilter: the exact path is chosen, no
-    ``max_per_doc``, no ``doc_ids`` filter (its row count is not known before the rows are
-    read), 1 to ``MAX_QUERIES`` queries, ``k`` up to ``MAX_K``, an int8 store of ``MIN_DIM``
-    to ``MAX_DIM`` values per row, at least ``MIN_ROWS`` selected rows, and a backend that
-    enables a variant."""
-    if not exact or grouped or (filtered and kind != "rows"):
+    ``max_per_doc``, no ``rows=`` or ``doc_ids=`` selection (DR-340: a selection gathers its
+    rows first, which the prefilter does not pay for; the call takes the previous path), 1 to
+    ``MAX_QUERIES`` queries, ``k`` up to ``MAX_K``, an int8 store of ``MIN_DIM`` to ``MAX_DIM``
+    values per row with at least ``MIN_ROWS`` rows, and a backend that enables a variant."""
+    if not exact or grouped or filtered:
         return False
-    if not 1 <= len(queries) <= MAX_QUERIES or k > MAX_K or selected < MIN_ROWS:
+    if not 1 <= len(queries) <= MAX_QUERIES or k > MAX_K or rows < MIN_ROWS:
         return False
     if not shards or not MIN_DIM <= queries.shape[1] <= MAX_DIM:
         return False
@@ -115,7 +113,7 @@ class _Survivors:
         self.upper: list[list[ndarray]] = [[] for _ in range(width)]
         self.count = [0] * width
 
-    def add(self, got: Any, base: Any, block_rows: int) -> str | None:
+    def add(self, got: Any, base: int, block_rows: int) -> str | None:
         """Take the result of one block; the reason for a fallback, or ``None``."""
         if got.status != "ok":
             return "unsafe_row" if got.status == "unsafe" else "overflow"
@@ -124,7 +122,7 @@ class _Survivors:
         self.threshold = _reference_prefilter.kth_estimate(self.heap)  # a new array
         for j, (rows, upper) in enumerate(zip(got.rows, got.upper, strict=True)):
             if len(rows):
-                self.rows[j].append(base[rows] if isinstance(base, ndarray) else rows + base)
+                self.rows[j].append(rows + base)
                 self.upper[j].append(upper)
                 self.count[j] += len(rows)
             crowded = self.count[j] > self.budget or len(self.rows[j]) > _FRAGMENTS
@@ -166,16 +164,6 @@ def _plain_tasks(shards: Any, width: int):
     for index, begin, end, first in _search.blocks(shards, width):
         tensors = shards[index][1]
         yield tensors["vectors"][begin:end], tensors["inv_norms"][begin:end], first
-
-
-def _selected_tasks(shards: Any, values: ndarray, kind: str, dim: int):
-    """(rows, inverse norms, positions of the block) of the blocks of a ``rows=`` selection."""
-    size = max(1, min(_search._MAX_ROWS, _BLOCK_BYTES // dim))
-    for index, positions in _selection.blocks(shards, values, kind, size):
-        shard, tensors = shards[index]
-        stored = _filtered._part(tensors["vectors"], positions)
-        inverse = _filtered._part(tensors["inv_norms"], positions)
-        yield stored, inverse, positions + shard.first_row
 
 
 def _passes(backend, queries, k, state, abort, tasks, workers):
@@ -263,37 +251,32 @@ def search(
     shards: Any,
     queries: ndarray,
     k: int,
-    values: ndarray | None,
-    kind: str,
     *,
     workers: Any,
     exact: bool,
     grouped: bool,
+    filtered: bool,
 ) -> tuple[ndarray, ndarray] | None:
     """The ids (int64) and scores (float32) of the ``k`` best rows of every query, each
-    (queries, k), as ``_search.search`` or ``_filtered.search`` with ``exact``; ``None`` when
-    the prefilter does not apply or gives up, and nothing but the log has happened (the
-    caller takes the exact path). The caller holds the store's active-use guard."""
-    selected = sum(shard.rows for shard, _ in shards) if values is None else len(values)
-    if not applies(backend, shards, queries, k, selected, exact, grouped, kind, values is not None):
+    (queries, k), as ``_search.search`` with ``exact``; ``None`` when the prefilter does not
+    apply (a ``filtered`` call, with ``rows=`` or ``doc_ids=``, never does) or gives up, and
+    nothing but the log has happened (the caller takes the exact path). The caller holds the
+    store's active-use guard."""
+    rows = sum(shard.rows for shard, _ in shards)
+    if not applies(backend, shards, queries, k, rows, exact, grouped, filtered):
         return None
     _search.check_queries(backend, queries)
     prepared = _Queries(backend, queries)
     state = _Survivors(len(queries), k, prepared.slack)
     fallback = "query_range"
     if prepared.ok:
-        dim = queries.shape[1]
-        tasks = (
-            _plain_tasks(shards, len(queries))
-            if values is None
-            else _selected_tasks(shards, values, kind, dim)
-        )
+        tasks = _plain_tasks(shards, len(queries))
         fallback = _collect(backend, prepared, k, state, tasks, workers) or "none"
     result, pairs = None, 0
     if fallback == "none":
-        result, pairs = _rescored(backend, shards, queries, k, state, selected, workers)
+        result, pairs = _rescored(backend, shards, queries, k, state, rows, workers)
     state.release()
     _log_entry(len(queries), k, state.read, pairs, fallback, workers)
     if result is not None:
-        _log_search(len(queries), k, selected, workers)
+        _log_search(len(queries), k, rows, workers)
     return result

@@ -18,18 +18,19 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, overload
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _log
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._container import NpyContainer
-from fse._head._heads_run import OutputRule, resolve_outputs
+from fse._head._heads_run import OutputInput, OutputRule, resolve_outputs
 from fse._head._thresholds import updated
 from fse._store._id_stats import check_removed
 from fse._store._kind import Shard
@@ -131,7 +132,7 @@ class ScoreStore(MemberReaders):
         block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
         start: NonNegativeInt = 0,
         stop: NonNegativeInt | None = None,
-    ) -> Iterator[ScoreBatch]:
+    ) -> Generator[ScoreBatch, None, None]:
         """The stored values of the rows ``start`` to ``stop - 1`` (all by default) in
         blocks of at most ``block_rows`` rows, never over the end of a shard: for each head
         a read-only view of the mapped shard (the stored decision, probabilities or values;
@@ -143,6 +144,26 @@ class ScoreStore(MemberReaders):
         stop = stop_row(shards, start, stop)
         return self._blocks(shards, block_rows, start, stop, _predict_raw, None)
 
+    @overload
+    def predict_batches(
+        self,
+        *,
+        output: None = None,
+        thresholds: Any = None,
+        block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
+        backend: str | None = None,
+    ) -> Generator[ScoreBatch, None, None]: ...
+
+    @overload
+    def predict_batches(
+        self,
+        *,
+        output: OutputInput,
+        thresholds: Any = None,
+        block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
+        backend: str | None = None,
+    ) -> Generator[ScoreBatch, None, None]: ...
+
     @validate_arguments
     def predict_batches(
         self,
@@ -151,7 +172,7 @@ class ScoreStore(MemberReaders):
         thresholds: Any = None,
         block_rows: PositiveInt = DEFAULT_BLOCK_ROWS,
         backend: str | None = None,
-    ) -> Iterator[ScoreBatch]:
+    ) -> Generator[ScoreBatch, None, None]:
         """Labels or values for every row, in blocks, as ``Heads.predict_batches`` gives
         them: by default the labels of a classifier and the values of a regressor,
         ``output`` as for ``Heads`` (one name or a mapping of head names to names). A
@@ -183,7 +204,7 @@ class ScoreStore(MemberReaders):
         *,
         start: NonNegativeInt = 0,
         stop: NonNegativeInt | None = None,
-    ) -> ndarray:
+    ) -> NDArray[np.float32]:
         """A copy of the values of ``head`` for the rows ``start`` to ``stop - 1`` (all by
         default): ``stored`` must be what the head stored (``decision``, ``proba`` or
         ``values``), so that logits and probabilities are never taken for each other."""
@@ -207,7 +228,7 @@ class ScoreStore(MemberReaders):
     @validate_arguments
     def get_doc_ids(
         self, *, start: NonNegativeInt = 0, stop: NonNegativeInt | None = None
-    ) -> ndarray:
+    ) -> NDArray[np.int64]:
         """The document IDs (int64) of the rows ``start`` to ``stop - 1`` (all by default),
         a copy."""
         shards = self._snapshot()
@@ -319,7 +340,9 @@ class ScoreStore(MemberReaders):
             self._check_open()
             return self._shards
 
-    def _blocks(self, shards: list, block_rows: int, start: int, stop: int, make: Any, state: Any):
+    def _blocks(
+        self, shards: list, block_rows: int, start: int, stop: int, make: Any, state: Any
+    ) -> Generator[ScoreBatch, None, None]:
         self._check_open()  # also when closed after the call and before the first block
         for shard, tensors, first, end in blocks(shards, start, stop, block_rows):
             self._check_open()  # a closed store gives nothing more
@@ -347,7 +370,7 @@ class ScoreStore(MemberReaders):
         assert labels is not None
         if shards:
             tensors = shards[0][1]
-            stored = tensors[head.threshold_name]
+            stored = tensors[head._threshold_name]
         else:
             stored = np.full(len(labels), 0.5, np.float32)
         if given is _NOT_GIVEN:

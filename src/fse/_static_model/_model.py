@@ -16,10 +16,10 @@ docs/architecture/hub.md, "model2vec compatibility (fse.StaticModel)". A ``Stati
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse._encoder import Encoder
 from fse._encoder._model2vec_rules import UNSET, Rules, Unset
@@ -55,7 +55,7 @@ class StaticModel:
         raise TypeError("make a StaticModel with StaticModel.from_pretrained")
 
     @classmethod
-    def _new(cls, rules: Rules) -> StaticModel:
+    def _new(cls, rules: Rules) -> Self:
         out = object.__new__(cls)
         out._rules = rules
         out._variants = Variants(rules)
@@ -85,7 +85,7 @@ class StaticModel:
         revision: str | None = None,
         cache_dir: PathLike | None = None,
         local_files_only: bool = False,
-    ):  # -> StaticModel
+    ) -> Self:
         """Load a model from a local folder or a Hugging Face Hub repository (``namespace/name``,
         at ``revision``, checked against its commit), read with the rules of model2vec 0.10.0.
 
@@ -158,7 +158,7 @@ class StaticModel:
         convert_to_numpy: bool = True,
         convert_to_tensor: bool = False,
         device: str | None = None,
-    ) -> ndarray:
+    ) -> NDArray[np.float32]:
         """Encode a sentence (a vector of ``dim`` float32 values) or a list, tuple or numpy
         array of sentences (a matrix, one row each).
 
@@ -191,7 +191,7 @@ class StaticModel:
             sentences, "; streams and files go to StaticModel.encoder.encode"
         )
         rows = encoder.encode(texts, workers=workers)
-        return rows[0] if single else rows  # type: ignore[index, return-value]
+        return rows[0] if single else rows
 
     def encode_as_sequence(
         self,
@@ -202,7 +202,7 @@ class StaticModel:
         show_progress_bar: bool = False,
         use_multiprocessing: bool = True,
         multiprocessing_threshold: int = 10_000,
-    ) -> list[ndarray] | ndarray:
+    ) -> list[NDArray[np.float32]] | NDArray[np.float32]:
         """Encode a sentence or a list, tuple or numpy array of sentences as the rows of
         their tokens: a ``(tokens, dim)`` float32 array each (a list of them for a list),
         the rows of the table gathered as they are (``table.take``, the same bytes as
@@ -300,7 +300,7 @@ class StaticModel:
         return self._rules.tokens
 
     @property
-    def embedding(self) -> ndarray:
+    def embedding(self) -> NDArray[np.float32]:
         """The table of the rows (float32, read-only: model2vec's is writable)."""
         return self._rules.word_vectors.stored_vectors
 

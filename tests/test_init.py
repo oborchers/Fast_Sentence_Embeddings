@@ -12,6 +12,7 @@ import pytest
 import fse
 
 SRC = Path(fse.__file__).parent
+_SUBMODULES = {"gensim", "typing"}
 # Every module of fse except the gensim adapter: none may import gensim, scipy or
 # smart_open, and none the removed 1.x modules.
 MODULES = sorted(
@@ -159,16 +160,19 @@ def test_public_api_is_pinned():
     functions = ["add_sign_bits", "disable_logging", "enable_logging", "repair_store"]
     assert fse.__all__ == [*names, "__version__", *functions]
     public = {name for name in dir(fse) if not name.startswith("_")}
-    assert public - {"gensim"} == {*names, *functions}
+    assert public - _SUBMODULES == {*names, *functions}
 
 
 def test_the_readme_shows_only_names_fse_has():
     readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
     code = "\n".join(re.findall(r"```python\n(.*?)```", readme, re.DOTALL))
-    used = set(re.findall(r"\bfse\.([A-Za-z_]\w*)", code)) - {"gensim"}
-    used |= set(re.findall(r"`fse\.([A-Za-z_]\w*)", readme)) - {"gensim"}  # inline code
+    used = set(re.findall(r"\bfse\.([A-Za-z_]\w*)", code)) - _SUBMODULES
+    used |= set(re.findall(r"`fse\.([A-Za-z_]\w*)", readme)) - _SUBMODULES  # inline code
     assert used, "the README shows no fse names"
     assert used <= set(fse.__all__), sorted(used - set(fse.__all__))
+    type_names = set(re.findall(r"\bfse\.typing\.([A-Za-z_]\w*)", readme))
+    types = importlib.import_module("fse.typing")
+    assert type_names <= set(types.__all__), sorted(type_names - set(types.__all__))
     # The removed 1.x names only as code (uSIF stays the name of the method in the text).
     imported = re.findall(r"^from fse import (.+)$", readme, re.MULTILINE)
     names = {n.strip() for line in imported for n in line.split(",")}
