@@ -41,7 +41,7 @@ from fse._store._resume_format import SourceRows, check_mode, check_source, sync
 from fse._store._score_shard import ScoreShardWriter
 from fse._store._scores_format import SCORES
 from fse._store._sink import default_shard_rows, stream_of
-from fse._validation import PositiveInt, validate_arguments
+from fse._validation import PositiveInt, file_path, validate_arguments
 
 from ._schema import ScoreSchema
 
@@ -95,7 +95,7 @@ class ScoreSink(ShardSinkBase):
         resume: bool = False,
     ):
         schema = ScoreSchema.from_heads(heads, stored, name)
-        path = Path(path)
+        path = Path(file_path(path, "path"))
         self._start = time.perf_counter()
         self._exists = path.exists() or path.is_symlink()
         synced = durability == "full"

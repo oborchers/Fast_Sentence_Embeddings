@@ -19,7 +19,7 @@ from typing import Any
 from fse import _log
 from fse._backends import BACKEND_NAMES, get_backend
 from fse._encoder import Encoder
-from fse._validation import validate_arguments
+from fse._validation import file_path, validate_arguments
 
 from ._layout import read_store
 from ._recovery import clear_exception_frames, snapshot
@@ -39,7 +39,7 @@ def _open(cls: Any, path: Any, *, encoder: Any = None, backend: str = "cpu") -> 
 def _opened(cls: Any, path: Any, *, encoder: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
-    path = Path(path)
+    path = Path(file_path(path, "path"))
     info = read_store(path, VECTORS.name)
     if encoder is not None:
         if not isinstance(encoder, Encoder):

@@ -47,7 +47,7 @@ from fse._store._refresh import refreshed
 from fse._store._scores_info import ScoreHead, ScoreInfo
 from fse._store._vector_batches import blocks
 from fse._store._view import Joined, MemberReaders, open_view, verify_members
-from fse._validation import NonNegativeInt, PositiveInt, validate_arguments
+from fse._validation import NonNegativeInt, PositiveInt, file_path, validate_arguments
 
 from . import _predict
 from ._batches import ScoreBatch
@@ -449,7 +449,7 @@ def _open(cls: Any, path: Any, *, heads: Any = None, name: Any = None, backend: 
 def _opened(cls: Any, path: Any, *, heads: Any, name: Any, backend: str) -> Any:
     if backend not in BACKEND_NAMES:
         raise ValueError(f"backend must be one of {list(BACKEND_NAMES)}, not {backend!r}")
-    path = Path(path)
+    path = Path(file_path(path, "path"))
     info = read_store(path, KIND)
     if heads is not None:
         _check_heads(path, info, heads, name)

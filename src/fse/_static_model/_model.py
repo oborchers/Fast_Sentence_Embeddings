@@ -23,7 +23,7 @@ from numpy.typing import NDArray
 
 from fse._encoder import Encoder
 from fse._encoder._model2vec_rules import UNSET, Rules, Unset
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._validation import ModelRef, PathLike, PositiveInt, validate_arguments
 
 from . import _arguments as arguments
 from . import _save
@@ -72,7 +72,7 @@ class StaticModel:
     @validate_arguments
     def from_pretrained(
         cls,
-        path: PathLike,
+        path: ModelRef,
         token: str | bool | None = None,
         normalize: bool | None = None,
         subfolder: str | None = None,

@@ -12,7 +12,7 @@ master is the development branch of 2.0, the inference engine for finished stati
 
 Invalid input raises a clear exception at the API boundary. Nothing is coerced, ignored or truncated without an error, and an unexpected keyword argument is an error (`pydantic.ValidationError` at validated entry points). A slower but correct fallback is logged as a warning ([Logging](docs/architecture/logging.md#logging)).
 
-Public entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`, with constraints such as `PositiveInt` in the signatures. Methods called per element in loops, and parameters that hold bulk data, check explicitly instead, because validation would add measurable overhead or copy the data; such parameters stay `Any` in validated signatures. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN.
+Public entry points whose own work dwarfs a few microseconds use `fse._validation.validate_arguments`, a strict pydantic `validate_call`, with constraints such as `PositiveInt` in the signatures. Methods called per element in loops, and parameters that hold bulk data, check explicitly instead, because validation would add measurable overhead or copy the data; such parameters stay `Any` in validated signatures. Integer constraints accept numpy integer scalars, float constraints reject infinity and NaN. File paths are checked in their original form: `str` remains a string and `os.PathLike[str]` becomes a `Path` only after its protocol result is checked; bytes paths are refused. NumPy text batches are checked for one dimension before their length or elements are read.
 
 ## Documents
 

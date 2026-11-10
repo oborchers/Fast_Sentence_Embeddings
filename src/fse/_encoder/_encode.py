@@ -290,8 +290,8 @@ class _Encoding:
         positions: bool = False,
         pool: Pool | None = None,
     ) -> Generator[Any, None, None]:
-        """Encode a stream batch by batch: ``batches`` yields finite lists of sentences
-        (or token lists), as a queue consumer polls them, and every batch gives one
+        """Encode a stream batch by batch: ``batches`` yields finite lists, tuples or one-dimensional NumPy arrays
+        of sentences (or token lists), as a queue consumer polls them, and every batch gives one
         ``EncodedBatch`` once its rows are finished. With a ``sink`` the rows go there,
         and ``durable_rows`` says how many rows of the run are durable, so a consumer
         confirms its input only up to there; without one the batch holds its rows.

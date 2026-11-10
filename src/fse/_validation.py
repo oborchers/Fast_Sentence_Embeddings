@@ -6,6 +6,7 @@ loading and the similarity searches. Per-element methods such as ``similarity`` 
 """
 
 import functools
+import os
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Annotated, Any, TypeAlias, TypeVar
@@ -16,6 +17,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    PlainValidator,
     StrictInt,
     StrictStr,
     validate_call,
@@ -48,8 +50,38 @@ def validate_arguments(func: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
-#: A file system path given as str or Path.
-PathLike: TypeAlias = str | Path
+def file_path(value: Any, name: str) -> str | Path:
+    """Check the original path and its protocol result before constructing a Path."""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, os.PathLike):
+        raise TypeError(f"{name} must be str or a path object, not {type(value).__name__}")
+    text = os.fspath(value)
+    if not isinstance(text, str):
+        raise TypeError(f"{name} must be a text path, not a path returning bytes")
+    return Path(text)
+
+
+def is_file_path(value: Any) -> bool:
+    """Whether the original value is a path with a str representation."""
+    try:
+        file_path(value, "path")
+    except TypeError:
+        return False
+    return True
+
+
+def _file_path(value: Any) -> str | Path:
+    try:
+        return file_path(value, "path")
+    except TypeError as error:
+        raise ValueError(str(error)) from None
+
+
+#: A local text path. Strings remain strings; path objects become pathlib.Path.
+PathLike: TypeAlias = Annotated[str | os.PathLike[str], PlainValidator(_file_path)]
+#: A local model path, or a Hub identifier when supplied as a string.
+ModelRef: TypeAlias = PathLike
 
 
 def _numpy_integer_to_int(value: object) -> object:

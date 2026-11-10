@@ -42,6 +42,11 @@ def refuse(texts: Any):
             "dataset.with_format('arrow')['text'] (dataset.data.table['text'] ignores "
             "select and shuffle)"
         )
+    check_array(texts)
+
+
+def check_array(texts: Any) -> None:
+    """Validate an array's dimensions before any access to its length or rows."""
     if isinstance(texts, ndarray) and texts.ndim != 1:
         hint = ": pass arr.tolist() for a 2-D array of tokens" if texts.ndim == 2 else ""
         raise TypeError(f"a numpy array of texts must be one-dimensional, not {texts.ndim}-D{hint}")

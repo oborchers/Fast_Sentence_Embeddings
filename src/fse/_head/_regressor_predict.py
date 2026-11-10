@@ -374,7 +374,11 @@ class _RegressorPredicting:
         Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
         (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
 
-        ``sink=`` takes values and cannot be combined with ``return_vectors=True``."""
+        ``sink=`` takes values and cannot be combined with ``return_vectors=True``.
+
+        ``texts`` also accepts any ``os.PathLike`` returning str: the lines of that file.
+        A plain str is one text, never a file path, and must be wrapped in a collection.
+        """
         threads = workers_of(workers, pool)  # before anything is read
         method = "Regressor.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)

@@ -320,7 +320,11 @@ class _HeadsPredicting:
         then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
         Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
         Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
-        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors."""
+        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
+
+        ``texts`` also accepts any ``os.PathLike`` returning str: the lines of that file.
+        A plain str is one text, never a file path, and must be wrapped in a collection.
+        """
         threads = workers_of(workers, pool)  # before anything is read
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, "Heads.predict")
         if _resume_run.wanted(vector_sink, score_sink, doc_ids, shard):
@@ -388,7 +392,7 @@ class _HeadsPredicting:
         positions: bool = False,
         pool: Pool | None = None,
     ) -> Generator[HeadsBatch, None, None]:
-        """``predict`` for a stream, batch by batch: ``batches`` yields finite lists of texts
+        """``predict`` for a stream, batch by batch: ``batches`` yields finite lists, tuples, one-dimensional NumPy text arrays
         or Arrow arrays. Every batch gives one ``HeadsBatch`` with the ``outputs`` of every
         head and, with ``return_vectors=True``, the ``vectors`` (the rows of the encoder; the
         heads on raw means then take the unfolded path, see ``paths``). Checked before any

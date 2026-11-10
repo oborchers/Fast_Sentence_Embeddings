@@ -7,7 +7,7 @@
 """Encoding into a sink and in batches: what ``Encoder.encode(sink=)`` and
 ``Encoder.encode_batches`` run (docs/architecture/runtime.md, "Runtime").
 
-A stream that never ends is encoded batch by batch, each batch a finite list (as a
+A stream that never ends is encoded batch by batch, each batch a finite list, tuple or 1-D NumPy array (as a
 consumer of a queue polls them), so the rows of a batch are finished when the next one
 is read. With a sink, every batch is committed to it, numbered on from the rows before;
 ``durable_rows`` of a batch is the sink's, so a consumer confirms its input up to there.
@@ -43,6 +43,7 @@ from ._doc_ids import (
     refuse_score_sink,
     split_pair,
 )
+from ._inputs import check_array
 from ._resume import refuse_resume_sink
 from ._sources import opened
 
@@ -106,15 +107,19 @@ def check_sink(
 
 
 def batch_size(k: int, item: Any) -> int | None:
-    """The rows of batch ``k``, a list or tuple of sentences; None for an Arrow string
+    """The rows of batch ``k``, a list, tuple or 1-D array; None for an Arrow string
     column, whose rows are known once its source is made (no ``len()`` is needed)."""
     if is_arrow(item):
         return None
-    if not isinstance(item, list | tuple):
+    if not isinstance(item, list | tuple | np.ndarray):
         raise TypeError(
             f"batch {k} is a {type(item).__name__}; every batch is a list (or tuple) of "
-            "sentences, or an Arrow string column"
+            "sentences, a one-dimensional numpy text array, or an Arrow string column"
         )
+    try:
+        check_array(item)
+    except TypeError as error:
+        raise TypeError(f"batch {k}: {error}") from None
     return len(item)
 
 
@@ -248,7 +253,7 @@ def batches(
     lengths: LengthSettings | None = None,
     rule: tuple[int | None, int | None] = (None, None),
 ) -> Generator[Any, None, None]:
-    """The EncodedBatch of every item of ``items``, a finite list of sentences (or token
+    """The EncodedBatch of every item of ``items``, a finite list, tuple or 1-D NumPy array of sentences (or token
     lists) or an Arrow string column each; with ``lengths`` of a level, the pair of it and
     the ``LengthReport`` of its rows (``rule`` is the encoder's)."""
     row, last = 0, None

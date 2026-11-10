@@ -31,7 +31,7 @@ from fse import _codes, _log
 from fse._encoder import Encoder
 from fse._ids import checked_ids, id_block
 from fse._partition import partition
-from fse._validation import PositiveInt, validate_arguments
+from fse._validation import PositiveInt, file_path, validate_arguments
 
 from ._base_sink import ShardSinkBase
 from ._bits_write import backfill as backfill_bits
@@ -130,7 +130,7 @@ class ShardSink(ShardSinkBase):
     ):
         if not isinstance(encoder, Encoder):
             raise TypeError(f"encoder must be an Encoder, not {type(encoder).__name__}")
-        path = Path(path)
+        path = Path(file_path(path, "path"))
         self._start = time.perf_counter()
         info = StoreInfo(
             encoder.fingerprint, dtype, encoder.output_dim, doc_ids, 2 if doc_ids or resume else 1

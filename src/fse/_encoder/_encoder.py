@@ -32,7 +32,7 @@ from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline
 from fse._text import Vocabulary, make_vocabulary
 from fse._tokenizer_spec import TokenizerSpec
-from fse._validation import PathLike, PositiveInt, validate_arguments
+from fse._validation import ModelRef, PathLike, PositiveInt, validate_arguments
 from fse._wordvectors import WordVectors, _created_by
 
 from . import _folder, _persist, _pretrained
@@ -173,7 +173,7 @@ class Encoder(_Encoding):
     @validate_arguments
     def from_pretrained(
         cls,
-        repo_or_path: PathLike,
+        repo_or_path: ModelRef,
         *,
         revision: str | None = None,
         token: str | bool | None = None,

@@ -19,6 +19,7 @@ from numpy.typing import NDArray
 from fse._contract import Head, Link
 from fse._encoder import _pretrained
 from fse._validation import (
+    ModelRef,
     PathLike,
     Temperature,
     ThresholdInput,
@@ -197,7 +198,7 @@ class Classifier(_Predicting, _Scoring, LinearModel):
     @validate_arguments
     def from_pretrained(
         cls,
-        repo_or_path: PathLike,
+        repo_or_path: ModelRef,
         *,
         revision: str | None = None,
         token: str | bool | None = None,

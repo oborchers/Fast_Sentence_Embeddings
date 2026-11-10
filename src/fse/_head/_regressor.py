@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Self
 
 from fse._encoder import _pretrained
-from fse._validation import PathLike, validate_arguments
+from fse._validation import ModelRef, PathLike, validate_arguments
 
 from . import _model2vec_files, _sklearn
 from ._model import LinearModel
@@ -63,7 +63,7 @@ class Regressor(_RegressorPredicting, LinearModel):
     @validate_arguments
     def from_pretrained(
         cls,
-        repo_or_path: PathLike,
+        repo_or_path: ModelRef,
         *,
         revision: str | None = None,
         token: str | bool | None = None,

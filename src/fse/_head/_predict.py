@@ -291,7 +291,11 @@ class _Predicting:
         then run unfolded. Standalone models and VectorStore inputs cannot return vectors.
         Vectors need ``4*n*dim`` bytes, about ``8*n*dim`` at peak for unknown row counts.
         Use ``predict_batches`` for large or unbounded sources. Resume sinks return None
-        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors."""
+        (with lengths, ``(None, fse.LengthReport)``); a score sink alone drops the vectors.
+
+        ``texts`` also accepts any ``os.PathLike`` returning str: the lines of that file.
+        A plain str is one text, never a file path, and must be wrapped in a collection.
+        """
         threads = workers_of(workers, pool)  # before anything is read
         method = "Classifier.predict"
         settings = LengthSettings.of(lengths, count_truncated, on_truncation, method)
@@ -365,7 +369,7 @@ class _Predicting:
         pool: Pool | None = None,
     ) -> Generator[Any, None, None]:
         """Predict a stream batch by batch, as ``Encoder.encode_batches``: ``batches``
-        yields finite lists of texts, or is a ``fse.VectorStore`` (one batch per block of
+        yields finite lists, tuples or one-dimensional NumPy text arrays, or is a ``fse.VectorStore`` (one batch per block of
         rows). Every batch gives one ``PredictedBatch`` with its ``outputs``; with
         ``return_vectors=True`` also its vectors, the encoder's own rows (one pooling gives
         both). What the ``sink`` takes depends on ``return_vectors``::
