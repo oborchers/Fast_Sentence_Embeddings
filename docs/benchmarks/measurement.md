@@ -675,7 +675,7 @@ a 600-second collection reserve. These are historical planning values, not spend
 authorization. The bootstrap resolves `<study>_billing` before machine inspection
 and setup, exports `MEASURE_BILLING_PROFILE`, and passes the profile to the
 allocation budget. Direct setup and run commands select the same study profile.
-Setup records the effective billing in `setup.json`. All allocation steps,
+Setup records the effective billing in `<environment>/setup.json`. All allocation steps,
 including future profile steps, share the original allocation timestamp and
 budget admission checks. `--study all` retains the whole-study billing.
 Unknown explicit profiles are refused. Profile contracts retain their own shorter
