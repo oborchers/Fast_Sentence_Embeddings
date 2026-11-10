@@ -43,8 +43,8 @@
     },
     {
       "name": "versions",
-      "estimate_minutes": 8,
-      "budget_minutes": 15
+      "estimate_minutes": 45,
+      "budget_minutes": 60
     },
     {
       "name": "search",
@@ -509,12 +509,12 @@
       "model": "minishlab/potion-base-8M",
       "reference": "fse-base",
       "workers": 1,
-      "texts": 2000000,
+      "texts": 2500000,
       "dtype": "float32",
-      "rounds": 3,
-      "estimated_seconds": 180,
+      "rounds": 5,
+      "estimated_seconds": 300,
       "dimensions": 256,
-      "planned_input_bytes": 272590827
+      "planned_input_bytes": 340829768
     },
     {
       "id": "version-encode-float32-16",
@@ -523,12 +523,132 @@
       "model": "minishlab/potion-base-8M",
       "reference": "fse-base",
       "workers": 16,
-      "texts": 18000000,
+      "texts": 20000000,
       "dtype": "float32",
-      "rounds": 3,
-      "estimated_seconds": 180,
+      "rounds": 5,
+      "estimated_seconds": 300,
       "dimensions": 256,
-      "planned_input_bytes": 2455180892
+      "planned_input_bytes": 2728056171
+    },
+    {
+      "id": "version-st-float32-1",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-base",
+      "input": "st",
+      "workers": 1,
+      "texts": 2000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 480,
+      "dimensions": 1024,
+      "planned_input_bytes": 272595911
+    },
+    {
+      "id": "version-st-float32-16",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "reference": "fse-base",
+      "input": "st",
+      "workers": 16,
+      "texts": 7000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 480,
+      "dimensions": 1024,
+      "planned_input_bytes": 954623393
+    },
+    {
+      "id": "version-paragraph-float32-1",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 1,
+      "texts": 600000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 380746290,
+      "corpus": "paragraphs"
+    },
+    {
+      "id": "version-paragraph-float32-16",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 16,
+      "texts": 5000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 3172275067,
+      "corpus": "paragraphs"
+    },
+    {
+      "id": "version-paragraph-float16-1",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 1,
+      "texts": 600000,
+      "dtype": "float16",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 380746290,
+      "corpus": "paragraphs"
+    },
+    {
+      "id": "version-paragraph-float16-16",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 16,
+      "texts": 5000000,
+      "dtype": "float16",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 3172275067,
+      "corpus": "paragraphs"
+    },
+    {
+      "id": "version-paragraph-int8-1",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 1,
+      "texts": 600000,
+      "dtype": "int8",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 380746290,
+      "corpus": "paragraphs"
+    },
+    {
+      "id": "version-paragraph-int8-16",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 16,
+      "texts": 5000000,
+      "dtype": "int8",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 3172275067,
+      "corpus": "paragraphs"
     },
     {
       "id": "search-exact-float32",
@@ -702,5 +822,10 @@
     "pool_size": 256,
     "seed": 0,
     "expected_test_sentences": 9414
+  },
+  "versions_billing": {
+    "planning_minutes": 120,
+    "planning_balance_usd": 2.98,
+    "collection_reserve_seconds": 600
   }
 }

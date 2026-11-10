@@ -6,9 +6,69 @@ collection; nothing extends it and nothing retries.
 
 from __future__ import annotations
 
+import math
+import os
 import time
 
 DEFAULT_RESERVE_SECONDS = 600
+
+
+POSITIVE_FIELDS = ("month_hours", "planning_minutes", "planning_balance_usd")
+NONNEGATIVE_FIELDS = ("compute_usd_per_hour", "disk_usd_per_gb_month", "collection_reserve_seconds")
+
+
+def _billing_number(key, value):
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"billing {key} must be a finite number")
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite or value < 0 or (key in POSITIVE_FIELDS and value == 0):
+        raise ValueError(f"billing {key} is outside its allowed finite range")
+
+
+def validate_billing(values, required=False):
+    """Check original numeric inputs, including partial profile overrides."""
+    if not isinstance(values, dict):
+        raise ValueError("billing must be an object")
+    fields = (*POSITIVE_FIELDS, *NONNEGATIVE_FIELDS)
+    mandatory = set(fields) - {"collection_reserve_seconds"}
+    if required and not mandatory.issubset(values):
+        raise ValueError("billing is missing a required numeric field")
+    for key in fields:
+        if key in values:
+            _billing_number(key, values[key])
+
+
+def _billing_profile(contract, profile, study):
+    if study is not None and not isinstance(study, str):
+        raise ValueError("study must be a string")
+    inherited = os.environ.get("MEASURE_BILLING_PROFILE") or None
+    if profile is not None and inherited is not None and profile != inherited:
+        raise ValueError("explicit and inherited billing profiles disagree")
+    profile = profile if profile is not None else inherited
+    if profile is None and study is not None and study + "_billing" in contract:
+        profile = study + "_billing"
+    return profile
+
+
+def select_billing(contract, profile=None, study=None):
+    """Resolve the same profile for bootstrap, setup, allocation and measurement."""
+    profile = _billing_profile(contract, profile, study)
+    validate_billing(contract["billing"])
+    override = {}
+    if profile is not None:
+        if not isinstance(profile, str) or not profile.endswith("_billing"):
+            raise ValueError("billing profile must name a declared *_billing object")
+        if profile not in contract or not isinstance(contract[profile], dict):
+            raise ValueError("unknown billing profile")
+        override = contract[profile]
+        validate_billing(override)
+    billing = {**contract["billing"], **override}
+    validate_billing(billing, required=True)
+    contract.update(billing=billing, billing_profile=profile)
+    return contract
 
 
 class WallBudgetExpiredError(TimeoutError):
@@ -25,19 +85,31 @@ class Budget:
     """The seconds an allocation may use: the smaller of the planned minutes and the planned
     balance at the hourly cost of compute plus disk."""
 
-    def __init__(self, billing, disk_gb, allocated_at, clock=time.time):
+    def __init__(self, billing, disk_gb, allocated_at, clock=time.time, *, profile=None):
+        validate_billing(billing, required=True)
+        self.billing, self.profile = dict(billing), profile
         self.allocated_at, self.clock = allocated_at, clock
         self.reserve_seconds = billing.get("collection_reserve_seconds", DEFAULT_RESERVE_SECONDS)
         self.hourly = billing["compute_usd_per_hour"] + (
             disk_gb * billing["disk_usd_per_gb_month"] / billing["month_hours"]
         )
+        if not math.isfinite(self.hourly) or self.hourly <= 0:
+            raise ValueError("positive finite total hourly cost required")
         self.ceiling_seconds = min(
             billing["planning_minutes"] * 60, billing["planning_balance_usd"] * 3600 / self.hourly
         )
+        if not math.isfinite(self.ceiling_seconds) or self.ceiling_seconds <= 0:
+            raise ValueError("positive finite budget ceiling required")
 
     @classmethod
     def from_contract(cls, contract, allocated_at, clock=time.time):
-        return cls(contract["billing"], contract["machine"]["disk_gb"], allocated_at, clock)
+        return cls(
+            contract["billing"],
+            contract["machine"]["disk_gb"],
+            allocated_at,
+            clock,
+            profile=contract.get("billing_profile"),
+        )
 
     def elapsed(self):
         return max(0.0, self.clock() - self.allocated_at)

@@ -20,6 +20,7 @@ from _harness.ledger import Ledger, watching
 from _measurement import write_environment
 from _measurement_config import CONFIG
 from _measurement_config import contract as load_contract
+from _speed_versions import billing_contract, pair_rounds, preflight_plan
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
@@ -77,7 +78,7 @@ def prepare(args, contract, ledger):
 def prepare_input(context, cell):
     paragraphs = cell.get("corpus", "sentences") == "paragraphs"
     source, mandatory = context["paragraph_texts" if paragraphs else "paragraphs"], []
-    if cell["reference"] == "st":
+    if cell.get("input", cell["reference"]) == "st":
         mandatory = context["unknown"]
     else:
         from fse import StaticModel
@@ -215,7 +216,7 @@ def summarize_pair(cell, observations, identity):
     arms = {"fse": [], cell["reference"]: []}
     for row in observations:
         arms[row["label"]].append(row)
-    validate_pair_arms(arms)
+    validate_pair_arms(arms, pair_rounds(cell))
     short, aa_upper, noisy = pair_validity(cell, observations, arms)
     ratios = [
         b["seconds"] / a["seconds"]
@@ -256,7 +257,7 @@ def memory_preflight(context, contract):
         if protocols.protocol(cell)["own_memory_plan"]:
             continue
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
-        plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
+        plan = preflight_plan(cell, production, model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
     durable.atomic(
         context["ledger"].root / "preflight-memory.json",
@@ -280,7 +281,7 @@ def pair(context, cell):
     if not budget["admitted"]:
         raise MemoryError("fixed input exceeds the declared memory budget")
     observations = []
-    for number in range(3):
+    for number in range(pair_rounds(cell)):
         observations.extend(round_pair(context, cell, number, path, sample, identity))
     result = summarize_pair(cell, observations, identity)
     cleanup(context, [path, path.with_suffix(".json"), sample])
@@ -309,7 +310,7 @@ def quiet(context, contract):
 
 
 def study_contract(args):
-    contract = load_contract(args.input)
+    contract = billing_contract(load_contract(args.input), args.study)
     headline = args.study == "headline"
     contract["cells"] = protocols.select(contract["cells"], args.study)
     if not contract["cells"]:
@@ -319,7 +320,6 @@ def study_contract(args):
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")
-        contract["billing"].update(contract["headline_billing"])
         contract["format"] = "headline-study-v1"
         for cell in contract["cells"]:
             cell["workers"] = args.workers
@@ -327,7 +327,6 @@ def study_contract(args):
         contract["rehearsal_limits"] = records.rehearsal_limits()
         contract["functional_only"] = True
         protocols.reduce_cells(contract)
-        contract["billing"].update(planning_minutes=180, planning_balance_usd=10)
     return contract
 
 
@@ -442,11 +441,11 @@ def pair_validity(cell, observations, arms):
     return short, upper, upper > 1.10 and not cell.get("functional_only")
 
 
-def validate_pair_arms(arms):
+def validate_pair_arms(arms, rounds):
     for rows in arms.values():
         if any(row.get("diagnostic_profile") for row in rows):
             raise ValueError("diagnostic profiles cannot enter paired comparisons")
-        if [row["round"] for row in rows] != [0, 1, 2]:
+        if [row["round"] for row in rows] != list(range(rounds)):
             raise ValueError("missing or duplicate paired rounds")
         if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
             raise ValueError("executing backend changed between rounds")

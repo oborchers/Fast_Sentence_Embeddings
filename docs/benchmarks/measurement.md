@@ -644,9 +644,59 @@ variation rather than percentiles of individually timed millisecond calls.
 - Stage `bekko`: a Sentence Transformers repository other than the `sentence-transformers/` namespace is read in that format when `speed.json` lists it under `model_formats`. The cell sets `table_dtype: float16` for fse (a float16 table, float32 output) and `widen_weights: true` for the Sentence Transformers arm, which widens its table to float32 before any timer so that no arm measures a half-precision path the other does not share. The receipt records `widened_weights`, and the memory plan adds the float16 original that exists while the table is widened.
 - Stage `paragraphs`: `corpus: paragraphs` draws whole WikiText-103 paragraphs (the pinned 832,318, cut by the common character limit) instead of sentences, with the same seed and sampling. The planned byte counts of these cells are fixed like all others.
 - Stage `heads`: the workload is the fixed head of the development study (`linear-heads@1`, four softmax outputs, float32 PCG64 seed 17; four heads for `linear-heads-multi@1`). Every arm returns the probabilities (output `proba`) of the heads in the order `head_0` to `head_3`, for raw means (the encoder never normalizes), as one float32 matrix of `dimensions` columns (4, or 16 for four heads). Folding the head into the table is outside every timer. Three pairs: folded `predict_proba` against Model2Vec `encode(normalize=False)` followed by the affine map and the softmax in NumPy; folded against unfolded (`predict_batches` with `return_vectors=True`); four heads in one `Heads.predict` against four single `predict_proba` calls (bits).
-- Stage `versions`: `reference: fse-base` for POTION-8M, float32, 1 and 16 workers, with `--base-python` set to the installed fse 2.0. The standard speed allocation declares the environment `base` (fse 2.0 at commit 624251df, lock `speed-base.lock.txt`) and passes it as `--base-python {python_base}`, so `--study all` is not refused up front. Stage `search` reports time per request, with output checked against exact search. The explicit `search-prefilter` selection is excluded from `all`.
+- Stage `versions`: ten README encoding configurations against the released fse 2.0.0 source (`v2.0.0`, commit `3b4061441d834eb06f605e1b6cd60dd0d118ceba`). The allocation builds the base with the same toolchain and the hashed `speed-base.lock.txt`, and passes its interpreter as `--base-python {python_base}`. The candidate writes each dtype artifact; the base loads that artifact. There is no base-side rebuild or silent compatibility fallback. The pinned Linux rehearsal must verify loading and bit identity for every dtype before a paid run. The writing comparison is a separate follow-up.
+- Stage `search` reports time per request, with output checked against exact search. The explicit `search-prefilter` selection is excluded from `all`.
 
-The sizes of these cells mirror the existing cells of the same model; the study for a release sets its own sizes and budget before any paid run.
+The version cells use five alternating pairs, with one full warmup per arm and
+one measured call per round. `rounds` is an integer of at least three, checked
+before preparation and again when summarizing complete paired observations.
+Both version arms must pass the two-second production call gate. Functional
+rehearsals disable that gate and prove only its logic, never production duration.
+The ST cells set `input: st`: they preserve the sentence source without POTION's
+character cut and include the eight historical mandatory UNK paragraphs, exactly
+like the ST library cells. Both arms share the resulting file and digest.
+
+| Version configuration | Texts, 1 worker | Texts, 16 workers | Input |
+| :--- | ---: | ---: | :--- |
+| POTION float32 | 2,500,000 | 20,000,000 | Sentences with common character cut |
+| ST float32 | 2,000,000 | 7,000,000 | ST sentences plus mandatory UNK cases |
+| POTION float32, float16, int8 | 600,000 each | 5,000,000 each | Whole paragraphs with common character cut |
+
+`planned_input_bytes` fixes the seeded production file size of each cell. The
+production memory preflight includes every selected pair against 85 percent of
+128 GB (108.8 GB). Only a rejected seven-million-row ST-16 plan may fall back:
+both arms use five million rows (681,709,559 input bytes), and the plan is checked
+again. The preflight preserves the rejected plan in its fallback record. Other
+rejected cells, or a rejected fallback, fail preparation and must be reported.
+A functional rehearsal does not establish full-size capacity or the two-second gate.
+
+Selecting `--study versions` uses `versions_billing`: 120 minutes, USD 2.98 and
+a 600-second collection reserve. These are historical planning values, not spending
+authorization. The bootstrap resolves `<study>_billing` before machine inspection
+and setup, exports `MEASURE_BILLING_PROFILE`, and passes the profile to the
+allocation budget. Direct setup and run commands select the same study profile.
+Setup records the effective billing in `<environment>/setup.json`. All allocation steps,
+including future profile steps, share the original allocation timestamp and
+budget admission checks. `--study all` retains the whole-study billing.
+Standalone allocation commands select the same profile with `--study versions`
+(or `--param study=versions`), or inherit `MEASURE_BILLING_PROFILE`. The machine
+check records the resolved budget. Starting its steps with another profile, limit
+or allocation timestamp is refused. Each child inherits the resolved profile.
+Unknown profiles, conflicting explicit and inherited profiles, boolean or
+nonfinite numeric budget fields, nonpositive planning values and negative
+collection reserves are refused before merging profile overrides. Profile contracts retain their own shorter
+diagnostic deadlines within the allocation's admission budget.
+
+These limits admit work but do not kill an active setup command, cell or step.
+The collection owner signals a safe stop at exhaustion and collects before deletion.
+An active operation can overrun without a guaranteed bound. There is no automatic
+extension or retry. Collection and deletion need their own agreed allowance.
+The release study still requires workload, live price and allocation approval.
+Regression interpretation uses exact runtime boundaries: optimize when
+`paired_speedup <= 1 / 1.10`; report when
+`1 / 1.10 < paired_speedup <= 1 / 1.05`. Otherwise this run has not demonstrated
+a regression above the boundary. This is no equivalence proof. Round ratios
+crossing a boundary are reported for maintainer review, without automatic reruns.
 
 Writing cells record first native-file read through ShardSink close. They use a float32 table, int8 storage and `durability: none`. Model loading, input generation and verification are outside this timer. Sink opening and external file/directory synchronization have separate observations. Codes, scales, row counts and file inventories are checked before deletion. Logical file bytes are not device write amplification. Separate sequential worker configurations do not isolate a CPU-scaling effect.
 
