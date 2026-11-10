@@ -11,6 +11,18 @@ import time
 DEFAULT_RESERVE_SECONDS = 600
 
 
+def select_billing(contract, profile=None):
+    """Resolve a declared profile before setup; unknown explicit profiles are errors."""
+    if profile is not None:
+        if not isinstance(profile, str) or not profile.endswith("_billing"):
+            raise ValueError("billing profile must name a declared *_billing object")
+        if profile not in contract or not isinstance(contract[profile], dict):
+            raise ValueError("unknown billing profile")
+        contract["billing"] = {**contract["billing"], **contract[profile]}
+    contract["billing_profile"] = profile
+    return contract
+
+
 class WallBudgetExpiredError(TimeoutError):
     """Finish active work safely, then refuse all further operations and waits."""
 

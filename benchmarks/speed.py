@@ -14,6 +14,7 @@ from _measurement_config import CONFIG, contract
 from _measurement_setup import outside_checkout, setup, utility
 from _speed_pipeline import measure_child
 from _speed_run import run
+from _speed_versions import billing_contract
 
 
 def arguments():
@@ -96,7 +97,7 @@ def main():
     if args.child_job:
         child_job(args.child_job)
         return 0
-    specification = contract(args.input)
+    specification = billing_contract(contract(args.input), args.study)
     if (
         sys.platform != "linux"
         or sys.version.split()[0] != specification["machine"]["python_patch"]

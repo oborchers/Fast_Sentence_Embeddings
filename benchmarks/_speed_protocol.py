@@ -50,8 +50,11 @@ def protocol(cell):
 
 def validate(cells):
     """Refuse a study with a cell no variant covers, before anything runs."""
+    from _speed_versions import pair_rounds
+
     for cell in cells:
         protocol(cell)
+        pair_rounds(cell)
         if cell["kind"] == "search":
             from _harness.search import validate as validate_search
 

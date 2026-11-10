@@ -75,13 +75,26 @@ mode=--run
 rehearsal=()
 if test "${MEASURE_REHEARSAL:-0}" = 1; then mode=--rehearse; rehearsal=(--rehearsal); fi
 profile=()
-if test "$entry" = speed && test "${MEASURE_STUDY:-libraries}" = headline; then profile=(--billing-profile headline_billing); fi
+# Resolve once before setup; export to every measurement and profile step.
+if test "$entry" = speed; then
+  MEASURE_BILLING_PROFILE=$(/usr/local/bin/python - "$input" "${MEASURE_STUDY:-libraries}" <<'BILLING_PROFILE'
+import json, sys
+study = json.load(open(sys.argv[1]))
+name = sys.argv[2] + "_billing"
+print(name if name in study else "")
+BILLING_PROFILE
+)
+  export MEASURE_BILLING_PROFILE
+  if test -n "$MEASURE_BILLING_PROFILE"; then profile=(--billing-profile "$MEASURE_BILLING_PROFILE"); fi
+fi
 export PYTHONPATH="$source/benchmarks"
 lifecycle=(/usr/local/bin/python -m _harness.allocation)
 common=(--spec "$allocation" --entry "$entry" --root "${root:-/}" --allocated-at "$MEASURE_ALLOCATED_AT" --study-file "$input" --pins-file "$source/benchmarks/config/pins.json" "${profile[@]}")
 # The machine check comes before any installation: a rejected machine starts no step.
 "${lifecycle[@]}" begin "${common[@]}" "${rehearsal[@]}"
-/usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocation "$allocation" --allocated-at "$MEASURE_ALLOCATED_AT"
-"${lifecycle[@]}" run "${common[@]}" --param "mode=$mode" --param "input=$input" --param "study=${MEASURE_STUDY:-libraries}" &
+setup_study=()
+if test "$entry" = speed; then setup_study=(--study "${MEASURE_STUDY:-libraries}"); fi
+/usr/local/bin/python "$source/benchmarks/$entry.py" --setup "$environment" --input "$input" --allocation "$allocation" --allocated-at "$MEASURE_ALLOCATED_AT" "${setup_study[@]}"
+"${lifecycle[@]}" run "${common[@]}" --param "mode=$mode" --param "input=$input" --param "study=${MEASURE_STUDY:-libraries}" --param "billing_profile=${MEASURE_BILLING_PROFILE:-}" &
 printf '%s\n' "$!" > "$root/$entry-logs/allocation.pid"
 wait "$!"

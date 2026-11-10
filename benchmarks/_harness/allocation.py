@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 
 from _harness import machine, spec
-from _harness.budget import Budget
+from _harness.budget import Budget, select_billing
 from _harness.collect import collect, verify
 from _harness.records import append, atomic, document, read_rows, seal, seal_unstarted
 
@@ -182,7 +182,7 @@ class Allocation:
 
 def budget_of(study_file, pins_file, profile, allocated_at):
     study, pins = json.loads(study_file.read_text()), json.loads(pins_file.read_text())
-    billing = {**study["billing"], **(study.get(profile, {}) if profile else {})}
+    billing = select_billing(study, profile)["billing"]
     return Budget(billing, pins["machine"]["disk_gb"], allocated_at)
 
 

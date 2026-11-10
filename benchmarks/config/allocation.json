@@ -53,7 +53,7 @@
         "name": "base",
         "role": "base",
         "lock": "speed-base.lock.txt",
-        "revision": "624251df2269e3099f5c61987be63e718893b58c"
+        "revision": "3b4061441d834eb06f605e1b6cd60dd0d118ceba"
       },
       {
         "name": "reference",

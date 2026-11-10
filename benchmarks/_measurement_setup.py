@@ -109,9 +109,15 @@ def setup(root, contract, allocated_at, entry, allocation=None):
             revision = contract["fse_revision"] if pinned else environment["revision"]
             _install_fse(execute, uv, root, environment, revision)
     locks = {e["lock"]: sha256(CONFIG / e["lock"]) for e in environments}
+    budget = Budget.from_contract(contract, allocated_at)
     record = {
+        "budget_ceiling_seconds": budget.ceiling_seconds,
+        "collection_reserve_seconds": budget.reserve_seconds,
+        "allocated_at": allocated_at,
         "environments": [{k: e[k] for k in ("name", "role", "revision")} for e in environments],
         "fse_revision": contract["fse_revision"],
+        "billing": contract["billing"],
+        "billing_profile": contract.get("billing_profile"),
         "python": sys.version,
         "base_image": contract["machine"]["image"],
     }
