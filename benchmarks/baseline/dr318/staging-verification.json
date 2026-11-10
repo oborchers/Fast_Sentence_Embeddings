@@ -1,0 +1,31 @@
+{
+  "original_files_unchanged": 84,
+  "json_files_decoded_identical": [
+    "metrics.json",
+    "input-checksums.json",
+    "bekko-train-lengths.json",
+    "potion-train-lengths.json",
+    "frozen.json",
+    "potion-memory-plan.json",
+    "test-lengths.json",
+    "config.json",
+    "data-report.json",
+    "potion-validation-lengths.json",
+    "compatibility.json",
+    "bekko-validation-lengths.json",
+    "licenses.json",
+    "started.json",
+    "encoder-sources.json",
+    "selection.json",
+    "verification.json",
+    "bekko-memory-plan.json",
+    "safety-complete/config.json",
+    "categories-complete/config.json"
+  ],
+  "manifest_verified": true,
+  "test_evaluations": 1,
+  "new_fits": 0,
+  "new_test_evaluations": 0,
+  "rejected_windows": 0,
+  "ignored_windows": 5
+}

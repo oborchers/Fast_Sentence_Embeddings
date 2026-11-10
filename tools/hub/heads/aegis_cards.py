@@ -30,6 +30,7 @@ def render(record, name):
         "",
         "```python",
         "import fse",
+        "",
         'safety = fse.Classifier.from_pretrained("/path/to/safety-complete")',
         'categories = fse.Classifier.from_pretrained("/path/to/categories-complete")',
         "heads = fse.Heads(safety=safety, categories=categories)",
