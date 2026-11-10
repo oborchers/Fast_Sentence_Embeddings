@@ -216,7 +216,7 @@ These are worked examples you can adapt, not hosted services.
 </picture>
 
 Give each writing machine its own store. Two writers in one store race for the name of the next shard.
-`encode(..., shard=(i, 3))` gives machine `i` its third of the rows.
+`encode(..., shard=(i, 3))` gives machine `i` one of three disjoint parts of the rows, cut at multiples of 16,384 rows.
 The reading machine opens one view over the stores. Nothing is copied or merged.
 
 ```python
