@@ -69,7 +69,7 @@ def _query(adapter):
 @pytest.mark.parametrize("wrapper", [Path, TextPath])
 def test_local_path_artifact_and_reconstruction(encoder, tmp_path, monkeypatch, wrapper):
     monkeypatch.chdir(tmp_path)
-    path = Path("namespace/model")
+    path = Path("namespace/model.safetensors")
     path.parent.mkdir()
     encoder.save(path)
     adapter = ADAPTER(**{MODEL: wrapper(path)})

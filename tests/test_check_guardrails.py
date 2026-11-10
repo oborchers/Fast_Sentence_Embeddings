@@ -391,7 +391,10 @@ def test_adapter_private_imports_reach_full_import_guard(tool, tmp_path, source)
         "log-importers": [],
         "log-modules": [],
     }
-    assert any("private fse._validation" in error for error in tool["import_errors"](tmp_path, cfg))
+    assert any(
+        "private fse._validation" in error
+        for error in tool["IMPORTS"]["import_errors"](tmp_path, cfg)
+    )
 
 
 def test_adapter_public_imports_and_noncode_allowed(tool, tmp_path):
@@ -401,5 +404,19 @@ def test_adapter_public_imports_and_noncode_allowed(tool, tmp_path):
         'from fse.typing import ModelRef\n# import fse._validation\ns = "import fse._validation"\n'
     )
     assert (
-        tool["published_package_errors"](tmp_path, {"public-fse-importers": ["integrations"]}) == []
+        tool["IMPORTS"]["published_package_errors"](
+            tmp_path, {"public-fse-importers": ["integrations"]}
+        )
+        == []
     )
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_full_command_rejects_private_adapter_import(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    path = repo / "integrations/demo/src/demo/__init__.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("from fse import _validation\n")
+    assert tool["main"]([], root=repo) == 1
+    assert "imports private fse._validation" in capsys.readouterr().out
