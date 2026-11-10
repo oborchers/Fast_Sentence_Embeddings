@@ -43,10 +43,12 @@ def failures(needs, event, observed):
         if result != "success" and not (result == "skipped" and not selected[name]):
             problems.append(f"{name}: {result}")
     # A matrix aggregate must not hide a failed/cancelled/abandoned individual job.
-    # The summary itself is running; release has not yet been admitted by this check.
+    # Exclude the running summary and its downstream jobs in ci.yml: release
+    # needs check, and github-release needs release. Earlier attempts can retain
+    # their skipped records during failed-only reruns; they supply no CI evidence.
     for job in observed:
         name = job["name"]
-        if name in ("check", "release"):
+        if name in ("check", "release", "github-release"):
             continue
         group = name.split(" (", 1)[0]
         conclusion = job["conclusion"]
