@@ -167,10 +167,10 @@ def test_postprocess_pooled_names_the_row_that_cannot_be_normalized():
 def test_a_prefilter_variant_is_built_runnable_and_enabled_as_three_facts(monkeypatch):
     from fse._backends import _cpu
 
-    backend = CpuBackend()
-    assert backend.prefilter_variant() is None  # nothing is enabled yet
+    assert frozenset({"neon-sdot"}) == _cpu._PREFILTER_ENABLED  # avx2 stays off until DR-288
     for isa in _native.available_isas():
-        assert CpuBackend(isa=isa).prefilter_variant() is None
+        shipped = "neon-sdot" if isa == "neon" and _native.prefilter_can_run("neon-sdot") else None
+        assert CpuBackend(isa=isa).prefilter_variant() == shipped
     names = {"neon": "neon-sdot", "avx2": "avx2"}
     for isa, variant in names.items():
         if isa in _native.available_isas() and _native.prefilter_can_run(variant):
@@ -186,7 +186,6 @@ def test_the_prefilter_methods_work_whatever_is_enabled():
 
     b = block(9, 32, 2, seed=1)
     backend = CpuBackend()
-    assert backend.prefilter_variant() is None
     slack, ok = backend.int8_bounds(b.units, b.qcodes, b.qscales)
     assert ok.all()
     assert backend.int8_pass(*b.args(), 2).status == "ok"

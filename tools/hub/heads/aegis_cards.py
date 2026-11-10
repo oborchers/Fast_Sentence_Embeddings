@@ -9,7 +9,13 @@ def render(record, name):
     config, selection = record["config"], record["selection"]
     spec = next(s for s in config["encoders"] if s["name"] == selection["encoder"])
     suffix = "potion-8m" if selection["encoder"] == "potion" else "bekko"
-    model_id = f"fse/prompt-{name}-aegis2-{suffix}"
+    model_id = f"fse/{suffix}-aegis2-prompt-{name}-classifier"
+    compatibility_note = {
+        "safety": "This safety artifact loads with fse 2.0.0. Identical probability bits and "
+        "predictions were verified in a fresh fse 2.0.0 environment.",
+        "categories": "Requires an fse master build with multilabel support, or fse 2.1 when "
+        "released. fse 2.0.0 cannot load this artifact.",
+    }[name]
     lines = [
         "---",
         "license: mit",
@@ -23,16 +29,20 @@ def render(record, name):
         f"# {model_id}",
         "",
         "A linear prompt classifier trained outside fse using scikit-learn. "
-        "This is a complete head, retaining its encoder for use with fse.Heads. "
-        "The local artifact has not been uploaded.",
+        "This is a complete head, retaining its encoder for use with fse.Heads.",
         "",
         "## Use",
+        "",
+        compatibility_note,
+        "",
+        "The example groups both heads and requires an fse master build with multilabel "
+        "support, or fse 2.1 when released.",
         "",
         "```python",
         "import fse",
         "",
-        'safety = fse.Classifier.from_pretrained("/path/to/safety-complete")',
-        'categories = fse.Classifier.from_pretrained("/path/to/categories-complete")',
+        f'safety = fse.Classifier.from_pretrained("fse/{suffix}-aegis2-prompt-safety-classifier")',
+        f'categories = fse.Classifier.from_pretrained("fse/{suffix}-aegis2-prompt-categories-classifier")',
         "heads = fse.Heads(safety=safety, categories=categories)",
         'scores = heads.predict(["How do I bake sourdough bread?"], output="proba")',
         "```",
@@ -138,7 +148,6 @@ def render(record, name):
         "",
         "## Compatibility and limits",
         "",
-        "The category head needs a master build with multilabel support, or fse 2.1. "
         "A fresh fse 2.0.0 environment was checked: " + record["compatibility"]["summary"],
         "",
         "Only this predominantly English dataset has been evaluated. It also contains "
