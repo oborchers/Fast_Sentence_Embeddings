@@ -1,7 +1,6 @@
 """The domain of the int8 prefilter, the state of its main thread and the backends that
 enable it (docs/architecture/store.md, "Search")."""
 
-import contextlib
 from types import SimpleNamespace
 
 import numpy as np
@@ -136,13 +135,17 @@ def test_a_store_at_the_limit_of_rows_enters_the_prefilter_or_not(
 
 def test_modes_that_are_not_exact_and_stores_that_are_not_int8_never_enter(tmp_path, monkeypatch):
     ps.enable(monkeypatch)
-    _store(tmp_path)
+    docs = np.arange(N, dtype=np.int64) % 40
+    ps.write(tmp_path / "s", ps.codes_like(N, DIM, seed=3), docs=docs)
     qs = ps.queries(9, DIM)
     with fse.VectorStore.open(tmp_path / "s") as store:
         for arguments, q in (({"mode": "blas"}, 3), ({"mode": "auto"}, 9), ({"max_per_doc": 1}, 3)):
-            with ps.captured() as records, contextlib.suppress(ValueError):
-                store.search(qs[:q], 5, **arguments)  # max_per_doc needs document IDs
-            assert not ps.events(records, "store.prefilter")
+            with ps.captured() as records:
+                store.search(qs[:q], 5, **arguments)
+            assert not ps.events(records, "store.prefilter"), arguments
+        got, want, records = ps.both(monkeypatch, store, qs[:3], 5, max_per_doc=1)
+        assert not ps.events(records, "store.prefilter")  # the grouped search is its own path
+        assert ps.same(got, want)
         with ps.captured() as records:
             store.search(qs[:8], 5, mode="auto")  # up to 8 queries is the exact path
         assert ps.events(records, "store.prefilter")
