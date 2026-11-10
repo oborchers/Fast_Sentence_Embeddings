@@ -9,7 +9,7 @@ def render(record, name):
     config, selection = record["config"], record["selection"]
     spec = next(s for s in config["encoders"] if s["name"] == selection["encoder"])
     suffix = "potion-8m" if selection["encoder"] == "potion" else "bekko"
-    model_id = f"fse/prompt-{name}-aegis2-{suffix}"
+    model_id = f"fse/{suffix}-aegis2-prompt-{name}-classifier"
     lines = [
         "---",
         "license: mit",
