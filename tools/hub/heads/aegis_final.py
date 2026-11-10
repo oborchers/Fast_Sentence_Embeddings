@@ -110,6 +110,11 @@ def publish(work, record, budget, *, staging="pending"):
                 "original_pending_preserved": True,
             },
         )
+    finish_staging(work, pending, budget)
+
+
+def finish_staging(work, pending, budget):
+    """Scan the final presentation and seal its manifest before promotion."""
     for path in pending.rglob("*.json"):
         compact_json(path)
     documents = {
