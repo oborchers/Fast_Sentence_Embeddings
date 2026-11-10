@@ -208,6 +208,49 @@ The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/ma
 The queue recipe uses a fake queue and local Qdrant. The folder recipe polls for completed files.
 These are worked examples you can adapt, not hosted services.
 
+## Several machines, one network drive
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/shared-drive-dark.png">
+<img alt="Three machines each write their own store to a network drive. A fourth machine reads the three stores as one view and opens the view again to see new shards." src="docs/assets/readme/shared-drive-light.png">
+</picture>
+
+Give each writing machine its own store. Two writers in one store race for the name of the next shard.
+`encode(..., shard=(i, 3))` gives machine `i` its third of the rows.
+The reading machine opens one view over the stores. Nothing is copied or merged.
+
+```python
+import tempfile
+from pathlib import Path
+
+import numpy as np
+
+from fse import Encoder, ShardSink, VectorStore
+
+encoder = Encoder.from_pretrained("minishlab/potion-base-8M")
+texts = [f"sentence number {i} about cats and dogs" for i in range(50_000)]
+drive = Path(tempfile.mkdtemp())  # stands in for the network drive
+
+
+def write(machine, machines=3):  # runs on machine `machine`
+    with ShardSink(drive / f"store-{machine}", encoder, resume=True, doc_ids=True) as sink:
+        encoder.encode(texts, doc_ids=np.arange(len(texts)), sink=sink, shard=(machine, machines))
+
+
+for machine in range(3):
+    write(machine)
+
+view = VectorStore.open_view(sorted(drive.glob("store-*")), encoder=encoder)  # machine 4
+hits = view.search(encoder.encode(["a cat sleeps"]), k=3)
+view.close()
+```
+
+A view has no `refresh`. Open it again to see shards that were published later.
+Network drives lie outside the crash contract, which covers local APFS, ext4 and XFS.
+Clients can cache directory lists, so do not assume that a view is current.
+An exact search is fast on a network drive only with a warm page cache or a local copy. No speed figure is claimed.
+The [FastAPI search recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/12-fastapi-search.ipynb) runs this layout with a service that opens a new view at a fixed distance.
+
 ## Linear heads: classify text and save scores
 
 Route support requests, filter documents or classify a dataset.

@@ -29,3 +29,7 @@ Export the two library charts with the same `rsvg-convert` command, using their 
 `dtype-speed` shows the six longer-text rates on one shared linear scale.
 Its source is the `dtypes` section of the same compact summary.
 Export its light and dark SVGs to PNG with `rsvg-convert` too.
+
+`shared-drive` shows three machines that write one store each to a network drive and a fourth that reads a view.
+It contains no data. Export its light and dark SVGs to PNG with `rsvg-convert` too.
+README links `shared-drive-light.png` and `shared-drive-dark.png` by relative path.

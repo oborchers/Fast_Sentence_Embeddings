@@ -191,3 +191,58 @@ if speed_source.exists():
     for speed_theme in ("light", "dark"):
         speed_panel(speed_theme, speed_data)
         dtype_panel(speed_theme, speed_data)
+
+
+def shared_drive_panel(theme):
+    global colors
+    colors = {k: v["value"] for k, v in brand[theme].items()}
+    parts = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="440" '
+        'viewBox="0 0 1100 440" role="img" aria-labelledby="title desc">',
+        '<title id="title">Three machines write to a network drive and a fourth reads</title>',
+        '<desc id="desc">Three machines each write their own store to a network drive. '
+        "A fourth machine opens one view over the three stores. "
+        "It opens the view again to see new shards.</desc>",
+        f'<rect width="1100" height="440" rx="12" fill="{colors["bg"]}"/>',
+        '<g font-family="Geist, Arial, sans-serif">',
+        text(40, 53, "Three machines write. A fourth reads.", 30, weight=700),
+    ]
+    boxes = ((40, 100, 250, 80), (40, 200, 250, 80), (40, 300, 250, 80))
+    for x, y, w, h in boxes + ((420, 100, 260, 280), (810, 190, 250, 100)):
+        parts += [
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="12" '
+            f'fill="{colors["bg-secondary"]}" stroke="{colors["border"]}"/>'
+        ]
+    for index, (x, y, w, h) in enumerate(boxes):
+        parts += [
+            text(x + 125, y + 35, f"Machine {index + 1}", 23, weight=700, anchor="middle"),
+            text(x + 125, y + 62, f"writes store-{index}", 17, colors["text-secondary"], anchor="middle"),
+        ]
+        parts += [
+            f'<rect x="450" y="{y + 12}" width="200" height="56" rx="8" fill="{colors["bg"]}" stroke="{colors["border"]}"/>',
+            text(550, y + 47, f"store-{index}", 20, colors["accent"], 700, anchor="middle"),
+        ]
+        parts += [f'<path d="M290 {y + 40} H{434}" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>']
+        parts += [
+            f'<path d="M{425} {y + 34} L{434} {y + 40} L{425} {y + 46}" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>'
+        ]
+    parts += [
+        text(550, 85, "Network drive", 23, weight=700, anchor="middle"),
+        text(935, 232, "Machine 4", 23, weight=700, anchor="middle"),
+        text(935, 262, "reads one view", 17, colors["text-secondary"], anchor="middle"),
+        f'<path d="M680 240 H795" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>',
+        f'<path d="M786 234 L795 240 L786 246" fill="none" stroke="{colors["accent"]}" stroke-width="3"/>',
+        text(
+            40,
+            412,
+            "One store for each writing machine. The reader opens the view again to see new shards.",
+            18,
+            colors["text-secondary"],
+        ),
+        "</g></svg>",
+    ]
+    (out / f"shared-drive-{theme}.svg").write_text("\n".join(parts) + "\n")
+
+
+for shared_theme in ("light", "dark"):
+    shared_drive_panel(shared_theme)
