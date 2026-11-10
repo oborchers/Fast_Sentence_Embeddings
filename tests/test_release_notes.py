@@ -196,7 +196,7 @@ def test_prepare_allows_only_fragment_metadata(tmp_path):
     changelog.write_text(CHANGELOG)
     directory = tmp_path / "changelog.d"
     directory.mkdir()
-    for name in ("README.md", "template.md.jinja"):
+    for name in ("README.md", "template.md"):
         (directory / name).write_text("Metadata.\n")
     assert prepare("v2.0.0", changelog, tmp_path / "notes.md") == ("2.0.0", False)
 

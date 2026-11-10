@@ -105,6 +105,8 @@ lint = [
     "deptry>=0.23",
 ]
 test = [
+    # The gate and release-format tests execute the real towncrier CLI.
+    "towncrier==26.9.0",
     # The tests of fse.gensim; gensim does not build on Python 3.14 and newer yet (gensim#3640).
     "gensim>=4.3.3; python_version < '3.14'",
     # Checks that the reference implementation reads fse's safetensors files.
@@ -509,7 +511,7 @@ pytest-cov = "pytest_cov"
 package = ""
 directory = "changelog.d"
 filename = "CHANGELOG.md"
-template = "changelog.d/template.md.jinja"
+template = "changelog.d/template.md"
 start_string = "## [Unreleased]\n"
 title_format = "## [{version}] - {project_date}"
 issue_pattern = "DR-[0-9]+"

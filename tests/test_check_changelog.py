@@ -1,8 +1,10 @@
 """Exercise the committed-PR boundary and the real towncrier release format."""
 
 import runpy
+import shutil
 import subprocess
 import sys
+import textwrap
 import tomllib
 from pathlib import Path
 
@@ -22,7 +24,7 @@ dependencies = []
 package = ""
 directory = "changelog.d"
 filename = "CHANGELOG.md"
-template = "changelog.d/template.md.jinja"
+template = "changelog.d/template.md"
 start_string = "## [Unreleased]\\n"
 title_format = "## [{version}] - {project_date}"
 issue_pattern = "DR-[0-9]+"
@@ -67,7 +69,7 @@ def repository(tmp_path):
             "pyproject.toml": CONFIG,
             "src/example.py": "old = True\n",
             "changelog.d/DR-1.fixed.md": "Existing entry.\n",
-            "changelog.d/template.md.jinja": (ROOT / "changelog.d/template.md.jinja").read_text(),
+            "changelog.d/template.md": (ROOT / "changelog.d/template.md").read_text(),
             "CHANGELOG.md": "# Changelog\n\n## [Unreleased]\n\n- Legacy.\n\n## [1.0.0]\n\n- Old.\n",
         }
     )
@@ -175,7 +177,7 @@ def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
         {
             "pyproject.toml": actual,
             "changelog.d/DR-1.fixed.md": None,
-            "changelog.d/DR-2.added.md": "Add a harmless example.\n\nSecond paragraph.\n",
+            "changelog.d/DR-2.added.md": "Add a harmless example.\n\nSecond paragraph.\n\n```python\nprint(1)\n```\n",
             "changelog.d/DR-3.fixed.md": "Correct an example.\n",
         }
     )
@@ -190,15 +192,18 @@ def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
         "2026-11-10",
     ]
     draft = subprocess.check_output([*args, "--draft"], cwd=root, text=True)
-    assert "## [2.1.0] - 2026-11-10" in draft
+    assert draft.startswith("## [2.1.0] - 2026-11-10\n\n### Added\n")
     assert "### Added\n\n- Add a harmless example.\n\n  Second paragraph." in draft
+    assert "  ```python\n  print(1)\n  ```" in draft
     assert "### Fixed\n\n- Correct an example." in draft
     assert draft.count("## [2.1.0]") == 1
     assert changelog.read_bytes() == original
     assert (root / "changelog.d/DR-2.added.md").exists()
     subprocess.run([*args, "--yes"], cwd=root, check=True)
     result = changelog.read_bytes()
-    assert result.startswith(b"# Changelog\n\n## [Unreleased]\n\n## [2.1.0] - 2026-11-10\n")
+    assert result.startswith(
+        b"# Changelog\n\n## [Unreleased]\n\n## [2.1.0] - 2026-11-10\n\n### Added\n"
+    )
     assert result.split(b"## [1.0.0]", 1)[1] == published
     assert b"- Legacy." in result
     notes = root / "release-notes.md"
@@ -208,3 +213,44 @@ def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
     assert not list((root / config["directory"]).glob("DR-*.md"))
     # The production checkout and its real fragments are never changed by this probe.
     assert config["title_format"] == "## [{version}] - {project_date}"
+
+
+def test_towncrier_errors_are_not_hidden_by_valid_fragment(repository):
+    root, base, commit = repository
+    commit(
+        {
+            "src/example.py": "# Change\n",
+            "changelog.d/DR-2.fixed.md": "Valid new entry.\n",
+            "changelog.d/unknown.txt": "Invalid entry.\n",
+        }
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        check(root, base)
+
+
+def test_ci_selection_keeps_source_deletion_when_moved_to_docs(repository):
+    if not shutil.which("bash") or not shutil.which("jq"):
+        pytest.skip("the Linux CI selection requires bash and jq")
+    root, base, commit = repository
+    subprocess.run(
+        ["git", "-C", str(root), "update-ref", "refs/remotes/origin/master", base], check=True
+    )
+    commit({"src/example.py": None, "docs/example.md": "old = True\n"})
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    step = workflow.split("      - id: diff\n", 1)[1].split("\n  lint:", 1)[0]
+    script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+    output = root / "github-output"
+    import os
+
+    env = dict(
+        os.environ,
+        EVENT="pull_request",
+        BASE="master",
+        REF="refs/pull/1/merge",
+        BEFORE="",
+        TARGETED="false",
+        GITHUB_OUTPUT=str(output),
+        RUNNER_TEMP=str(root),
+    )
+    subprocess.run(["bash", "-e", "-c", script], cwd=root, env=env, check=True)
+    assert "code=true" in output.read_text().splitlines()

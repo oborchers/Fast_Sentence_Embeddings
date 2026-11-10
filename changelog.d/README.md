@@ -31,5 +31,5 @@ uv run --group lint towncrier build --draft --version 2.1.0
 
 Only release preparation builds the real changelog and consumes fragments.
 Follow [.agents/skills/release/SKILL.md](../.agents/skills/release/SKILL.md).
-README.md and template.md.jinja are metadata, not fragments. Leave no other files
+README.md and template.md are metadata, not fragments. Leave no other files
 or directories here after the release build. Publishing rejects them.

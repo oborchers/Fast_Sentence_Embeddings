@@ -899,6 +899,7 @@ test = [
     { name = "safetensors" },
     { name = "scikit-learn" },
     { name = "tokenizers" },
+    { name = "towncrier" },
 ]
 
 [package.metadata]
@@ -971,6 +972,7 @@ test = [
     { name = "safetensors", specifier = ">=0.4.0" },
     { name = "scikit-learn", specifier = ">=1.5.0" },
     { name = "tokenizers", specifier = "==0.23.3" },
+    { name = "towncrier", specifier = "==26.9.0" },
 ]
 
 [[package]]

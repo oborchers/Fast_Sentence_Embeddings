@@ -86,7 +86,7 @@ def check_fragments(changelog_path):
         return
     if not directory.is_dir():
         raise ValueError("changelog.d must be a directory")
-    metadata = {"README.md", "template.md.jinja"}
+    metadata = {"README.md", "template.md"}
     for path in sorted(directory.iterdir()):
         if path.is_symlink() or not path.is_file() or path.name not in metadata:
             raise ValueError(f"unbuilt changelog fragment or unexpected entry: {path.name}")
