@@ -43,6 +43,10 @@ def arguments():
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--profile", type=Path, help="profile an addressed child from profile@1")
     mode.add_argument("--profile-check", type=Path, help="check profiler access from profile@1")
+    mode.add_argument("--allocation-profile", choices=("py-spy", "memray"))
+    parser.add_argument("--allocation-root", type=Path)
+    parser.add_argument("--profile-cell", default="version-encode-float32-16")
+    parser.add_argument("--profile-seconds", type=int, default=240)
     mode.add_argument("--profile-probe", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--setup", type=Path)
     mode.add_argument("--run", action="store_true")
@@ -62,6 +66,10 @@ def arguments():
 
 
 def profile_utility(args):
+    if args.allocation_profile:
+        from _allocation_profile import run as allocation_profile
+
+        return allocation_profile(args)
     if args.profile_probe:
         from _development_profile_probe import child
 

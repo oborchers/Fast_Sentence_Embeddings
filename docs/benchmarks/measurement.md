@@ -1141,6 +1141,68 @@ Class optimization for the enabling decision of DR-278 (int8-Vorfilter in die ex
 - Budget and order: 8 h of wall time for all three cells together, set with `--wall-time-seconds 28800` (without it the tool takes 7200 s). The expected duration with groups of about 2.5 s (the first tier of the A/A search) is about 5.4 h (4.4 to 6.5 h, from the rehearsal of DR-278); a second tier (4 s) is planned at about 9.8 h, over the budget. The tool checks no total estimate: the first limit reached decides the status (`inconclusive_budget` by the wall budget, `inconclusive_noise` by the calibration cap), and stopping before the second tier is a manual rule. Never extend, never repeat. The timing controller takes its own lock role; the heavy lock is for builds and checks only.
 - Profiles outside the decision: samply on `o2-d1024-q8` (the threads `fse-search` run `fse_int8_pass`, `fse-rescore` the small rest) and memray on a fallback by budget (a store of identical rows), which must stay within the memory bounds of `store.md`, "Search".
 
+## Profiles as allocation steps
+
+Select `benchmarks/config/allocation-versions.json` with `MEASURE_ALLOCATION`,
+and set `MEASURE_STUDY=versions`. The bootstrap runs `speed`, `profile-cpu`, then
+`profile-memory`. Each step has its own results, PID, restart guard and terminal
+record. A failed measurement still admits the following profile step, which
+reports missing origin evidence rather than rerunning measurement. SIGTERM stops
+later steps. Restart never replaces sealed results.
+
+All phases use the shared resolver's `versions_billing`, counted from
+`MEASURE_ALLOCATED_AT`. The saved machine-check budget is compared before every
+step, and again before profile preparation and execution. Each profile step
+reserves an estimate of 240 seconds, including tool installation, environment
+copy, heavy-lock wait, input reconstruction and profiling. Its deadline is the
+smaller of 240 seconds and the allocation's remaining work budget. These are
+admission limits, not guaranteed cost ceilings. Active work and shutdown may
+finish past a limit. Collection keeps the shared 600-second reserve.
+
+The default configuration is `version-encode-float32-16`. If a valid encoding
+comparison has at least 10 percent more candidate runtime, the slowest such
+configuration supplies the candidate child instead. The deciding round has the
+paired base/candidate ratio nearest the median (earliest round breaks ties).
+Both CPU and memory steps apply the same deterministic selection. Boundary
+crossings and invalid comparisons remain open evidence. Write regressions need
+a separate local development profile because the speed profiler refuses write
+children. They remain open evidence even when the representative encoding
+profile succeeds. Open evidence makes a profile step incomplete, with exit 1.
+
+`speed.py --allocation-profile py-spy` (or `memray`) is the internal step mode.
+It requires `--allocation-root`, `--allocation`, `--study versions`, `--input`,
+`--allocated-at`, fresh external `--results` and `--work`. `--profile-cell`
+selects the representative cell and `--profile-seconds` sets the profile budget
+(more than 90 seconds). The allocation file can reuse these commands for another
+versions allocation without changing the origin environment.
+
+The CPU step installs the hashed `benchmarks/config/profile-cpu.lock.txt` in a
+separate tool environment after measurement. It runs py-spy with native frames
+on the original candidate interpreter. The memory step creates a fresh virtual
+environment with that interpreter and copies its installed packages after
+measurement. It invokes Python directly, without relying on copied console
+script shebangs. It installs `benchmarks/config/profile.lock.txt` with
+`--no-deps --require-hashes`, runs `uv pip check`, and checks package content,
+Python and dependencies before copying, after copying, and before and after the
+profile. Conflicting locked packages are refused. The origin is checked again
+after installation and remains unchanged. All preparation subprocesses share
+the profile's heavy lock, signals and deadline.
+
+Generated requests such as `<allocation>/profile-cpu-results.profile.json`
+use `profile@1`. Each sealed profile result includes the effective
+`<results>/profile.json`, `<results>/selection.json`,
+`<results>/preparation.json`, provenance and coverage. Failure to select an
+origin writes `<results>/profile-evidence.json` and seals that step as failed.
+The profile source, datasets, artifacts and speed results remain read-only.
+`speed.py --collect <allocation> --archive <archives>` verifies and collects
+all four result folders. Diagnostic seconds never enter speed summaries.
+
+The local lifecycle probes cover normal completion, SIGTERM, exhausted budget,
+rejected machine, a second step after failure and restart refusal. The full
+pinned-Linux rehearsal, including actual CPU and memory profiles and verified
+collection, follows the candidate pin update before any paid run. Local probes
+prove function only. No Linux comparison or speed claim follows from them.
+
 ## Profile jobs (`profile@1`)
 
 `speed.py --profile FILE` profiles one addressed, completed child from a sealed

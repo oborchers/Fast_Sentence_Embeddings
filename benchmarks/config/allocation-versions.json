@@ -1,0 +1,147 @@
+{
+  "speed": {
+    "format": "allocation@1",
+    "machine_check": {
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
+      "required_flags": [
+        "avx2",
+        "fma",
+        "f16c"
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 6442450944
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "environments": [
+      {
+        "name": "main",
+        "role": "candidate",
+        "lock": "speed-main.lock.txt",
+        "revision": "pins"
+      },
+      {
+        "name": "base",
+        "role": "base",
+        "lock": "speed-base.lock.txt",
+        "revision": "3b4061441d834eb06f605e1b6cd60dd0d118ceba"
+      },
+      {
+        "name": "reference",
+        "role": "reference",
+        "lock": "speed-reference.lock.txt",
+        "revision": null
+      }
+    ],
+    "steps": [
+      {
+        "name": "speed",
+        "environment": "main",
+        "estimate_seconds": 60,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "{mode}",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--reference-python",
+          "{python_reference}",
+          "--base-python",
+          "{python_base}",
+          "--study",
+          "versions"
+        ]
+      },
+      {
+        "name": "profile-cpu",
+        "environment": "main",
+        "estimate_seconds": 240,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--allocation-profile",
+          "py-spy",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-versions.json",
+          "--study",
+          "versions",
+          "--input",
+          "{input}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--profile-seconds",
+          "240"
+        ]
+      },
+      {
+        "name": "profile-memory",
+        "environment": "main",
+        "estimate_seconds": 240,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--allocation-profile",
+          "memray",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-versions.json",
+          "--study",
+          "versions",
+          "--input",
+          "{input}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--profile-seconds",
+          "240"
+        ]
+      }
+    ],
+    "toolchains": []
+  }
+}
