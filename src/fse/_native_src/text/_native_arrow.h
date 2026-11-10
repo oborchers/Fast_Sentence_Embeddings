@@ -139,13 +139,6 @@ static inline int fse_arrow_row(const fse_arrow_chunk* c, int64_t i, const unsig
   return 0;
 }
 
-/* The bytes of row i of a valid utf8_view chunk, without reading its data. */
-static inline int64_t fse_arrow_view_length(const fse_arrow_chunk* c, int64_t i) {
-  int32_t length;
-  memcpy(&length, (const unsigned char*)c->index + 16 * (c->first + i), 4);
-  return length;
-}
-
 /* The first null among the bits [offset, offset + length) of a validity bitmap (LSB
    order, 1 = valid), as a row from 0, or -1 if there is none. */
 static inline int64_t fse_arrow_first_null(const uint8_t* bits, int64_t offset, int64_t length) {
