@@ -1,8 +1,9 @@
 """Stores and helpers for the tests of the int8 prefilter in the search (``_store/_prefilter``).
 
-The variant is not enabled in the library (``_PREFILTER_ENABLED`` is empty), so the tests
-enable the portable kernel on the cpu backend and lower the size limits of the domain where
-a test needs small stores; the tests of the real limits patch nothing but the variant.
+The library enables neon-sdot (DR-340), which runs only on ARM with the dot product; the tests
+that must run everywhere enable the portable kernel on the cpu backend and lower the size limits
+of the domain where a test needs small stores; the tests of the real limits patch nothing but
+the variant.
 """
 
 from __future__ import annotations

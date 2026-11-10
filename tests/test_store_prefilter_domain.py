@@ -8,6 +8,9 @@ import numpy as np
 import pytest
 
 import fse
+from fse import _native
+from fse._backends import _cpu
+from fse._backends._cpu import CpuBackend
 from fse._store import _prefilter
 from support import prefilter_search as ps
 
@@ -77,7 +80,7 @@ def _shards(rows, dim, dtype=np.int8):
 
 def _applies(*, q=1, k=10, dim=256, rows=65_536, dtype=np.int8, **changes):
     backend = SimpleNamespace(prefilter_variant=lambda: "portable")
-    arguments = {"exact": True, "grouped": False, "kind": "rows", "filtered": False} | changes
+    arguments = {"exact": True, "grouped": False, "filtered": False} | changes
     queries = np.zeros((q, dim), np.float32)
     return _prefilter.applies(backend, _shards(rows, dim, dtype), queries, k, rows, **arguments)
 
@@ -100,8 +103,7 @@ def _applies(*, q=1, k=10, dim=256, rows=65_536, dtype=np.int8, **changes):
         ({"dtype": np.float16}, False),
         ({"exact": False}, False),
         ({"grouped": True}, False),
-        ({"filtered": True}, True),
-        ({"filtered": True, "kind": "doc_ids"}, False),
+        ({"filtered": True}, False),
     ],
 )
 def test_the_domain_has_these_limits(change, expected):
@@ -110,7 +112,7 @@ def test_the_domain_has_these_limits(change, expected):
 
 def test_no_shards_and_no_variant_are_outside_the_domain():
     queries = np.zeros((1, 256), np.float32)
-    plain = {"exact": True, "grouped": False, "kind": "rows", "filtered": False}
+    plain = {"exact": True, "grouped": False, "filtered": False}
     none = SimpleNamespace(prefilter_variant=lambda: None)
     some = SimpleNamespace(prefilter_variant=lambda: "portable")
     assert not _prefilter.applies(none, _shards(70_000, 256), queries, 10, 70_000, **plain)
@@ -155,15 +157,47 @@ def test_modes_that_are_not_exact_and_stores_that_are_not_int8_never_enter(tmp_p
     assert not ps.events(records, "store.prefilter")
 
 
-def test_a_backend_without_a_variant_and_the_default_list_never_enter(tmp_path, monkeypatch):
-    _store(tmp_path)
+def _shipped() -> bool:
+    """Whether this machine runs the variant the library ships: NEON with the dot product."""
+    return CpuBackend().isa == "neon" and _native.prefilter_can_run("neon-sdot")
+
+
+def test_the_library_ships_neon_sdot_only_and_the_numpy_backend_never_enters(tmp_path, monkeypatch):
+    assert frozenset({"neon-sdot"}) == _cpu._PREFILTER_ENABLED  # avx2 stays off until DR-288
     monkeypatch.setattr(_prefilter, "MIN_ROWS", 1)
     monkeypatch.setattr(_prefilter, "MIN_DIM", 1)
-    qs = ps.queries(2, DIM)
-    for backend in ("cpu", "numpy"):  # nothing is enabled: _PREFILTER_ENABLED is empty
-        with fse.VectorStore.open(tmp_path / "s", backend=backend) as store:
-            _, records = ps.run(store, qs, 5)
-            assert not ps.events(records, "store.prefilter")
+    _store(tmp_path)
+    with fse.VectorStore.open(tmp_path / "s", backend="numpy") as store:
+        _, records = ps.run(store, ps.queries(2, DIM), 5)
+    assert not ps.events(records, "store.prefilter")
+
+
+def test_the_shipped_variant_is_chosen_without_rows_and_never_with_rows(tmp_path, monkeypatch):
+    """DR-340: on ARM with the dot product a search without ``rows=`` enters the prefilter
+    (also over a view of several stores and shards); with ``rows=`` or ``doc_ids=`` it never
+    does; where the variant cannot run (x86) nothing enters. The bits are the previous ones."""
+    monkeypatch.setattr(_prefilter, "MIN_ROWS", 1)
+    monkeypatch.setattr(_prefilter, "MIN_DIM", 1)
+    docs = np.arange(N, dtype=np.int64) % 40
+    ps.write(tmp_path / "a", ps.codes_like(N, DIM, seed=3), shard_rows=700, docs=docs)
+    ps.write(tmp_path / "b", ps.codes_like(N, DIM, seed=4), shard_rows=900, docs=docs)
+    qs = ps.queries(3, DIM)
+    selections = (
+        ({}, _shipped()),
+        ({"workers": 3}, _shipped()),
+        ({"rows": list(range(100, 2500))}, False),
+        ({"doc_ids": [1, 2, 3]}, False),
+    )
+    for path in (tmp_path / "a", [tmp_path / "a", tmp_path / "b"]):
+        opener = (
+            fse.VectorStore.open if isinstance(path, type(tmp_path)) else fse.VectorStore.open_view
+        )
+        with opener(path) as store:
+            assert (store._backend.prefilter_variant() == "neon-sdot") is _shipped()
+            for arguments, entered in selections:
+                got, want, records = ps.both(monkeypatch, store, qs, 6, **arguments)
+                assert bool(ps.events(records, "store.prefilter")) is entered, arguments
+                assert ps.same(got, want)
 
 
 def test_the_numpy_backend_with_a_variant_matches_the_cpu_backend(tmp_path, monkeypatch):
