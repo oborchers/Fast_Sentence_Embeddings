@@ -6,7 +6,7 @@
 
 """What an encoder hands to the runtime: its table, weights, steps and tokenizer.
 
-PR 5's Encoder builds one; the runtime prepares a backend from it once. EncodeSpec owns
+The Encoder builds one; the runtime prepares a backend from it once. EncodeSpec owns
 a frozen copy of the weights, so changing the caller's array afterwards changes nothing.
 """
 

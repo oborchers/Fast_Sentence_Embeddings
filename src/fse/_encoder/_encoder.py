@@ -243,7 +243,7 @@ class Encoder(_Encoding):
         source: Source | None = None,
         license: str | tuple[str, ...] | None = None,
     ) -> Self:
-        """The encoder of a model converted from another library (the readers of PR 12a2):
+        """The encoder of a model converted from another library (the readers of the converted formats):
         its table, its tokenizer with parameters, whether it normalizes, its provenance."""
         content = _persist.converted(word_vectors, tokenizer, normalize, source, license)
         return cls._new(content, word_vectors)

@@ -124,7 +124,7 @@ class Tokenizer(_Versioned):
 
 
 class Head(_Versioned):
-    """How a linear head turns a pooled row into logits and labels (stage 4b, PR 13):
+    """How a linear head turns a pooled row into logits and labels (stage 4b):
     where the bias is added, the folded and unfolded paths and the decision rules."""
 
     LINEAR = ("linear", 1)
