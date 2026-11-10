@@ -1,0 +1,64 @@
+{
+  "potion": {
+    "equality": {
+      "binary_zero_is_safe": true,
+      "multilabel_equality_is_false": true
+    },
+    "safety": {
+      "rows": 32,
+      "reference_bits": true,
+      "mask_bound": true,
+      "max_logit_error": 4.0279775159746123e-07,
+      "max_logit_bound": 9.065105716729242e-05,
+      "max_probability_error": 6.34844751212782e-08,
+      "max_probability_bound": 2.313960145002623e-05,
+      "unfolded_bound": true
+    },
+    "categories": {
+      "rows": 32,
+      "reference_bits": true,
+      "mask_bound": true,
+      "max_logit_error": 4.0279775159746123e-07,
+      "max_logit_bound": 9.065105716729241e-05,
+      "max_probability_error": 6.856709189317911e-08,
+      "max_probability_bound": 2.3139601450026227e-05,
+      "unfolded_bound": true
+    },
+    "group": {
+      "group_single_bits": true,
+      "store_rows": 32,
+      "store_ids_scores_verified": true
+    }
+  },
+  "bekko": {
+    "equality": {
+      "binary_zero_is_safe": true,
+      "multilabel_equality_is_false": true
+    },
+    "safety": {
+      "rows": 32,
+      "reference_bits": true,
+      "mask_bound": true,
+      "max_logit_error": 6.610331260148428e-07,
+      "max_logit_bound": 0.0002963513776301013,
+      "max_probability_error": 8.415202745748473e-08,
+      "max_probability_bound": 7.456468156572846e-05,
+      "unfolded_bound": true
+    },
+    "categories": {
+      "rows": 32,
+      "reference_bits": true,
+      "mask_bound": true,
+      "max_logit_error": 6.610331331202701e-07,
+      "max_logit_bound": 0.00029635137763010127,
+      "max_probability_error": 8.415202745748473e-08,
+      "max_probability_bound": 7.456468156572844e-05,
+      "unfolded_bound": true
+    },
+    "group": {
+      "group_single_bits": true,
+      "store_rows": 32,
+      "store_ids_scores_verified": true
+    }
+  }
+}
