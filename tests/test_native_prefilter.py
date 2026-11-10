@@ -75,6 +75,16 @@ def test_the_kernel_checks_its_arrays_itself():
             _native.int8_pass(*b.args(), 2, bad)
 
 
+@pytest.mark.parametrize("make", [int, np.int64, np.int32, np.uint16])
+def test_k_and_capacity_accept_python_and_numpy_integers(make):
+    # Cython 3.1.0 and 3.1.1 compile `isinstance(x, int | np.integer)` to a check that is always false
+    # (Cython issue 6420, fixed in 3.1.2); the kernel then refused a plain `k=10`.
+    b = block(40, 16, 2, seed=2)
+    status, row, heap, *_ = _native.int8_pass(*b.args(), make(10), make(64))
+    assert (status, row) == ("ok", None)
+    assert heap.shape == (2, 10)
+
+
 def test_what_the_pass_returns_does_not_keep_the_big_buffers_alive():
     b = block(40, 16, 2, seed=2)
     status, row, heap, rows, upper = _native.int8_pass(*b.args(), 2)
