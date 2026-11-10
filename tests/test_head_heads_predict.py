@@ -9,6 +9,7 @@ from pydantic import ValidationError
 import fse
 from fse._head._model import LinearModel
 from support.encoder import finished
+from support.validation import validation_title
 
 
 def test_moved_methods_preserve_validation_titles_and_slots():
@@ -30,7 +31,7 @@ def test_moved_methods_preserve_validation_titles_and_slots():
         assert method.__qualname__ == title
         with pytest.raises(ValidationError) as caught:
             method([], workers="1")
-        assert caught.value.title == title
+        assert caught.value.title == validation_title(title)
     for model in (classifier, regressor):
         assert type(model).__dictoffset__ == LinearModel.__dictoffset__
         assert type(model).__weakrefoffset__ == LinearModel.__weakrefoffset__

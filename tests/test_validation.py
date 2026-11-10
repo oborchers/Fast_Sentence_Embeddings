@@ -12,6 +12,7 @@ from fse._validation import (
     Similarity,
     validate_arguments,
 )
+from support.validation import validation_title
 
 
 @validate_arguments
@@ -130,7 +131,7 @@ def test_self_return_annotations_keep_strict_validation_and_the_subclass():
     for method in (_SelfChild.make, _SelfChild().copied):
         with pytest.raises(pydantic.ValidationError) as caught:
             method("4")
-        assert caught.value.title == method.__qualname__
+        assert caught.value.title == validation_title(method.__qualname__)
 
 
 @pytest.mark.parametrize(
