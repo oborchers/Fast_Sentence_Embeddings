@@ -513,7 +513,8 @@
       "dtype": "float32",
       "rounds": 5,
       "estimated_seconds": 300,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 340829768
     },
     {
       "id": "version-encode-float32-16",
@@ -526,7 +527,8 @@
       "dtype": "float32",
       "rounds": 5,
       "estimated_seconds": 300,
-      "dimensions": 256
+      "dimensions": 256,
+      "planned_input_bytes": 2728056171
     },
     {
       "id": "version-st-float32-1",
@@ -540,7 +542,8 @@
       "dtype": "float32",
       "rounds": 5,
       "estimated_seconds": 480,
-      "dimensions": 1024
+      "dimensions": 1024,
+      "planned_input_bytes": 272595911
     },
     {
       "id": "version-st-float32-16",
@@ -554,7 +557,8 @@
       "dtype": "float32",
       "rounds": 5,
       "estimated_seconds": 480,
-      "dimensions": 1024
+      "dimensions": 1024,
+      "planned_input_bytes": 954623393
     },
     {
       "id": "version-paragraph-float32-1",
