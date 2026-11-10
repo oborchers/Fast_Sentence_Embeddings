@@ -57,7 +57,7 @@ These modes inspect study data without installing optional measurement packages.
 Use `--setup`, `--rehearse`, `--run`, `--bootstrap` and `--collect` as documented in the guide.
 Quality also provides `--summarize`. Add study data, not another executable entry.
 A new Python library adds a native factory and registry entry in `_speed_pipeline.py`.
-Do not add repository tests for measurement tools or this skill.
+Do not add repository tests for measurement tools or this skill, except for the cross-process coordination of the shared locks (`bench.lock`, `heavy.lock`).
 
 Read `benchmarks/config/pins.json` and the relevant locks before changing a configuration.
 Record the runner revision separately from each executing package's version, path and content hash.
@@ -206,7 +206,7 @@ only for new risk or a failed gate. Profile representative changed paths and
 resource risks rather than every parameter combination.
 
 For hot-path changes, profile representative changed paths and state the claim classes used, as AGENTS.md requires. A paired Linux float32 comparison is required only for class publication or when the maintainer has explicitly approved a Linux machine for the ticket. Report the actual Linux comparison status and say explicitly when none was run.
-Use the profiling targets in AGENTS.md, but verify which processes each profiler captures.
+Use the profiling targets of the Makefile (`make profile-cpu`, `make profile-mem`, `make profile-rss`; see CONTRIBUTING.md), but verify which processes each profiler captures.
 Linux CPU and RSS targets can follow the controller tree. Memray cannot follow an `exec` into a new interpreter.
 For memory attribution, instrument the executing Python child directly, using its recorded `--child-job` with fresh diagnostic output paths.
 Instrument spawned pool workers separately when needed. Use an appropriate native profiler for Rust.

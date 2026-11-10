@@ -393,6 +393,7 @@ class LinearModel(HubModel):
 
     @property
     def standalone(self) -> bool:
+        """True for a standalone head: its table is folded, so it has no separate weights."""
         return self._content.standalone
 
     @validate_arguments

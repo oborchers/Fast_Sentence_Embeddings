@@ -23,7 +23,7 @@ Archive SHA256: `443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c
 
 The dtype table comes from a separate AMD EPYC 9965 run described below.
 These are different machines and workloads. Their rates are not combined or used to derive a speedup.
-Library comparisons remain open, and missing cells are not filled from an older run.
+The library comparisons come from a third allocation, described in the section on library comparisons below. Missing cells are not filled from an older run.
 
 ## Dtype table: AMD EPYC 9965
 
@@ -91,7 +91,7 @@ Those model versions have separate results on their cards. File size is not proc
 
 ## Example verification
 
-Run the five displayed Python examples unchanged in separate working directories with the documented dependencies and real models.
+Run the displayed Python examples unchanged with the documented dependencies and real models. Each README section is one run in its own working directory; the examples of "Linear heads" build on each other and share one directory and one interpreter. Examples that need fse 2.1 run against the checked-out master until 2.1 is released.
 Check output shape and dtype, the saved int8 table, classifier labels and save/reload behavior.
 For folding, check `classifier.normalized is False`; a saved classifier must also load without scikit-learn.
 These are documentation checks, not additional library unit tests or speed benchmarks.

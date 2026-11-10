@@ -391,6 +391,7 @@ class Encoder(_Encoding):
 
     @property
     def word_vectors(self) -> WordVectors:
+        """The table of the encoder (``fse.WordVectors``): its vectors, words and metadata."""
         return self._word_vectors
 
     @property
