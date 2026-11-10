@@ -89,6 +89,7 @@ including canonical float representations. URLs keep ordinary slashes. The
 30-character source scan has one explicit exception: a window wholly contained
 in one of the five dataset/license URL literals from the pinned recipe config.
 The list freezes before any prompt is read. `text-scan-diagnosis.json` records
-every ignored window, source split/index and deliverable occurrence. Other source
+every ignored window, source split/index and deliverable occurrence. Both serialized text and decoded JSON keys/values are scanned, so escaping
+Unicode, quotes, backslashes or newlines cannot hide a copied prompt. Other source
 text, including material adjacent to those URLs, remains a rejection. This is an
 explicitly approved deviation from the original unconditional substring rule.

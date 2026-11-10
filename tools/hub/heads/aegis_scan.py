@@ -23,9 +23,32 @@ def compact_json(path):
     path.write_text(encoded)
 
 
+def json_strings(value):
+    """Include keys and values, so JSON escaping cannot conceal copied text."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, member in value.items():
+            yield key
+            yield from json_strings(member)
+    elif isinstance(value, list):
+        for member in value:
+            yield from json_strings(member)
+
+
+def document_texts(documents):
+    for name, text in documents.items():
+        yield name, text
+        if Path(name).suffix == ".json":
+            for index, value in enumerate(json_strings(json.loads(text))):
+                # Numeric positions identify our decoded strings without copying
+                # potentially rejected prompt text into diagnostic filenames.
+                yield f"{name}#decoded-string-{index}", value
+
+
 def document_windows(documents):
     windows = {}
-    for name, text in documents.items():
+    for name, text in document_texts(documents):
         for offset in range(max(0, len(text) - 29)):
             window = text[offset : offset + 30]
             windows.setdefault(window, []).append({"file": name, "offset": offset})

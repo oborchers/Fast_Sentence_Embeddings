@@ -49,6 +49,17 @@ class AegisScanTests(unittest.TestCase):
         with pytest.raises(ValueError, match="source prompt substring"):
             text_scan(self.work, {"card.md": adjacent})
 
+    def test_escaped_json_prompt_values_and_keys_are_rejected(self):
+        path = self.work / "evidence.json"
+        for marker in ("Ä", "\n", '"', "\\"):
+            prompt = marker + "q" * 29
+            self.train(prompt)
+            for value in ({"nested": [{"example": prompt}]}, {prompt: "value"}):
+                path.write_text(json.dumps(value, ensure_ascii=False))
+                compact_json(path)
+                with pytest.raises(ValueError, match="source prompt substring"):
+                    text_scan(self.work, {"evidence.json": path.read_text()})
+
     def test_compaction_preserves_values_and_negative_zero(self):
         path = self.work / "metrics.json"
         value = {"nested": [{"float": -0.0, "number": 1.2345678901234567}], "url": "https://x/y"}
