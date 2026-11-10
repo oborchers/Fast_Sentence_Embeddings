@@ -27,6 +27,7 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _log
 from fse._ids import checked_ids, id_block
@@ -270,13 +271,13 @@ class ScoreSink(ShardSinkBase):
 
     # --- the sink protocol --------------------------------------------------------------
 
-    def target(self, first_row: int, n_rows: int) -> Any:  # the (n_rows, dim) matrix
+    def target(self, first_row: int, n_rows: int) -> NDArray[np.float32]:
         if not self._attached:
             raise RuntimeError(
                 "a ScoreSink takes rows only from predict_batches(score_sink=...) of a "
                 "Classifier, a Regressor or fse.Heads"
             )
-        return super().target(first_row, n_rows)[0]
+        return self._target(first_row, n_rows)[0]
 
     def commit(self, first_row: int, rows: Any, *, doc_ids: Any = None) -> None:
         parts, own, ids = self._commit_target(first_row, rows, doc_ids)

@@ -127,7 +127,7 @@ class ShardSinkBase(ResumableSinkMarker):
         self._check_ready()
         self._check_next(0)
 
-    def target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
+    def _target(self, first_row: int, n_rows: int) -> tuple[ndarray, ...]:
         self._check_open()
         self._check_ready()
         self._check_threads()  # a failed write first: no row after it is taken

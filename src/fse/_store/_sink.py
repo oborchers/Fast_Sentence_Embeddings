@@ -26,6 +26,7 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _codes, _log
 from fse._encoder import Encoder
@@ -158,6 +159,10 @@ class ShardSink(ShardSinkBase):
             self._ready = False
             return
         self._opened_event(new, durability)
+
+    def target(self, first_row: int, n_rows: int) -> tuple[NDArray[Any], ...]:
+        """Reserve the stored vector arrays for one task."""
+        return self._target(first_row, n_rows)
 
     def _opened_event(self, new: bool, durability: str, **resumed: Any) -> None:
         info = self._info

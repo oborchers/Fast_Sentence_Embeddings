@@ -37,7 +37,7 @@ from types import MappingProxyType
 from typing import Any
 
 import numpy as np
-from numpy import ndarray
+from numpy.typing import NDArray
 
 from fse import _log
 from fse._validation import is_file_path
@@ -158,7 +158,7 @@ class MemberReaders:
         rows = sum(shard.rows for shard, _ in shards)
         return None if anchor is None else skip_of(anchor, rows)
 
-    def locate(self, ids: Any, /) -> tuple[ndarray, ndarray]:
+    def locate(self, ids: Any, /) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
         """For store positions ``ids`` (a list or an int64 array of one or two dimensions, as
         ``take_vectors`` takes them), the index into ``paths`` of the store that holds each
         position and the row in that store: two int64 arrays of the shape of ``ids``. A
