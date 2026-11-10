@@ -651,6 +651,22 @@
       "corpus": "paragraphs"
     },
     {
+      "id": "version-headline-100m",
+      "stage": "versions",
+      "kind": "write",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "texts": 100000000,
+      "workers": 16,
+      "dtype": "int8",
+      "table_dtype": "float32",
+      "rounds": 3,
+      "dimensions": 256,
+      "durability": "none",
+      "estimated_seconds": 840,
+      "planned_input_bytes": 13639687281
+    },
+    {
       "id": "search-exact-float32",
       "stage": "search",
       "kind": "search",

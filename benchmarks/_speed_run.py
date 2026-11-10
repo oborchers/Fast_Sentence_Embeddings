@@ -254,10 +254,15 @@ def memory_preflight(context, contract):
             workers=cell.get("production_workers", cell["workers"]),
             functional_only=False,
         )
-        if protocols.protocol(cell)["own_memory_plan"]:
+        if protocols.protocol(cell)["own_memory_plan"] and cell["kind"] != "write":
             continue
         model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
-        plan = preflight_plan(cell, production, model_bytes, limit)
+        if cell["kind"] == "write":
+            from _speed_write_pair import memory_plan
+
+            plan = memory_plan(production, model_bytes, limit, context["retained_source_bytes"])
+        else:
+            plan = preflight_plan(cell, production, model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
     durable.atomic(
         context["ledger"].root / "preflight-memory.json",
@@ -407,6 +412,11 @@ def run_headline(context, contract):
     sample = path.with_suffix(".sample.json")
     durable.atomic(sample, identity["sample_rows"])
     rows, error = inputs.headline_rounds(context, cell, path, sample, identity, launch, cleanup)
+    if cell["reference"] == "fse-base":
+        from _speed_write_pair import result
+
+        ledger.result(cell, started, **result(cell, rows, error, identity, summarize_pair))
+        return
     complete = len(rows) == cell["rounds"] and error is None
     ledger.result(
         cell,

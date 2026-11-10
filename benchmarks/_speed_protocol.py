@@ -22,6 +22,7 @@ VARIANTS = {
     ("heads", "model2vec"): ("heads-compare@1", "tolerance", False, True, False, True),
     ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False, True, False, True),
     ("heads", "fse-separate"): ("heads-compare@1", "bits", False, True, False, True),
+    ("write", "fse-base"): ("version-write@1", "bits", False, True, True, False),
     ("write", None): ("write@1", "bits", False, False, True, False),
     ("search", "fse-exact"): ("search-time@1", "bits", False, False, True, True),
     ("predict", None): ("predict@1", "bits", False, False, True, False),

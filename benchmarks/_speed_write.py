@@ -9,7 +9,7 @@ from pathlib import Path
 
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
-from _speed_cells import configure
+from _speed_cells import configure, remove_headline
 
 
 def headline_tokens(snapshot, source):
@@ -46,6 +46,9 @@ def headline_child(job):
     if sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("headline input changed")
     identity = package_identity("fse")
+    warmup = None
+    if job["reference"] == "fse-base":
+        warmup = warm_headline(job, model, path.with_name("warmup"))
     before = telemetry()
     disk_before = __import__("shutil").disk_usage(path.parent)._asdict()
     started = time.perf_counter()
@@ -76,6 +79,11 @@ def headline_child(job):
         raise ValueError("headline int8 sample codes differ")
     if not np.array_equal(reference.scales.view(np.uint8), scales.view(np.uint8)):
         raise ValueError("headline int8 sample scales differ")
+    code_sample = path.with_suffix(".npz")
+    with code_sample.open("xb") as stream:
+        np.savez(stream, indices=np.asarray(indices, dtype=np.int64), codes=codes, scales=scales)
+        stream.flush()
+        os.fsync(stream.fileno())
     if package_identity("fse") != identity:
         raise ValueError("executing headline backend changed")
     atomic(
@@ -83,7 +91,10 @@ def headline_child(job):
         dict(
             **child_record(job),
             seconds=seconds,
-            affinity=sorted(os.sched_getaffinity(0)),
+            affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
+            warmup=warmup,
+            code_sample_file=str(code_sample),
+            code_sample_sha256=sha256(code_sample),
             requested_worker_limit=job["workers"],
             including_sink_open_seconds=including_open,
             time_until_durable_seconds=durable_seconds,
@@ -142,3 +153,18 @@ def stored_codes(store, indices):
         codes[mask] = tensors["vectors"][rows]
         scales[mask] = tensors["scales"][rows]
     return codes, scales
+
+
+def warm_headline(job, model, path):
+    """One full write through sink close, synchronized and removed before timing."""
+    from fse import ShardSink
+
+    if path.exists() or path.is_symlink():
+        raise ValueError("headline warmup output must be fresh")
+    with ShardSink(path, model, dtype="int8", durability="none") as sink:
+        model.encode(Path(job["input_file"]), workers=job["workers"], sink=sink)
+    if sink.published_rows != job["texts"]:
+        raise ValueError("headline warmup row count differs")
+    files, _, _ = sync_headline(path)
+    remove_headline(path.parent, path, files)
+    return dict(texts=sink.published_rows, full_input=True, synchronized_and_removed=True)
