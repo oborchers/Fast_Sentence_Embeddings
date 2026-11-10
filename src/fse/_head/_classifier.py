@@ -113,7 +113,8 @@ class Classifier(_Predicting, _Scoring, LinearModel):
         of ``encoder``, d its ``output_dim``: ``labels`` are k labels for multilabel;
         other heads need two for k = 1 and k otherwise
         (negative first, as ``classes_``), all int or all str. ``link``: ``"sigmoid"`` (k =
-        1), ``"softmax"`` or ``"ovr"`` (k >= 2), ``"none"`` (no probabilities); ``"auto"``
+        1), ``"ovr"`` (k >= 2), ``"softmax"`` (any k; one logit is a binary model, see
+        below), ``"none"`` (no probabilities); ``"auto"``
         is sigmoid for one output and softmax else. ``normalized``: whether the head was
         trained on normalized rows, by default the encoder's setting.
 
@@ -190,7 +191,11 @@ class Classifier(_Predicting, _Scoring, LinearModel):
     @classmethod
     @validate_arguments
     def load(cls, path: PathLike, mmap: bool = False) -> Self:
-        """Open a classifier saved with ``save``, complete or standalone."""
+        """Open a classifier saved with ``save``, complete or standalone.
+
+        Without ``mmap`` the arrays are read into memory and every checksum is checked.
+        With ``mmap=True`` they are mapped read-only and only the structure is checked, so
+        the file must stay unchanged while the classifier is in use (as for ``WordVectors.load``)."""
         return cls._load(path, mmap)
 
     @classmethod

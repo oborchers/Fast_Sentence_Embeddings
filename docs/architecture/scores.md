@@ -22,12 +22,12 @@ A score store keeps what the heads of a group, or a single head, gave for every 
 | `fse.transform_version` | `2` |
 | `fse.encoder` | fingerprint of the encoder of the heads |
 | `fse.doc_ids` | `int64` or `none` |
-| `fse.resume` | `none`, or `source_rows@1` (with the six source keys of [document-ids.md](document-ids.md)) |
+| `fse.resume` | `none`, `source_rows@1` or `source_position@1` (each with its source keys, [document-ids.md](document-ids.md)) |
 | `fse.score_heads` | canonical JSON list of the heads in head order |
 
 Each entry of `fse.score_heads` has exactly `name`, `model` (fingerprint of the complete head artifact), `task`, `rule`, `link`, `stored`, `path`, `labels`, `width`, `columns` (`[begin, end]` in `scores`, without a gap), `flat`. A shard adds `fse.created_by`, `fse.first_row`, `fse.rows`, for document IDs the three statistics of [document-ids.md](document-ids.md) and optionally `fse.durability=none`.
 
-**Size.** A score store lists its heads and their labels, so its `store.json` may be up to 1 MiB; a store of sentence vectors keeps 64 KiB. `ScoreSink` serializes the document it will write and checks the limit before anything is created.
+**Size.** A score store lists its heads and their labels, so its `store.json` may be up to 1 MiB; a store of sentence vectors keeps 64 KiB, except in the mode `source_position@1`, which also may hold 1 MiB (the position is part of the root). `ScoreSink` serializes the document it will write and checks the limit before anything is created.
 
 **Path.** A head on raw means runs `folded` without the vectors and `unfolded` with them, and the two differ in the last bits. The path of each head is therefore part of what is stored (`folded`, `normalized`, `unfolded`, `standalone`). It is known only when `predict_batches(return_vectors=...)` of `Heads`, `Classifier` or `Regressor` is called, so `ScoreSink(path, heads)` checks everything but the path and creates nothing; `predict_batches` attaches the run to the sink, before it reads a text, and passes the paths; a new store gets its `store.json` then, whole. Appending needs the same paths (`ValueError` naming the head and both paths, before the first text). Closing a sink that never attached leaves nothing behind.
 
@@ -51,7 +51,7 @@ A known combination outside the table is a `CorruptArtifactError`; a well-formed
 
 `verify`, a tagged open and the repair check, in blocks of at most 1 MiB: the checksums; every score finite; the columns with `stored=proba` within [0, 1] (the ranges come from the root through `ScoreShard`, not from state of the kind, so two stores of different layout can be open at once); thresholds finite within [0, 1]; the statistics of the document IDs.
 
-The only rule between shards is that two neighbours have equal thresholds (`summary` is the tuple of their checksums from the manifest). Snapshot, `verify` and `repair_store` use the same chain; the repair moves the first shard that breaks it, with its tail. `ScoreSink` compares the thresholds of the last shard of an existing store with those of its heads before it takes a text, so a run cannot break the chain itself.
+Two rules hold between neighbouring shards: equal thresholds (`summary` is the tuple of their checksums from the manifest) and, in the mode `source_position@1`, an anchor row that does not lie before the anchor row of the shard before it. Snapshot, `verify` and `repair_store` use the same chain; the repair moves the first shard that breaks it, with its tail. `ScoreSink` compares the thresholds of the last shard of an existing store with those of its heads before it takes a text, so a run cannot break the chain itself.
 
 ### Writing
 

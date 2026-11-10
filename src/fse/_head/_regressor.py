@@ -56,7 +56,11 @@ class Regressor(_RegressorPredicting, LinearModel):
     @classmethod
     @validate_arguments
     def load(cls, path: PathLike, mmap: bool = False) -> Self:
-        """Open a regressor saved with ``save``, complete or standalone."""
+        """Open a regressor saved with ``save``, complete or standalone.
+
+        Without ``mmap`` the arrays are read into memory and every checksum is checked.
+        With ``mmap=True`` they are mapped read-only and only the structure is checked, so
+        the file must stay unchanged while the regressor is in use (as for ``WordVectors.load``)."""
         return cls._load(path, mmap)
 
     @classmethod

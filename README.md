@@ -111,7 +111,7 @@ vectors = encoder.encode(["the cat sleeps", "a dog runs"])
 A vector is a list of numbers that represents a text. Here you get a NumPy array with one row per text.
 For document vectors, pass your documents as strings. The model's text-length limits still apply.
 The first load downloads the model. Its license applies separately.
-For complete applications, explore the nine [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
+For complete applications, explore the [recipes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) below.
 
 ### Already using Model2Vec?
 
@@ -193,6 +193,7 @@ Start with the job you want to do:
 | Integrations | [Use one local encoder with your search, topic, and table libraries.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/06-integrations.ipynb) |
 | Local compute and HTTP | [See when a local HTTP request costs more than encoding the text.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/07-local-compute-and-http.ipynb) |
 | Folded classifier | [Fold a trained classifier into word vectors, then save a smaller model for your app.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/08-folded-classifier.ipynb) |
+| fse behind Kafka | [Write vectors for a stream and continue at the right record after a crash.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/09-fse-behind-kafka.ipynb) |
 | External indexes | [Put FAISS, USearch, or hnswlib on your vectors, then let fse give the hits exact scores.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/10-external-ann-indexes.ipynb) |
 | Rerank candidates | [Let fse find 100 candidates, then let a local cross-encoder of your choice put the best ones on top.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/11-reranker-candidates.ipynb) |
 | Filter large text collections | [Store scores with document IDs and change filters without running the encoder again.](recipes/13-filter-texts.ipynb) |
@@ -230,6 +231,9 @@ Load the saved model with `Classifier.load("router.safetensors")` and predict wi
 The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
 
 ### Several heads in one pass
+
+The examples from here to the end of this section need fse 2.1. Until 2.1 is released, install fse from master: `pip install "git+https://github.com/oborchers/Fast_Sentence_Embeddings.git"`.
+`Classifier.from_sklearn` and `Classifier.load` above also work with fse 2.0.
 
 `fse.Heads` groups named heads from the same encoder. Each head keeps its own labels and file.
 The group tokenizes each text once. This tiny training set only demonstrates the API.
@@ -308,7 +312,6 @@ imported.save("imported-classifier.safetensors")
 
 For an exported local folder or a Hub repository, use `Classifier.from_pretrained(path_or_repo, revision=commit)`.
 See the [head formats](docs/architecture/formats.md) for supported links and import limits.
-These additions require fse from master until 2.1 is released.
 
 ### Why folding works
 
@@ -412,7 +415,7 @@ Returning one array from an input of unknown length still collects and joins par
 
 ## More
 
-- [Documentation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/ARCHITECTURE.md): supported APIs, model formats, exports and guarantees.
+- [Documentation](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/README.md): guides by task, then the reference pages for supported APIs, model formats, exports and guarantees ([architecture index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/ARCHITECTURE.md)).
 - [Contributing](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CONTRIBUTING.md): AI-assisted contributions are welcome with reproducible checks and evidence.
 - [Changelog](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CHANGELOG.md) and [security policy](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/SECURITY.md).
 
