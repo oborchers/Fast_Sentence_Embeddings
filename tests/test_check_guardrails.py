@@ -367,3 +367,56 @@ def test_the_command_finds_an_import_after_an_escaped_quote(tool, tmp_path, caps
     (repo / "tests" / "test_native.py").write_text("")
     assert tool["main"]([], root=repo) == 1
     assert "_native.pyx imports torch" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import fse._validation",
+        "import fse._validation as validation",
+        "from fse._validation import validate_arguments",
+        "from fse import _validation",
+        "from fse import _validation as validation",
+    ],
+)
+def test_adapter_private_imports_reach_full_import_guard(tool, tmp_path, source):
+    path = tmp_path / "integrations/demo/src/demo/__init__.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(source)
+    cfg = {
+        "public-fse-importers": ["integrations"],
+        "native-importers": [],
+        "hash-importers": [],
+        "hash-modules": [],
+        "log-importers": [],
+        "log-modules": [],
+    }
+    assert any(
+        "private fse._validation" in error
+        for error in tool["IMPORTS"]["import_errors"](tmp_path, cfg)
+    )
+
+
+def test_adapter_public_imports_and_noncode_allowed(tool, tmp_path):
+    path = tmp_path / "integrations/demo/src/demo/__init__.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        'from fse.typing import ModelRef\n# import fse._validation\ns = "import fse._validation"\n'
+    )
+    assert (
+        tool["IMPORTS"]["published_package_errors"](
+            tmp_path, {"public-fse-importers": ["integrations"]}
+        )
+        == []
+    )
+
+
+@needs_lint_tools
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_full_command_rejects_private_adapter_import(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    path = repo / "integrations/demo/src/demo/__init__.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("from fse import _validation\n")
+    assert tool["main"]([], root=repo) == 1
+    assert "imports private fse._validation" in capsys.readouterr().out

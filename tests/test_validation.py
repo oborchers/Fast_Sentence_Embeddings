@@ -181,3 +181,14 @@ def test_refuse_lost_input_checks_array_values_instead_of_iterated_metadata():
     assert refuse_lost_input(_ArrayWithMetadata([[1.0, 0.5]]), "weight") is None
     with pytest.raises(TypeError, match="bool"):
         refuse_lost_input(_ArrayWithMetadata([[True, 0.5]]), "weight")
+
+
+def test_published_adapter_validator_compatibility():
+    # Published 0.1.0 adapters import this until the next fse major release.
+    from fse._validation import validate_arguments
+
+    @validate_arguments
+    def adapter(workers: int | None = None) -> int | None:
+        return workers
+
+    assert adapter(workers=1) == 1

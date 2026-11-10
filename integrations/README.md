@@ -2,20 +2,20 @@
 
 The packages live in this repository under `integrations/`. Each package has
 independent build metadata, tests, MIT license and documentation. fse core gains
-no framework dependency. Version 0.1.0 is prepared for publication after fse 2.0.0.
+no framework dependency. Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for publication after fse 2.1.0.
 Publication and framework listing submissions require separate maintainer approval.
 This work can merge before publication.
 
 | Package | Interface | Runtime dependencies |
 |---|---|---|
-| langchain-fse | `FseEmbeddings` | fse, langchain-core |
-| llama-index-embeddings-fse | `FseEmbedding` | fse, llama-index-core |
-| fse-haystack | `FseTextEmbedder`, `FseDocumentEmbedder` | fse, haystack-ai |
+| langchain-fse | `FseEmbeddings` | fse, NumPy, langchain-core |
+| llama-index-embeddings-fse | `FseEmbedding` | fse, NumPy, llama-index-core |
+| fse-haystack | `FseTextEmbedder`, `FseDocumentEmbedder` | fse, NumPy, haystack-ai |
 
 ## Development and CI
 
 Follow each package README from its directory. Use a separate environment per
-framework. The local fse version override satisfies `fse>=2.0.0` while testing
+framework. The local fse version override satisfies `fse>=2.1.0` while testing
 unreleased source. It changes neither published metadata nor git tags.
 
 Root `make check` checks core and the `integrations` guardrail path. It does not
@@ -46,7 +46,7 @@ The maintainer must complete this setup before any approved publication:
    above (without `.github/workflows/`), and matching environment name. If the
    project already exists under the maintainer's control, add its trusted
    publisher instead. Package name availability is confirmed by PyPI at setup.
-3. Publish fse 2.0.0 first under its separate approval. Recheck framework versions,
+3. Publish fse 2.1.0 first under its separate approval. Recheck framework versions,
    package metadata, offline tests and real-model examples before publication.
 4. Only with explicit publication approval, create a matching version tag on a
    commit contained in master. The workflow checks tag/version equality and
@@ -63,3 +63,21 @@ or pull-request publication trigger. No API tokens or package credentials are us
 Sources: [PyPI pending publishers](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
 and [GitHub environment protections](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
 checked 2026-11-01.
+
+## Version 0.2.0 preparation
+
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
+requires `fse>=2.1.0,<3`. Until fse 2.1.0 is published, test this source against
+the local checkout with the documented version override. An unconstrained
+resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
+while requesting adapter 0.2.0 produces a dependency conflict.
+
+Release fse 2.1.0 first. Before any adapter 0.2.0 tag, test all three adapters
+against `fse==2.1.0` installed from PyPI, then permanently pin that version in
+the minimum CI job. Only then publish each adapter with separate maintainer
+approval. Package changelogs are handwritten, independent of root towncrier.
+
+Configuration validation belongs to each adapter. Invalid types raise
+`TypeError`; invalid values raise `ValueError`. Invalid `workers` always raise
+`ValueError` using the fse message, already at construction. Text path objects
+stay local even when they look like Hub IDs. Serialized local paths are absolute.

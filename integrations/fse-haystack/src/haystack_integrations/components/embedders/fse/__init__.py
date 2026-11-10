@@ -3,31 +3,34 @@
 from asyncio import to_thread
 from dataclasses import replace
 from pathlib import Path
+from typing import Self
 
 from haystack import Document, component, default_from_dict, default_to_dict
 
 from fse import Encoder
-from fse._validation import validate_arguments
+from fse.typing import ModelRef, WorkerCount
+
+from ._checks import configuration
+
+__all__ = ["FseDocumentEmbedder", "FseTextEmbedder"]
 
 
 class _FseEmbedder:
-    @validate_arguments
     def __init__(
         self,
-        model: str = "minishlab/potion-base-8M",
+        model: ModelRef = "minishlab/potion-base-8M",
         *,
         encoder: Encoder | None = None,
         dtype: str = "float32",
-        workers: int | None = None,
+        workers: WorkerCount = None,
         batch_size: int = 128,
-        load_kwargs: dict | None = None,
+        load_kwargs: dict[str, object] | None = None,
     ):
-        if dtype not in ("float32", "float16"):
-            raise ValueError("dtype must be float32 or float16 for float-list embeddings")
-        if type(batch_size) is not int or batch_size <= 0:
+        model, workers, load_kwargs = configuration(model, encoder, dtype, workers, load_kwargs)
+        if type(batch_size) is not int:
+            raise TypeError("batch_size must be a positive integer")
+        if batch_size <= 0:
             raise ValueError("batch_size must be a positive integer")
-        if encoder is not None and load_kwargs:
-            raise ValueError("load_kwargs cannot be used with an existing encoder")
         self.model = model
         self.dtype = dtype
         self.workers = workers
@@ -56,7 +59,7 @@ class _FseEmbedder:
             )
         return rows
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Serialize loader options. In-memory encoders must be saved separately."""
         if self._injected:
             raise ValueError("Save the encoder and use its local path before serialization")
@@ -64,7 +67,7 @@ class _FseEmbedder:
             raise ValueError("Do not serialize Hub tokens. Use the Hub credential store")
         return default_to_dict(
             self,
-            model=self.model,
+            model=str(self.model),
             dtype=self.dtype,
             workers=self.workers,
             batch_size=self.batch_size,
@@ -74,7 +77,7 @@ class _FseEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict):
+    def from_dict(cls, data: dict[str, object]) -> Self:
         return default_from_dict(cls, data)
 
 
@@ -83,11 +86,11 @@ class FseTextEmbedder(_FseEmbedder):
     """Embed one query. Output uses Haystack's ``embedding`` socket."""
 
     @component.output_types(embedding=list[float])
-    def run(self, text: str) -> dict:
+    def run(self, text: str) -> dict[str, list[float]]:
         return {"embedding": self._embed([text])[0]}
 
     @component.output_types(embedding=list[float])
-    async def run_async(self, text: str) -> dict:
+    async def run_async(self, text: str) -> dict[str, list[float]]:
         return await to_thread(self.run, text)
 
 
@@ -96,7 +99,7 @@ class FseDocumentEmbedder(_FseEmbedder):
     """Embed document content, preserving order and leaving inputs unchanged."""
 
     @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict:
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         if not isinstance(documents, list) or any(not isinstance(d, Document) for d in documents):
             raise TypeError("documents must be a list of Haystack Documents")
         texts = [doc.content for doc in documents]
@@ -110,5 +113,5 @@ class FseDocumentEmbedder(_FseEmbedder):
         }
 
     @component.output_types(documents=list[Document])
-    async def run_async(self, documents: list[Document]) -> dict:
+    async def run_async(self, documents: list[Document]) -> dict[str, list[Document]]:
         return await to_thread(self.run, documents)

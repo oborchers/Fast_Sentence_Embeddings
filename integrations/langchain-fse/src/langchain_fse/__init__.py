@@ -5,7 +5,11 @@ from asyncio import to_thread
 from langchain_core.embeddings import Embeddings
 
 from fse import Encoder
-from fse._validation import validate_arguments
+from fse.typing import ModelRef, WorkerCount
+
+from ._checks import configuration
+
+__all__ = ["FseEmbeddings"]
 
 
 class FseEmbeddings(Embeddings):
@@ -15,20 +19,16 @@ class FseEmbeddings(Embeddings):
     one fse call for the supplied batch. fse controls its internal scheduling.
     """
 
-    @validate_arguments
     def __init__(
         self,
-        model: str = "minishlab/potion-base-8M",
+        model: ModelRef = "minishlab/potion-base-8M",
         *,
         encoder: Encoder | None = None,
         dtype: str = "float32",
-        workers: int | None = None,
-        load_kwargs: dict | None = None,
+        workers: WorkerCount = None,
+        load_kwargs: dict[str, object] | None = None,
     ):
-        if dtype not in ("float32", "float16"):
-            raise ValueError("dtype must be float32 or float16 for float-list embeddings")
-        if encoder is not None and load_kwargs:
-            raise ValueError("load_kwargs cannot be used with an existing encoder")
+        model, workers, load_kwargs = configuration(model, encoder, dtype, workers, load_kwargs)
         self.encoder = (
             encoder
             if encoder is not None

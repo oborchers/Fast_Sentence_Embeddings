@@ -1,14 +1,14 @@
 # langchain-fse
 
-Prepared, unpublished LangChain integration for fse 2.0. Version 0.1.0 will be published only after fse 2.0.0 and separate maintainer approval.
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for fse 2.1 and requires separate maintainer approval before publication.
 This package lives in `integrations/langchain-fse/` in the fse repository.
 
-This package depends on fse and `langchain-core` only. Framework dependencies never enter
+This package depends on fse, NumPy and `langchain-core`. Framework dependencies never enter
 fse core. This package has its own CI environment and release workflow.
 
 ## Use
 
-After an fse 2.0 build and this package are installed:
+After an fse 2.1 build and this package are installed:
 
 ```python
 from langchain_fse import FseEmbeddings
@@ -29,7 +29,7 @@ LangChain requires standalone packages for new integrations.
 
 ## Framework baseline and guides
 
-The supported minimum for version 0.1.0 is `langchain-core==1.7.3`, the current stable
+The supported framework minimum for version 0.2.0 is `langchain-core==1.7.3`, the tested lower bound
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/langchain-core/1.7.3/).
 This is our tested minimum and makes no compatibility claim for older framework releases.
 The runtime dependency allows later versions. Recheck compatibility before publication.
@@ -51,7 +51,8 @@ Use the Hub credential store rather than putting tokens in application configura
 
 `dtype="float32"` (default) or `"float16"` controls fse output precision.
 `workers=None` uses fse's worker policy. `workers=1` requests one worker.
-The adapter passes text and worker validation to fse without replacing its errors.
+The adapter validates workers during construction using the fse rule and error text.
+Text validation stays with fse.
 Integer embeddings are unsupported because this interface requires float vectors.
 
 Every result converts a numpy array into Python float lists. This copies values
@@ -67,7 +68,7 @@ Use standard Python 3.13. From this package directory in the fse checkout:
 
 ```sh
 uv venv --python 3.13 .venv
-SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0 \
+SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.1.0 \
   uv pip install --python .venv/bin/python -e '../..' -e '.[test]'
 .venv/bin/python -m pytest -m 'not network'
 .venv/bin/python -m pytest -m network
@@ -78,7 +79,7 @@ uv build --out-dir dist
 The version override labels the development checkout for dependency resolution.
 It does not create a tag, release or published package.
 
-The declared requirement is `fse>=2.0.0`. The version override tests the local
+The declared requirement is `fse>=2.1.0`. The version override tests the local
 unreleased checkout without weakening the published dependency.
 The network test downloads `minishlab/potion-base-8M`. Offline tests build a tiny
 local encoder with `Encoder.from_arrays` and compare vectors with fse directly.
@@ -98,3 +99,21 @@ These package sources, tests and documentation were prepared with AI assistance
 using Codex. Validation uses offline vector parity, framework API tests and the
 real-model retrieval example. The maintainer remains responsible for review and maintenance.
 Publication and framework listing submissions require a separate maintainer decision.
+
+## Version 0.2.0 preparation
+
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
+requires `fse>=2.1.0,<3`. Until fse 2.1.0 is published, test this source against
+the local checkout with the documented version override. An unconstrained
+resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
+while requesting adapter 0.2.0 produces a dependency conflict.
+
+Release fse 2.1.0 first. Before any adapter 0.2.0 tag, test all three adapters
+against `fse==2.1.0` installed from PyPI, then permanently pin that version in
+the minimum CI job. Only then publish each adapter with separate maintainer
+approval. Package changelogs are handwritten, independent of root towncrier.
+
+Configuration validation belongs to each adapter. Invalid types raise
+`TypeError`; invalid values raise `ValueError`. Invalid `workers` always raise
+`ValueError` using the fse message, already at construction. Text path objects
+stay local even when they look like Hub IDs. Serialized local paths are absolute.

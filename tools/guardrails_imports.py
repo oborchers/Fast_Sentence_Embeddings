@@ -186,10 +186,24 @@ def isolated_package_errors(root: Path, cfg: dict) -> list[str]:
     return errors
 
 
+def published_package_errors(root: Path, cfg: dict) -> list[str]:
+    """Published adapters may import only public fse names."""
+    errors = []
+    for folder in cfg.get("public-fse-importers", []):
+        for path in sorted((root / folder).glob("*/src/**/*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            names = imported_modules(tree, "adapter.module")
+            for name in sorted(set(names)):
+                if name.startswith("fse.") and any(p.startswith("_") for p in name.split(".")[1:]):
+                    errors.append(f"{path.relative_to(root)} imports private {name}")
+    return errors
+
+
 def import_errors(root: Path, cfg: dict) -> list[str]:
     """Every error of the import rules of this module."""
     return [
         *isolated_package_errors(root, cfg),
+        *published_package_errors(root, cfg),
         *native_import_errors(root, cfg),
         *exclusive_import_errors(root, cfg, "hash"),
         *exclusive_import_errors(root, cfg, "log"),

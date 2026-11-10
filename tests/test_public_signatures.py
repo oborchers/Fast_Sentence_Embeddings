@@ -48,25 +48,6 @@ STORE_VIEW_METADATA = {
 }
 # STATIC_MODEL_CONFIG: the model's open configuration has no closed value schema.
 STATIC_MODEL_CONFIG = {"fse.StaticModel.config"}
-# Adapter releases are separate. These existing framework dict contracts remain visible
-# until DR-325 (Integrationspakete ohne privaten fse-Import und mit Exportliste als 0.2.0 vorbereiten).
-INTEGRATION_FRAMEWORK_DICTIONARIES = {
-    "llama_index.embeddings.fse.FseEmbedding.to_dict",
-    "llama_index.embeddings.fse.FseEmbedding.__getstate__",
-    "haystack_integrations.components.embedders.fse.FseTextEmbedder.to_dict",
-    "haystack_integrations.components.embedders.fse.FseTextEmbedder.run",
-    "haystack_integrations.components.embedders.fse.FseTextEmbedder.run_async",
-    "haystack_integrations.components.embedders.fse.FseDocumentEmbedder.to_dict",
-    "haystack_integrations.components.embedders.fse.FseDocumentEmbedder.run",
-    "haystack_integrations.components.embedders.fse.FseDocumentEmbedder.run_async",
-}
-# INTEGRATION_LOADER_CONFIGURATION: an open dictionary of pass-through loader options.
-INTEGRATION_LOADER_CONFIGURATION = {"llama_index.embeddings.fse.FseEmbedding.load_kwargs"}
-# INTEGRATION_RECONSTRUCTION_RETURN: existing Haystack factory annotations await that release.
-INTEGRATION_RECONSTRUCTION_RETURN = {
-    "haystack_integrations.components.embedders.fse.FseTextEmbedder.from_dict",
-    "haystack_integrations.components.embedders.fse.FseDocumentEmbedder.from_dict",
-}
 # STATIC_MODEL_UNSET_DEFAULT: omission uses the saved setting, unlike explicit None.
 STATIC_MODEL_UNSET_DEFAULT = {
     ("fse.StaticModel.encode", "max_length"),
@@ -220,10 +201,6 @@ def _unknown_ast(node):
 def _allowed_results(entry):
     name = _name(entry)
     if entry.integration:
-        if name in INTEGRATION_RECONSTRUCTION_RETURN:
-            return {"missing"}
-        if name in INTEGRATION_FRAMEWORK_DICTIONARIES | INTEGRATION_LOADER_CONFIGURATION:
-            return {"framework_dict"}
         return set()
     allowed = {"dtype"} if name in ARRAY_DTYPE_ONLY else set()
     if name in STORE_VIEW_METADATA | STATIC_MODEL_CONFIG:
@@ -242,14 +219,7 @@ def test_public_results_have_only_named_unknown_types(entries):
         elif kinds:
             failures.append((entry.name, kinds))
     assert not failures, failures
-    expected = (
-        ARRAY_DTYPE_ONLY
-        | STORE_VIEW_METADATA
-        | STATIC_MODEL_CONFIG
-        | INTEGRATION_FRAMEWORK_DICTIONARIES
-        | INTEGRATION_LOADER_CONFIGURATION
-        | INTEGRATION_RECONSTRUCTION_RETURN
-    )
+    expected = ARRAY_DTYPE_ONLY | STORE_VIEW_METADATA | STATIC_MODEL_CONFIG
     assert used == expected, ("stale exceptions", expected - used)
 
 
@@ -323,13 +293,6 @@ def test_annotation_classes_are_publicly_reachable(entries):
     assert used == STATIC_MODEL_UNSET_DEFAULT, ("stale exceptions", used)
 
 
-# Adapter inputs retain their own framework contracts until their separate release.
-INTEGRATION_COMMON_INPUTS_PENDING = {
-    "langchain_fse.FseEmbeddings",
-    "llama_index.embeddings.fse.FseEmbedding",
-    "haystack_integrations.components.embedders.fse.FseTextEmbedder",
-    "haystack_integrations.components.embedders.fse.FseDocumentEmbedder",
-}
 MODEL_REFERENCES = {
     ("fse.Encoder.from_pretrained", "repo_or_path"),
     ("fse.Classifier.from_pretrained", "repo_or_path"),
@@ -369,8 +332,6 @@ def test_common_input_types(entries):
     failures = []
     for entry in entries:
         if entry.integration:
-            owner = entry.name.rsplit(".", 1)[0]
-            assert owner in INTEGRATION_COMMON_INPUTS_PENDING, owner
             continue
         if entry.kind == "field":
             continue  # ScoreHead.path is an inference route, not a file-path input.
