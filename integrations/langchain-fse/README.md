@@ -1,6 +1,6 @@
 # langchain-fse
 
-Prepared, unpublished LangChain integration for fse 2.0. Version 0.1.0 will be published only after fse 2.1.0 and separate maintainer approval.
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for fse 2.1 and requires separate maintainer approval before publication.
 This package lives in `integrations/langchain-fse/` in the fse repository.
 
 This package depends on fse and `langchain-core` only. Framework dependencies never enter
