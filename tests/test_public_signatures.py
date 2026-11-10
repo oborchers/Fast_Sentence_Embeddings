@@ -9,6 +9,7 @@ from typing import Annotated, Any, get_args, get_origin
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 import fse
 import fse.typing
@@ -79,11 +80,16 @@ def _any_kinds(annotation):
     if annotation is Any:
         return {"any"}
     origin, args = get_origin(annotation), get_args(annotation)
+    if origin is NDArray or annotation is NDArray:
+        # New NumPy versions preserve NDArray as a runtime TypeAliasType.
+        scalar = args[0] if args else Any
+        return {"dtype"} if _any_kinds(scalar) else set()
     if (origin or annotation) is np.ndarray:
         # NumPy 1.26 itself expands NDArray[float32] to ndarray[Any, dtype[float32]].
         # That foreign shape placeholder is not an unknown result dtype.
         dtype = get_args(args[1]) if len(args) > 1 else ()
-        return {"dtype"} if not dtype or dtype[0] is Any else set()
+        scalar = dtype[0] if dtype else Any
+        return {"dtype"} if _any_kinds(scalar) else set()
     kinds = set()
     for index, arg in enumerate(args):
         if arg is Any and origin in (dict, Mapping):
