@@ -59,7 +59,8 @@ def repository(tmp_path):
             if text is None:
                 path.unlink()
             else:
-                path.write_text(text)
+                # Fixtures must use repository LF bytes, including on Windows.
+                path.write_text(text, encoding="utf-8", newline="\n")
         git("add", ".")
         git("commit", "-qm", "Test change")
         return git("rev-parse", "HEAD")
@@ -141,6 +142,9 @@ def test_unselected_changes_skip_requirement(repository, files, capsys):
 
 @pytest.mark.parametrize("path", ["src/example.py", "setup.py", "MANIFEST.in", "pyproject.toml"])
 def test_new_fragment_runs_real_towncrier(repository, path):
+    pytest.importorskip(
+        "towncrier", reason="release tooling is optional in sdist test environments"
+    )
     root, base, commit = repository
     text = CONFIG.replace(">=3.11", ">=3.12") if path == "pyproject.toml" else "# Change\n"
     commit({path: text, "changelog.d/DR-2.fixed.md": "Correct the example.\n"})
@@ -166,12 +170,16 @@ def test_removed_runtime_table_is_selected(repository):
 
 
 def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
+    pytest.importorskip(
+        "towncrier", reason="release tooling is optional in sdist test environments"
+    )
     root, _, commit = repository
     # Use the actual production configuration and its complete set of types.
     config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["towncrier"]
     actual = (ROOT / "pyproject.toml").read_text().split("# --- Changelog fragments ---", 1)[1]
     changelog = root / "CHANGELOG.md"
     original = changelog.read_bytes()
+    assert b"\r" not in original
     published = original.split(b"## [1.0.0]", 1)[1]
     commit(
         {
@@ -201,6 +209,9 @@ def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
     assert (root / "changelog.d/DR-2.added.md").exists()
     subprocess.run([*args, "--yes"], cwd=root, check=True)
     result = changelog.read_bytes()
+    # Towncrier reads universal newlines and writes with newline="". With an LF
+    # fixture, generated and retained sections must both remain LF on Windows.
+    assert b"\r" not in result
     assert result.startswith(
         b"# Changelog\n\n## [Unreleased]\n\n## [2.1.0] - 2026-11-10\n\n### Added\n"
     )
@@ -216,6 +227,9 @@ def test_draft_and_release_build_preserve_legacy_and_published_text(repository):
 
 
 def test_towncrier_errors_are_not_hidden_by_valid_fragment(repository):
+    pytest.importorskip(
+        "towncrier", reason="release tooling is optional in sdist test environments"
+    )
     root, base, commit = repository
     commit(
         {
@@ -254,3 +268,10 @@ def test_ci_selection_keeps_source_deletion_when_moved_to_docs(repository):
     )
     subprocess.run(["bash", "-e", "-c", script], cwd=root, env=env, check=True)
     assert "code=true" in output.read_text().splitlines()
+
+
+def test_changelog_fixture_uses_lf_bytes(repository):
+    root, _, _ = repository
+    content = (root / "CHANGELOG.md").read_bytes()
+    assert b"\n\n- Old.\n" in content
+    assert b"\r" not in content
