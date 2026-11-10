@@ -1,7 +1,8 @@
 """fse: fast sentence embeddings.
 
-fse is an inference engine for static embeddings: an ``Encoder`` is a finished model (a table of word rows, a tokenizer and an
-optional normalization) that turns sentences into vectors; ``Classifier`` and
+fse is an inference engine for static embeddings: an ``Encoder`` is a finished model (a
+table of word rows, a tokenizer and an optional normalization) that turns sentences into
+vectors; ``Classifier`` and
 ``Regressor`` add a linear head trained elsewhere (scikit-learn). It trains nothing. The 1.x
 API (``Average``, ``SIF``, ``uSIF``, the input classes, ``Vectors``) was removed here; it
 lives on in fse 1.1.0 on PyPI and on the branch ``1.x``.
