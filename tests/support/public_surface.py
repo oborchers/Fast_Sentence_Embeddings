@@ -128,11 +128,28 @@ def _class_entries(prefix, cls):
             assert kind == "constructor", prefix + "." + name
             continue
         yield from _function_entries(prefix + "." + name, value, kind)
-    namespace = vars(importlib.import_module(cls.__module__))
-    resolved = get_type_hints(cls, globalns=namespace)
-    for name, hint in resolved.items():
-        if not name.startswith("_"):
-            yield Entry(prefix + "." + name, "field", {"return": hint}, {}, {})
+    for name, hint in _field_hints(cls).items():
+        yield Entry(prefix + "." + name, "field", {"return": hint}, {}, {})
+
+
+def _field_hints(cls):
+    resolved = {}
+    for base in reversed(cls.__mro__):
+        annotations = {
+            name: hint
+            for name, hint in inspect.get_annotations(base, eval_str=False).items()
+            if not name.startswith("_")
+        }
+        if annotations:
+            # Resolve only public fields, in their declaring class's namespace.
+            # Private fields can intentionally reference names from another module.
+            def declared_fields():
+                pass
+
+            declared_fields.__annotations__ = annotations
+            namespace = vars(importlib.import_module(base.__module__))
+            resolved.update(get_type_hints(declared_fields, globalns=namespace))
+    return resolved
 
 
 def _imports(tree):
