@@ -62,15 +62,6 @@ def file_path(value: Any, name: str) -> str | Path:
     return Path(text)
 
 
-def is_file_path(value: Any) -> bool:
-    """Whether the original value is a path with a str representation."""
-    try:
-        file_path(value, "path")
-    except TypeError:
-        return False
-    return True
-
-
 def _file_path(value: Any) -> str | Path:
     try:
         return file_path(value, "path")

@@ -8,10 +8,10 @@ from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 import fse
 from fse._encoder import _pretrained
-from fse._validation import ModelRef, PathLike, file_path, is_file_path
+from fse._validation import ModelRef, PathLike, file_path
 from support import score_heads as sh
 from support.encoder import finished
-from support.paths import BytesPath, OwnPath
+from support.paths import BytesPath, CountingPath, OwnPath
 from support.runtime import word_vectors
 
 
@@ -32,7 +32,6 @@ def test_path_validation_checks_the_original_type(value):
         adapter.validate_python(value)
     with pytest.raises(TypeError):
         file_path(value, "path")
-    assert not is_file_path(value)
 
 
 @pytest.mark.parametrize("kind", ["encoder", "word_vectors", "classifier", "regressor"])
@@ -110,8 +109,10 @@ def test_sinks_stores_and_views_accept_foreign_paths(tmp_path, score_store):
         store_type = fse.VectorStore
     with store_type.open(OwnPath(directory)) as opened:
         assert len(opened) == 2
-    with store_type.open_view([OwnPath(directory)]) as opened:
+    path = CountingPath(directory)
+    with store_type.open_view([path]) as opened:
         assert len(opened) == 2
+    assert path.calls == 1
     with pytest.raises(TypeError):
         store_type.open(BytesPath())
     with pytest.raises(TypeError):

@@ -14,3 +14,13 @@ class OwnPath:
 class BytesPath:
     def __fspath__(self) -> bytes:
         return b"not-a-text-path"
+
+
+class CountingPath(OwnPath):
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        super().__init__(path)
+        self.calls = 0
+
+    def __fspath__(self) -> str:
+        self.calls += 1
+        return self.path

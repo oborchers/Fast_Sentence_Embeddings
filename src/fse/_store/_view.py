@@ -40,7 +40,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fse import _log
-from fse._validation import is_file_path
+from fse._validation import file_path
 
 from ._kind import Kind
 from ._kinds import kind_of
@@ -243,9 +243,9 @@ def _paths(paths: Any) -> list[Path]:
         raise ValueError("paths must name at least one store")
     named = []
     for path in paths:
-        if not is_file_path(path):
+        if not isinstance(path, (str, os.PathLike)):
             raise TypeError(f"paths must hold str or path objects, not {type(path).__name__}")
-        named.append(Path(path))
+        named.append(Path(file_path(path, "paths")))
     seen: set[tuple[int, int] | str] = set()
     for path in named:
         key = _identity(path)
