@@ -32,10 +32,14 @@ def paired_rounds(root, cell):
     ]
 
 
-def select(root, default_cell):
-    """Worst valid encode regression, otherwise the declared representative configuration."""
-    verify(root)
-    cells = read_rows(root, "cells.jsonl")
+def boundary_evidence(root, cell):
+    factors = [factor for factor, _ in paired_rounds(root, cell)]
+    if min(factors) <= SLOWDOWN < max(factors):
+        return [{"cell": cell["cell_id"], "reason": "rounds cross regression boundary"}]
+    return []
+
+
+def regression_candidates(root, cells):
     regressions, open_evidence = [], []
     for cell in cells:
         if cell.get("reference") != "fse-base":
@@ -43,6 +47,7 @@ def select(root, default_cell):
         if cell["status"] != "valid":
             open_evidence.append({"cell": cell["cell_id"], "reason": "comparison is not valid"})
             continue
+        open_evidence.extend(boundary_evidence(root, cell))
         factor = cell["paired_speedup"]["median"]
         if factor <= SLOWDOWN:
             if cell["kind"] == "write":
@@ -54,6 +59,14 @@ def select(root, default_cell):
                 )
             else:
                 regressions.append(cell)
+    return regressions, open_evidence
+
+
+def select(root, default_cell):
+    """Worst valid encode regression, otherwise the declared representative configuration."""
+    verify(root)
+    cells = read_rows(root, "cells.jsonl")
+    regressions, open_evidence = regression_candidates(root, cells)
     if regressions:
         cell = min(regressions, key=lambda c: c["paired_speedup"]["median"])
     else:
