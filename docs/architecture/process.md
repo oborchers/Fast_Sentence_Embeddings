@@ -277,7 +277,8 @@ gensim and scikit-learn lack musllinux wheels. The musllinux test command exclud
 `test_gensim.py` and the native random-Unicode comparison that imports gensim.
 The native hash tests against pinned gensim values still run. Scikit-learn adapter
 tests skip through `pytest.importorskip`.
-PyArrow, pandas, Polars and datasets remain installed on every target interpreter.
+PyArrow, pandas, Polars and datasets remain installed on every target interpreter that runs
+the full suite (not on the four Windows wheels that run the short check).
 PyYAML, required by huggingface-hub and datasets, builds from source on CPython 3.15
 musllinux because its current release has no wheel for that interpreter.
 On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show

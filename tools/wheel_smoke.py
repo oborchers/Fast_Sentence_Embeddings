@@ -8,7 +8,8 @@ version runs the suite there; Unix runs it on all). It needs no network, no test
 nothing but numpy: it imports ``fse`` and its native extension, makes a small encoder from
 random word vectors, encodes with the native kernel and with the numpy reference of the
 contract, and requires the same bits, for float32, float16 and int8 tables and for one and
-two workers. It exits with 1 on the first difference. It takes a second or two.
+two workers (the text is larger than the limit under which the tasks run in the calling
+thread). It exits with 1 on the first difference. It takes a few seconds.
 """
 
 from __future__ import annotations
@@ -31,11 +32,14 @@ def _encoder(dtype: str):
 
 
 def _texts() -> list[str]:
+    """Empty, short and long sentences with unknown words: more than 64 KiB of text, so a
+    call with two workers runs its tasks in worker threads and not in the calling thread."""
     rng = np.random.default_rng(1)
     texts = [""]
-    for size in (1, 2, 5, 17, 40):
+    for _ in range(1200):
+        size = int(rng.integers(1, 41))
         texts.append(" ".join(f"w{t}" if t < 60 else f"zz{t}" for t in rng.integers(0, 70, size)))
-    return texts * 4
+    return texts
 
 
 def _check(dtype: str, workers: int) -> None:

@@ -472,8 +472,8 @@ jobs:
           enable-cache: ${{ needs.changes.outputs.targeted == 'true' && 'false' || 'auto' }}
       - uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e  # v4.3.5
         env:
-          # Every event builds and tests every wheel. Windows runs the full suite on one
-          # Python, 3.13, on every event: Unix keeps the only full suite (full runs keep the
+          # Every event builds every wheel and tests every Windows wheel. Windows runs the full
+          # suite on one Python, 3.13, on every event: Unix keeps the only full suite (full runs keep the
           # Linux test jobs on Python 3.11 to 3.15; ordinary pull requests select 3.13 and,
           # when required, the minimum-dependency job), and the Windows run adds the real
           # Windows filesystem and process semantics once. Python 3.13 additionally runs the
