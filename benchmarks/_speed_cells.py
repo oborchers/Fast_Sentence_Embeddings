@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import shutil
-import time
 from pathlib import Path
 
 from _harness import resources
-from _harness.records import append, atomic, sha256
+from _harness.records import atomic, sha256
 
 
 def configure(workers, native_threads=None):
@@ -225,29 +223,6 @@ def check_preparation(admission):
 
 
 def headline_rounds(context, cell, path, sample, identity, launch, cleanup):
-    rows, ledger = [], context["ledger"]
-    try:
-        for number in range(cell["rounds"]):
-            if not ledger.admit(120):
-                break
-            row = launch(context, cell, "fse", number, path, sample, identity)
-            rows.append(row)
-            output = Path(row["sample_file"])
-            remove_headline(context["work"], output, row["files"])
-            append(
-                ledger.root / "cleanup.jsonl",
-                dict(
-                    round=number,
-                    completed_at=time.time(),
-                    disk_after=shutil.disk_usage(context["work"])._asdict(),
-                ),
-            )
-        cleanup(
-            context,
-            [path, path.with_suffix(".json"), sample, path.with_suffix(".sample-texts.json")],
-        )
-        if len({json.dumps(row["identity"], sort_keys=True) for row in rows}) > 1:
-            raise ValueError("headline runtime identity changed between rounds")
-    except Exception as error:
-        return rows, repr(error)
-    return rows, None
+    from _speed_write_pair import rounds
+
+    return rounds(context, cell, path, sample, identity, launch, cleanup)

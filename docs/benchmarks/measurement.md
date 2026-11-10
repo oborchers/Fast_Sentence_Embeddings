@@ -563,13 +563,15 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 | `dtype-control@1` | `dtype` against `fse-control` | bits | fse against fse, at most 1.10 |
 | `version-compare@1` | `dtype` against `fse-base` (two installed versions) | bits | none |
 | `heads-compare@1` | `heads` against `model2vec`, `fse-unfolded`, `fse-separate` | tolerance, or bits for `fse-separate` | none |
-| `write@1` | `write` | bits (codes, scales, inventories) | none |
+| `version-write@1` | `write` against `fse-base` | persisted sample codes and scales, bit for bit across arms | none |
+| `write@1` | `write` without a reference | bits (codes, scales, inventories) | none |
 | `search-time@1` | `search`, against `fse-exact` | measured final pool pass: ids and score bits, binary candidate membership and recall | none |
 | `predict@1` | `predict` (labels or probabilities) | sample bits against cpu and numpy | none |
 
 The registry also exposes `paired` (comparison arms), `own_memory_plan` (skip the
 shared pair formula), and `needs_quiet` (prepare and run the quiet cell). Writing and
-prediction have no comparison arm, own their resource plans, and need no quiet cell.
+prediction own their resource plans and need no quiet cell. `version-write@1` has
+two comparison arms; `write@1` and prediction have one arm.
 These properties are independent so future protocols can choose each explicitly.
 
 ### Search time per request
@@ -644,10 +646,11 @@ variation rather than percentiles of individually timed millisecond calls.
 - Stage `bekko`: a Sentence Transformers repository other than the `sentence-transformers/` namespace is read in that format when `speed.json` lists it under `model_formats`. The cell sets `table_dtype: float16` for fse (a float16 table, float32 output) and `widen_weights: true` for the Sentence Transformers arm, which widens its table to float32 before any timer so that no arm measures a half-precision path the other does not share. The receipt records `widened_weights`, and the memory plan adds the float16 original that exists while the table is widened.
 - Stage `paragraphs`: `corpus: paragraphs` draws whole WikiText-103 paragraphs (the pinned 832,318, cut by the common character limit) instead of sentences, with the same seed and sampling. The planned byte counts of these cells are fixed like all others.
 - Stage `heads`: the workload is the fixed head of the development study (`linear-heads@1`, four softmax outputs, float32 PCG64 seed 17; four heads for `linear-heads-multi@1`). Every arm returns the probabilities (output `proba`) of the heads in the order `head_0` to `head_3`, for raw means (the encoder never normalizes), as one float32 matrix of `dimensions` columns (4, or 16 for four heads). Folding the head into the table is outside every timer. Three pairs: folded `predict_proba` against Model2Vec `encode(normalize=False)` followed by the affine map and the softmax in NumPy; folded against unfolded (`predict_batches` with `return_vectors=True`); four heads in one `Heads.predict` against four single `predict_proba` calls (bits).
-- Stage `versions`: ten README encoding configurations against the released fse 2.0.0 source (`v2.0.0`, commit `3b4061441d834eb06f605e1b6cd60dd0d118ceba`). The allocation builds the base with the same toolchain and the hashed `speed-base.lock.txt`, and passes its interpreter as `--base-python {python_base}`. The candidate writes each dtype artifact; the base loads that artifact. There is no base-side rebuild or silent compatibility fallback. The pinned Linux rehearsal must verify loading and bit identity for every dtype before a paid run. The writing comparison is a separate follow-up.
+- Stage `versions`: ten README encoding configurations against the released fse 2.0.0 source (`v2.0.0`, commit `3b4061441d834eb06f605e1b6cd60dd0d118ceba`). The allocation builds the base with the same toolchain and the hashed `speed-base.lock.txt`, and passes its interpreter as `--base-python {python_base}`. The candidate writes each dtype artifact; the base loads that artifact. There is no base-side rebuild or silent compatibility fallback. The pinned Linux rehearsal must verify loading and bit identity for every dtype before a paid run. The `version-headline-100m` writing cell adds 100 million sentences, a float32
+  table, int8 ShardSink output, durability `none`, 16 workers and three pairs.
 - Stage `search` reports time per request, with output checked against exact search. The explicit `search-prefilter` selection is excluded from `all`.
 
-The version cells use five alternating pairs, with one full warmup per arm and
+The encoding version cells use five alternating pairs, with one full warmup per arm and
 one measured call per round. `rounds` is an integer of at least three, checked
 before preparation and again when summarizing complete paired observations.
 Both version arms must pass the two-second production call gate. Functional
@@ -669,6 +672,34 @@ both arms use five million rows (681,709,559 input bytes), and the plan is check
 again. The preflight preserves the rejected plan in its fallback record. Other
 rejected cells, or a rejected fallback, fail preparation and must be reported.
 A functional rehearsal does not establish full-size capacity or the two-second gate.
+
+The writing version cell uses `version-write@1`. Each round alternates candidate/base
+and base/candidate order. Each arm writes the complete common input once as warmup
+and once as the measured call, from first read through sink close. Warmup output is
+synchronized and removed before the measured call. External synchronization and
+cleanup stay outside timing. Only one store exists at a time, including between arms.
+Both measured arms must reach two seconds in production. The paired factor is the
+median of the same-round base seconds divided by candidate seconds, as for encoding.
+No A/A control is run. Partial rounds yield no factor. A functional probe disables
+the duration gate and establishes no speed claim.
+
+Each arm verifies the complete store inventory and row count, then compares sampled
+int8 codes and float32 scale bits with its own in-memory encoding. It saves those
+codes, scales and sampled row indices in a small `.npz` with a digest before deleting
+the store. Samples live in the result directory, so its manifest and collection
+archive retain them; each receipt records the filename and digest. The controller
+compares only these retained samples across arms, including
+shape, dtype and bits. A mismatch makes the cell invalid, without a fallback. Store
+file digests remain arm-local because persistence metadata can differ across versions.
+Writing resource fields require positive integers, excluding booleans. The model
+dimension is checked during preparation and loading; the production input byte
+count is checked after writing the common file.
+The resource preflight records the production writing plan alongside encoding plans
+in `<results>/preflight-memory.json`. Its conservative components include retained corpus,
+preparation arrays, input cache, all pages of one store, model copies, worker buffers,
+samples and controller reserve, checked against 108.8 GB on the declared 128 GB machine.
+The arms and their warmups run sequentially, so two full stores are never budgeted
+as live together. Reduced functional input does not prove production capacity.
 
 Selecting `--study versions` uses `versions_billing`: 120 minutes, USD 2.98 and
 a 600-second collection reserve. These are historical planning values, not spending
