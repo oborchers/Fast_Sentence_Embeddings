@@ -695,7 +695,7 @@ Writing resource fields require positive integers, excluding booleans. The model
 dimension is checked during preparation and loading; the production input byte
 count is checked after writing the common file.
 The resource preflight records the production writing plan alongside encoding plans
-in `preflight-memory.json`. Its conservative components include retained corpus,
+in `<results>/preflight-memory.json`. Its conservative components include retained corpus,
 preparation arrays, input cache, all pages of one store, model copies, worker buffers,
 samples and controller reserve, checked against 108.8 GB on the declared 128 GB machine.
 The arms and their warmups run sequentially, so two full stores are never budgeted
