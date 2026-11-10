@@ -116,6 +116,12 @@ def core_entries():
 def _class_entries(prefix, cls):
     if issubclass(cls, BaseException):
         return  # Exception methods inherited from builtins are not fse implementations.
+    yield from _method_entries(prefix, cls)
+    for name, hint in _field_hints(cls).items():
+        yield Entry(prefix + "." + name, "field", {"return": hint}, {}, {})
+
+
+def _method_entries(prefix, cls):
     for name, value in inspect.getmembers_static(cls):
         if not _public_method(name):
             continue
@@ -130,8 +136,6 @@ def _class_entries(prefix, cls):
             assert kind == "constructor", prefix + "." + name
             continue
         yield from _function_entries(prefix + "." + name, value, kind)
-    for name, hint in _field_hints(cls).items():
-        yield Entry(prefix + "." + name, "field", {"return": hint}, {}, {})
 
 
 def _field_hints(cls):

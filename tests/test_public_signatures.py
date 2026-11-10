@@ -85,25 +85,34 @@ def _any_kinds(annotation):
     if bare is not None:
         return bare
     origin, args = get_origin(annotation), get_args(annotation)
+    dtype = _array_unknowns(annotation, origin, args)
+    if dtype is not None:
+        return dtype
+    return _nested_unknowns(origin, args)
+
+
+def _array_unknowns(annotation, origin, args):
     if origin is NDArray or annotation is NDArray:
-        # New NumPy versions preserve NDArray as a runtime TypeAliasType.
+        # NumPy 2.5 preserves NDArray as a runtime TypeAliasType.
         scalar = args[0] if args else Any
-        return {"dtype"} if _any_kinds(scalar) else set()
-    if (origin or annotation) is np.ndarray:
-        # NumPy 1.26 itself expands NDArray[float32] to ndarray[Any, dtype[float32]].
-        # That foreign shape placeholder is not an unknown result dtype.
+    elif (origin or annotation) is np.ndarray:
+        # NumPy 1.26 expands NDArray to ndarray[Any, dtype[scalar]].
         dtype = get_args(args[1]) if len(args) > 1 else ()
         scalar = dtype[0] if dtype else Any
-        return {"dtype"} if _any_kinds(scalar) else set()
+    else:
+        return None
+    return {"dtype"} if _any_kinds(scalar) else set()
+
+
+def _nested_unknowns(origin, args):
     kinds = set()
     for index, arg in enumerate(args):
         if arg is Any and origin in (dict, Mapping):
             kinds.add("mapping_value" if index == 1 else "mapping_key")
-        elif isinstance(arg, list):
-            for item in arg:
-                kinds.update(_any_kinds(item))
         else:
-            kinds.update(_any_kinds(arg))
+            items = arg if isinstance(arg, list) else [arg]
+            for item in items:
+                kinds.update(_any_kinds(item))
     return kinds
 
 
@@ -320,27 +329,28 @@ MODEL_REFERENCES = {
 def _expected_input(name, parameter):
     if (name, parameter) in MODEL_REFERENCES:
         return fse.typing.ModelRef
-    if parameter == "workers":
-        return fse.typing.WorkerCount
-    if parameter in ("texts", "sentences", "input"):
-        return TextInput
     if parameter == "batches":
-        if name in (
-            "fse.Classifier.predict_batches",
-            "fse.Regressor.predict_batches",
-            "fse.Heads.predict_batches",
-        ):
-            return TextBatches | fse.VectorStore
-        return TextBatches
-    if parameter == "path":
-        return fse.typing.PathLike
-    if parameter == "paths":
-        return PathSequence
-    if parameter == "cache_dir":
-        return fse.typing.PathLike | None
-    if parameter == "extra_files":
-        return dict[str, fse.typing.PathLike] | None
-    return None
+        return _batch_input(name)
+    common = {
+        "workers": fse.typing.WorkerCount,
+        "texts": TextInput,
+        "sentences": TextInput,
+        "input": TextInput,
+        "path": fse.typing.PathLike,
+        "paths": PathSequence,
+        "cache_dir": fse.typing.PathLike | None,
+        "extra_files": dict[str, fse.typing.PathLike] | None,
+    }
+    return common.get(parameter)
+
+
+def _batch_input(name):
+    predictions = {
+        "fse.Classifier.predict_batches",
+        "fse.Regressor.predict_batches",
+        "fse.Heads.predict_batches",
+    }
+    return TextBatches | fse.VectorStore if name in predictions else TextBatches
 
 
 def test_common_input_types(entries):

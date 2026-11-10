@@ -6,7 +6,6 @@
 
 """``fse.ScoreStore``: a score store opened for reading (docs/architecture/scores.md,
 "Reading").
-
 The shards published when the store is opened are mapped read-only (a snapshot: ``refresh``
 adds the shards published since). ``iter_batches`` gives the stored values as they are, read-only
 views of the mapping; ``predict_batches`` gives labels or values as ``fse.Heads`` or a single head does, derived
