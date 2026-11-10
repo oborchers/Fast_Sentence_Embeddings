@@ -334,10 +334,12 @@ class WordVectors:
 
     @property
     def dim(self) -> int:
+        """The number of columns of a row."""
         return int(self._tensors["vectors"].shape[1])
 
     @property
     def dtype(self) -> str:
+        """The stored dtype: ``"float32"``, ``"float16"`` or ``"int8"``."""
         return self._metadata["fse.dtype"]
 
     @property
@@ -348,18 +350,25 @@ class WordVectors:
 
     @property
     def scales(self) -> NDArray[np.float32] | None:
+        """The float32 scale of each int8 row, or None for other dtypes. A read-only view of
+        the stored data, not a copy."""
         return _view(self._tensors.get("scales"))
 
     @property
     def vocab_bytes(self) -> NDArray[np.uint8]:
+        """The UTF-8 bytes of all words, joined; ``vocab_offsets`` cuts them. A read-only
+        view, not a copy."""
         return self._tensors["vocab.bytes"].view()
 
     @property
     def vocab_offsets(self) -> NDArray[np.int64]:
+        """The int64 start of each word in ``vocab_bytes``, and the end of the last. A
+        read-only view, not a copy."""
         return self._tensors["vocab.offsets"].view()
 
     @property
     def fasttext(self) -> FastTextParams | None:
+        """The FastText parameters (ngram sizes and buckets), or None for other vectors."""
         text = self._metadata.get("fse.fasttext")
         return None if text is None else _parse_fasttext(text)
 
@@ -370,6 +379,7 @@ class WordVectors:
 
     @property
     def ngram_scales(self) -> NDArray[np.float32] | None:
+        """The float32 scale of each int8 ngram row, or None. A read-only view, not a copy."""
         return _view(self._tensors.get("ngram_scales"))
 
     @property
@@ -379,6 +389,7 @@ class WordVectors:
 
     @property
     def metadata(self) -> dict[str, str]:
+        """The ``fse.`` metadata of the vectors, as a new dict of str to str (a copy)."""
         return dict(self._metadata)
 
     @property

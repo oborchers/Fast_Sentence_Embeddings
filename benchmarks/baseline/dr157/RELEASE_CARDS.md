@@ -63,6 +63,6 @@ clean unneeded hardlinks using the binding targeted-cleanup protocol.
 The manifest flag does not grant upload permission. The coordinator applies Oliver's
 Option B decision after release. It uploads all 30 PUBLIC repos from the new release
 payload, then supplies upload receipts referencing the NEW manifest SHA256.
-Use that new manifest with `verify_published_hub.py`. Follow `POST_UPLOAD.md` for
+Use that new manifest with [`verify_published_hub.py`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/b771909c748b8a2d8b71aed0eda187440bb9a2cf/benchmarks/verify_published_hub.py) (removed; shown at its last commit). Follow `POST_UPLOAD.md` for
 fresh per-repo download, SHA256, literal card example, metadata/probe verification,
 cache cleanup and committed JSON evidence. No error triggers Hub repair writes.
