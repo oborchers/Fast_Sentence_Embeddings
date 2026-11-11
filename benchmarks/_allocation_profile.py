@@ -8,7 +8,7 @@ from functools import partial
 
 from _harness.allocation import Allocation, budget_of
 from _harness.collect import verify
-from _harness.records import atomic, read_rows, seal_unstarted
+from _harness.records import atomic, document, read_rows, seal_unstarted
 from _harness.spec import load
 from _measurement_config import CONFIG
 from _measurement_setup import outside_checkout
@@ -66,8 +66,9 @@ def regression_candidates(root, cells):
 def select(root, default_cell):
     """Worst valid encode regression, otherwise the declared representative configuration."""
     verify(root)
+    functional = document(root / "environment.json")["contract"].get("functional_only", False)
     cells = read_rows(root, "cells.jsonl")
-    regressions, open_evidence = regression_candidates(root, cells)
+    regressions, open_evidence = ([], []) if functional else regression_candidates(root, cells)
     if regressions:
         cell = min(regressions, key=lambda c: c["paired_speedup"]["median"])
     else:
@@ -82,9 +83,16 @@ def select(root, default_cell):
         "cell": cell["cell_id"],
         "round": number,
         "job": f"{cell['cell_id']}-{number}-fse",
-        "rule": "worst valid encode regression, otherwise representative; nearest median round",
+        "rule": "functional_only: representative; nearest median round"
+        if functional
+        else "worst valid encode regression, otherwise representative; nearest median round",
         "runtime_slowdown_boundary": RUNTIME_SLOWDOWN_BOUNDARY,
         "open_evidence": open_evidence,
+        **(
+            {"boundary_evaluation": {"status": "not_evaluated", "reason": "functional_only"}}
+            if functional
+            else {}
+        ),
     }
 
 
