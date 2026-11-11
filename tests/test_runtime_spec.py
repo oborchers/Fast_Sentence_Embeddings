@@ -86,3 +86,17 @@ def test_max_ngrams_may_be_a_numpy_integer():
     assert spec.max_ngrams == 12
     assert type(spec.max_ngrams) is int
     Pipeline(spec)
+
+
+@pytest.mark.parametrize("mask", [False, True])
+def test_masked_weights_are_rejected_before_copy(mask, monkeypatch):
+    wv = word_vectors()
+    weights = np.ma.array(np.ones(len(wv), F32), mask=mask)
+
+    def no_copy(*_args, **_kwargs):
+        pytest.fail("masked weights were copied")
+
+    monkeypatch.setattr("fse._runtime._spec.np.array", no_copy)
+    with pytest.raises(TypeError, match="weights must not be a masked array"):
+        EncodeSpec(wv, weights)
+    assert weights.flags.writeable

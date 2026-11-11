@@ -357,6 +357,8 @@ def _new_tensors(given: dict[str, Any]) -> dict[str, ndarray]:
     """The tensors of new word vectors: every given one, each a numpy array."""
     tensors = {name: value for name, value in given.items() if value is not None}
     for name, value in tensors.items():
+        if isinstance(value, np.ma.MaskedArray):
+            raise TypeError(f"{name} must not be a masked array")
         if not isinstance(value, ndarray):
             raise TypeError(f"{name} must be a numpy array, not {type(value).__name__}")
     return tensors

@@ -23,6 +23,7 @@ from fse._backends import PoolInput
 from fse._contract import Aggregation, Step, check_steps
 from fse._text import MAX_NGRAMS_LIMIT
 from fse._tokenizer_spec import TokenizerSpec
+from fse._validation import refuse_lost_input
 from fse._wordvectors import WordVectors
 
 _FSE_WORDS = TokenizerSpec("fse_words@1")
@@ -91,6 +92,7 @@ class EncodeSpec:
 
 
 def _weights(value: object, words: int) -> ndarray:
+    refuse_lost_input(value, "weights")
     if not isinstance(value, ndarray) or value.dtype != np.float32 or value.shape != (words,):
         raise ValueError(f"weights must be a float32 vector of {words} values, one per word")
     copy = np.array(value, copy=True, order="C")
