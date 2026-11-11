@@ -91,6 +91,8 @@ dev = [
     "memray>=1.17; sys_platform != 'win32'",
 ]
 lint = [
+    # Parse the pre-commit guardrail hook for path drift.
+    "PyYAML>=6",
     # Offline documentation links, shared by the lint command and its tests.
     "markdown-it-py>=3,<5",
     # Fragment CLI used by the PR gate and release preparation, never imported by fse.

@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import runpy
 import shutil
 import subprocess
@@ -227,6 +228,10 @@ def _repo(tmp_path, body, ratchet=""):
     settings = pyproject[start : pyproject.index("# The ratchet:")]
     contracts = pyproject[pyproject.index("\n[tool.importlinter]\n") :]
     contracts = contracts[: contracts.index("# --- Unused code")]
+    shutil.copyfile(ROOT / ".pre-commit-config.yaml", tmp_path / ".pre-commit-config.yaml")
+    (tmp_path / "setup.py").write_text("")
+    for directory in ("tools", "benchmarks", "docs/assets", "recipes", "integrations"):
+        (tmp_path / directory).mkdir(parents=True, exist_ok=True)
     (tmp_path / "pyproject.toml").write_text(settings + ratchet + "\n" + contracts)
     (tmp_path / "src" / "fse").mkdir(parents=True)
     (tmp_path / "tests").mkdir()
@@ -420,3 +425,67 @@ def test_full_command_rejects_private_adapter_import(tool, tmp_path, capsys):
     path.write_text("from fse import _validation\n")
     assert tool["main"]([], root=repo) == 1
     assert "imports private fse._validation" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("change", ["missing", "extra", "paths", "hook"])
+def test_hook_filter_drift_is_reported(tool, tmp_path, change):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    config = repo / ".pre-commit-config.yaml"
+    text = config.read_text()
+    paths = tool["load_config"](repo)["paths"]
+    assert tool["hook_filter_errors"](repo, paths) == []
+    if change == "missing":
+        text = text.replace("recipes/|", "")
+    elif change == "extra":
+        text = text.replace("recipes/|", "recipes/|media/|")
+    elif change == "paths":
+        paths = [*paths, "new_code"]
+    else:
+        text = text.replace("id: guardrails", "id: other")
+    config.write_text(text)
+    errors = tool["hook_filter_errors"](repo, paths)
+    assert len(errors) == 1
+    assert "guardrails hook files must match" in errors[0]
+
+
+@pytest.mark.parametrize(
+    ("path", "matches"),
+    [
+        ("src/demo.py", True),
+        ("tests/demo.py", True),
+        ("tools/demo.py", True),
+        ("benchmarks/demo.py", True),
+        ("integrations/demo.py", True),
+        ("recipes/demo.py", True),
+        ("docs/assets/nested/demo.py", True),
+        ("setup.py", True),
+        ("pyproject.toml", True),
+        (".pre-commit-config.yaml", True),
+        ("media/demo.py", False),
+        ("docs/other.py", False),
+        ("recipes_extra/demo.py", False),
+        ("setupXpy", False),
+        ("setup.py/other.py", False),
+        ("pyproject.toml.bak", False),
+    ],
+)
+def test_repository_hook_filter_boundaries(path, matches):
+    yaml = pytest.importorskip("yaml")
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text())
+    hook = next(
+        hook
+        for repo in config["repos"]
+        if repo["repo"] == "local"
+        for hook in repo["hooks"]
+        if hook["id"] == "guardrails"
+    )
+    assert bool(re.search(hook["files"], path)) is matches
+
+
+@needs_lint_tools
+def test_hook_filter_drift_fails_the_command(tool, tmp_path, capsys):
+    repo = _repo(tmp_path, "def f():\n    return 1\n")
+    config = repo / ".pre-commit-config.yaml"
+    config.write_text(config.read_text().replace("recipes/|", ""))
+    assert tool["main"]([], root=repo) == 1
+    assert "guardrails hook files must match" in capsys.readouterr().out

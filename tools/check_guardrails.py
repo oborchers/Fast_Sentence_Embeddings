@@ -64,6 +64,35 @@ def load_config(root: Path) -> dict:
     return cfg
 
 
+def hook_filter_errors(root: Path, paths: list[str]) -> list[str]:
+    """Require the canonical hook filter for the configured paths and config files."""
+    try:
+        # PyYAML is needed only for this check, not the other tool helpers.
+        yaml = importlib.import_module("yaml")
+    except ImportError:
+        raise ToolError("PyYAML is not installed; run `uv sync --group lint`") from None
+    try:
+        config = yaml.safe_load((root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    except yaml.YAMLError as err:
+        raise ToolError(f"invalid .pre-commit-config.yaml: {err}") from None
+    hooks = [
+        hook
+        for repo in config["repos"]
+        if repo["repo"] == "local"
+        for hook in repo["hooks"]
+        if hook["id"] == "guardrails"
+    ]
+    patterns = [re.escape(p) + ("$" if (root / p).is_file() else "/") for p in paths]
+    patterns += [r"pyproject\.toml$", r"\.pre-commit-config\.yaml$"]
+    expected = "^(?:" + "|".join(patterns) + ")"
+    if len(hooks) == 1 and hooks[0].get("files") == expected:
+        return []
+    return [
+        ".pre-commit-config.yaml: guardrails hook files must match "
+        f"[tool.fse.guardrails].paths and both configuration files; expected: {expected}"
+    ]
+
+
 def _run(command: list[str], root: Path) -> str:
     try:
         return subprocess.run(command, cwd=root, capture_output=True, check=True).stdout.decode()
@@ -261,6 +290,7 @@ def check(root: Path, base: str | None = None) -> tuple[list[str], dict, dict]:
         functions.setdefault(key, {}).update(values)
     ratchet = cfg.get("ratchet", {})
     errors = [
+        *hook_filter_errors(root, cfg["paths"]),
         *compare({k: {"lines": v} for k, v in lines.items()}, ratchet.get("lines", {}), "line"),
         *compare(functions, ratchet.get("functions", {}), "complexity"),
         *IMPORTS["import_errors"](root, cfg),
