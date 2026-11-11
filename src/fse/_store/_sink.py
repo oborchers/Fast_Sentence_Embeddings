@@ -160,6 +160,12 @@ class ShardSink(ShardSinkBase):
             synced=synced,
             shard_rows=shard_rows or default_shard_rows(info.dim, dtype),
             first_row=first_row,
+            row_bytes=(
+                info.dim * np.dtype(_codes.STORAGE_TYPES[dtype]).itemsize
+                + (4 if dtype == "int8" else 0)
+                + 4
+                + (8 if doc_ids else 0)
+            ),
         )
         self.has_doc_ids = doc_ids
         self._info = info

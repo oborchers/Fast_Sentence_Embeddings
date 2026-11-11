@@ -192,3 +192,20 @@ def test_published_adapter_validator_compatibility():
         return workers
 
     assert adapter(workers=1) == 1
+
+
+def test_sink_target_limits_use_python_arithmetic_without_allocation():
+    from fse._validation import target_rows
+
+    maximum = int(np.iinfo(np.intp).max)
+    assert target_rows(np.uint64(0), np.uint64(maximum // 12), 12) == (0, maximum // 12)
+    with pytest.raises(ValueError, match=r"n_rows.*byte size"):
+        target_rows(0, maximum // 12 + 1, 12)
+    assert target_rows(maximum - 1, 1, 1) == (maximum - 1, 1)
+    with pytest.raises(ValueError, match=r"n_rows.*target end"):
+        target_rows(np.uint64(maximum), np.uint64(1), 1)
+    assert target_rows(1, 1, 12, offset=maximum - 2) == (1, 1)
+    with pytest.raises(ValueError, match=r"n_rows.*target end"):
+        target_rows(1, 2, 12, offset=maximum - 2)
+    with pytest.raises(ValueError, match=r"first_row.*store offset"):
+        target_rows(maximum, 0, 12, offset=1)

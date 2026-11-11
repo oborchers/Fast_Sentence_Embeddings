@@ -23,6 +23,7 @@ from numpy import ndarray
 from numpy.typing import NDArray
 
 from fse import _codes
+from fse._validation import row_number, target_rows
 
 # What a target and a commit hold: float32 rows, float16 codes, or int8 codes and scales;
 # for a sink that wants inverse norms, a float32 vector of one per row follows.
@@ -122,6 +123,8 @@ class _Rows:
         self.dim = dim
         self.dtype = _codes.check_dtype(dtype)
         self.next_row = start
+        self._row_bytes = dim * np.dtype(_codes.STORAGE_TYPES[self.dtype]).itemsize
+        self._row_bytes += 4 if self.dtype == "int8" else 0
 
     def _new(self, n_rows: int) -> Stored:
         codes = np.empty((n_rows, self.dim), dtype=_codes.STORAGE_TYPES[self.dtype])
@@ -131,6 +134,7 @@ class _Rows:
 
     def _check_commit(self, first_row: int, rows: Stored) -> int:
         """The number of rows of a commit, checked: in order, of the dtype and dimension."""
+        first_row = row_number(first_row, "first_row")
         if first_row != self.next_row:
             raise ValueError(f"rows from {first_row} committed, expected rows from {self.next_row}")
         codes, scales = rows if isinstance(rows, tuple) else (rows, None)
@@ -167,12 +171,14 @@ class ArrayRows(_Rows):
         return self._out[first_row : first_row + n_rows]
 
     def target(self, first_row: int, n_rows: int) -> Stored:
+        first_row, n_rows = target_rows(first_row, n_rows, self._row_bytes)
         total = len(_first(self._out))
         if not 0 <= first_row <= first_row + n_rows <= total:
             raise ValueError(f"rows {first_row} to {first_row + n_rows} beyond {total}")
         return self._view(first_row, n_rows)
 
     def commit(self, first_row: int, rows: Stored) -> None:
+        first_row = row_number(first_row, "first_row")
         n = len(_first(rows)) if isinstance(_first(rows), ndarray) else 0
         reserved = self._view(first_row, n)
         if not _same(rows, reserved):
@@ -206,6 +212,7 @@ class GrowingRows(_Rows):
         self._parts: list[Stored] = []
 
     def target(self, first_row: int, n_rows: int) -> Stored:
+        first_row, n_rows = target_rows(first_row, n_rows, self._row_bytes)
         if first_row < self.next_row:
             raise ValueError(f"rows from {first_row} were committed already")
         return self._new(n_rows)

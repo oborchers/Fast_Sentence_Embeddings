@@ -56,6 +56,24 @@ Defaults are part of the API and chosen for speed: `workers` is the number of us
 
 - **Length reports.** `lengths="summary"` or `"per_row"`, `count_truncated=True` and `on_truncation="raise"` are keyword-only on the ten methods that tokenize text (`Encoder.encode/encode_batches`, `Heads.predict/predict_batches`, `Classifier.predict/predict_proba/decision_function/predict_batches`, `Regressor.predict/predict_batches`) and checked the same way by `LengthSettings.of` before a text is read (a wrong type is a `TypeError`, a wrong value a `ValueError`, both name the method). **Return rule:** without sinks, `Heads.predict`, `Classifier.predict` and `Regressor.predict` with `return_vectors=True` return `(result, vectors)`, or `(result, vectors, fse.LengthReport)` when `lengths` is set. The vectors are the encoder's float32 rows, bit for bit as in `predict_batches(return_vectors=True)`; raw-mean heads then run unfolded. Standalone heads and `VectorStore` inputs refuse this switch, as does `Regressor.predict(sink=...)`. Vectors take `4*n*dim` bytes, about `8*n*dim` at peak when the row count is unknown because chunks coexist with the joined array. Use `predict_batches` for large or unbounded sources. Otherwise a 2.0 return type (array, mapping, `None` with a sink) becomes `(result, fse.LengthReport)` when `lengths` is set, a batch of `*_batches` becomes the pair `(batch, report)` of the 2.0 batch types (`EncodedBatch` and `PredictedBatch` gain no field), and the 2.1 `HeadsBatch` gets the field `lengths`. Without the keywords nothing is recorded, no return changes and no byte of a result differs. The workers record the cuts in their native workspaces (`fse._native.Workspace(watch, raise_cut, store_rows)`) and the calling thread adds each task, in commit order, to a `LengthCollector`; the report is the same for any number of workers, task size and backend. `"summary"` keeps only sums; `"per_row"` holds 19 bytes per row (35 with `count_truncated`) in the report, 17 (33) per row of a task until its commit, which `HeadsPlan.row_bytes` and the pipeline count once in the window. A task copies its record with the GIL held, with `np.empty` and a loop and no numpy call that could release it (`tests/test_runtime_gil.py`). A stream of unknown length doubles its arrays while it grows, so its peak is up to three times the final report: use `"summary"` for large streams. `on_truncation="raise"` raises `fse.TruncationError(ValueError)` with `row`, `cut` and `limit` for the earliest row the rule would cut, in the order of Errors above (invalid UTF-8 or a pooling error of an earlier row wins; with a sink the rows before it may be committed); without a report it records nothing but the first cut. A `VectorStore` input holds finished rows: the keywords raise `ValueError` before a row is read. `LengthReport.empty` means `tokens == 0`; a row of zeros has other causes too (a table row of zeros, an int8 row whose scale is 0, FastText with no bucket, contributions that cancel), so use `~vectors.any(axis=1)` for those.
 
+### Sink row arguments
+
+The public `MemorySink`, `ShardSink` and `ScoreSink` use the same row argument
+checks, including vector and score sinks passed to `Heads`. `target(first_row,
+n_rows)` accepts Python `int` and NumPy integer scalars, excluding booleans.
+`commit(first_row, rows)` applies the same check to `first_row`. Wrong types
+(including floats, infinity and NaN) raise `TypeError`; negative or oversized
+integers raise `ValueError`. Checks precede allocation, shard reservation and
+commit state changes. Validated integers become Python integers before arithmetic.
+
+Let `M = np.iinfo(np.intp).max`, the platform's maximum array index. Both arguments
+must be in `[0, M]`, and `first_row + n_rows` must not exceed `M`. For shard stores,
+the stored starting offset plus that end must also fit. A target's total byte
+size must fit in `M`: `n_rows <= M // row_bytes`. `row_bytes` includes the codes,
+int8 scales, inverse norms and document IDs that the sink holds for each row.
+This representability limit does not promise enough available memory or disk
+space for every accepted request. Zero-row targets are allowed.
+
 ### Sink threads
 
 `pool=` bounds computation threads, not sink threads. Each `ShardSink` or `ScoreSink` adds up to three I/O threads of its own. The write and hash threads start at the first commit, and the publish thread at the first finished shard. Constructing, inspecting or opening a sink starts none. Once started, they live until `sink.close()` (or the end of its `with` block). Close every sink that takes rows, even when a computation runs inline. There is no finalizer. Sink work stays outside the pool: otherwise a sink could wait for a pool place held by an encode call that waits for the sink to drain.
