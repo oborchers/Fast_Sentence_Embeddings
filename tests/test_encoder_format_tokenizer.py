@@ -308,3 +308,15 @@ def test_the_table_of_a_tokenizer_with_parameters():
         fmt.check_tokenizer_table(SPEC, True, data, offsets)
     with pytest.raises(ValueError, match=r"vocab\.bytes"):
         fmt.check_tokenizer_table(SPEC, False, None, offsets)
+
+
+@pytest.mark.parametrize("name", ["bytes", "offsets"])
+def test_tokenizer_table_checks_dtype_before_converting(name):
+    data, offsets = _vocabulary(TOKENS)
+    if name == "bytes":
+        data = data.astype(np.float32)
+    else:
+        offsets = np.full(offsets.shape, np.inf, np.float32)
+    with pytest.raises(ValueError, match="must be a one-dimensional") as caught:
+        fmt.check_tokenizer_table(SPEC, False, data, offsets)
+    assert type(caught.value) is ValueError

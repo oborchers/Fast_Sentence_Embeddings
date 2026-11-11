@@ -84,6 +84,12 @@ def check_tokenizer_table(
         raise ValueError(f"an encoder of {tokenizer.name} has no FastText table")
     if vocab_bytes is None or vocab_offsets is None:
         raise ValueError("an encoder needs the tensors vocab.bytes and vocab.offsets")
+    for name, array, dtype in (
+        ("vocab.bytes", vocab_bytes, np.uint8),
+        ("vocab.offsets", vocab_offsets, np.int64),
+    ):
+        if array.ndim != 1 or array.dtype != dtype:
+            raise ValueError(f"{name} must be a one-dimensional {np.dtype(dtype).name} tensor")
     tokenizer.check_vocabulary(vocab_bytes, vocab_offsets)
 
 

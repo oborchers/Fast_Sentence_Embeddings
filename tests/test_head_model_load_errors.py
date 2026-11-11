@@ -59,7 +59,30 @@ def test_hub_bytes_and_standalone_heads_use_the_reader_boundary(
     keys["fse.head.normalized"] = "wrong"
     path = write_model_parts(tmp_path / "bad.safetensors", tensors, keys)
     found = _pretrained.Found(data=(path.read_bytes(), path))
-    monkeypatch.setattr(_pretrained, "files", lambda *_a, **_kw: None)
+    monkeypatch.setattr(_pretrained, "files", lambda *_a, **_kw: path)
     monkeypatch.setattr(_pretrained, "find_fse", lambda *_a, **_kw: found)
     with pytest.raises(CorruptArtifactError, match=r"fse\.head\.normalized"):
         kind.from_pretrained("test/model")
+
+
+@pytest.mark.parametrize("kind", [Classifier, Regressor])
+def test_embedded_tokenizer_vocabulary_is_checked_before_conversion(tmp_path, kind):
+    from fse import Encoder, WordVectors
+    from fse._container import checksum, fingerprint, tensor_code
+    from fse._tokenizer_spec import TokenizerSpec, WordPieceConfig
+
+    words = ["[UNK]", "a"]
+    table = WordVectors.from_arrays(np.ones((2, 3), np.float32), words=words)
+    spec = TokenizerSpec("wordpiece@1", WordPieceConfig(((0, words[0]),), 0), "keep")
+    encoder = Encoder._converted(table, spec, normalize=False)
+    kwargs = {"labels": ["a", "b"]} if kind is Classifier else {}
+    model = kind.from_arrays(encoder, np.ones((2, 3), np.float32), **kwargs)
+    tensors, keys, _ = model._artifact()
+    tensors["vocab.offsets"] = np.full(3, np.inf, np.float32)
+    enc_tensors, enc_keys, _ = encoder._artifact()
+    enc_tensors["vocab.offsets"] = tensors["vocab.offsets"]
+    entries = {k: (tensor_code(v), v.shape, checksum(v)) for k, v in enc_tensors.items()}
+    keys["fse.encoder_fingerprint"] = fingerprint(entries, enc_keys)
+    path = write_model_parts(tmp_path / "bad.safetensors", tensors, keys)
+    with pytest.raises(CorruptArtifactError, match="must be a one-dimensional"):
+        kind.load(path)
