@@ -41,8 +41,9 @@ repos:
         entry: uv run --no-sync python tools/check_guardrails.py
         language: system
         pass_filenames: false
-        # The paths of [tool.fse.guardrails].
-        files: ^(src|tests|tools|benchmarks|media|integrations)/|^(setup\.py|pyproject\.toml)$
+        # The paths of [tool.fse.guardrails] plus both configuration files.
+        # Keep the canonical expression checked by tools/check_guardrails.py.
+        files: ^(?:src/|tests/|tools/|benchmarks/|docs/assets/|recipes/|integrations/|setup\.py$|pyproject\.toml$|\.pre-commit-config\.yaml$)
       - id: vulture
         name: unused code
         entry: uv run --no-sync vulture
