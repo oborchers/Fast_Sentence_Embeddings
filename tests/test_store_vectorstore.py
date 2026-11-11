@@ -39,6 +39,65 @@ def _want_search(codes, queries, k):
     return ids, np.stack([cosines[ids[j], j] for j in range(len(queries))])
 
 
+@pytest.mark.parametrize("entry", ["search", "rescore", "score"])
+@pytest.mark.parametrize("matrix", [False, True])
+@pytest.mark.parametrize(
+    "invalid", ["mixed-bool", "numpy-bool", "bool-array", "masked", "unmasked"]
+)
+def test_queries_and_weights_refuse_lost_input(tmp_path, entry, matrix, invalid):
+    path = _store(tmp_path, "float32", texts(3))[0]
+    value = [0.5] * ENCODER.output_dim
+    if invalid in {"mixed-bool", "numpy-bool"}:
+        value[0] = True if invalid == "mixed-bool" else np.bool_(True)
+    elif invalid == "bool-array":
+        value = np.ones(ENCODER.output_dim, dtype=bool)
+    else:
+        value = np.ma.array(value, mask=invalid == "masked")
+    if matrix:
+        value = [value]  # also catch a masked row before the outer list is converted
+    args = ([[0, 1]] if matrix else [0, 1],) if entry == "rescore" else ()
+    with fse.VectorStore.open(path) as store:
+        call = getattr(store, entry)
+        with pytest.raises(TypeError, match=r"(queries|weights).*bool|masked array"):
+            call(value, *args, workers=1)
+
+
+@pytest.mark.parametrize("mode", ["exact", "blas", "auto"])
+@pytest.mark.parametrize(
+    "bias",
+    [
+        True,
+        np.bool_(False),
+        [True, 0.5],
+        [np.bool_(False), 0.5],
+        np.ones(2, dtype=bool),
+        np.ma.array([0.5, 0.5], mask=[True, False]),
+        np.ma.array([0.5, 0.5], mask=False),
+        np.ma.array(0.5, mask=True),
+    ],
+)
+def test_score_refuses_lost_bias_input(tmp_path, mode, bias):
+    path = _store(tmp_path, "float32", texts(3))[0]
+    with (
+        fse.VectorStore.open(path) as store,
+        pytest.raises(TypeError, match=r"bias.*(bool|masked array)"),
+    ):
+        store.score(np.ones((2, store.dim), F32), bias, mode=mode, workers=1)
+
+
+@pytest.mark.parametrize("entry", ["search", "rescore", "score", "bias"])
+@pytest.mark.parametrize("value", [{0.5}, frozenset({0.5}), {0: 0.5}])
+def test_store_refuses_unordered_inputs_before_conversion(tmp_path, entry, value):
+    path = _store(tmp_path, "float32", texts(3))[0]
+    with fse.VectorStore.open(path) as store:
+        call = getattr(store, "score" if entry == "bias" else entry)
+        args = (np.ones(store.dim, F32), value) if entry == "bias" else (value,)
+        if entry == "rescore":
+            args += ([0, 1],)
+        with pytest.raises(TypeError, match="ordered sequence"):
+            call(*args, workers=1)
+
+
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("workers", [1, 4])
 @pytest.mark.parametrize("q", [1, 3, 70])

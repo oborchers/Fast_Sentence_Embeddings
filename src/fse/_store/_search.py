@@ -32,7 +32,7 @@ to 12 queries; for 1 query 11 against 39 ms on int8 rows).
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence, Set
 from typing import Any
 
 import numpy as np
@@ -40,6 +40,7 @@ from numpy import ndarray
 
 from fse import _log, _reference
 from fse._contract import Normalize
+from fse._validation import refuse_lost_input
 
 from ._search_run import count
 from ._search_run import run as _run
@@ -189,6 +190,9 @@ class Candidates:
 def queries(backend: Any, dim: int, value: Any, name: str) -> tuple[ndarray, bool]:
     """The float32 matrix of the queries (or weight vectors) ``value`` of a store of ``dim``
     values, and whether ``value`` was one vector."""
+    if isinstance(value, Mapping | Set):
+        raise TypeError(f"{name} must be an ordered sequence, not a mapping or set")
+    refuse_lost_input(value, name)
     array = np.asarray(value)
     if array.dtype.kind not in "fiu":
         raise TypeError(f"{name} must be numbers (float or int), not strings, objects or bools")
@@ -356,6 +360,9 @@ def _tasks(shards: Sequence[tuple[Any, dict]], n_queries: int, decode: int) -> I
 
 
 def _biases(backend: Any, bias: Any, n: int) -> ndarray:
+    if isinstance(bias, Mapping | Set):
+        raise TypeError("bias must be a number or an ordered sequence, not a mapping or set")
+    refuse_lost_input(bias, "bias")
     array = np.asarray(bias)
     if array.dtype.kind not in "fiu" or array.ndim > 1 or (array.ndim == 1 and array.shape != (n,)):
         raise ValueError(f"bias must be one number or {n} numbers, one per weight vector")
