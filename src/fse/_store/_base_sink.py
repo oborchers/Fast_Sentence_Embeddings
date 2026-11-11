@@ -137,6 +137,13 @@ class ShardSinkBase(ResumableSinkMarker):
         self._check_threads()  # a failed write first: no row after it is taken
         first_row, n_rows = target_rows(first_row, n_rows, self._row_bytes, offset=self.first_row)
         self._check_next(first_row)
+        available = self.shard_rows
+        if self._writers and not self._writers[-1].full:
+            writer = self._writers[-1]
+            available = writer.end - writer.reserved
+        # A split target needs its own buffer. Fail its allocation before any shard
+        # reservation, including for large finite counts that fit the index limits.
+        own = self._own(n_rows) if n_rows == 0 or n_rows > available else None
         parts = []
         left = n_rows
         while left:
@@ -145,12 +152,8 @@ class ShardSinkBase(ResumableSinkMarker):
             parts.append((writer, writer.reserved, writer.reserve(take)))
             self._reserved += take
             left -= take
-        if len(parts) == 1:
-            self._targets[first_row] = (parts, None)
-            return self._flat(parts[0][2])
-        own = self._own(n_rows)
         self._targets[first_row] = (parts, own)
-        return self._flat(own)
+        return self._flat(parts[0][2] if own is None else own)
 
     def _claim(self, first_row: int, rows: Any) -> tuple[list, tuple | None]:
         """The parts of the target reserved at ``first_row``, which ``rows`` must be."""

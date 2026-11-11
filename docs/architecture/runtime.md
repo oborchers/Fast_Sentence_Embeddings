@@ -72,7 +72,10 @@ the stored starting offset plus that end must also fit. A target's total byte
 size must fit in `M`: `n_rows <= M // row_bytes`. `row_bytes` includes the codes,
 int8 scales, inverse norms and document IDs that the sink holds for each row.
 This representability limit does not promise enough available memory or disk
-space for every accepted request. Zero-row targets are allowed.
+space for every accepted request. A target that spans shards allocates its own
+buffer before reserving any shard rows, so an allocation failure leaves the
+reservations unchanged. Targets that fit one shard still use its buffers directly.
+Zero-row targets are allowed.
 
 ### Sink threads
 

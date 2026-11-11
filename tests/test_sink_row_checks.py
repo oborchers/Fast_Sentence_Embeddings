@@ -122,3 +122,68 @@ def test_target_rejects_byte_size_overflow_before_reservation(sink, monkeypatch)
     monkeypatch.setattr(sink, hook, forbidden)
     with pytest.raises(ValueError, match="n_rows"):
         sink.target(0, np.iinfo(np.intp).max)
+
+
+@pytest.mark.parametrize("prefix_rows", [0, 1, 2])
+@pytest.mark.parametrize("requested", [3, 2**40])
+def test_split_target_allocates_before_any_shard_reservation(
+    sink, monkeypatch, prefix_rows, requested
+):
+    if isinstance(sink, fse.MemorySink):
+        pytest.skip("MemorySink allocates directly without shard writers")
+    if prefix_rows:
+        rows = sink.target(0, prefix_rows)
+        _fill(rows)
+        # Keep the full writer in the queue too: no commit has published it yet.
+    before = [(id(w), w.reserved, w.end) for w in sink._writers]
+    targets = dict(sink._targets)
+    created = []
+    allocations = []
+
+    def cannot_allocate(n_rows):
+        allocations.append(n_rows)
+        raise MemoryError("bounded target allocation failure")
+
+    def unexpected_writer(first_row):
+        created.append(first_row)
+        pytest.fail("a writer was created before the split target buffer")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sink, "_own", cannot_allocate)
+        patch.setattr(sink, "_new_writer", unexpected_writer)
+        with pytest.raises(MemoryError, match="bounded target allocation failure"):
+            sink.target(prefix_rows, requested)
+    assert allocations == [requested]
+    assert created == []
+    assert sink._reserved == prefix_rows
+    assert sink._committed == 0
+    assert sink._targets == targets
+    assert [(id(w), w.reserved, w.end) for w in sink._writers] == before
+    if prefix_rows:
+        sink.commit(0, rows)
+    _commit_one(sink, prefix_rows)
+
+
+def test_target_inside_one_shard_needs_no_own_buffer(sink, monkeypatch):
+    if isinstance(sink, fse.MemorySink):
+        pytest.skip("MemorySink always allocates its own rows")
+    monkeypatch.setattr(sink, "_own", lambda *_: pytest.fail("one shard needs no own buffer"))
+    _commit_one(sink, 0)
+    _commit_one(sink, 1)
+    _commit_one(sink, 2)
+
+
+def test_split_target_checks_the_remaining_space_of_a_partial_shard(sink, monkeypatch):
+    if isinstance(sink, fse.MemorySink):
+        pytest.skip("MemorySink has no partial shard")
+    _commit_one(sink, 0)
+    writer = sink._writers[-1]
+
+    def cannot_allocate(_n_rows):
+        raise MemoryError("partial shard target allocation failure")
+
+    monkeypatch.setattr(sink, "_own", cannot_allocate)
+    with pytest.raises(MemoryError, match="partial shard target allocation failure"):
+        sink.target(1, 2)
+    assert sink._reserved == writer.reserved == 1
+    assert sink._committed == 1
