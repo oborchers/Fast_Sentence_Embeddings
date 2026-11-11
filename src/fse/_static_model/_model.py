@@ -45,8 +45,10 @@ class StaticModel:
     text cut to ``max_length`` tokens. Load one with ``StaticModel.from_pretrained``.
 
     Where model2vec ignores an argument, fse raises when it would change what the caller
-    gets: an unknown keyword is a ``TypeError``, ``quantize_to`` other than float32 and
-    ``vocabulary_quantization`` a ``ValueError``. The tables are float32, ``embedding`` is
+    gets: an unknown keyword to ``from_pretrained`` raises ``pydantic.ValidationError``
+    (``unexpected_keyword_argument``); an unknown keyword to ``encode`` raises ``TypeError``.
+    ``quantize_to`` other than float32 and ``vocabulary_quantization`` other than None
+    raise ``ValueError``. The tables are float32, ``embedding`` is
     read-only, and ``encoder`` is the ``fse.Encoder`` of the model's own settings.
     """
 
