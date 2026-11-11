@@ -45,14 +45,15 @@ def prepare(args, contract, ledger):
     require_budget(ledger, 60)
     models = engines.prepare_models(args.work, contract, args.reuse_work)
     require_budget(ledger, 60)
+    corpus_memory = {}
     if all(c["kind"] == "search" for c in contract["cells"]):
         quiet_contract = {**contract, "cells": [contract["quiet_cell"]], "functional_only": True}
         sentences, unknown, paragraphs = inputs.corpus_sources(
-            quiet_contract, (args.reuse_work or args.work) / "datasets"
+            quiet_contract, (args.reuse_work or args.work) / "datasets", corpus_memory
         )
     else:
         sentences, unknown, paragraphs = inputs.corpus_sources(
-            contract, (args.reuse_work or args.work) / "datasets"
+            contract, (args.reuse_work or args.work) / "datasets", corpus_memory
         )
     require_budget(ledger, 60)
     rust = (
@@ -63,7 +64,7 @@ def prepare(args, contract, ledger):
     return {
         "work": args.work,
         "datasets": (args.reuse_work or args.work) / "datasets",
-        "retained_source_bytes": sum(len(t.encode()) * 4 + 72 for t in sentences + paragraphs),
+        **corpus_memory,
         "ledger": ledger,
         "models": models,
         "paragraphs": sentences,
@@ -261,7 +262,7 @@ def memory_preflight(context, contract):
         if cell["kind"] == "write":
             from _speed_write_pair import memory_plan
 
-            plan = memory_plan(production, model_bytes, limit, context["retained_source_bytes"])
+            plan = memory_plan(production, model_bytes, limit, context["production_source_bytes"])
         else:
             plan = preflight_plan(cell, production, model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
