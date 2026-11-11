@@ -45,7 +45,28 @@ def _number(value):
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
+def _frame(frame):
+    if not isinstance(frame, dict) or not isinstance(frame.get("name"), str):
+        raise ValueError("ECHILD recovery requires named frames")
+    if frame.get("file") is not None and not isinstance(frame["file"], str):
+        raise ValueError("ECHILD recovery found invalid frame file metadata")
+    for key in ("line", "col"):
+        value = frame.get(key)
+        if value is not None and (type(value) is not int or not 0 <= value < 2**32):
+            raise ValueError("ECHILD recovery found invalid frame position metadata")
+
+
+def _metadata(data, profiles):
+    if data.get("name") is not None and not isinstance(data["name"], str):
+        raise ValueError("ECHILD recovery found invalid file name metadata")
+    index = data.get("activeProfileIndex")
+    if index is not None and (not _number(index) or index % 1 != 0 or index >= len(profiles)):
+        raise ValueError("ECHILD recovery found invalid active profile metadata")
+
+
 def _sampled(profile, frames):
+    if not isinstance(profile["name"], str):
+        raise ValueError("ECHILD recovery requires named profiles")
     if profile["type"] != "sampled" or profile["unit"] != "seconds":
         raise ValueError("ECHILD recovery requires sampled seconds profiles")
     samples, weights = profile["samples"], profile["weights"]
@@ -85,8 +106,9 @@ def verify_echild_data(folder, receipt, warning):
     frames, profiles = data["shared"]["frames"], data["profiles"]
     if not isinstance(frames, list) or not frames or not isinstance(profiles, list) or not profiles:
         raise ValueError("ECHILD recovery requires frames and profiles")
-    if any(not isinstance(f.get("name"), str) for f in frames):
-        raise ValueError("ECHILD recovery requires named frames")
+    _metadata(data, profiles)
+    for frame in frames:
+        _frame(frame)
     count = sum(_sampled(profile, frames) for profile in profiles)
     if count <= 0 or count != warning["reported_samples"]:
         raise ValueError("ECHILD recovery sample count differs from the write confirmation")
