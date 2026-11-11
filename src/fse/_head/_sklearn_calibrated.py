@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from fse._contract import Head
+from fse._validation import refuse_lost_input
 
 from . import _calibration
 
@@ -115,6 +116,7 @@ def _same_classes(model_classes: Any, element_classes: Any, labels: Any) -> None
 
 def _values(classes: Any) -> tuple[list, list]:
     """The classes as Python values, and their types."""
+    refuse_lost_input(classes, "classes_")
     items = classes.tolist() if isinstance(classes, np.ndarray) else list(classes)
     return items, [type(item) for item in items]
 

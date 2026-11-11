@@ -10,6 +10,8 @@ from typing import Any
 
 import numpy as np
 
+from fse._validation import refuse_lost_input
+
 
 def read(model: Any, binary: Callable) -> tuple:
     """Return W, b, the independent link, ordered classes and provenance."""
@@ -18,6 +20,8 @@ def read(model: Any, binary: Callable) -> tuple:
     classes = getattr(model, "classes_", None)
     estimators = getattr(model, "estimators_", None)
     binarizer = getattr(model, "label_binarizer_", None)
+    refuse_lost_input(classes, "classes_")
+    refuse_lost_input(getattr(binarizer, "classes_", None), "label_binarizer_.classes_")
     if not isinstance(classes, np.ndarray) or classes.ndim != 1 or not len(classes):
         raise ValueError("OneVsRestClassifier.classes_ must be a nonempty label vector")
     if not isinstance(estimators, list | tuple) or len(estimators) != len(classes):
@@ -52,6 +56,7 @@ def _binary(estimator: Any, binary: Callable, dim: int) -> tuple:
 
 def _constant(estimator: Any, dim: int) -> tuple:
     value = getattr(estimator, "y_", None)
+    refuse_lost_input(value, "y_")
     if (
         not isinstance(value, np.ndarray)
         or value.shape != (1,)

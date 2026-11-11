@@ -33,6 +33,7 @@ from fse._contract import UnsupportedArtifactError
 from fse._tokenizer_json import MAX_BYTES as MAX_TOKENIZER_BYTES
 from fse._tokenizer_json import tokenizer_of
 from fse._tokenizer_spec import TokenizerSpec
+from fse._validation import refuse_lost_input
 from fse._wordvectors import WordVectors
 
 from ._files import MODEL_RULE, Converted, Files, check_table, cut_table, kept_dims, read_table
@@ -81,6 +82,7 @@ def read_object_table(
     """The encoder parts of the parts of a Model2Vec model object: its ``config`` (parsed,
     ``where`` names it), the bytes of its tokenizer.json and its table, which must be a
     float32 array. The checks are those of ``read_model2vec``; the table is copied."""
+    refuse_lost_input(table, "embeddings")
     config = check_config(config, where)
     if len(tokenizer) > MAX_TOKENIZER_BYTES:
         raise CorruptArtifactError(

@@ -28,6 +28,7 @@ from numpy import ndarray
 
 from fse import _log
 from fse._contract import Head
+from fse._validation import refuse_lost_input
 
 from . import _sklearn_calibrated, _sklearn_ovr
 
@@ -57,6 +58,7 @@ def _array(model: Any, name: str) -> ndarray:
     value = getattr(model, name, None)
     if value is None:
         raise ValueError(f"{type(model).__name__} has no {name}; is it fitted?")
+    refuse_lost_input(value, name)
     if not isinstance(value, ndarray | float | int | np.floating | np.integer):
         raise ValueError(
             f"{type(model).__name__}.{name} is a {type(value).__name__}, not a dense array "
@@ -91,6 +93,7 @@ def _classes(model: Any, k: int) -> list:
             "label); this estimator has no supported multilabel probability rule; use a supported OneVsRestClassifier"
         )
     classes = getattr(model, "classes_", None)
+    refuse_lost_input(classes, "classes_")
     if not isinstance(classes, ndarray) or classes.ndim != 1:
         raise ValueError(
             f"{type(model).__name__}.classes_ must be one array of labels (multi-label "

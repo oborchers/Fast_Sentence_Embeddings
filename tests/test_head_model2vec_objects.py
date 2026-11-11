@@ -345,3 +345,29 @@ def test_fse_imports_neither_model2vec_nor_torch_to_read_an_export(tmp_path):
     done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert done.stdout.strip() == "3"
+
+
+class _UnconvertedMask(np.ma.MaskedArray):
+    def copy(self, *_args, **_kwargs):
+        pytest.fail("masked source was copied before validation")
+
+    def tolist(self, *_args, **_kwargs):
+        pytest.fail("masked source was converted to a list before validation")
+
+
+@pytest.mark.parametrize("mask", [False, True])
+@pytest.mark.parametrize("field", ["weight", "bias", "classes_", "head.classes_", "embedding"])
+def test_masked_sources_rejected_before_conversion(field, mask):
+    pipe = mh.pipeline("softmax", 3)
+    if field in ("weight", "bias"):
+        owner, name = pipe.head.layers[0], field
+    elif field == "head.classes_":
+        owner, name = pipe.head, "classes_"
+    elif field == "embedding":
+        owner, name = pipe.model, field
+    else:
+        owner, name = pipe, field
+    source = np.ma.array(getattr(owner, name), mask=mask).view(_UnconvertedMask)
+    setattr(owner, name, source)
+    with pytest.raises(TypeError, match="masked array"):
+        fse.Classifier.from_model2vec(pipe)

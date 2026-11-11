@@ -201,3 +201,16 @@ def test_explicit_import_names_keep_output_order(kind, standalone, dtype, tmp_pa
     for bad in (["missing"], ["same"] * len(names)):
         with pytest.raises(ValueError, match=r"needs|unique"):
             fse.Classifier.from_sklearn(encoder, trained, labels=bad)
+
+
+@pytest.mark.parametrize("mask", [False, True])
+@pytest.mark.parametrize("field", ["classes_", "label_binarizer_.classes_", "y_"])
+def test_masks_are_rejected_before_import(field, mask):
+    model = _model()
+    if field == "y_":
+        model.estimators_[0] = _estimator("_ConstantPredictor", y_=np.ma.array([1], mask=mask))
+    else:
+        owner = model.label_binarizer_ if field.startswith("label_binarizer_") else model
+        owner.classes_ = np.ma.array(owner.classes_, mask=mask)
+    with pytest.raises(TypeError, match="masked array"):
+        _sklearn.read(model, "classification")
