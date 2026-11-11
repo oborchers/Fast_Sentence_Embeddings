@@ -79,3 +79,25 @@ def test_snapshot_does_not_return_metadata_only_shared_cache(monkeypatch, tmp_pa
     folder = Path(rerank.snapshot(SimpleNamespace(work=tmp_path / "work"), "acme/model", "a" * 40))
     assert (folder / "model.safetensors").is_file()
     assert list(partial.iterdir()) == [partial / "config.json"]
+
+
+@pytest.mark.parametrize("git_state", ["checkout", "archive", "no git"])
+def test_speed_provenance_supports_archives(monkeypatch, git_state):
+    import subprocess
+    from importlib.metadata import version
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "recipes"))
+    speed = _helper("_speed")
+    monkeypatch.setattr(speed.platform, "system", lambda: "Linux")
+
+    def output(command, **_kwargs):
+        if git_state == "no git":
+            raise FileNotFoundError("git")
+        if git_state == "archive":
+            raise subprocess.CalledProcessError(128, command)
+        return "a" * 40 + "\n"
+
+    monkeypatch.setattr(speed.subprocess, "check_output", output)
+    info = speed.provenance()
+    assert info["fse_version"] == version("fse")
+    assert info["fse_commit"] == ("a" * 40 if git_state == "checkout" else None)
