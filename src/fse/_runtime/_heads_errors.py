@@ -19,12 +19,12 @@ overflow fail); the other tables name the heads that read them.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 import numpy as np
 
-from fse._backends import get_backend
+from fse._backends import PoolInput
 
-from ._head_common import fold
 from ._heads_plan import FOLDED, NORMALIZED, RAW, STANDALONE, HeadsPlan
 from ._pipeline import Pipeline
 from ._tasks import Task
@@ -64,13 +64,12 @@ def _folded_heads(plan: HeadsPlan, error: PoolingError, task, local, base: int) 
     """The heads whose own folded table fails on the rows that failed in the shared one."""
     spec = plan.spec
     batch = plan.primary.batch(local, task.prefix(error.prefix), base)
-    host = get_backend(plan.backend_name, isa=plan.isa)
     failing = []
     for i in plan.indices(FOLDED):
         head = plan.members[i].head
         assert head.weight is not None
         try:
-            pool = fold(host, spec.pool_input(), head.weight, plan.workers)
+            pool = _columns(plan, i)
             alone = Pipeline(
                 spec,
                 plan.backend_name,
@@ -83,6 +82,20 @@ def _folded_heads(plan: HeadsPlan, error: PoolingError, task, local, base: int) 
         except ValueError:
             failing.append(i)
     return plan.who(FOLDED) if not failing else _names(plan, failing)
+
+
+def _columns(plan: HeadsPlan, index: int) -> PoolInput:
+    """A contiguous copy of one head's already folded columns, with no new fold."""
+    assert plan.table is not None
+    pool = plan.table.prepared.pool
+    first = plan.starts[index]
+    columns = slice(first, first + plan.members[index].head.k)
+    ngrams = pool.ngram_vectors
+    return replace(
+        pool,
+        vectors=np.ascontiguousarray(pool.vectors[:, columns]),
+        ngram_vectors=None if ngrams is None else np.ascontiguousarray(ngrams[:, columns]),
+    )
 
 
 def _names(plan: HeadsPlan, indices: list[int]) -> str:

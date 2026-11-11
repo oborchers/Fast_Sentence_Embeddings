@@ -119,3 +119,38 @@ def test_a_normalization_error_names_only_what_depends_on_it():
     with pytest.raises(ValueError, match=r"^head 'norm': ") as caught:
         _run(spec, members, ["w1", "w2"], vectors=True)
     assert "raw" not in str(caught.value).split(":")[0]
+
+
+@pytest.mark.parametrize("shared", [False, True])
+def test_cached_group_diagnosis_neither_refolds_nor_starts_threads(shared, monkeypatch):
+    import threading
+
+    import fse
+    from fse._backends import CpuBackend
+
+    count = (1 << 14) + 1
+    rows = np.full((count, 2), 0.1, dtype=F32)
+    rows[5] = rows[6] = (1, 0)
+    encoder = fse.Encoder.from_arrays(rows, words=[f"w{i}" for i in range(count)], normalize=False)
+    heads = fse.Heads(
+        small=fse.Regressor.from_arrays(encoder, [1.0, 0.0]),
+        big=fse.Regressor.from_arrays(encoder, [float(BIG), 0.0]),
+    )
+    # Cache a parallel first fold, then use a different call's execution settings.
+    heads.predict(["w1"], workers=2)
+    started = []
+    real_start = threading.Thread.start
+
+    def start(thread):
+        started.append(thread.name)
+        return real_start(thread)
+
+    def no_refold(*_args):
+        pytest.fail("error attribution must read already folded columns")
+
+    with fse.Pool(3) as pool:
+        monkeypatch.setattr(threading.Thread, "start", start)
+        monkeypatch.setattr(CpuBackend, "scores", no_refold)
+        with pytest.raises(ValueError, match=r"^head 'big': row 1 contains NaN"):
+            heads.predict(["w1", "w5 w6"], workers=1, pool=pool if shared else None)
+    assert started == []

@@ -81,13 +81,12 @@ class HeadsPlan:
         full: Pipeline | None = None,
         normed: Pipeline | None = None,
         vector_mode: str = NO_VECTORS,
-        workers: int = 1,
         isa: str | None = None,
     ):
         self.spec, self.members, self.kinds, self.own = spec, members, kinds, own
         self.backend_name, self.isa = own.backend.name, isa
         self.table, self.full, self.normed = table, full, normed
-        self.vector_mode, self.workers = vector_mode, workers
+        self.vector_mode = vector_mode
         self.with_vectors = vector_mode != NO_VECTORS
         self.named = any(m.name is not None for m in members)
         self.encoder_normalizes = tuple(spec.steps) == (Normalize(),)
@@ -217,7 +216,6 @@ def plan_heads(
         full=full,
         normed=maker.normed(with_vectors),
         vector_mode=mode,
-        workers=execution.workers,
         isa=isa,
     )
 
