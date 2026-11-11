@@ -2,7 +2,6 @@
 
 import math
 
-import pyarrow.parquet as pq
 from huggingface_hub import snapshot_download
 
 SCIFACT = ("mteb/NanoSciFactRetrieval", "8c5f7bbe90bb865f46c67710221afa7d9096251b")
@@ -15,6 +14,8 @@ def nano_task(recipe, repo=SCIFACT[0], revision=SCIFACT[1]):
     ``queries`` (query ID to text, only queries with judged documents) and
     ``qrels`` (query ID to {document ID: relevance}).
     """
+
+    import pyarrow.parquet as pq
 
     def table(name):
         path = recipe.source_file(
