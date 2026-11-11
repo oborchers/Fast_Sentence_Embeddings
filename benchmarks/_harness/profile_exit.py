@@ -64,6 +64,13 @@ def _metadata(data, profiles):
         raise ValueError("ECHILD recovery found invalid active profile metadata")
 
 
+def _stack(stack, frame_count):
+    if not isinstance(stack, list) or not stack:
+        raise ValueError("ECHILD recovery requires nonempty sample stacks")
+    if any(type(i) is not int or not 0 <= i < frame_count for i in stack):
+        raise ValueError("ECHILD recovery found an invalid frame reference")
+
+
 def _sampled(profile, frames):
     if not isinstance(profile["name"], str):
         raise ValueError("ECHILD recovery requires named profiles")
@@ -79,10 +86,7 @@ def _sampled(profile, frames):
     if not all(_number(w) and w > 0 for w in weights):
         raise ValueError("ECHILD recovery requires positive finite weights")
     for stack in samples:
-        if not isinstance(stack, list) or not stack:
-            raise ValueError("ECHILD recovery requires nonempty sample stacks")
-        if any(type(i) is not int or not 0 <= i < len(frames) for i in stack):
-            raise ValueError("ECHILD recovery found an invalid frame reference")
+        _stack(stack, len(frames))
     start, end = profile["startValue"], profile["endValue"]
     if not _number(start) or not _number(end) or end < start:
         raise ValueError("ECHILD recovery found invalid profile bounds")
