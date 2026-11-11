@@ -1397,7 +1397,11 @@ There is no inferred depth between tested values and no statistical equivalence 
 
 Before loading, the existing metadata admission guard applies. Before encoding, actual
 full task sizes bound dense scores (`queries * documents * 4` bytes), sorting scratch,
-two vector formats, query vectors, text copies, rankings and candidate scratch. The cell
+two vector formats, query vectors, text copies, rankings and candidate scratch. The MTEB
+phase adds its simultaneous score block (up to 50,000 corpus documents), normalized
+vector copies, top-k tensors, heaps, result dictionaries and evaluator copies. The maximum
+of the dense, MTEB and store/rescore phase estimates controls admission. These estimates
+are not measured peak-memory guarantees. The cell
 is `refused` if that estimate exceeds remaining resident-memory allowance. Store mappings
 close and temporary stores are removed after each row, also on failure. Raw ranking
 artifacts preserve query IDs and the document-ID mapping outside the checkout. Dense
@@ -1411,6 +1415,7 @@ Use fresh external folders and the shared locks. No automatic retry or budget ex
 
 ```sh
 HF_HOME=/external/hf HF_DATASETS_CACHE=/external/hf/datasets \
+  python benchmarks/speed.py --local-heavy --worker-name dr381-retrieval-formats -- \
   /external/quality-env/bin/python benchmarks/quality.py --run --local-run \
   --input benchmarks/config/retrieval-formats-local.json --cells formats-smoke \
   --local-budget-seconds 900 --results /external/formats-smoke-01 \

@@ -84,15 +84,35 @@ def admit(data, dim, limit):
     This second admission uses actual full data sizes, before encoding or allocating
     score matrices. MTEB's metadata guard runs before loading the task itself.
     """
-    q, d = len(data.queries), len(data.docs)
-    characters = sum(map(len, data.docs)) + sum(map(len, data.queries))
-    estimate = 4 * q * d + 32 * d + 2 * (d + q) * dim * 4 + 8 * characters
-    # Rankings, search results, doc IDs and rescore candidates at all declared depths.
-    estimate += q * min(d, rerank_stages.DEPTH) * 128 + (d + q) * 512
+    phases = memory_estimate(data, dim)
+    estimate = max(phases.values())
     left = None if limit is None else limit - (resident_bytes(os.getpid()) or 0)
     if left is not None and estimate > left:
         raise RefusedError(f"retrieval memory estimate {estimate} bytes exceeds {left} bytes left")
-    return estimate
+    return {"peak_bytes": estimate, "phases": phases}
+
+
+def memory_estimate(data, dim):
+    """Conservative phase estimates, including the pinned MTEB search implementation.
+
+    MTEB 2.26.25 SearchEncoderWrapper scores chunks of at most 50,000 documents,
+    holding the study's dense matrix concurrently. Its normalized vector copies,
+    topk tensors, Python heaps, result dictionaries and evaluator copies also overlap.
+    These are admission estimates, not measured peak RSS guarantees.
+    """
+    q, d = len(data.queries), len(data.docs)
+    k, chunk = min(d, rerank_stages.DEPTH), min(d, 50_000)
+    characters = sum(map(len, data.docs)) + sum(map(len, data.queries))
+    text_scratch = 8 * characters + (d + q) * 512
+    retained_dense = 4 * q * d + 8 * q * k
+    dense = 4 * q * d + 32 * d + 8 * (d + q) * dim + 256 * q * k
+    mteb = retained_dense + 4 * q * chunk + 8 * (chunk + q) * dim + 512 * q * k
+    stores = retained_dense + 8 * (d + q) * dim + 128 * q * k
+    return {
+        "dense": text_scratch + dense,
+        "mteb_check": text_scratch + mteb,
+        "stores_and_rescore": text_scratch + stores,
+    }
 
 
 def store(encoder, data, dtype, folder, workers):
@@ -254,7 +274,8 @@ def _model(cell, stages, data, context, folder):
         "unreached_depth": "not reached through 1000",
         "stores": details,
         "mteb_check": checks,
-        "memory_estimate_bytes": estimate,
+        "memory_estimate_bytes": estimate["peak_bytes"],
+        "memory_estimate_phases": estimate["phases"],
         "model_revision": MODEL_PINS[spec["model"]],
         "table_dtype": "float32",
         "output_dim": adapter.native.output_dim,
