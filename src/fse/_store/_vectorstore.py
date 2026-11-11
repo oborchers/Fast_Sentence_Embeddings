@@ -150,12 +150,14 @@ class VectorStore(MemberReaders):
         Use ``"exact"`` for results that must be reproducible.
 
         ``mode="binary"`` ranks the selected rows by the Hamming distance of their sign bits
-        to those of the query, keeps the best ``oversample * k`` (default 40) per query and
+        to those of the query, keeps the best ``oversample * k`` per query and
         scores only those exactly: the result is that of ``search(mode="exact",
         rows=sorted(C))`` for the candidates ``C`` of each query, bit for bit, and it may miss
         a row of the exact search. A shard without the companion artifact gets its bits
         derived from its rows, with one WARNING per store; ``fse.add_sign_bits`` writes them.
-        ``oversample`` needs ``mode="binary"``. With ``max_per_doc=1`` the best documents
+        ``oversample=None`` means factor 40 throughout fse 2.x, including minor releases.
+        Use an explicit positive integer for another factor. ``oversample`` needs
+        ``mode="binary"``. With ``max_per_doc=1`` the best documents
         among the candidates are returned. See docs/architecture/store.md, "Binary search".
 
         At most ``k`` hits are returned: fewer if the selection holds fewer rows (or, with
