@@ -51,6 +51,18 @@ def validate_prerequisites(cells):
 
 
 def validate_transformer(cell):
+    controls = ("device", "torch_dtype", "batch_size")
+    if not cell.get("mteb_loader") and any(key in cell for key in controls):
+        raise ValueError("device, torch_dtype and batch_size require mteb_loader")
+    validate_transformer_values(cell)
+    if cell.get("mteb_loader"):
+        if cell.get("backend") != "st" or cell.get("fit"):
+            raise ValueError("mteb_loader requires st without a fitted artifact")
+        if any(key not in cell for key in controls):
+            raise ValueError("mteb_loader requires device, torch_dtype and batch_size")
+
+
+def validate_transformer_values(cell):
     for key, allowed in (("device", ("cpu", "mps", "cuda")), ("torch_dtype", ("float32",))):
         if key in cell and cell[key] not in allowed:
             raise ValueError(f"{key} must be one of {allowed}")
@@ -58,8 +70,3 @@ def validate_transformer(cell):
         size = cell["batch_size"]
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise ValueError("batch_size must be a positive integer")
-    if cell.get("mteb_loader"):
-        if cell.get("backend") != "st" or cell.get("fit"):
-            raise ValueError("mteb_loader requires st without a fitted artifact")
-        if any(key not in cell for key in ("device", "torch_dtype", "batch_size")):
-            raise ValueError("mteb_loader requires device, torch_dtype and batch_size")

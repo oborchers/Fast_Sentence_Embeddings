@@ -80,27 +80,31 @@ def native_model(cell, fit):
 
         model = model2vec_pinned(cell["model"])
     elif backend == "st":
-        if cell.get("mteb_loader"):
-            import mteb
-
-            return mteb.get_model(
-                cell["model"],
-                revision=MODEL_PINS[cell["model"]],
-                device=cell["device"],
-                # MTEB also serializes this into experiment_kwargs. A torch.dtype
-                # object is refused by its metadata serializer; ST accepts the name.
-                model_kwargs={"dtype": cell["torch_dtype"]},
-            )
-        from sentence_transformers import SentenceTransformer
-
-        model = SentenceTransformer(
-            source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
-        )
+        model = st_model(cell)
     else:
         raise ValueError(f"unknown quality backend: {backend}")
     if backend == "fse" and cell.get("dtype", "float32") != "float32":
         model = model.quantize(cell["dtype"])
     return model
+
+
+def st_model(cell):
+    if cell.get("mteb_loader"):
+        import mteb
+
+        return mteb.get_model(
+            cell["model"],
+            revision=MODEL_PINS[cell["model"]],
+            device=cell["device"],
+            # MTEB also serializes this into experiment_kwargs. A torch.dtype
+            # object is refused by its metadata serializer; ST accepts the name.
+            model_kwargs={"dtype": cell["torch_dtype"]},
+        )
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(
+        source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
+    )
 
 
 def remote(cell):

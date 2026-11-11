@@ -1369,7 +1369,9 @@ because MTEB serializes these arguments as experiment metadata and rejects a
 `torch.dtype` object. The observed dtype is still checked against `torch.float32`.
 CPU is the configured device;
 MPS and CUDA can be selected explicitly in a separate study. Batch size is 32,
-or 8 for Qwen3. These controls are part of the model cache and summary identity.
+or 8 for Qwen3. These controls are accepted only with `backend: "st"` and `mteb_loader: true`;
+other adapters reject them instead of ignoring them. They are part of the model
+cache and summary identity.
 Execution records include actual device, weight and output dtypes, maximum
 sequence length, module names, torch threads, registry revision and wrapper class.
 
