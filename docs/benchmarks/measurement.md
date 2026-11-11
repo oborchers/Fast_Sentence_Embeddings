@@ -1337,7 +1337,7 @@ fails with a reason. Other exit codes, versions and errors remain failures.
 
 An accepted profile records `warnings` in its cell and a `profile_exit_warning`
 event, including the original exit status, error, sample/error counts and source.
-The raw log and `profile-execution.json` retain exit 1. Sampling errors remain
+The raw log and `<results>/profile-execution.json` retain exit 1. Sampling errors remain
 visible and limit interpretation. A warning does not remove other open evidence
 or turn diagnostic timings into comparison evidence.
 
