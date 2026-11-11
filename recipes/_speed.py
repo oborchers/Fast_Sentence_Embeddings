@@ -8,6 +8,7 @@ import subprocess
 import time
 from contextlib import contextmanager
 from datetime import datetime
+from importlib.metadata import version
 from itertools import islice
 from pathlib import Path
 
@@ -82,13 +83,18 @@ def provenance():
         cpu = subprocess.check_output(
             ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
         ).strip()
+    try:
+        commit = subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        commit = None  # Release archives have no Git metadata; never invent a revision.
     return {
         "machine": platform.platform(),
         "CPU": cpu,
         "Python": platform.python_version(),
-        "fse_commit": subprocess.check_output(
-            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
-        ).strip(),
+        "fse_version": version("fse"),
+        "fse_commit": commit,
         "date": datetime.now().astimezone().isoformat(),
         "load_note": "measured on a MacBook in everyday use, not a controlled benchmark",
         "dataset_revision": WIKITEXT_REVISION,

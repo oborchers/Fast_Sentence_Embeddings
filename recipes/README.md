@@ -34,12 +34,34 @@ The first recipe includes a large-data speed demonstration, which needs addition
 
 Use standard Python 3.13 on macOS or Linux, with Git, Make, a C/C++ compiler, and [uv](https://docs.astral.sh/uv/).
 Free-threaded Python builds are unsupported.
+### From a source checkout
+
 From the repository root:
 
 ```sh
 UV_PYTHON=3.13 make install
 uv pip install --python .venv/bin/python -r recipes/requirements.txt
 ```
+
+### With the published package
+
+Download the [repository ZIP](https://github.com/oborchers/Fast_Sentence_Embeddings/archive/refs/heads/master.zip)
+and extract it to `<recipe-folder>`. Keep the entire folder, including recipe helpers,
+media, and data files. This route uses the published fse package without building fse
+from the source tree. Run from `<recipe-folder>`:
+
+```sh
+uv venv --python 3.13
+uv pip install --python .venv/bin/python fse
+uv pip install --python .venv/bin/python -r recipes/requirements.txt
+```
+
+The notebooks on master target development fse. A recipe that uses an unreleased feature
+needs the source installation above. For recipes matching a released version, download
+the repository ZIP for that release tag from the
+[releases page](https://github.com/oborchers/Fast_Sentence_Embeddings/releases).
+
+### Execute the notebook
 
 Open a recipe in Jupyter or VS Code and select `.venv/bin/python` as the kernel.
 Run cells from top to bottom, with `recipes/` as the working directory so the helpers can be imported.
@@ -54,8 +76,9 @@ IPYTHONDIR="$recipe_tmp/ipython" JUPYTER_RUNTIME_DIR="$recipe_tmp/runtime" \
 ```
 
 Replace the filename to run another recipe.
-Recipe 06 also shows the prepared `langchain-fse`, `llama-index-embeddings-fse`, and `fse-haystack` packages.
-Those sections depend on their publication after fse 2.0.0. Their installation commands apply after release.
+Recipe 06 also shows the published `langchain-fse`, `llama-index-embeddings-fse`, and `fse-haystack` packages.
+fse 2.0.0 and version 0.1.0 of all three adapters are available on PyPI.
+Install the adapters separately with the commands in the notebook.
 The existing DSPy, BERTopic, txtai, Chroma, LanceDB, Qdrant, and Polars sections remain independent of those packages.
 These recipes run locally, outside CI, and their dependencies stay separate from fse core.
 fastText 0.9.3 builds from source, which requires the C++ compiler.
@@ -74,7 +97,8 @@ Model and dataset revisions are pinned in the recipes and [_helpers.py](_helpers
 Read the [POTION model card](https://huggingface.co/minishlab/potion-base-8M), [GloVe model card](https://huggingface.co/fse/glove-wiki-gigaword-300), [SST-5 dataset card](https://huggingface.co/datasets/SetFit/sst5), and [AG News dataset card](https://huggingface.co/datasets/SetFit/ag_news) for their sources and terms.
 The model and dataset terms apply separately from fse's license.
 
-The helper puts generated files and new downloads in a temporary folder and reads existing exact-revision Hub snapshots without changing them.
+The helper puts generated files and new downloads in a temporary folder and reads existing exact-revision Hub files without changing them.
+The reranker recipe downloads complete model snapshots into its temporary folder, so a partial shared cache cannot masquerade as a ready model.
 The final cleanup cell removes the temporary results, so choose permanent paths when adapting a recipe.
 No recipe uploads data, needs credentials, or calls a paid service.
 The queue is simulated, and databases run locally.

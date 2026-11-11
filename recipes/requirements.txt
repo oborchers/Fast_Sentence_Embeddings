@@ -1,4 +1,4 @@
-# Recipe extras only. Install fse from this checkout first.
+# Recipe extras only. Install fse from PyPI or this checkout first.
 nbclient==0.11.0
 nbformat==5.11.1
 ipykernel==7.4.0
@@ -34,7 +34,7 @@ PyStemmer==3.1.0
 fastapi==0.162.0
 uvicorn==0.54.0
 httpx==0.28.1
-# Framework baselines for the publication-dependent sections of recipe 06.
+# Framework baselines for the adapter sections of recipe 06.
 # Install the three fse adapter packages separately as explained in the notebook.
 langchain-core==1.7.3
 llama-index-core==0.14.25
