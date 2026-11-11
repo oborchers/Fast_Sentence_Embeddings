@@ -85,6 +85,19 @@ def test_score_refuses_lost_bias_input(tmp_path, mode, bias):
         store.score(np.ones((2, store.dim), F32), bias, mode=mode, workers=1)
 
 
+@pytest.mark.parametrize("entry", ["search", "rescore", "score", "bias"])
+@pytest.mark.parametrize("value", [{0.5}, frozenset({0.5}), {0: 0.5}])
+def test_store_refuses_unordered_inputs_before_conversion(tmp_path, entry, value):
+    path = _store(tmp_path, "float32", texts(3))[0]
+    with fse.VectorStore.open(path) as store:
+        call = getattr(store, "score" if entry == "bias" else entry)
+        args = (np.ones(store.dim, F32), value) if entry == "bias" else (value,)
+        if entry == "rescore":
+            args += ([0, 1],)
+        with pytest.raises(TypeError, match="ordered sequence"):
+            call(*args, workers=1)
+
+
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("workers", [1, 4])
 @pytest.mark.parametrize("q", [1, 3, 70])
