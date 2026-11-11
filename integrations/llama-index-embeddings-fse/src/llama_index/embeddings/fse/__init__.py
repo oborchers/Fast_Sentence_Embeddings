@@ -9,7 +9,8 @@ from llama_index.core.bridge.pydantic import Field, PrivateAttr
 from fse import Encoder
 from fse.typing import ModelRef, WorkerCount
 
-from ._checks import configuration, framework_options
+from ._checks import configuration
+from ._framework_checks import framework_options
 
 __all__ = ["FseEmbedding"]
 
