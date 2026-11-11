@@ -1162,15 +1162,15 @@ finish past a limit. Collection keeps the shared 600-second reserve.
 The default configuration is `version-encode-float32-16`. If a valid encoding
 comparison has `paired_speedup <= 1 / 1.05` (at least 5 percent more candidate
 runtime), the slowest such configuration supplies the candidate child instead.
-The deciding round has the
-paired base/candidate ratio nearest the median (earliest round breaks ties).
+The deciding round has the paired base/candidate ratio nearest the median
+(earliest round breaks ties).
 Both CPU and memory steps apply the same deterministic selection. Boundary
 crossings at this selection boundary and invalid comparisons remain open evidence.
 Crossing rounds do not prevent selection by the paired median: the profile
 diagnoses the strongest observed regression while keeping its uncertainty visible.
-`selection.json` records `runtime_slowdown_boundary: 1.05` for this rule.
-Write regressions at the same boundary need
-a separate local development profile because the speed profiler refuses write
+`<results>/selection.json` records `runtime_slowdown_boundary: 1.05` for this rule.
+Write regressions at the same boundary need a separate local development
+profile because the speed profiler refuses write
 children. They remain open evidence even when the representative encoding
 profile succeeds. Open evidence makes a profile step incomplete, with exit 1.
 
