@@ -1362,9 +1362,12 @@ Pins live only in `benchmarks/config/pins.json`. No README score changes here.
 These references use `mteb.get_model` from MTEB 2.26.25 and pass its registry
 wrapper directly to `mteb.evaluate`. MTEB retains the input loader, task metadata,
 subset, split and prompt type. No text adapter replaces its instruction logic.
-`model_kwargs={"dtype": torch.float32}` reaches SentenceTransformer through
+`model_kwargs={"dtype": "float32"}` reaches SentenceTransformer through
 `ModelMeta.load_model` and both registry wrappers. The observed weights must be
-float32 and the final module must be `Normalize`. CPU is the configured device;
+float32 and the final module must be `Normalize`. The dtype name remains a string
+because MTEB serializes these arguments as experiment metadata and rejects a
+`torch.dtype` object. The observed dtype is still checked against `torch.float32`.
+CPU is the configured device;
 MPS and CUDA can be selected explicitly in a separate study. Batch size is 32,
 or 8 for Qwen3. These controls are part of the model cache and summary identity.
 Execution records include actual device, weight and output dtypes, maximum

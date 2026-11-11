@@ -82,13 +82,14 @@ def native_model(cell, fit):
     elif backend == "st":
         if cell.get("mteb_loader"):
             import mteb
-            import torch
 
             return mteb.get_model(
                 cell["model"],
                 revision=MODEL_PINS[cell["model"]],
                 device=cell["device"],
-                model_kwargs={"dtype": torch.float32},
+                # MTEB also serializes this into experiment_kwargs. A torch.dtype
+                # object is refused by its metadata serializer; ST accepts the name.
+                model_kwargs={"dtype": cell["torch_dtype"]},
             )
         from sentence_transformers import SentenceTransformer
 
