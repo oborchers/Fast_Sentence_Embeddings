@@ -36,7 +36,7 @@ from fse import _log, _reference_bits
 
 from . import _rescore, _search, _selection
 
-DEFAULT_OVERSAMPLE = 40  # provisional: the one factor measured at 0.95 recall for both models
+DEFAULT_OVERSAMPLE = 40  # oversample=None means factor 40 throughout fse 2.x
 POSITION_BITS = 41  # a key is (distance << POSITION_BITS) | position; distances stay below 2**22
 MAX_ROWS = 1 << POSITION_BITS
 _MASK = np.int64(MAX_ROWS - 1)
