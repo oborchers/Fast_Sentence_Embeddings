@@ -12,7 +12,8 @@ from _measurement import package_identity
 from _measurement_config import MODEL_PINS
 
 from _quality.guard import admit
-from _quality.identity import execution, model_files, training_relation
+from _quality.identity import execution, model_files, st_of, training_relation
+from _quality.prompts import capture
 from _quality.suites import filters_for, task_of
 
 
@@ -22,6 +23,7 @@ def loader(cell, context):
     fit = context["fits"].get(cell.get("fit"))
     key = json.dumps(
         {
+            **{k: cell.get(k) for k in ("mteb_loader", "device", "torch_dtype", "batch_size")},
             "model": cell["model"],
             "backend": backend,
             "fit": fit,
@@ -39,7 +41,7 @@ def loader(cell, context):
     __import__("gc").collect()
     context.pop("identity", None)
     model = native_model(cell, fit)
-    adapter = make_adapter(cell, model)
+    adapter = model if cell.get("mteb_loader") else make_adapter(cell, model)
     context["identity"] = {
         "execution": execution(cell, model),
         "model_files": None if fit else model_files(cell),
@@ -78,6 +80,16 @@ def native_model(cell, fit):
 
         model = model2vec_pinned(cell["model"])
     elif backend == "st":
+        if cell.get("mteb_loader"):
+            import mteb
+            import torch
+
+            return mteb.get_model(
+                cell["model"],
+                revision=MODEL_PINS[cell["model"]],
+                device=cell["device"],
+                model_kwargs={"dtype": torch.float32},
+            )
         from sentence_transformers import SentenceTransformer
 
         model = SentenceTransformer(
@@ -170,8 +182,8 @@ def evaluate(cell, context):
         "model_revision": MODEL_PINS[cell["model"]],
         "backend_identity": before,
         "mteb_version": version("mteb"),
-        "table_dtype": stored_dtype(cell, model.native),
-        "output_dim": getattr(model.native, "output_dim", None),
+        "table_dtype": stored_dtype(cell, st_of(model)),
+        "output_dim": context["identity"]["execution"]["output_dim"],
         "normalization": True,
         "timing_scope": "diagnostic only, never inference throughput",
         "fit_id": cell.get("fit"),
@@ -204,14 +216,20 @@ def scored(cell, context, model, task):
         task.load_data()
     load_seconds = time.perf_counter() - load_started
     started = time.perf_counter()
-    result = mteb.evaluate(
-        model,
-        [task],
-        cache=None,
-        overwrite_strategy="always",
-        show_progress_bar=False,
-        co2_tracker=False,
-    )
+    with capture(cell, model) as prompts:
+        result = mteb.evaluate(
+            model,
+            [task],
+            cache=None,
+            overwrite_strategy="always",
+            show_progress_bar=False,
+            co2_tracker=False,
+            **(
+                {"encode_kwargs": {"batch_size": cell["batch_size"]}}
+                if "batch_size" in cell
+                else {}
+            ),
+        )
     if len(result.task_results) != 1:
         raise ValueError("expected exactly one result for the requested task")
     value = result.task_results[0].get_score()
@@ -222,6 +240,7 @@ def scored(cell, context, model, task):
     raw = context["results"] / (cell["id"] + "-mteb.json")
     atomic(raw, result.task_results[0].model_dump(mode="json"))
     return {
+        "prompt_observations": prompts,
         "main_score": value,
         "task": task.metadata.name,
         "task_metadata": task.metadata.model_dump(mode="json"),

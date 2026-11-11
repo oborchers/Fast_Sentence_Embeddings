@@ -849,6 +849,134 @@
         "MTEB(Multilingual, v2)/MassiveIntentClassification"
       ],
       "estimated_seconds": 900
+    },
+    {
+      "id": "ref-all-MiniLM-L6-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "smoke-ref-all-MiniLM-L6-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "ref-bge-small-en-v1-5",
+      "kind": "mteb",
+      "model": "BAAI/bge-small-en-v1.5",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "smoke-ref-bge-small-en-v1-5",
+      "kind": "mteb",
+      "model": "BAAI/bge-small-en-v1.5",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "ref-all-mpnet-base-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-mpnet-base-v2",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "smoke-ref-all-mpnet-base-v2",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-mpnet-base-v2",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "ref-qwen3-embedding-0-6b",
+      "kind": "mteb",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 8,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)",
+        "NanoBEIR"
+      ],
+      "estimated_seconds": 90
+    },
+    {
+      "id": "smoke-ref-qwen3-embedding-0-6b",
+      "kind": "mteb",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "batch_size": 8,
+      "workers": 2,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 90
     }
   ]
 }
