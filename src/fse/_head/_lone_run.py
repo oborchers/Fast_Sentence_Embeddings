@@ -88,7 +88,7 @@ def batches(
         method,
         start_stream if positions else start,
     )
-    pipeline = model._pipeline(backend, with_vectors=return_vectors).runtime
+    pipeline = model._pipeline(backend, with_vectors=return_vectors, workers=workers).runtime
 
     def make(row: int, n: int, rows: list, vectors: Any, last: int | None, report: Any) -> Any:
         batch = PredictedBatch(row, n, finish(model, rows[0], output), vectors, last)

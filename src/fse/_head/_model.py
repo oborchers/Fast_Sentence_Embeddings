@@ -170,7 +170,7 @@ class LinearModel(HubModel):
 
     # --- the head on a backend --------------------------------------------------------
 
-    def _pipeline(self, backend: str, *, with_vectors: bool) -> HeadPipeline:
+    def _pipeline(self, backend: str, *, with_vectors: bool, workers: Any = None) -> HeadPipeline:
         key = (backend, with_vectors)
         pipeline = self._pipelines.get(key)
         if pipeline is None:
@@ -179,7 +179,12 @@ class LinearModel(HubModel):
                 if pipeline is None:
                     own = self._encoder._pipeline(backend)
                     pipeline = make_head(
-                        self._encoder._spec, self._head, backend, own=own, with_vectors=with_vectors
+                        self._encoder._spec,
+                        self._head,
+                        backend,
+                        own=own,
+                        with_vectors=with_vectors,
+                        workers=workers,
                     )
                     self._pipelines[key] = pipeline
         return pipeline

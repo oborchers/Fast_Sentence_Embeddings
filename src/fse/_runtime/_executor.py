@@ -267,3 +267,83 @@ def _positive(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int | np.integer) or value < 1:
         raise ValueError(f"{name} must be a positive int, not {value!r}")
     return int(value)
+
+
+def prepare(
+    tasks: Iterable[T],
+    work: Callable[[T], None],
+    *,
+    workers: int,
+    pool: Pool | None = None,
+    inline: bool = False,
+) -> None:
+    """Run independent preparation blocks, helping instead of waiting for pool places.
+
+    Preparation may hold a model's publication lock. A pool task or sink can be waiting
+    for that lock, so neither a free place nor a queued helper may be waited for. Up to
+    ``workers - 1`` helpers claim free places without waiting; the caller drains the same
+    iterator. It then cancels queued helpers and joins only helpers already running.
+    Thus the caller plus helpers use at most ``workers`` threads, even on a larger pool.
+    Blocks write disjoint output slices; errors are raised in input order after joining.
+    """
+    if pool is None or inline or workers == 1:
+        run(tasks, work, lambda _task, _done: None, workers=workers, pool=pool, inline=inline)
+        return
+    pool._check_open()
+    helping = _Helping(tasks, work)
+    futures: list[Future] = []
+    try:
+        for _ in range(workers - 1):
+            if not pool._try_acquire():
+                break
+            futures.append(helping.submit(pool))
+        helping.drain()
+    finally:
+        for future in futures:
+            if future.cancel():
+                pool._release()
+        for future in futures:
+            if not future.cancelled():
+                future.result()
+    if helping.error is not None:
+        raise helping.error[1]
+
+
+class _Helping:
+    """Independent preparation blocks shared by the caller and optional pool helpers."""
+
+    def __init__(self, tasks: Iterable, work: Callable):
+        self.tasks, self.work = enumerate(tasks), work
+        self.lock = threading.Lock()
+        self.error: tuple[int, BaseException] | None = None
+
+    def submit(self, pool: Pool) -> Future:
+        try:
+            return pool._submit(self.worker, pool)
+        except BaseException:
+            pool._release()
+            raise
+
+    def worker(self, pool: Pool) -> None:
+        try:
+            with pool._inside():
+                self.drain()
+        finally:
+            pool._release()
+
+    def drain(self) -> None:
+        while True:
+            with self.lock:
+                if self.error is not None:
+                    return
+                item = next(self.tasks, None)
+                if item is None:
+                    return
+            sequence, task = item
+            try:
+                self.work(task)
+            except BaseException as error:
+                with self.lock:
+                    if self.error is None or sequence < self.error[0]:
+                        self.error = (sequence, error)
+                return

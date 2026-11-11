@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from fse._runtime import _executor, _pool
-from fse._runtime._executor import run
+from fse._runtime._executor import prepare, run
 
 
 def _record():
@@ -255,3 +255,53 @@ def test_an_error_of_reserve_stops_the_run_at_once():
     reserving.set()
     with pytest.raises(ValueError, match="two"):  # inline, task 2 fails before 3 is reserved
         run(range(10), work, lambda *_: None, workers=1, reserve=reserve)
+
+
+@pytest.mark.parametrize(("workers", "capacity", "expected"), [(2, 8, 2), (4, 1, 2)])
+def test_preparation_call_limit_and_pool_places(workers, capacity, expected):
+    # Enough blocks to occupy every allowed helper plus the caller.
+    barrier = threading.Barrier(expected)
+    lock = threading.Lock()
+    identities = set()
+
+    def work(_task):
+        with lock:
+            identities.add(threading.get_ident())
+        barrier.wait(10)
+
+    with _pool.Pool(4, start=True, max_tasks=capacity) as pool:
+        prepare(range(expected * 4), work, workers=workers, pool=pool)
+        assert len(identities) == expected
+        assert threading.get_ident() in identities
+        for _ in range(capacity):
+            assert pool._try_acquire()
+        assert not pool._try_acquire()
+        for _ in range(capacity):
+            pool._release()
+
+
+def test_preparation_cancels_queued_helpers_instead_of_waiting():
+    occupied, release = threading.Barrier(3), threading.Event()
+
+    def occupy():
+        occupied.wait(10)
+        assert release.wait(10)
+
+    with _pool.Pool(2, max_tasks=4) as pool:
+        # Occupy the actual threads, leaving task places free for queued helpers.
+        running = [pool._submit(occupy) for _ in range(2)]
+        occupied.wait(10)
+        threads = []
+        try:
+            prepare(
+                range(4), lambda _task: threads.append(threading.get_ident()), workers=2, pool=pool
+            )
+            assert threads == [threading.get_ident()] * 4
+        finally:
+            release.set()
+            for future in running:
+                future.result()
+        for _ in range(4):
+            assert pool._try_acquire()
+        for _ in range(4):
+            pool._release()

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import numpy as np
@@ -22,7 +21,9 @@ from fse import _log
 from fse._backends import PoolInput
 from fse._contract import Head, Link
 
+from ._executor import prepare
 from ._head_spec import HeadSpec
+from ._pool import resolve_workers
 from ._sinks import ArrayRows, GrowingRows
 
 F32 = np.float32
@@ -30,10 +31,11 @@ F32 = np.float32
 _FOLD_ROWS = 1 << 14
 
 
-def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolInput:
+def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: Any) -> PoolInput:
     """The pool of the folded table: every word and ngram row of ``pool`` scored with every
     row of ``weight`` (``score(row, scale, a_j, 0)``, k float32 columns, no scales), in
     blocks of rows over ``workers`` threads; weights and ``oov_weight`` are kept."""
+    count, _ = resolve_workers(workers)
     start = time.perf_counter()
     vectors = _fold_rows(backend, pool.vectors, pool.scales, weight, workers, "word")
     ngrams = None
@@ -49,7 +51,7 @@ def fold(backend: Any, pool: PoolInput, weight: ndarray, workers: int) -> PoolIn
         rows,
         rows=rows,
         outputs=len(weight),
-        workers=workers,
+        workers=count,
         backend=backend.name,
         seconds=time.perf_counter() - start,
     )
@@ -70,13 +72,11 @@ def _fold_rows(backend, stored, scales, weight, workers, kind) -> ndarray:
             ) from None
 
     starts = range(0, len(stored), _FOLD_ROWS)
-    if workers == 1 or len(starts) < 2:
-        for begin in starts:
-            block(begin)
-    else:
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="fse-fold") as pool:
-            for result in [pool.submit(block, begin) for begin in starts]:
-                result.result()  # the first failing block, in order
+    count, shared = resolve_workers(workers)
+    prepare(
+        starts, block,
+        workers=count, inline=len(starts) < 2, pool=shared,
+    )  # fmt: skip
     out.setflags(write=False)
     return out
 

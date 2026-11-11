@@ -71,7 +71,7 @@ class Subject:
     its score sink), the way to make their pipeline, and the head the encoder is read from."""
 
     models: Mapping[str, Any]
-    pipeline: Callable[[str, bool], Any]
+    pipeline: Callable[[str, bool, Any], Any]
 
     @property
     def first(self) -> Any:
@@ -296,7 +296,7 @@ def _heads(run: _Run, source: Any, sinks: dict[str, Any], start: int, ids: Any) 
     one if the vectors are asked for and no store takes them in this phase)."""
     subject = run.subject
     vectors = run.return_vectors
-    pipeline = subject.pipeline(run.backend, vectors)
+    pipeline = subject.pipeline(run.backend, vectors, run.workers)
     score = sinks["score"]
     kinds = tuple(STORED_RUNTIME[head.stored] for head in score._score_schema.heads)
     discard = [
@@ -367,7 +367,10 @@ def predict_heads(
 ) -> Any:
     """``Heads.predict`` into resumable sinks."""
     subject = Subject(
-        heads._heads, lambda kind, vectors: heads._pipeline(kind, with_vectors=vectors)
+        heads._heads,
+        lambda kind, vectors, execution: heads._pipeline(
+            kind, with_vectors=vectors, workers=execution
+        ),
     )
     return _predict(
         subject,
@@ -407,7 +410,10 @@ def predict_lone(
             )
         name = names[0]
     subject = Subject(
-        {name: model}, lambda kind, vectors: model._pipeline(kind, with_vectors=vectors).runtime
+        {name: model},
+        lambda kind, vectors, execution: (
+            model._pipeline(kind, with_vectors=vectors, workers=execution).runtime
+        ),
     )
     return _predict(
         subject,

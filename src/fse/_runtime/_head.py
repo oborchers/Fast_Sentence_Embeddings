@@ -47,7 +47,7 @@ def make_head(
     *,
     own: Pipeline,
     with_vectors: bool = False,
-    workers: int | None = None,
+    workers: Any = None,
     isa: str | None = None,
 ) -> HeadPipeline:
     """The head on ``backend`` for the encoder of ``spec``, whose own pipeline there is
