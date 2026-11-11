@@ -209,3 +209,16 @@ def test_sink_target_limits_use_python_arithmetic_without_allocation():
         target_rows(1, 2, 12, offset=maximum - 2)
     with pytest.raises(ValueError, match=r"first_row.*store offset"):
         target_rows(maximum, 0, 12, offset=1)
+
+
+@pytest.mark.parametrize("integer", [int, np.int64, np.uint64])
+def test_sink_row_number_checks_the_exact_index_boundary(integer):
+    from fse._validation import row_number
+
+    maximum = int(np.iinfo(np.intp).max)
+    result = row_number(integer(maximum), "first_row")
+    assert result == maximum
+    assert type(result) is int
+    # uint64 compared with a Python int can round across this boundary on NumPy 1.26.
+    with pytest.raises(ValueError, match="first_row"):
+        row_number(np.uint64(maximum + 1), "first_row")

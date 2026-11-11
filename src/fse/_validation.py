@@ -180,13 +180,16 @@ def refuse_lost_input(value: Any, name: str) -> None:
 
 
 _MAX_ROW = int(np.iinfo(np.intp).max)
+_MAX_UNSIGNED_ROW = np.uint64(_MAX_ROW)
 
 
 def row_number(value: object, name: str) -> int:
     """Check a sink row integer before converting it or using it as an index."""
     if isinstance(value, bool) or not isinstance(value, int | np.integer):
         raise TypeError(f"{name} must be a Python or NumPy integer, not {type(value).__name__}")
-    if not 0 <= value <= _MAX_ROW:
+    # NumPy 1.26 can promote uint64 versus a Python int to inexact float64.
+    maximum = _MAX_UNSIGNED_ROW if isinstance(value, np.unsignedinteger) else _MAX_ROW
+    if not 0 <= value <= maximum:
         raise ValueError(f"{name} must be between 0 and {_MAX_ROW}")
     return int(value)
 
