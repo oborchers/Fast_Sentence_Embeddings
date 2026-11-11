@@ -93,8 +93,7 @@ class _ObservedLock:
 
     def __enter__(self):
         with self.condition:
-            while self.held:
-                self.condition.wait()
+            assert self.condition.wait_for(lambda: not self.held, timeout=10)
             self.held = True
 
     def __exit__(self, *_exc):
