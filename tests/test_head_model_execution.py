@@ -14,8 +14,8 @@ from support.waiting import arrived, blocked_in_wait
 def _model(group=False):
     count = (1 << 14) + 1
     encoder = fse.Encoder.from_arrays(
-        [f"w{i}" for i in range(count)],
         np.random.default_rng(17).standard_normal((count, 2)).astype(np.float32),
+        words=[f"w{i}" for i in range(count)],
         normalize=False,
     )
     head = fse.Regressor.from_arrays(encoder, [0.25, -0.5], 0.125)
