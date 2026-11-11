@@ -15,6 +15,7 @@ from _development_system import LABEL, machine, mark_diagnostic, mark_functional
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.ledger import beating
 from _harness.profile import identity, lock_packages, rewrite, same_identity, sources, validate
+from _harness.profile_exit import echild_warning, verify_echild_data
 from _harness.profile_tools import LIMITS, SOURCES, command, coverage
 from _harness.records import append, atomic, document, seal_unstarted, sha256
 from _measurement_setup import outside_checkout
@@ -61,6 +62,9 @@ class Runner:
             raise InterruptedError("profile interrupted")
         if status and name == "profile":
             self.child_failure()
+            warning = echild_warning(self.spec, self.root, status, meta)
+            if warning is not None:
+                return {**meta, "exit_warning": warning}
         if status or meta["escalated"]:
             raise RuntimeError(
                 f"{name} exited with status {status}; escalation {meta['escalated']}"
@@ -101,6 +105,8 @@ class Runner:
 
     def inspect(self, folder, receipt, meta, profiler):
         try:
+            if "exit_warning" in meta:
+                verify_echild_data(folder, receipt, meta["exit_warning"])
             if self.spec["tool"] == "memray":
                 # Read in the profile interpreter, without controller dependencies.
                 value = self.probe("memray-metadata", profile=str(folder / "mem.bin"))
@@ -199,6 +205,9 @@ def _operations(runner, check_only, result):
         if spec["entry"] == "speed":
             verify_rebuilt(spec, job)
         result["coverage"] = runner.inspect(runner.root, receipt, meta, profiler)
+        if "exit_warning" in meta:
+            result["warnings"] = [meta["exit_warning"]]
+            runner.notify({"event": "profile_exit_warning", **meta["exit_warning"]})
         result["provenance"] = {
             "origin": origin["identity"],
             "before": before,
