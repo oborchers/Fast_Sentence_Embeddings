@@ -55,11 +55,11 @@ def test_queries_and_weights_refuse_lost_input(tmp_path, entry, matrix, invalid)
         value = np.ma.array(value, mask=invalid == "masked")
     if matrix:
         value = [value]  # also catch a masked row before the outer list is converted
-    options = {"candidates": [[0, 1]] if matrix else [0, 1]} if entry == "rescore" else {}
+    args = ([[0, 1]] if matrix else [0, 1],) if entry == "rescore" else ()
     with fse.VectorStore.open(path) as store:
         call = getattr(store, entry)
         with pytest.raises(TypeError, match=r"(queries|weights).*bool|masked array"):
-            call(value, workers=1, **options)
+            call(value, *args, workers=1)
 
 
 @pytest.mark.parametrize("mode", ["exact", "blas", "auto"])
