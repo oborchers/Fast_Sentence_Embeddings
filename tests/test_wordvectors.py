@@ -441,3 +441,34 @@ def test_get_vectors_valid_lists_and_arrays_keep_bits():
         np.testing.assert_array_equal(
             wv.get_vectors(indices).view(np.uint32), expected.view(np.uint32)
         )
+
+
+@pytest.mark.parametrize("field", ["min_n", "max_n", "bucket"])
+@pytest.mark.parametrize("integer", [np.int32, np.int64, np.uint64])
+def test_fasttext_numpy_integers_round_trip(tmp_path, field, integer):
+    values = {"min_n": 1, "max_n": 2, "bucket": 3}
+    values[field] = integer(values[field])
+    wv = WordVectors.from_arrays(
+        np.ones((1, 2), np.float32),
+        words=["word"],
+        fasttext=FastTextParams(**values),
+        ngrams=np.ones((3, 2), np.float32),
+    )
+    assert wv.fasttext == FastTextParams(1, 2, 3)
+    assert all(type(value) is int for value in wv.fasttext)
+    wv.save(tmp_path / "vectors.safetensors")
+    assert WordVectors.load(tmp_path / "vectors.safetensors").fingerprint == wv.fingerprint
+
+
+@pytest.mark.parametrize("field", ["min_n", "max_n", "bucket"])
+@pytest.mark.parametrize("value", [True, np.bool_(True), 1.0, np.float64(1), "1", None])
+def test_fasttext_rejects_non_integer_parameters(field, value):
+    values = {"min_n": 1, "max_n": 2, "bucket": 3}
+    values[field] = value
+    with pytest.raises(TypeError, match=rf"FastText {field} must be an integer"):
+        WordVectors.from_arrays(
+            np.ones((1, 2), np.float32),
+            words=["word"],
+            fasttext=FastTextParams(**values),
+            ngrams=np.ones((3, 2), np.float32),
+        )

@@ -426,8 +426,9 @@ class VectorStore(MemberReaders):
     # --- life cycle ---------------------------------------------------------------------
 
     def close(self) -> None:
-        """Release the mapped shards. Later calls raise ``RuntimeError``, and arrays that were
-        returned as views of the rows must not be used afterwards. Raises ``RuntimeError``
+        """Release the store's references to the mapped shards. Later calls raise
+        ``RuntimeError``. Previously returned views remain readable and keep their mappings
+        alive until the views are released. Raises ``RuntimeError``
         while a search, score or read is running."""
         with self._lock:
             if self._active:

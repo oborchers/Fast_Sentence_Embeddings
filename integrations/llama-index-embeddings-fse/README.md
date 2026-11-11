@@ -125,3 +125,10 @@ Configuration validation belongs to each adapter. Invalid types raise
 `TypeError`; invalid values raise `ValueError`. Invalid `workers` always raise
 `ValueError` using the fse message, already at construction. Text path objects
 stay local even when they look like Hub IDs. Serialized local paths are absolute.
+
+Inherited LlamaIndex options are checked before framework conversion or model loading.
+`embed_batch_size` requires an integer from 1 to 2048. `num_workers` requires a
+positive integer or `None`. Booleans, numeric strings and floats are rejected.
+`callback_manager`, `embeddings_cache` and `rate_limiter` require a LlamaIndex
+`CallbackManager`, `BaseKVStore` and `BaseRateLimiter`, respectively, or `None`.
+A `None` callback manager selects the framework default.

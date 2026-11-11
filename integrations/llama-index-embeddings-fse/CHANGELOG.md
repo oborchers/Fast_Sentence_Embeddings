@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Validate inherited LlamaIndex options before framework conversion or model loading. Reject invalid callback managers, caches and rate limiters with TypeError. Reject coerced batch sizes and async worker counts, and reject out-of-range values with ValueError.
+
 - Reject invalid workers during construction, including before an empty batch.
 - Keep path objects local and serialize local model paths as absolute paths.
 

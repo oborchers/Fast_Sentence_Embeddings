@@ -10,6 +10,7 @@ from fse import Encoder
 from fse.typing import ModelRef, WorkerCount
 
 from ._checks import configuration
+from ._framework_checks import framework_options
 
 __all__ = ["FseEmbedding"]
 
@@ -46,9 +47,7 @@ class FseEmbedding(BaseEmbedding):
             raise TypeError("encoder_injected must be a bool")
         if encoder_injected and encoder is None:
             raise ValueError("Reconstruction requires the injected encoder or a saved model path")
-        unknown = kwargs.keys() - BaseEmbedding.model_fields.keys()
-        if unknown:
-            raise TypeError(f"Unknown BaseEmbedding options: {sorted(unknown)}")
+        framework_options(kwargs)
         super().__init__(
             model_name=str(model_name),
             dtype=dtype,

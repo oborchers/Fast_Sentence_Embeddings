@@ -177,3 +177,33 @@ def refuse_lost_input(value: Any, name: str) -> None:
     elif isinstance(value, Iterable) and not isinstance(value, str | bytes | Mapping):
         for item in value:
             refuse_lost_input(item, name)
+
+
+_MAX_ROW = int(np.iinfo(np.intp).max)
+_MAX_UNSIGNED_ROW = np.uint64(_MAX_ROW)
+
+
+def row_number(value: object, name: str) -> int:
+    """Check a sink row integer before converting it or using it as an index."""
+    if isinstance(value, bool | np.timedelta64) or not isinstance(value, int | np.integer):
+        raise TypeError(f"{name} must be a Python or NumPy integer, not {type(value).__name__}")
+    # NumPy 1.26 can promote uint64 versus a Python int to inexact float64.
+    maximum = _MAX_UNSIGNED_ROW if isinstance(value, np.unsignedinteger) else _MAX_ROW
+    if not 0 <= value <= maximum:
+        raise ValueError(f"{name} must be between 0 and {_MAX_ROW}")
+    return int(value)
+
+
+def target_rows(
+    first_row: object, n_rows: object, row_bytes: int, *, offset: int = 0
+) -> tuple[int, int]:
+    """Constant-work index and byte-size checks, before a sink reserves any rows."""
+    first = row_number(first_row, "first_row")
+    count = row_number(n_rows, "n_rows")
+    if first + offset > _MAX_ROW:
+        raise ValueError("first_row plus the store offset exceeds the platform index limit")
+    if count > _MAX_ROW - first - offset:
+        raise ValueError("n_rows makes the target end exceed the platform index limit")
+    if count > _MAX_ROW // row_bytes:
+        raise ValueError("n_rows makes the target byte size exceed the platform index limit")
+    return first, count

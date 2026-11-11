@@ -16,10 +16,15 @@ INT64_LIMIT = 2**63
 
 
 def _whole_numbers(a, what):
-    a = np.asarray(a)
-    if isinstance(a, np.ma.MaskedArray) or a.dtype.kind not in "ui":
-        raise TypeError(f"{what} must be an unmasked integer array, not {a.dtype}")
-    return a
+    if isinstance(a, np.ma.MaskedArray):
+        raise TypeError(f"{what} must be an unmasked integer array")
+    if isinstance(a, np.ndarray):
+        integer = a.dtype.kind in "ui"
+    else:
+        integer = isinstance(a, (int, np.integer)) and not isinstance(a, (bool, np.bool_))
+    if not integer:
+        raise TypeError(f"{what} must be an unmasked integer array or integer scalar")
+    return np.asarray(a)
 
 
 def candidates_from_unsigned(keys, counts, n_rows):
@@ -61,8 +66,12 @@ def view_candidates(view, path, keys, valid):
     if path not in paths:
         raise ValueError(f"{path} is not a member of the view")
     member = view.members[paths.index(path)]
-    keys, valid = _whole_numbers(keys, "keys"), np.asarray(valid)
-    if valid.dtype != np.bool_ or isinstance(valid, np.ma.MaskedArray):
+    keys = _whole_numbers(keys, "keys")
+    if (
+        not isinstance(valid, np.ndarray)
+        or isinstance(valid, np.ma.MaskedArray)
+        or valid.dtype != np.bool_
+    ):
         raise TypeError("valid must be an unmasked boolean array")
     if keys.shape != valid.shape:
         raise ValueError("keys and valid must have the same shape")

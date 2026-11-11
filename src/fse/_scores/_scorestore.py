@@ -317,8 +317,8 @@ class ScoreStore(MemberReaders):
     # --- life cycle -----------------------------------------------------------------
 
     def close(self) -> None:
-        """Release the mapped shards. Later calls raise, and arrays returned as views of the
-        scores must not be used afterwards."""
+        """Release the store's shard references. Later calls raise ``RuntimeError``.
+        Previously returned views remain readable and keep their mappings until released."""
         with self._lock:
             self._shards = []
             self._closed = True
