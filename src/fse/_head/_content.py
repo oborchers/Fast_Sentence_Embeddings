@@ -125,6 +125,8 @@ def _finite(array: ndarray, name: str) -> None:
 def labels(values: Any, k: int, *, multilabel: bool = False) -> tuple:
     """The labels of a classifier with k outputs: two for k = 1 (negative first), else k;
     all int or all str, unique."""
+    if isinstance(values, ndarray):
+        refuse_lost_input(values, "labels")
     if isinstance(values, str | bytes) or not hasattr(values, "__len__"):
         raise TypeError(f"labels must be a sequence of int or str, not {type(values).__name__}")
     if isinstance(values, set | frozenset):

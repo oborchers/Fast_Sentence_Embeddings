@@ -490,3 +490,11 @@ def test_classes_of_other_numpy_types_are_compared_by_value():
             setattr(target, name, classes)
         clf = fse.Classifier.from_sklearn(encoder, model)
         assert clf.classes_.tolist() == classes.tolist()
+
+
+@pytest.mark.parametrize("mask", [False, True])
+def test_masked_class_arrays_are_rejected_before_list_conversion(mask):
+    from fse._head._sklearn_calibrated import _values
+
+    with pytest.raises(TypeError, match=r"classes_.*masked"):
+        _values(np.ma.array([0, 1], mask=mask))

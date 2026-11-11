@@ -16,7 +16,7 @@ from typing import Any, Literal
 import numpy as np
 
 from fse import _codes, _log
-from fse._validation import validate_arguments
+from fse._validation import refuse_lost_input, validate_arguments
 from fse._wordvectors import FastTextParams, WordVectors
 from fse._wordvectors_format import _encode_words
 
@@ -55,6 +55,8 @@ def from_gensim(
         )
     words = kv.index_to_key
     fasttext, rows, ngram_rows = _word_rows(kv, isinstance(kv, fasttext_vectors))
+    refuse_lost_input(rows, "vectors")
+    refuse_lost_input(ngram_rows, "ngrams")
     _check_rows(rows, words)
     vocab_bytes, vocab_offsets = _encode_words(words)
     kwargs: dict[str, Any] = {}

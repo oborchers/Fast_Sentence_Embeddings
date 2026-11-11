@@ -29,6 +29,7 @@ from fse._contract import UnsupportedArtifactError
 from fse._encoder import Encoder
 from fse._encoder._format import Source
 from fse._encoder._model2vec import read_object_table
+from fse._validation import refuse_lost_input
 
 from . import _model2vec as spec_
 
@@ -86,6 +87,8 @@ def _classes(value: Any) -> list | None:
     dtypes would be converted (a mix of str and int to str) before they could be checked."""
     if value is None:
         return None
+    if isinstance(value, np.ndarray):
+        refuse_lost_input(value, "classes_")
     if not isinstance(value, np.ndarray) or value.ndim != 1 or value.dtype.kind not in "iuU":
         raise ValueError("the classes must be a one-dimensional numpy array of int or str")
     return value.tolist()
@@ -94,6 +97,7 @@ def _classes(value: Any) -> list | None:
 def _array(value: Any, name: str) -> np.ndarray:
     if not isinstance(value, np.ndarray):
         raise ValueError(f"the head {name} must be a numpy array, not {type(value).__name__}")
+    refuse_lost_input(value, name)
     return value
 
 
@@ -101,6 +105,7 @@ def _pipeline(pipeline: Any, what: str) -> tuple[spec_.Imported, Encoder]:
     head = pipeline.head
     layers = list(head.layers)
     classes = _classes(pipeline.classes_)
+    refuse_lost_input(head.classes_, "head.classes_")
     same = (pipeline.classes_ is None) == (head.classes_ is None) and (
         classes is None or np.array_equal(pipeline.classes_, head.classes_)
     )

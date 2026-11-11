@@ -28,6 +28,7 @@ from numpy import ndarray
 
 from fse import _log
 from fse._contract import Head
+from fse._validation import refuse_lost_input
 
 from . import _sklearn_calibrated, _sklearn_ovr
 
@@ -62,6 +63,9 @@ def _array(model: Any, name: str) -> ndarray:
             f"{type(model).__name__}.{name} is a {type(value).__name__}, not a dense array "
             "(densify a sparse coef_ first)"
         )
+    refuse_lost_input(value, name)
+    if isinstance(value, ndarray) and value.dtype.kind not in "fiu":
+        raise TypeError(f"{name} must be a real numeric array, not {value.dtype}")
     array = np.asarray(value, dtype=np.float64)
     if not np.isfinite(array).all():
         raise ValueError(f"{type(model).__name__}.{name} holds values that are not finite")
@@ -91,6 +95,7 @@ def _classes(model: Any, k: int) -> list:
             "label); this estimator has no supported multilabel probability rule; use a supported OneVsRestClassifier"
         )
     classes = getattr(model, "classes_", None)
+    refuse_lost_input(classes, "classes_")
     if not isinstance(classes, ndarray) or classes.ndim != 1:
         raise ValueError(
             f"{type(model).__name__}.classes_ must be one array of labels (multi-label "

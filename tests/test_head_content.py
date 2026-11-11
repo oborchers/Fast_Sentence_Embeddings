@@ -157,3 +157,10 @@ def test_numeric_dataframe_weights_ignore_boolean_column_names():
 def test_labels_keep_ordered_pandas_sequences(container):
     pd = pytest.importorskip("pandas", exc_type=ImportError)
     assert labels(getattr(pd, container)(["b", "a"]), 2) == ("b", "a")
+
+
+@pytest.mark.parametrize("mask", [False, True])
+@pytest.mark.parametrize("values", [["no", "yes"], [0, 1]])
+def test_masked_labels_are_rejected(values, mask):
+    with pytest.raises(TypeError, match="labels must not be a masked array"):
+        labels(np.ma.array(values, mask=mask), 1)

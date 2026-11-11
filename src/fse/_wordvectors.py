@@ -110,7 +110,7 @@ class WordVectors:
         ngrams: Any = None,
         ngram_scales: Any = None,
     ) -> Self:
-        """Word vectors from arrays, copied and checked.
+        """Word vectors from arrays, copied and checked. Masked arrays are rejected.
 
         ``vectors`` holds one row per word as float32, float16 or int8 codes (with
         ``scales``). The vocabulary is either ``words`` or its UTF-8 ``vocab_bytes`` and

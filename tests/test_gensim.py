@@ -149,3 +149,19 @@ def test_fse_gensim_is_the_adapter():
     from fse import gensim
 
     assert gensim.from_gensim is from_gensim
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+@pytest.mark.parametrize("field", ["vectors", "vectors_vocab", "vectors_ngrams"])
+@pytest.mark.parametrize("mask", [False, True])
+def test_masked_rows_rejected_before_conversion(dtype, field, mask, make_ft, monkeypatch):
+    kv = _kv(["a", "b"]) if field == "vectors" else make_ft(vector_size=4, bucket=5).wv
+    setattr(kv, field, np.ma.array(getattr(kv, field), mask=mask))
+
+    def no_conversion(*_args, **_kwargs):
+        pytest.fail("rows were converted before all masks were rejected")
+
+    monkeypatch.setattr("fse.gensim._stored", no_conversion)
+    with pytest.raises(TypeError, match="masked array"):
+        from_gensim(kv, dtype)
+    assert getattr(kv, field).flags.writeable
