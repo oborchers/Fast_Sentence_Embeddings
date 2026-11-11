@@ -60,7 +60,9 @@ cannot fit. Escalate exhausted budgets to the owner instead of extending them.
 | descriptive | What does this feature cost? One arm, fixed repetitions, absolute median/IQR, no A/A or confirmation. | About 15 minutes per cell |
 | regression | Could existing work become meaningfully slower? Paired builds and a predeclared relevant slowdown. A short screen can expose concerns or require escalation. | About 30 to 45 minutes total |
 | optimization | Keep or reject? Full v2 tuning, independent A/A validation, comparison and confirmation. | Up to about 120 minutes after estimating costs |
-| publication | What public claim can we support? Existing pinned Linux publication protocol and release evidence. | Separately agreed budget |
+| publication | What published speed claim or release guarantee can we support? Existing pinned Linux publication protocol and release evidence. | Separately agreed budget |
+
+Published quality values remain class correctness and follow the reviewed summary process in [Local quality run](#local-quality-run-class-correctness).
 
 New results write the class by its name. Results written before DR-294 (Messklassen mit lesbaren
 Namen statt Einzelbuchstaben benennen) keep their former one-letter value unchanged.
@@ -121,8 +123,9 @@ These sources motivate proportional effort, not the numeric planning suggestions
 The explicit `--diagnose` mode compares installed builds on macOS, Linux and other
 Unix systems. Windows is rejected. Every local result is labelled `publishable: false`,
 including Linux results. Local speed results are development indications, never README
-speed evidence. The flag excludes speed claims and speed publication evidence, not
-validated quality results of class correctness. Such quality values may enter the
+speed evidence. The flag excludes published speed claims and speed publication evidence, not
+validated quality results of class correctness. Local speed results still support the
+development claim classes under their respective protocols. Such quality values may enter the
 README through the reviewed summary process in [Local quality run](#local-quality-run-class-correctness).
 The existing pinned Linux commands, studies and speed publication rules remain separate.
 
@@ -816,7 +819,7 @@ python benchmarks/speed.py --local-heavy --worker-name feature-owner -- \
 
 The environment is the owner's own (pinned MTEB 2.26.25, fse from the checkout); the run checks the MTEB version and the number of tasks of each benchmark like `--run`. `--cells` is required and names MTEB cells without a fit. The run is sequential, class correctness, with no speed value and no billing; every row, `environment.json` and `DONE` say `publishable: false`. It stops at a task boundary when the wall-time budget (`--local-budget-seconds`, default 3600 s, for the whole run) is used up or when a task fails; the rest is recorded as `not_started`. Nothing is repeated or extended. SIGINT and SIGTERM stop it the same way: the running task ends, the rest is recorded as `not_started`. The wall-time budget starts before the preparation. A local folder has the same `manifest.json`, `progress.json` and `DONE` as every other result and is collectable with `--collect`. `--summarize` reads the folder like any other and shows `publishable: false` and `class: correctness` of the rows (rows written before DR-294 (Messklassen mit lesbaren Namen statt Einzelbuchstaben benennen) keep their former one-letter value, which the summary groups as the same class). The rows record the stored table dtype (`float16` for bekko-static-embedding-v1) and `output_dim`, and summaries keep cells that differ in `truncate` or `output_dim` apart.
 
-Here `publishable: false` excludes speed claims and speed publication evidence; it does not invalidate quality results of class correctness. Following the maintainer's decision of 11 November 2026, validated local quality values may enter the README or a model card through an explicitly updated, reviewed summary. First verify the result folder with `--collect`, then generate the summary with `--summarize`. The reviewed PR records the new cohort and provenance and preserves complete matching coverage. Local speed values remain excluded; published speed values require the Linux publication protocol above.
+Here `publishable: false` excludes published speed claims and speed publication evidence. It still permits local speed evaluations under the development protocols and does not invalidate quality results of class correctness. Following the maintainer's decision of 11 November 2026, validated local quality values may enter the README or a model card through an explicitly updated, reviewed summary. First verify the result folder with `--collect`, then generate the summary with `--summarize`. The reviewed PR records the new cohort and provenance and preserves complete matching coverage. Local speed values remain excluded from published speed evidence; published speed values require the Linux publication protocol above.
 
 The bekko cells need an fse with float16 sentence-transformers tables (DR-274: float16-Tabellen von sentence-transformers-Modellen als fse-float16 laden); the Linux setup installs `fse_revision` of `pins.json`, which must name such a commit before those cells run there.
 
