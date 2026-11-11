@@ -89,6 +89,7 @@ def test_speed_provenance_supports_archives(monkeypatch, git_state):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "recipes"))
     speed = _helper("_speed")
     monkeypatch.setattr(speed.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(speed.platform, "platform", lambda: "Linux-test")
 
     def output(command, **_kwargs):
         if git_state == "no git":
