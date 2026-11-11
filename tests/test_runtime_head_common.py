@@ -9,6 +9,7 @@ from fse._backends import get_backend
 from fse._contract import Link
 from fse._runtime._head_common import buffer, fold
 from fse._runtime._head_spec import HeadSpec
+from fse._runtime._pool import Pool, Workers
 from support import head as support
 from support.encoder import finished
 
@@ -32,11 +33,14 @@ def _head(spec, k=3, seed=0):
 
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("workers", [1, 3])
-def test_fold_is_the_reference_fold(dtype, workers, monkeypatch):
+@pytest.mark.parametrize("shared", [False, True])
+def test_fold_is_the_reference_fold(dtype, workers, shared, monkeypatch):
     spec = _spec(dtype, fasttext=True)
     head = _head(spec)
     monkeypatch.setattr("fse._runtime._head_common._FOLD_ROWS", 7)  # many blocks
-    pool = fold(get_backend("cpu"), spec.pool_input(), head.weight, workers)
+    with Pool(workers, max_tasks=1) as executor:
+        execution = Workers(workers, executor) if shared else workers
+        pool = fold(get_backend("cpu"), spec.pool_input(), head.weight, execution)
     want = support.folded_pool(spec.pool_input(), head.weight)
     np.testing.assert_array_equal(bits(pool.vectors), bits(want[0]))
     np.testing.assert_array_equal(bits(pool.ngram_vectors), bits(want[3]))

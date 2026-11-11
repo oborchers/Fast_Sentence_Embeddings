@@ -137,7 +137,7 @@ def infer(
     outputs = resolve_outputs(rules_of(heads), output)
     if return_vectors and heads._standalone:
         raise ValueError("a standalone group has no vectors: its table is folded")
-    pipeline = heads._pipeline(backend, with_vectors=return_vectors)
+    pipeline = heads._pipeline(backend, with_vectors=return_vectors, workers=workers)
     collector = None if settings is None else settings.collector(0, _rule(heads))
     with opened(texts, heads._tokenizer) as source:
         rows, vectors = pipeline.infer(
@@ -180,7 +180,7 @@ def batches(
     kinds = tuple(RUNTIME[o] for o in outputs)
     starter = start_stream if positions else start
     run = starter(heads, kinds, return_vectors, vector_sink, score_sink, doc_ids, METHOD)
-    pipeline = heads._pipeline(backend, with_vectors=return_vectors)
+    pipeline = heads._pipeline(backend, with_vectors=return_vectors, workers=workers)
     return _batches(heads, pipeline, iter(items), outputs, workers, run, doc_ids, settings)
 
 

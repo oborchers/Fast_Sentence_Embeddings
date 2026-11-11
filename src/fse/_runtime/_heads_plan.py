@@ -25,16 +25,17 @@ A single head is a group of one: the same plan, the same bits.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from fse._backends import get_backend
 from fse._contract import Head, Link, Normalize
-from fse._cpus import usable_cpus
 
 from ._head_common import fold
 from ._head_spec import HeadSpec
 from ._pipeline import STEP_ROW_BYTES, Pipeline
+from ._pool import workers_of
 from ._spec import EncodeSpec
 
 FOLDED, STANDALONE, NORMALIZED, RAW = "folded", "standalone", "normalized", "raw"
@@ -188,7 +189,7 @@ def plan_heads(
     *,
     own: Pipeline,
     with_vectors: bool = False,
-    workers: int | None = None,
+    workers: Any = None,
     isa: str | None = None,
 ) -> HeadsPlan:
     """The plan of ``members`` on ``backend`` for the encoder of ``spec`` whose own pipeline
@@ -204,8 +205,8 @@ def plan_heads(
         raise ValueError("a standalone head has no vectors: its table is folded")
     if STANDALONE in kinds and set(kinds) != {STANDALONE}:
         raise ValueError("standalone heads and complete heads cannot be run together")
-    threads = workers or usable_cpus()
-    maker = _Maker(spec, members, kinds, backend, own, isa, threads)
+    execution = workers_of(workers)
+    maker = _Maker(spec, members, kinds, backend, own, isa, execution)
     full, mode = maker.full(with_vectors)
     return HeadsPlan(
         spec,
@@ -216,7 +217,7 @@ def plan_heads(
         full=full,
         normed=maker.normed(with_vectors),
         vector_mode=mode,
-        workers=threads,
+        workers=execution.workers,
         isa=isa,
     )
 

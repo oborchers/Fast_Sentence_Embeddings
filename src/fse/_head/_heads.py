@@ -97,7 +97,7 @@ class Heads(_HeadsPredicting, Mapping[str, Classifier | Regressor]):
 
     # --- the runtime ------------------------------------------------------------------
 
-    def _pipeline(self, backend: str, *, with_vectors: bool) -> HeadsPipeline:
+    def _pipeline(self, backend: str, *, with_vectors: bool, workers: Any = None) -> HeadsPipeline:
         key = (backend, with_vectors)
         pipeline = self._pipelines.get(key)
         if pipeline is None:
@@ -108,7 +108,12 @@ class Heads(_HeadsPredicting, Mapping[str, Classifier | Regressor]):
                     own = first._encoder._pipeline(backend)
                     members = tuple(Member(n, m._head) for n, m in self._heads.items())
                     plan = plan_heads(
-                        first._encoder._spec, members, backend, own=own, with_vectors=with_vectors
+                        first._encoder._spec,
+                        members,
+                        backend,
+                        own=own,
+                        with_vectors=with_vectors,
+                        workers=workers,
                     )
                     pipeline = self._pipelines[key] = HeadsPipeline(plan)
         return pipeline

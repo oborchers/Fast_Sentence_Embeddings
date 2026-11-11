@@ -165,7 +165,7 @@ def infer(
             else:
                 _commit(sink, first_row, block)
         return _joined(model, parts, output, sink)
-    head = model._pipeline(backend, with_vectors=return_vectors)
+    head = model._pipeline(backend, with_vectors=return_vectors, workers=workers)
     collector = None if settings is None else settings.collector(0, rule(model))
     with opened(texts, model._tokenizer) as source:
         rows, vectors = head.infer(
@@ -251,7 +251,7 @@ def batches(
             _refuse_doc_ids(model, sink, vectors=True)
     elif sink is not None:
         check_output_sink(model, sink, output, batches=True)
-    head = model._pipeline(backend, with_vectors=return_vectors)
+    head = model._pipeline(backend, with_vectors=return_vectors, workers=workers)
     return _text_batches(model, head, iter(items), output, return_vectors, workers, sink, settings)
 
 
