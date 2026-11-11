@@ -33,6 +33,7 @@ from fse._container import (
     FINGERPRINT_KEY,
     CorruptArtifactError,
     SafetensorsContainer,
+    artifact_structure,
     checksum,
     fingerprint,
     tensor_code,
@@ -333,7 +334,10 @@ class LinearModel(HubModel):
                 f"{where} is an encoder, not a linear head; make a {cls.__name__} of it with "
                 "from_arrays or from_sklearn"
             )
-        content, enc_tensors, enc_metadata, of_encoder = _format.from_artifact(tensors, metadata)
+        with artifact_structure():
+            content, enc_tensors, enc_metadata, of_encoder = _format.from_artifact(
+                tensors, metadata
+            )
         if content.task != cls.TASK:
             other = "Regressor" if content.task == "regression" else "Classifier"
             raise ValueError(

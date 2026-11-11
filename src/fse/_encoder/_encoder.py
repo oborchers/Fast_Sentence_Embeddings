@@ -27,6 +27,7 @@ from fse._container import (
     CREATED_BY_KEY,
     FINGERPRINT_KEY,
     SafetensorsContainer,
+    artifact_structure,
 )
 from fse._contract import Normalize, UnsupportedArtifactError
 from fse._runtime import EncodeSpec, Pipeline
@@ -362,14 +363,15 @@ class Encoder(_Encoding):
     ) -> Self:
         """The encoder of an encoder artifact opened from ``path`` (also the encoder part of
         a head file), with its recorded checksums and ``fingerprint_``."""
-        content, table, checksums = _persist.opened(tensors, metadata, path)
-        return cls._new(
-            content,
-            table,
-            path=path,
-            checksums=checksums if path is not None else None,
-            fingerprint_=fingerprint_,
-        )
+        with artifact_structure():
+            content, table, checksums = _persist.opened(tensors, metadata, path)
+            return cls._new(
+                content,
+                table,
+                path=path,
+                checksums=checksums if path is not None else None,
+                fingerprint_=fingerprint_,
+            )
 
     def verify(self) -> None:
         """Check the data this encoder holds (as it encodes with them) against the

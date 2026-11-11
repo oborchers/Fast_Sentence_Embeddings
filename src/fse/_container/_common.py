@@ -19,7 +19,8 @@ import os
 import re
 import shutil
 import stat
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Protocol
@@ -74,6 +75,21 @@ FINGERPRINT_FORM = f"{_hash.PREFIX} and 32 lowercase hex digits"
 
 class CorruptArtifactError(ValueError):
     """An artifact on disk breaks the format: damaged, truncated or edited."""
+
+
+@contextmanager
+def artifact_structure() -> Iterator[None]:
+    """Classify validation failures at an artifact reader boundary.
+
+    Shared array validators keep their argument errors. Unknown formats and errors
+    already classified as corruption retain their type and original message.
+    """
+    try:
+        yield
+    except (UnsupportedArtifactError, CorruptArtifactError):
+        raise
+    except (ValueError, TypeError) as error:
+        raise CorruptArtifactError(str(error)) from error
 
 
 class PublishedNotDurableError(OSError):

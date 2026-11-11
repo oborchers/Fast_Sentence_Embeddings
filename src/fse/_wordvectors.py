@@ -30,6 +30,7 @@ from fse._container import (
     CorruptArtifactError,
     Hasher,
     SafetensorsContainer,
+    artifact_structure,
     checksum,
     fingerprint,
     tensor_code,
@@ -186,7 +187,8 @@ class WordVectors:
                 "file (directories of .npy files hold stored sentence vectors)"
             )
         tensors, metadata = SafetensorsContainer().open(path, mmap=mmap)
-        return cls._open(tensors, metadata, path)
+        with artifact_structure():
+            return cls._open(tensors, metadata, path)
 
     @validate_arguments
     def save(self, path: PathLike) -> None:

@@ -4,6 +4,8 @@ import json
 
 import numpy as np
 
+from fse._container import SafetensorsContainer
+
 F32 = np.float32
 FINGERPRINT = "xxh3-128:8011e82efda8fabff21969cbaad4fae3"
 
@@ -82,3 +84,16 @@ def _small_chunks(monkeypatch, size=8):
 
     for module in (_common, _npy, _safetensors):
         monkeypatch.setattr(module, "_CHUNK", size)
+
+
+def write_model_parts(path, tensors, metadata):
+    """Write model parts with fresh integrity keys, isolating schema errors from damage
+    to the container. The returned file passes container verification."""
+    keys = {
+        k: v
+        for k, v in metadata.items()
+        if k != "fse.fingerprint" and not k.startswith("fse.checksum.")
+    }
+    SafetensorsContainer().write(path, tensors, keys)
+    SafetensorsContainer().verify(path)
+    return path
