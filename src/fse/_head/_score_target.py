@@ -41,7 +41,9 @@ def check_score_sink(sink: Any, heads: Mapping[str, Any], *, resumed: bool = Fal
     if not resumed and getattr(sink, "resume", False) is True:
         raise ValueError(
             "a score_sink made with resume=True takes the rows of predict(texts, score_sink=sink) "
-            "of a source that can be read again; use a sink without resume for predict_batches"
+            "of a source that can be read again, or batches via "
+            "predict_batches(..., positions=True, score_sink=sink); "
+            "otherwise use a sink without resume for predict_batches"
         )
     names = [head.name for head in schema.heads]
     if names != list(heads):

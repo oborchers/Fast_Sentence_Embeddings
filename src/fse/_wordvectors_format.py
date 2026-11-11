@@ -62,7 +62,8 @@ _MAX_WORDS = OOV_TOKEN  # word ids must stay below the reserved token ids
 class FastTextParams(NamedTuple):
     """``fse.FastTextParams``: how unknown words are hashed into ngram buckets (the
     FastText scheme): character ngrams of ``min_n`` to ``max_n`` characters, hashed into
-    ``bucket`` rows of ``ngrams``."""
+    ``bucket`` rows of ``ngrams``. WordVectors accepts Python and NumPy integers,
+    excluding booleans, and stores them as Python integers."""
 
     min_n: int
     max_n: int
@@ -165,6 +166,9 @@ def _parse_fasttext(text: str) -> FastTextParams:
 
 
 def _check_fasttext(params: FastTextParams):
+    for name, value in zip(params._fields, params, strict=True):
+        if isinstance(value, bool) or not isinstance(value, int | np.integer):
+            raise TypeError(f"FastText {name} must be an integer, not {type(value).__name__}")
     if not 1 <= params.min_n <= params.max_n:
         raise ValueError(
             f"FastText needs 1 <= min_n <= max_n, not {params.min_n} and {params.max_n}"
@@ -378,7 +382,9 @@ def _new_metadata(vectors: ndarray, fasttext: Any) -> dict[str, str]:
         if not isinstance(fasttext, FastTextParams):
             raise TypeError("fasttext must be FastTextParams")
         _check_fasttext(fasttext)
-        metadata["fse.fasttext"] = canonical_json(fasttext._asdict())
+        metadata["fse.fasttext"] = canonical_json(
+            {name: int(value) for name, value in fasttext._asdict().items()}
+        )
         metadata["fse.ngram_hash"] = NGRAM_HASH
     return metadata
 
