@@ -13,6 +13,15 @@ from fse import Encoder
 from fse.typing import ModelRef, WorkerCount
 
 
+def _framework_integer(name: str, value: object) -> None:
+    if type(value) is not int:
+        raise TypeError(f"{name} must be an integer")
+    if value < 1:
+        raise ValueError(f"{name} must be positive")
+    if name == "embed_batch_size" and value > 2048:
+        raise ValueError("embed_batch_size must not exceed 2048")
+
+
 def framework_options(options: dict[str, object]) -> None:
     """Validate original inherited fields before Pydantic converts them."""
     unknown = options.keys() - BaseEmbedding.model_fields.keys()
@@ -21,11 +30,7 @@ def framework_options(options: dict[str, object]) -> None:
     for name in ("embed_batch_size", "num_workers"):
         if name not in options or (name == "num_workers" and options[name] is None):
             continue
-        value = options[name]
-        if type(value) is not int:
-            raise TypeError(f"{name} must be an integer")
-        if value < 1 or (name == "embed_batch_size" and value > 2048):
-            raise ValueError(f"{name} must be positive; embed_batch_size must not exceed 2048")
+        _framework_integer(name, options[name])
     for name, expected in (
         ("callback_manager", CallbackManager),
         ("embeddings_cache", BaseKVStore),
