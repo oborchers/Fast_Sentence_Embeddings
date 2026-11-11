@@ -7,7 +7,9 @@ import sys
 import threading
 import warnings
 
+import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from fse._runtime import Pool, Workers, _pool, workers_of
 from fse._runtime._executor import run
@@ -31,17 +33,25 @@ def test_the_public_surface_of_a_pool_has_no_way_around_max_tasks():
     assert not hasattr(Pool, "submit")
 
 
-@pytest.mark.parametrize("workers", [0, -1, True, 1.5, "2"])
-def test_workers_of_a_pool_must_be_a_positive_int(workers):
-    with pytest.raises(ValueError, match="workers must be a positive int"):
-        Pool(workers)
+@pytest.mark.parametrize("name", ["workers", "max_tasks"])
+@pytest.mark.parametrize("value", [0, -1, True, np.bool_(True), 1.5, "2", np.int64(0)])
+def test_pool_counts_must_be_positive_integers(name, value):
+    with pytest.raises(ValidationError, match=name):
+        Pool(**{name: value})
 
 
-def test_the_arguments_of_a_pool_are_checked():
-    with pytest.raises(ValueError, match="max_tasks must be a positive int"):
-        Pool(2, max_tasks=0)
-    with pytest.raises(TypeError, match="start must be a bool"):
-        Pool(2, start=1)  # type: ignore[arg-type]
+@pytest.mark.parametrize("start", [1, "true", None, np.bool_(True)])
+def test_pool_start_must_be_a_bool(start):
+    with pytest.raises(ValidationError, match="start"):
+        Pool(2, start=start)
+
+
+def test_pool_accepts_numpy_integer_counts():
+    with Pool(np.int64(2), max_tasks=np.int64(3)) as pool:
+        assert pool.workers == 2
+        assert pool.max_tasks == 3
+        assert type(pool.workers) is int
+        assert type(pool.max_tasks) is int
 
 
 def test_a_pool_starts_no_thread_before_a_task_and_all_at_once_with_start():

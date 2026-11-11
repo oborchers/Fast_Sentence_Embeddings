@@ -27,7 +27,7 @@ from typing import Any, NamedTuple, ParamSpec, TypeVar
 import numpy as np
 
 from fse._cpus import usable_cpus
-from fse._validation import WorkerCount
+from fse._validation import PositiveInt, WorkerCount, validate_arguments
 
 # Waits wake up this often, so an interrupt reaches the calling thread (also on Windows).
 _POLL_SECONDS = 0.25
@@ -43,8 +43,12 @@ class Pool:
     threads of its own, and a call that gives ``workers=`` runs at most that many tasks at
     once (it may not exceed ``pool.workers``). Threads are started by the first task, or at
     once with ``start=True``, so the first call of a server does not wait for them. A pool
-    holds at most ``max_tasks`` tasks (running, waiting or finished and not yet committed)
-    over all calls at once (default ``2 * workers``); a call that finds none free waits.
+    holds at most ``max_tasks`` places over all calls at once (default ``2 * workers``);
+    a call that finds none free waits. Encoding and text prediction tasks hold a place
+    until their result is committed, including while waiting or running. Store tasks
+    (search, score, rescore, add_sign_bits and store prediction) release their place when
+    they end. Their finished results hold no place; each store call keeps its own window
+    of at most ``2 * workers`` results, using that call's worker count.
 
     ``close()`` (or leaving a ``with`` block) waits for running tasks and ends the threads;
     a closed pool refuses further calls. A pool that is dropped without ``close()`` ends its
@@ -56,15 +60,16 @@ class Pool:
     and the ``with`` block; the methods that hand out places and tasks are internal.
     """
 
+    @validate_arguments
     def __init__(
-        self, workers: WorkerCount = None, *, start: bool = False, max_tasks: int | None = None
+        self,
+        workers: WorkerCount = None,
+        *,
+        start: bool = False,
+        max_tasks: PositiveInt | None = None,
     ):
-        self._workers = usable_cpus() if workers is None else _positive(workers, "workers")
-        self._max_tasks = (
-            2 * self._workers if max_tasks is None else _positive(max_tasks, "max_tasks")
-        )
-        if not isinstance(start, bool):
-            raise TypeError(f"start must be a bool, not {type(start).__name__}")
+        self._workers = usable_cpus() if workers is None else int(workers)
+        self._max_tasks = 2 * self._workers if max_tasks is None else max_tasks
         self._lock = threading.Lock()
         self._permits = threading.BoundedSemaphore(self._max_tasks)
         self._executor: ThreadPoolExecutor | None = None
@@ -80,7 +85,7 @@ class Pool:
 
     @property
     def max_tasks(self) -> int:
-        """The most tasks that may be waiting or running at once."""
+        """The shared task-place limit; see the class docstring for when places return."""
         return self._max_tasks
 
     @property
