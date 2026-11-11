@@ -2,12 +2,15 @@
 
 import numpy as np
 import pytest
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
-from fse import Classifier, Regressor
-from support.encoder import finished
+pytest.importorskip("sklearn")
+
+from sklearn.linear_model import LinearRegression, LogisticRegression  # noqa: E402
+from sklearn.pipeline import Pipeline  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
+
+from fse import Classifier, Regressor  # noqa: E402
+from support.encoder import finished  # noqa: E402
 
 
 def _model(classifier=True):
@@ -22,7 +25,9 @@ def _model(classifier=True):
 
 @pytest.mark.parametrize("constructor", [Classifier, Regressor])
 @pytest.mark.parametrize("field", ["coef_", "intercept_"])
-@pytest.mark.parametrize("invalid", ["mask-empty", "mask-active", "bool-array", "bool-scalar"])
+@pytest.mark.parametrize(
+    "invalid", ["mask-empty", "mask-active", "bool-array", "bool-scalar", "bool-object"]
+)
 def test_source_numbers_rejected_before_conversion(constructor, field, invalid):
     encoder = finished()
     model = _model(constructor is Classifier)
@@ -30,10 +35,12 @@ def test_source_numbers_rejected_before_conversion(constructor, field, invalid):
     bad = (
         np.ma.array(value, mask=invalid == "mask-active")
         if invalid.startswith("mask-")
-        else (value.astype(bool) if invalid == "bool-array" else True)
+        else (value.astype(bool).astype(object) if invalid == "bool-object" else value.astype(bool))
     )
+    if invalid == "bool-scalar":
+        bad = True
     setattr(model, field, bad)
-    with pytest.raises(TypeError, match=rf"{field}.*(masked|bool)"):
+    with pytest.raises(TypeError, match=rf"{field}.*(masked|bool|numeric)"):
         constructor.from_sklearn(encoder, model)
 
 
@@ -46,7 +53,9 @@ def test_source_classes_reject_masks(mask):
 
 
 @pytest.mark.parametrize("field", ["scale_", "mean_"])
-@pytest.mark.parametrize("invalid", ["mask-empty", "mask-active", "bool-array", "bool-scalar"])
+@pytest.mark.parametrize(
+    "invalid", ["mask-empty", "mask-active", "bool-array", "bool-scalar", "bool-object"]
+)
 def test_scaler_numbers_rejected_before_conversion(field, invalid):
     scaler = StandardScaler()
     scaler.scale_, scaler.mean_ = np.ones(6), np.zeros(6)
@@ -57,8 +66,10 @@ def test_scaler_numbers_rejected_before_conversion(field, invalid):
         field,
         np.ma.array(value, mask=invalid == "mask-active")
         if invalid.startswith("mask-")
-        else (value.astype(bool) if invalid == "bool-array" else True),
+        else (value.astype(bool).astype(object) if invalid == "bool-object" else value.astype(bool)),
     )
+    if invalid == "bool-scalar":
+        setattr(scaler, field, True)
     model = Pipeline([("scaler", scaler), ("classifier", _model())])
-    with pytest.raises(TypeError, match=rf"{field}.*(masked|bool)"):
+    with pytest.raises(TypeError, match=rf"{field}.*(masked|bool|numeric)"):
         Classifier.from_sklearn(finished(), model)

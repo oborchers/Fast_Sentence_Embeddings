@@ -64,6 +64,8 @@ def _array(model: Any, name: str) -> ndarray:
             "(densify a sparse coef_ first)"
         )
     refuse_lost_input(value, name)
+    if isinstance(value, ndarray) and value.dtype.kind not in "fiu":
+        raise TypeError(f"{name} must be a real numeric array, not {value.dtype}")
     array = np.asarray(value, dtype=np.float64)
     if not np.isfinite(array).all():
         raise ValueError(f"{type(model).__name__}.{name} holds values that are not finite")
