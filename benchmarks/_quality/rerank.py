@@ -18,7 +18,7 @@ from _measurement_config import MODEL_PINS
 from _quality import rerank_scores, rerank_stages
 from _quality.rerank_data import task_data
 
-KINDS = ("dense", "bm25", "rrf")
+KINDS = ("dense", "bm25", "rrf", "store", "rescore")
 PACKAGES = ("mteb", "bm25s", "PyStemmer", "pytrec_eval-terrier", "transformers", "torch", "numpy")
 
 
@@ -35,19 +35,40 @@ def _sources():
 
 
 def expand(cells):
-    """One cell per NanoBEIR task; other kinds pass unchanged."""
-    from _quality.suites import benchmark_tasks
+    """One cell per resolved retrieval task; other kinds pass unchanged."""
+    from _quality.suites import filters_for, resolve
 
     result = []
     for cell in cells:
         if cell["kind"] != "rerank":
             result.append(cell)
             continue
-        if cell["tasks"] != ["NanoBEIR"]:
-            raise ValueError("a rerank cell covers the NanoBEIR benchmark")
-        for task in benchmark_tasks("NanoBEIR"):
-            name = task.metadata.name
-            result.append({**cell, "id": cell["id"] + "_" + name, "task": name})
+        expected = []
+        expanded = []
+        for entry in cell["tasks"]:
+            for benchmark, task in resolve(entry):
+                filters = filters_for(task)
+                if len(filters["hf_subsets"]) != 1 or len(filters["eval_splits"]) != 1:
+                    raise ValueError("rerank needs exactly one subset and split")
+                identity = [
+                    benchmark,
+                    task.metadata.name,
+                    filters["hf_subsets"][0],
+                    filters["eval_splits"][0],
+                ]
+                expected.append(identity)
+                expanded.append(
+                    {
+                        **cell,
+                        "id": cell["id"] + "_" + task.metadata.name,
+                        "benchmark": benchmark,
+                        "task": task.metadata.name,
+                        "evaluation_filters": filters,
+                    }
+                )
+        result.extend({**c, "expected_tasks": expected} for c in expanded)
+    if len({c["id"] for c in result}) != len(result):
+        raise ValueError("task expansion produced duplicate identifiers")
     return result
 
 
@@ -59,10 +80,13 @@ def validate(cell, stages):
     for name in cell.get("mteb_check", []):
         if stages[name].get("backend") != "fse":
             raise ValueError("the MTEB check covers fse first stages")
+    from _quality.rerank_store import validate as validate_store
+
+    validate_store(cell, stages)
     spec = cell.get("reranker")
     depths = cell.get("depths", [])
     if (spec is None) != (not depths) or any(
-        not isinstance(d, int) or not 0 < d <= rerank_stages.DEPTH for d in depths
+        type(d) is not int or not 0 < d <= rerank_stages.DEPTH for d in depths
     ):
         raise ValueError("a reranker needs candidate depths between 1 and 1000, and only it")
     if spec is not None and spec["model"] not in MODEL_PINS:
@@ -75,6 +99,8 @@ def _stage(name, stages, data, context, rankings):
     stage = stages[name]
     if stage["kind"] == "bm25":
         rankings[name] = rerank_stages.bm25(data)
+    elif stage["kind"] in ("store", "rescore"):
+        raise ValueError("store stages are evaluated together by rerank_store")
     elif stage["kind"] == "rrf":
         inputs = [_stage(n, stages, data, context, rankings) for n in stage["inputs"]]
         rankings[name] = rerank_stages.rrf(inputs)
@@ -82,7 +108,9 @@ def _stage(name, stages, data, context, rankings):
         from _quality.mteb import loader
 
         rankings[name], scores = rerank_stages.dense(loader(stage, context), data)
-        context.setdefault("rerank_raw", {})[(data.name, name)] = scores
+        context.setdefault("rerank_raw", {})[
+            (data.benchmark, data.name, data.hf_subset, data.split, name)
+        ] = scores
     return rankings[name]
 
 
@@ -102,23 +130,28 @@ def _mteb_check(cell, stages, data, context, arms):
     import json
 
     from _quality.mteb import evaluate
-    from _quality.suites import benchmark_tasks, filters_for
+    from _quality.suites import filters_for, task_of
 
-    task = next(t for t in benchmark_tasks("NanoBEIR") if t.metadata.name == data.name)
+    task = task_of(data.benchmark, data.name)
     checks = {}
     for name in cell.get("mteb_check", []):
         mteb_cell = {
             **stages[name],
             "id": f"{cell['id']}-mteb-{name}",
             "task": data.name,
-            "benchmark": "NanoBEIR",
+            "hf_subset": data.hf_subset,
+            "split": data.split,
+            "benchmark": data.benchmark,
             "evaluation_filters": filters_for(task),
         }
         evaluate(mteb_cell, context)
         raw = json.loads((context["results"] / (mteb_cell["id"] + "-mteb.json")).read_text())
-        (split,) = raw["scores"]["train"]
+        (split,) = raw["scores"][data.split]
         mteb = {m: split[key] for m, key in MTEB_KEYS.items()}
-        study = rerank_scores.scored_metrics(data, context["rerank_raw"][(data.name, name)])
+        study = rerank_scores.scored_metrics(
+            data,
+            context["rerank_raw"][(data.benchmark, data.name, data.hf_subset, data.split, name)],
+        )
         checks[name] = {"mteb": mteb, "study_scores": study, "study_ranking": arms[name]}
         if study != mteb:
             raise ValueError(f"{name} on {data.name}: study metrics differ from MTEB")
@@ -156,9 +189,15 @@ def _reranked(cell, data, context, rankings, results):
 def evaluate(cell, context):
     stages = context["study"]["first_stages"]
     validate(cell, stages)
+    if any(stages[n]["kind"] in ("store", "rescore") for n in cell["stages"]):
+        from _quality.rerank_store import evaluate as evaluate_store
+
+        return evaluate_store(cell, context)
     started = time.perf_counter()
-    data = task_data(cell["task"])
-    rankings = context.setdefault("rerank_rankings", {}).setdefault(cell["task"], {})
+    data = task_data(cell["benchmark"], cell["task"])
+    rankings = context.setdefault("rerank_rankings", {}).setdefault(
+        (data.benchmark, data.name, data.hf_subset, data.split), {}
+    )
     for name in cell["stages"] + cell.get("mteb_check", []):
         _stage(name, stages, data, context, rankings)
     np.savez_compressed(
@@ -175,7 +214,9 @@ def evaluate(cell, context):
         **result,
         "status": "valid",
         "task": data.name,
-        "benchmark": "NanoBEIR",
+        "hf_subset": data.hf_subset,
+        "split": data.split,
+        "benchmark": data.benchmark,
         "dataset_revision": data.revision,
         "queries": len(data.queries),
         "documents": len(data.docs),

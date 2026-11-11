@@ -1,0 +1,169 @@
+{
+  "format": "quality-study-v1",
+  "description": "DR-381 (Retrieval-Qualit\u00e4t je Ausgabeformat mit exakter Store-Suche messen). Class correctness, full tasks, exact search, float32 encoder tables. No speed values. FiQA2018 is a separate selection.",
+  "first_stages": {
+    "potion-base-8M-dense": {
+      "kind": "dense",
+      "model": "minishlab/potion-base-8M",
+      "backend": "fse",
+      "workers": 2,
+      "dtype": "float32"
+    },
+    "potion-base-8M-float32": {
+      "kind": "store",
+      "encoder": "potion-base-8M-dense",
+      "dtype": "float32"
+    },
+    "potion-base-8M-float16": {
+      "kind": "store",
+      "encoder": "potion-base-8M-dense",
+      "dtype": "float16"
+    },
+    "potion-base-8M-int8": {
+      "kind": "store",
+      "encoder": "potion-base-8M-dense",
+      "dtype": "int8"
+    },
+    "potion-base-8M-rescore": {
+      "kind": "rescore",
+      "encoder": "potion-base-8M-dense",
+      "input": "potion-base-8M-int8",
+      "reference": "potion-base-8M-float32",
+      "depths": [
+        10,
+        20,
+        50,
+        100,
+        200,
+        500,
+        1000
+      ]
+    },
+    "static-retrieval-mrl-en-v1-dense": {
+      "kind": "dense",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "backend": "fse",
+      "workers": 2,
+      "dtype": "float32"
+    },
+    "static-retrieval-mrl-en-v1-float32": {
+      "kind": "store",
+      "encoder": "static-retrieval-mrl-en-v1-dense",
+      "dtype": "float32"
+    },
+    "static-retrieval-mrl-en-v1-float16": {
+      "kind": "store",
+      "encoder": "static-retrieval-mrl-en-v1-dense",
+      "dtype": "float16"
+    },
+    "static-retrieval-mrl-en-v1-int8": {
+      "kind": "store",
+      "encoder": "static-retrieval-mrl-en-v1-dense",
+      "dtype": "int8"
+    },
+    "static-retrieval-mrl-en-v1-rescore": {
+      "kind": "rescore",
+      "encoder": "static-retrieval-mrl-en-v1-dense",
+      "input": "static-retrieval-mrl-en-v1-int8",
+      "reference": "static-retrieval-mrl-en-v1-float32",
+      "depths": [
+        10,
+        20,
+        50,
+        100,
+        200,
+        500,
+        1000
+      ]
+    }
+  },
+  "cells": [
+    {
+      "id": "formats-potion-base-8M",
+      "kind": "rerank",
+      "tasks": [
+        "MTEB(eng, v2)/SciFact",
+        "MTEB(eng, v2)/NFCorpus"
+      ],
+      "stages": [
+        "potion-base-8M-float32",
+        "potion-base-8M-float16",
+        "potion-base-8M-int8",
+        "potion-base-8M-rescore"
+      ],
+      "mteb_check": [
+        "potion-base-8M-dense"
+      ],
+      "estimated_seconds": 900
+    },
+    {
+      "id": "formats-potion-base-8M-fiqa",
+      "kind": "rerank",
+      "tasks": [
+        "MTEB(eng, v2)/FiQA2018"
+      ],
+      "stages": [
+        "potion-base-8M-float32",
+        "potion-base-8M-float16",
+        "potion-base-8M-int8",
+        "potion-base-8M-rescore"
+      ],
+      "mteb_check": [
+        "potion-base-8M-dense"
+      ],
+      "estimated_seconds": 900
+    },
+    {
+      "id": "formats-static-retrieval-mrl-en-v1",
+      "kind": "rerank",
+      "tasks": [
+        "MTEB(eng, v2)/SciFact",
+        "MTEB(eng, v2)/NFCorpus"
+      ],
+      "stages": [
+        "static-retrieval-mrl-en-v1-float32",
+        "static-retrieval-mrl-en-v1-float16",
+        "static-retrieval-mrl-en-v1-int8",
+        "static-retrieval-mrl-en-v1-rescore"
+      ],
+      "mteb_check": [
+        "static-retrieval-mrl-en-v1-dense"
+      ],
+      "estimated_seconds": 900
+    },
+    {
+      "id": "formats-static-retrieval-mrl-en-v1-fiqa",
+      "kind": "rerank",
+      "tasks": [
+        "MTEB(eng, v2)/FiQA2018"
+      ],
+      "stages": [
+        "static-retrieval-mrl-en-v1-float32",
+        "static-retrieval-mrl-en-v1-float16",
+        "static-retrieval-mrl-en-v1-int8",
+        "static-retrieval-mrl-en-v1-rescore"
+      ],
+      "mteb_check": [
+        "static-retrieval-mrl-en-v1-dense"
+      ],
+      "estimated_seconds": 900
+    },
+    {
+      "id": "formats-smoke",
+      "kind": "rerank",
+      "tasks": [
+        "MTEB(eng, v2)/NFCorpus"
+      ],
+      "stages": [
+        "potion-base-8M-float32",
+        "potion-base-8M-float16",
+        "potion-base-8M-int8",
+        "potion-base-8M-rescore"
+      ],
+      "mteb_check": [
+        "potion-base-8M-dense"
+      ],
+      "estimated_seconds": 120
+    }
+  ]
+}

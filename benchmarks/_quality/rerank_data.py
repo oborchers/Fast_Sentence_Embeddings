@@ -1,4 +1,4 @@
-"""The data of one pinned NanoBEIR task for the reranker study, read as MTEB reads it."""
+"""The data of one pinned retrieval task, with its benchmark, subset and split."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ class TaskData:
     """Texts, IDs and judgments of one task; positions index ``doc_ids`` and ``docs``."""
 
     name: str
+    benchmark: str
+    hf_subset: str
+    split: str
     revision: str
     doc_ids: list
     docs: list
@@ -25,19 +28,22 @@ def _document(row):
     return (title + " " + row["text"]).strip() if title else row["text"].strip()
 
 
-def task_data(name):
-    """The pinned task of the NanoBEIR benchmark, with the queries MTEB keeps (those with
-    judged documents). Refuses what this study does not reproduce: other subsets or splits,
+def task_data(benchmark, name):
+    """A pinned retrieval task, with the queries MTEB keeps (those with judged documents).
+    Refuses what this study does not reproduce: multiple subsets or splits,
     a given candidate list, skipped first results, unknown or repeated IDs."""
-    from _quality.suites import benchmark_tasks
+    from _quality.suites import filters_for, task_of
 
-    task = next(t for t in benchmark_tasks("NanoBEIR") if t.metadata.name == name)
-    if list(task.hf_subsets) != ["default"] or list(task.eval_splits) != ["train"]:
-        raise ValueError(f"{name}: unexpected subsets or splits")
+    task = task_of(benchmark, name)
+    filters = filters_for(task)
+    if len(filters["hf_subsets"]) != 1 or len(filters["eval_splits"]) != 1:
+        raise ValueError(f"{name}: exactly one subset and split required")
+    (subset,) = filters["hf_subsets"]
+    (split_name,) = filters["eval_splits"]
     if task.skip_first_result:
         raise ValueError(f"{name}: skip_first_result is not reproduced")
     task.load_data()
-    split = task.dataset["default"]["train"]
+    split = task.dataset[subset][split_name]
     if split["top_ranked"] is not None:
         raise ValueError(f"{name}: a task with given candidates is not a first-stage task")
     corpus = split["corpus"]
@@ -55,6 +61,9 @@ def task_data(name):
         raise ValueError(f"{name}: judgments name unknown documents or queries")
     return TaskData(
         name=name,
+        benchmark=benchmark,
+        hf_subset=subset,
+        split=split_name,
         revision=task.metadata.dataset["revision"],
         doc_ids=doc_ids,
         docs=docs,
