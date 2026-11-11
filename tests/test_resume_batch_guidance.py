@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import fse
+from support.resume_heads import Poisoned
 
 
 @pytest.mark.parametrize("kind", ["encoder", "classifier", "regressor", "heads"])
@@ -32,13 +33,9 @@ def test_resume_batch_guidance(tmp_path, kind, sink_kind):
         )
         options = {"score_sink": sink}
 
-    def unread():
-        raise AssertionError("source read before checking resume arguments")
-        yield
-
     with sink:
         with pytest.raises(ValueError, match="positions=True"):
-            list(method(unread(), **options))
+            list(method(Poisoned(), **options))
         assert not (tmp_path / "store").exists()
         results = list(method([(["a", "b"], "offset0")], positions=True, **options))
         assert len(results) == 1
