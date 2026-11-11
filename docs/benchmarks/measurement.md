@@ -1385,9 +1385,10 @@ It records prefix occurrences in the first input and their minimum and maximum
 across batches. Observation forwards all arguments and returned values unchanged;
 all temporary hooks are removed on success or failure. It stores no input text.
 Sentence Transformers 6.2.0 uses `preprocess` in inference, while `tokenize` is a
-deprecated alias. The observer reads the actual preprocessing features and counts
-the prefix concatenation defined by its `InputModule`, without a second encode
-or tokenization call.
+deprecated alias. The observer reads the first Transformer's `_call_processor`
+inputs after `InputFormatter` has prepended the prompt, together with the token
+IDs returned by that same call. It skips the separate bare-prefix length probe.
+It never reconstructs input text or starts a second tokenization call.
 
 Before a full run, the coordinator runs the four `smoke-ref-*` cells. Each covers
 STSBenchmark and NanoQuoraRetrieval. They fail on a missing, changed or doubled

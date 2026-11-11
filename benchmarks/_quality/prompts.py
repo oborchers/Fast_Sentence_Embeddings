@@ -85,17 +85,15 @@ class Observer:
 
         return observed
 
-    def preprocessing(self, original):
+    def processing(self, original):
         @wraps(original)
-        def observed(inputs, *args, **kwargs):
-            features = original(inputs, *args, **kwargs)
-            if self.active and inputs:
-                prompt = args[0] if args else kwargs.get("prompt")
-                if self.smoke and (prompt or "") != expected(self.cell, self.role):
-                    raise ValueError("preprocessing prompt differs from smoke expectation")
-                # ST 6.2 InputModule prepends this prefix to each text. Features
-                # come from that very call, not from a second tokenizer invocation.
-                self.record([(prompt or "") + text for text in inputs], features)
+        def observed(modality, inputs, *args, **kwargs):
+            features = original(modality, inputs, *args, **kwargs)
+            texts = inputs.get("text", [])
+            # The first Transformer module also processes the bare prefix to
+            # calculate its pooling length. Observe only actual encoded batches.
+            if self.active and texts and texts != [self.prompt]:
+                self.record(texts, features)
             return features
 
         return observed
@@ -112,6 +110,12 @@ class Observer:
             )
         ):
             raise ValueError("smoke prompt prefix must occur exactly once at the start")
+        if (
+            self.smoke
+            and not prompt
+            and any(text.startswith((BGE_QUERY, "Instruct:")) for text in texts)
+        ):
+            raise ValueError("unexpected instruction prefix in an unprompted smoke input")
         key = (self.role, self.prompt)
         if key not in self.records:
             self.records[key] = {
@@ -150,7 +154,11 @@ def capture(cell, wrapper):
             original = getattr(wrapper.model, name)
             stack.enter_context(replace(wrapper.model, name, observer.encoding(original, name)))
         stack.enter_context(
-            replace(wrapper.model, "preprocess", observer.preprocessing(wrapper.model.preprocess))
+            replace(
+                wrapper.model[0],
+                "_call_processor",
+                observer.processing(wrapper.model[0]._call_processor),
+            )
         )
         yield records
         records.extend(observer.finish())
