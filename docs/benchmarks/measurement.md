@@ -1301,6 +1301,46 @@ never enter speed summaries. Result status is `valid`, `refused`,
 The folder includes the normal progress, cells, manifest and DONE artifacts and
 can be collected through `speed.py --collect`. No automatic retry occurs.
 
+### Linux py-spy post-write child-wait error
+
+The pinned py-spy 0.4.2 can write a complete Speedscope file and then exit 1
+with `Error: No child process (os error 10)` (ECHILD). Its
+[record implementation](https://github.com/benfred/py-spy/blob/v0.4.2/src/main.rs#L307-L326)
+closes the output before announcing the sample count. The launch path then
+calls `command.try_wait()?` after recording
+([main.rs](https://github.com/benfred/py-spy/blob/v0.4.2/src/main.rs#L409-L424)).
+The pinned [remoteprocess 0.5.2 dependency](https://github.com/benfred/py-spy/blob/v0.4.2/Cargo.lock)
+also waits on traced threads with `WSTOPPED | __WALL` and consumes an
+`Exited` result ([Linux thread locking](https://github.com/benfred/remoteprocess/blob/v0.5.2/src/linux/mod.rs#L233-L251)).
+These two waits can compete for the child exit status. The upstream report
+[crash with subprocess not in container](https://github.com/benfred/py-spy/issues/243)
+shows the same write-then-ECHILD sequence without fse, on an older py-spy version.
+This identifies the internal competing-wait path, but does not trace the precise
+interleaving in a historical run.
+
+Our `profile_tools.command` launches py-spy as the controller's direct child.
+It uses `--subprocesses` only for requested `child-and-subprocesses` coverage.
+The allocation CPU profile requests `child`, so that option is absent.
+`_development_heavy.execute` waits on py-spy, not its Python child.
+Its group reaper runs only after polling proves that py-spy has exited.
+The runner installs handlers for SIGINT and SIGTERM, and does not ignore SIGCHLD.
+
+Only the main `profile` operation may defer this exact exit 1 for py-spy 0.4.2.
+It requires an unforced, unsignalled completion before the deadline, the exact
+normal-exit/write/visit/ECHILD log suffix for this output path, and no other
+`Error:` line. The profiler access probe remains strict. Acceptance then requires
+a successful diagnostic receipt, complete parseable sampled data with valid
+frame references, positive weights, consistent durations and matching sample
+counts, explicit nonempty samples for the addressed child, normal coverage
+verification, and all usual provenance checks. Missing or malformed evidence
+fails with a reason. Other exit codes, versions and errors remain failures.
+
+An accepted profile records `warnings` in its cell and a `profile_exit_warning`
+event, including the original exit status, error, sample/error counts and source.
+The raw log and `profile-execution.json` retain exit 1. Sampling errors remain
+visible and limit interpretation. A warning does not remove other open evidence
+or turn diagnostic timings into comparison evidence.
+
 Profiler format sources: [py-spy 0.4.2 speedscope writer](https://github.com/benfred/py-spy/blob/v0.4.2/src/speedscope.rs),
 [memray 1.20.0 metadata](https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_metadata.py).
 Darwin group-query behavior: [XNU killpg1 implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c).
