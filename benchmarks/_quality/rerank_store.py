@@ -295,11 +295,13 @@ def evaluate(cell, context):
         raise ValueError("configured task filters changed after expansion")
     before = package_identity("fse")
     try:
+        if task.ignore_identical_ids:
+            raise RefusedError(
+                "store quality does not support ignore_identical_ids=True; FiQA2018 is deferred"
+            )
         # The largest model in this study is 1024-dimensional. Actual admission follows loading.
         admit_task(task, 1024, context.get("rss_limit_bytes"))
         data = task_data(cell["benchmark"], cell["task"])
-        if data.ignore_identical_ids:
-            raise ValueError("store quality refuses ignore_identical_ids tasks")
         if len(data.docs) < 10:
             raise ValueError("store quality requires at least ten corpus documents")
         with TemporaryDirectory(prefix="retrieval-", dir=context["work"]) as folder:

@@ -1,6 +1,6 @@
 {
   "format": "quality-study-v1",
-  "description": "DR-381 (Retrieval-Qualit\u00e4t je Ausgabeformat mit exakter Store-Suche messen). Class correctness, full tasks, exact search, float32 encoder tables. No speed values. FiQA2018 is a separate selection.",
+  "description": "DR-381 (Retrieval-Qualität je Ausgabeformat mit exakter Store-Suche messen). Class correctness, full tasks, exact search, float32 encoder tables. No speed values. FiQA2018 is deferred because ignore_identical_ids=True; support can be a separate ticket.",
   "first_stages": {
     "potion-base-8M-dense": {
       "kind": "dense",
@@ -97,45 +97,11 @@
       "estimated_seconds": 900
     },
     {
-      "id": "formats-potion-base-8M-fiqa",
-      "kind": "rerank",
-      "tasks": [
-        "MTEB(eng, v2)/FiQA2018"
-      ],
-      "stages": [
-        "potion-base-8M-float32",
-        "potion-base-8M-float16",
-        "potion-base-8M-int8",
-        "potion-base-8M-rescore"
-      ],
-      "mteb_check": [
-        "potion-base-8M-dense"
-      ],
-      "estimated_seconds": 900
-    },
-    {
       "id": "formats-static-retrieval-mrl-en-v1",
       "kind": "rerank",
       "tasks": [
         "MTEB(eng, v2)/SciFact",
         "MTEB(eng, v2)/NFCorpus"
-      ],
-      "stages": [
-        "static-retrieval-mrl-en-v1-float32",
-        "static-retrieval-mrl-en-v1-float16",
-        "static-retrieval-mrl-en-v1-int8",
-        "static-retrieval-mrl-en-v1-rescore"
-      ],
-      "mteb_check": [
-        "static-retrieval-mrl-en-v1-dense"
-      ],
-      "estimated_seconds": 900
-    },
-    {
-      "id": "formats-static-retrieval-mrl-en-v1-fiqa",
-      "kind": "rerank",
-      "tasks": [
-        "MTEB(eng, v2)/FiQA2018"
       ],
       "stages": [
         "static-retrieval-mrl-en-v1-float32",

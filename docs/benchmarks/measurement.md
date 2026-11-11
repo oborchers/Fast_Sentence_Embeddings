@@ -1370,11 +1370,13 @@ score difference over store Top-1000 hits are recorded separately as arithmetic-
 differences. They are not attributed to quantization.
 
 The full tasks are SciFact and NFCorpus of MTEB(eng, v2), subset `default`, split `test`.
-FiQA2018 has separate cells and a separate selection mean. `formats-smoke` evaluates the
+FiQA2018 is deferred because `ignore_identical_ids=True`; support can be a separate
+ticket. It has no runnable cell in this study. `formats-smoke` evaluates the
 full NFCorpus task for POTION, without sampling. Benchmark, task, subset, split, dataset
 revision and evaluation filters accompany expansion, data, cache keys and result rows.
 Tasks with multiple subsets/splits, given candidates, skipped first results or
-`ignore_identical_ids` are refused by the store adapter. A summary emits a mean only when
+`ignore_identical_ids` are refused by the store adapter. Unsupported identical-ID filtering
+is refused before loading task data. A summary emits a mean only when
 the exact expected task set is valid. Selection means are not benchmark means.
 
 The int8 Top-d candidates are rescored by the float32 store at the fixed depths
@@ -1423,6 +1425,5 @@ HF_HOME=/external/hf HF_DATASETS_CACHE=/external/hf/datasets \
 ```
 
 Full studies select `formats-potion-base-8M` and
-`formats-static-retrieval-mrl-en-v1`. FiQA2018 explicitly selects the corresponding
-`-fiqa` cells, with a separately declared workload budget. Collect and summarize through
+`formats-static-retrieval-mrl-en-v1`. Collect and summarize through
 the central quality entry. Neither this study nor its summary updates README values.
