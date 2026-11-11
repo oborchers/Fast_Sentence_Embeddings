@@ -98,3 +98,23 @@ def test_float64_tensors_round_trip_bit_for_bit(tmp_path, container, mmap):
     assert tensor_code(tensors["tokenizer.scores"]) == "F64"
     assert tensors["tokenizer.scores"].tobytes() == scores.tobytes()
     container.verify(path)
+
+
+@pytest.mark.parametrize("error_type", [ValueError, TypeError])
+def test_reader_boundary_classifies_validation_errors(error_type):
+    from fse._container import artifact_structure
+
+    original = error_type("broken schema")
+    with pytest.raises(CorruptArtifactError, match="broken schema") as caught, artifact_structure():
+        raise original
+    assert caught.value.__cause__ is original
+
+
+@pytest.mark.parametrize("error_type", [CorruptArtifactError, OSError, RuntimeError])
+def test_reader_boundary_preserves_other_errors(error_type):
+    from fse._container import artifact_structure
+
+    original = error_type("unchanged")
+    with pytest.raises(error_type) as caught, artifact_structure():
+        raise original
+    assert caught.value is original

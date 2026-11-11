@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fse._container import SafetensorsContainer
+from fse._container import CorruptArtifactError, SafetensorsContainer
 from fse._contract import UnsupportedArtifactError
 from fse._reference import quantize_rows
 from fse._wordvectors import WordVectors
@@ -180,6 +180,7 @@ def test_load_rejects_broken_word_vectors(tmp_path, case):
     edit_tensors, edit_metadata, error, match = SCHEMA_ERRORS[case]
     _wv("int8", fasttext=True).save(tmp_path / "wv.safetensors")
     path = _rewrite(tmp_path / "wv.safetensors", edit_tensors, edit_metadata)
+    error = CorruptArtifactError if error is ValueError else error
     for mmap in (False, True):
         with pytest.raises(error, match=match):
             WordVectors.load(path, mmap=mmap)
