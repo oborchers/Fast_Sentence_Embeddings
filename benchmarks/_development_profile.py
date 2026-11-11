@@ -231,6 +231,9 @@ def _attempt(runner, check_only):
             result["open_evidence"] = runner.open_evidence
             if runner.open_evidence:
                 result["status"] = "incomplete_evidence"
+                result["causes"].extend(
+                    {"type": "OpenEvidence", **evidence} for evidence in runner.open_evidence
+                )
     except (Exception, KeyboardInterrupt) as error:
         result["causes"].append({"type": type(error).__name__, "reason": str(error)})
         if isinstance(error, WallBudgetExpiredError):
