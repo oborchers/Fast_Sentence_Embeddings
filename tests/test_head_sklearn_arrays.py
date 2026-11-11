@@ -5,12 +5,12 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from sklearn.linear_model import LinearRegression, LogisticRegression  # noqa: E402
-from sklearn.pipeline import Pipeline  # noqa: E402
-from sklearn.preprocessing import StandardScaler  # noqa: E402
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
-from fse import Classifier, Regressor  # noqa: E402
-from support.encoder import finished  # noqa: E402
+from fse import Classifier, Regressor
+from support.encoder import finished
 
 
 def _model(classifier=True):
@@ -66,7 +66,9 @@ def test_scaler_numbers_rejected_before_conversion(field, invalid):
         field,
         np.ma.array(value, mask=invalid == "mask-active")
         if invalid.startswith("mask-")
-        else (value.astype(bool).astype(object) if invalid == "bool-object" else value.astype(bool)),
+        else (
+            value.astype(bool).astype(object) if invalid == "bool-object" else value.astype(bool)
+        ),
     )
     if invalid == "bool-scalar":
         setattr(scaler, field, True)
