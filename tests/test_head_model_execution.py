@@ -147,3 +147,25 @@ def test_concurrent_first_calls_publish_one_fold(group, first_workers, monkeypat
         assert len(scored) == 2  # one table fold, not one per caller
         assert len(model._pipelines) == 1
         assert second_pool._executor is None  # a waiting caller submits no fold
+
+
+@pytest.mark.parametrize("group", [False, True])
+def test_failed_first_fold_can_be_retried_with_another_pool(group, monkeypatch):
+    model = _model(group)
+    real_scores = CpuBackend.scores
+
+    def fail(_self, *_args):
+        raise ValueError("injected fold failure")
+
+    with fse.Pool(2, max_tasks=1) as failed_pool:
+        monkeypatch.setattr(CpuBackend, "scores", fail)
+        with pytest.raises(ValueError, match="injected fold failure"):
+            _outputs(model, failed_pool, 2)
+        assert not model._pipelines
+        # All permits are returned even when a block fails.
+        assert failed_pool._try_acquire()
+        failed_pool._release()
+    monkeypatch.setattr(CpuBackend, "scores", real_scores)
+    with fse.Pool(3, max_tasks=1) as retry_pool:
+        result = _outputs(model, retry_pool, 2)
+    np.testing.assert_array_equal(result.view(np.uint32), _outputs(model).view(np.uint32))
