@@ -116,6 +116,7 @@ class ScoreSink(ShardSinkBase):
             synced=synced,
             shard_rows=shard_rows or default_shard_rows(row_values, "float32"),
             first_row=first_row,
+            row_bytes=4 * row_values,
         )
         self.has_doc_ids = doc_ids
         self.dim, self.encoder_fingerprint = schema.dim, schema.encoder
