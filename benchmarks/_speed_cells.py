@@ -89,10 +89,10 @@ def collect_paragraphs(source, text, functional):
 def collect_sentences(source, text, functional):
     sentences = [s for s in re.split(r"(?<=[.!?])\s+", text) if len(s.split()) >= 5]
     source.extend(sentences[: max(0, 1024 - len(source))] if functional else sentences)
-    return len(sentences)
+    return len(sentences), sum(len(s.encode()) * 4 + 72 for s in sentences)
 
 
-def corpus_sources(contract, cache):
+def corpus_sources(contract, cache, memory=None):
     import pyarrow.parquet as pq
     from huggingface_hub import snapshot_download
 
@@ -108,6 +108,7 @@ def corpus_sources(contract, cache):
     )
     wanted = {r["source_position"]: r for r in contract["unknown_cases"]}
     source, mandatory, paragraphs, sentences = [], {}, 0, 0
+    production_bytes = 0
     whole, wanted_paragraphs = [], any(c.get("corpus") == "paragraphs" for c in contract["cells"])
     parts = sorted((folder / spec["configuration"]).glob("train-*.parquet"))
     texts = (text for part in parts for text in parquet_texts(pq.ParquetFile(part)))
@@ -119,13 +120,24 @@ def corpus_sources(contract, cache):
         paragraphs += 1
         if wanted_paragraphs:
             collect_paragraphs(whole, text, contract.get("functional_only", False))
-        sentences += collect_sentences(source, text, contract.get("functional_only", False))
+            production_bytes += len(text.encode()) * 4 + 72
+        count, sentence_bytes = collect_sentences(
+            source, text, contract.get("functional_only", False)
+        )
+        sentences += count
+        production_bytes += sentence_bytes
     if (
         paragraphs != spec["expected_paragraphs"]
         or sentences != spec["expected_source_positions"]
         or set(mandatory) != set(wanted)
     ):
         raise ValueError("pinned sentence corpus or mandatory cases changed")
+    if memory is not None:
+        memory.update(
+            retained_source_bytes=sum(len(t.encode()) * 4 + 72 for t in source)
+            + sum(len(t.encode()) * 4 + 72 for t in whole),
+            production_source_bytes=production_bytes,
+        )
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]], whole
 
 
