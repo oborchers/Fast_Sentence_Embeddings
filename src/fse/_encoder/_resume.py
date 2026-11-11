@@ -61,7 +61,9 @@ def refuse_resume_sink(sink: Any) -> None:
     if is_resume_sink(sink):
         raise ValueError(
             "a sink made with resume=True takes the rows of Encoder.encode(texts, sink=sink) "
-            "of a source that can be read again; use a sink without resume here"
+            "of a source that can be read again, or batches with positions=True via "
+            "encode_batches(..., sink=sink) or predict_batches(..., vector_sink=sink, "
+            "return_vectors=True); otherwise use a sink without resume here"
         )
 
 
