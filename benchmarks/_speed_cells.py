@@ -92,6 +92,15 @@ def collect_sentences(source, text, functional):
     return len(sentences), sum(len(s.encode()) * 4 + 72 for s in sentences)
 
 
+def record_corpus_memory(memory, source, whole, production_bytes):
+    if memory is not None:
+        memory.update(
+            retained_source_bytes=sum(len(t.encode()) * 4 + 72 for t in source)
+            + sum(len(t.encode()) * 4 + 72 for t in whole),
+            production_source_bytes=production_bytes,
+        )
+
+
 def corpus_sources(contract, cache, memory=None):
     import pyarrow.parquet as pq
     from huggingface_hub import snapshot_download
@@ -132,12 +141,7 @@ def corpus_sources(contract, cache, memory=None):
         or set(mandatory) != set(wanted)
     ):
         raise ValueError("pinned sentence corpus or mandatory cases changed")
-    if memory is not None:
-        memory.update(
-            retained_source_bytes=sum(len(t.encode()) * 4 + 72 for t in source)
-            + sum(len(t.encode()) * 4 + 72 for t in whole),
-            production_source_bytes=production_bytes,
-        )
+    record_corpus_memory(memory, source, whole, production_bytes)
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]], whole
 
 
