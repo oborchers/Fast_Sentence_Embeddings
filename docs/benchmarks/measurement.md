@@ -1406,7 +1406,9 @@ independent expectations are:
 
 Here `\n` means one newline. Each nonempty prefix must occur exactly once at the
 start of the text sent to tokenization. No prompt accepts either `None` or `""`.
-The smoke cells are functional evidence, not a full quality cohort or speed claim.
+The smoke cells carry `functional_only: true` through both local and standard
+execution. Summaries exclude them, even when smoke and full cells share one result
+folder. They are functional evidence, not a full quality cohort or speed claim.
 
 Inspect configuration without loading models:
 

@@ -880,7 +880,8 @@
         "MTEB(eng, v2)/STSBenchmark",
         "NanoBEIR/NanoQuoraRetrieval"
       ],
-      "estimated_seconds": 90
+      "estimated_seconds": 90,
+      "functional_only": true
     },
     {
       "id": "ref-bge-small-en-v1-5",
@@ -912,7 +913,8 @@
         "MTEB(eng, v2)/STSBenchmark",
         "NanoBEIR/NanoQuoraRetrieval"
       ],
-      "estimated_seconds": 90
+      "estimated_seconds": 90,
+      "functional_only": true
     },
     {
       "id": "ref-all-mpnet-base-v2",
@@ -944,7 +946,8 @@
         "MTEB(eng, v2)/STSBenchmark",
         "NanoBEIR/NanoQuoraRetrieval"
       ],
-      "estimated_seconds": 90
+      "estimated_seconds": 90,
+      "functional_only": true
     },
     {
       "id": "ref-qwen3-embedding-0-6b",
@@ -976,7 +979,8 @@
         "MTEB(eng, v2)/STSBenchmark",
         "NanoBEIR/NanoQuoraRetrieval"
       ],
-      "estimated_seconds": 90
+      "estimated_seconds": 90,
+      "functional_only": true
     }
   ]
 }

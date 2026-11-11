@@ -33,7 +33,7 @@ def validate_cell(cell):
     for key in ("texts", "workers", "estimated_seconds"):
         if key in cell and (not math.isfinite(cell[key]) or cell[key] <= 0):
             raise ValueError(f"positive finite {key} required")
-    for key in ("truncate", "trust_remote_code", "mteb_loader"):
+    for key in ("truncate", "trust_remote_code", "mteb_loader", "functional_only"):
         if key in cell and not isinstance(cell[key], bool):
             raise ValueError(f"{key} must be true or false")
     validate_transformer(cell)

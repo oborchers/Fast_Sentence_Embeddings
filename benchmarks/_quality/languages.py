@@ -29,7 +29,19 @@ def planned(row):
 
 
 # The setup of a cell as configured: the planned cells of the run contract carry it too.
-SETUP = ("model", "backend", "workers", "dtype", "truncate", "truncate_dim", "trust_remote_code")
+SETUP = (
+    "model",
+    "backend",
+    "workers",
+    "dtype",
+    "truncate",
+    "truncate_dim",
+    "trust_remote_code",
+    "mteb_loader",
+    "device",
+    "torch_dtype",
+    "batch_size",
+)
 
 
 def setup_key(cell, benchmark=None):
@@ -47,7 +59,11 @@ def contract_plan(folder):
         return None
     plan = {}
     for cell in contract["cells"]:
-        if cell.get("kind") == "mteb" and cell.get("benchmark") in MULTILINGUAL:
+        if (
+            cell.get("kind") == "mteb"
+            and cell.get("benchmark") in MULTILINGUAL
+            and not cell.get("functional_only")
+        ):
             plan.setdefault(setup_key(cell), []).append(cell)
     return plan
 
