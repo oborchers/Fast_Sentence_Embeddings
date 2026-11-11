@@ -10,8 +10,9 @@ the refusal of the ones that would (docs/architecture/hub.md, "model2vec compati
 model2vec ignores every keyword it does not know (``**kwargs``), and several it knows
 change nothing about the rows. fse accepts a closed list of names, each with its neutral
 value or a value that cannot matter, checks every value strictly, and raises where the
-caller asked for something fse does not do: a name outside the list is a ``TypeError`` of
-the signature, a neutral name with another value a ``ValueError`` that says what to use.
+caller asked for something fse does not do. An unknown name raises ``TypeError`` for
+``encode`` and ``pydantic.ValidationError`` for ``from_pretrained``. Unsupported values
+raise ``ValueError`` or, for an invalid type, ``TypeError`` or ``pydantic.ValidationError``.
 """
 
 from __future__ import annotations

@@ -46,9 +46,11 @@ class StaticModel:
 
     Where model2vec ignores an argument, fse raises when it would change what the caller
     gets: an unknown keyword to ``from_pretrained`` raises ``pydantic.ValidationError``
-    (``unexpected_keyword_argument``); an unknown keyword to ``encode`` raises ``TypeError``.
-    ``quantize_to`` other than float32 and ``vocabulary_quantization`` other than None
-    raise ``ValueError``. The tables are float32, ``embedding`` is
+    (``unexpected_keyword_argument``). An unknown keyword to ``encode`` raises ``TypeError``.
+    ``quantize_to`` accepts None or ``"float32"``; other strings raise ``ValueError`` and
+    other types raise ``TypeError``. Positive integers for ``vocabulary_quantization``
+    raise ``ValueError``; invalid types or nonpositive values raise ``pydantic.ValidationError``.
+    The tables are float32, ``embedding`` is
     read-only, and ``encoder`` is the ``fse.Encoder`` of the model's own settings.
     """
 
