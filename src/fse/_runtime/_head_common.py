@@ -21,7 +21,7 @@ from fse import _log
 from fse._backends import PoolInput
 from fse._contract import Head, Link
 
-from ._executor import run
+from ._executor import prepare
 from ._head_spec import HeadSpec
 from ._pool import resolve_workers
 from ._sinks import ArrayRows, GrowingRows
@@ -73,8 +73,8 @@ def _fold_rows(backend, stored, scales, weight, workers, kind) -> ndarray:
 
     starts = range(0, len(stored), _FOLD_ROWS)
     count, shared = resolve_workers(workers)
-    run(
-        starts, block, lambda _item, _done: None,
+    prepare(
+        starts, block,
         workers=count, inline=len(starts) < 2, pool=shared,
     )  # fmt: skip
     out.setflags(write=False)

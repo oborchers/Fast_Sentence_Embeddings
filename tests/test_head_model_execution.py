@@ -8,6 +8,7 @@ import pytest
 
 import fse
 from fse._backends import CpuBackend
+from fse._runtime._executor import run
 from support.waiting import arrived, blocked_in_wait
 
 
@@ -57,7 +58,7 @@ def test_first_fold_with_one_worker_starts_no_thread(group, batches, shared, mon
 
 @pytest.mark.parametrize("group", [False, True])
 @pytest.mark.parametrize("batches", [False, True])
-def test_first_fold_uses_only_shared_threads(group, batches, monkeypatch):
+def test_first_fold_uses_shared_pool_without_new_threads(group, batches, monkeypatch):
     model = _model(group)
     scored, started = [], []
     real_scores, real_start = CpuBackend.scores, threading.Thread.start
@@ -76,7 +77,7 @@ def test_first_fold_uses_only_shared_threads(group, batches, monkeypatch):
         monkeypatch.setattr(threading.Thread, "start", start)
         result = _outputs(model, pool, workers=2, batches=batches)
         assert len(scored) == 2
-        assert set(scored) <= threads
+        assert set(scored) <= threads | {threading.get_ident()}
         assert started == []
         # A cache hit needs neither the first call's pool nor its worker count.
     np.testing.assert_array_equal(result.view(np.uint32), _outputs(model).view(np.uint32))
@@ -106,7 +107,8 @@ class _ObservedLock:
 @pytest.mark.parametrize("first_workers", [1, 2])
 def test_concurrent_first_calls_publish_one_fold(group, first_workers, monkeypatch):
     model = _model(group)
-    model._lock = lock = _ObservedLock()
+    lock = _ObservedLock()
+    object.__setattr__(model, "_lock", lock)
     entered, release = threading.Event(), threading.Event()
     scored = []
     real_scores = CpuBackend.scores
@@ -169,3 +171,70 @@ def test_failed_first_fold_can_be_retried_with_another_pool(group, monkeypatch):
     with fse.Pool(3, max_tasks=1) as retry_pool:
         result = _outputs(model, retry_pool, 2)
     np.testing.assert_array_equal(result.view(np.uint32), _outputs(model).view(np.uint32))
+
+
+@pytest.mark.parametrize("group", [False, True])
+def test_first_fold_finishes_while_nested_commit_waits_for_publication(group, monkeypatch):
+    model = _model(group)
+    lock = _ObservedLock()
+    object.__setattr__(model, "_lock", lock)
+    holding, folding, release = threading.Event(), threading.Event(), threading.Event()
+    real_scores = CpuBackend.scores
+
+    def scores(self, *args):
+        folding.set()
+        assert release.wait(10)
+        return real_scores(self, *args)
+
+    monkeypatch.setattr(CpuBackend, "scores", scores)
+    results, errors = [], []
+    with fse.Pool(2, max_tasks=1) as pool, ThreadPoolExecutor(1) as caller:
+
+        def commit(_task, _done):
+            holding.set()  # run still holds the only pool place inside commit
+            assert folding.wait(10)
+            results.append(_outputs(model, pool, 1))
+
+        def outer():
+            try:
+                run([0], lambda _task: None, commit, workers=2, pool=pool)
+            except BaseException as error:
+                errors.append(error)
+
+        thread = threading.Thread(target=outer, name="second-first-call")
+        thread.start()
+        try:
+            assert holding.wait(10)
+            first = caller.submit(_outputs, model, pool, 2)
+            assert arrived(lock.reached, lock.condition)
+        finally:
+            release.set()
+            thread.join(10)
+        assert not thread.is_alive()
+        assert not errors
+        np.testing.assert_array_equal(first.result().view(np.uint32), results[0].view(np.uint32))
+        assert pool._try_acquire()
+        pool._release()
+
+
+@pytest.mark.parametrize("group", [False, True])
+def test_resume_first_fold_uses_call_execution(group, tmp_path, monkeypatch):
+    model = _model(group)
+    scored = []
+    real_scores = CpuBackend.scores
+
+    def scores(self, *args):
+        scored.append(threading.get_ident())
+        return real_scores(self, *args)
+
+    with fse.Pool(3, start=True, max_tasks=1) as pool:
+        threads = {thread.ident for thread in pool._executor._threads}
+        monkeypatch.setattr(CpuBackend, "scores", scores)
+        kwargs = {} if group else {"name": "first"}
+        with fse.ScoreSink(tmp_path / "scores", model, resume=True, **kwargs) as sink:
+            assert model.predict(["w0 w1"], score_sink=sink, pool=pool, workers=2) is None
+        assert len(scored) == 2
+        assert set(scored) <= threads | {threading.get_ident()}
+    with fse.ScoreStore.open(tmp_path / "scores") as store:
+        store.verify()
+        assert len(store) == 1
