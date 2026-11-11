@@ -87,16 +87,17 @@ def _classes(value: Any) -> list | None:
     dtypes would be converted (a mix of str and int to str) before they could be checked."""
     if value is None:
         return None
-    refuse_lost_input(value, "classes_")
+    if isinstance(value, np.ndarray):
+        refuse_lost_input(value, "classes_")
     if not isinstance(value, np.ndarray) or value.ndim != 1 or value.dtype.kind not in "iuU":
         raise ValueError("the classes must be a one-dimensional numpy array of int or str")
     return value.tolist()
 
 
 def _array(value: Any, name: str) -> np.ndarray:
-    refuse_lost_input(value, name)
     if not isinstance(value, np.ndarray):
         raise ValueError(f"the head {name} must be a numpy array, not {type(value).__name__}")
+    refuse_lost_input(value, name)
     return value
 
 

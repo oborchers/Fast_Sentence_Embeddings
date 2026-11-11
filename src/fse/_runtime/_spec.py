@@ -92,7 +92,8 @@ class EncodeSpec:
 
 
 def _weights(value: object, words: int) -> ndarray:
-    refuse_lost_input(value, "weights")
+    if isinstance(value, ndarray):
+        refuse_lost_input(value, "weights")
     if not isinstance(value, ndarray) or value.dtype != np.float32 or value.shape != (words,):
         raise ValueError(f"weights must be a float32 vector of {words} values, one per word")
     copy = np.array(value, copy=True, order="C")

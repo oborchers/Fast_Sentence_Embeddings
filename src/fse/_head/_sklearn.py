@@ -58,12 +58,12 @@ def _array(model: Any, name: str) -> ndarray:
     value = getattr(model, name, None)
     if value is None:
         raise ValueError(f"{type(model).__name__} has no {name}; is it fitted?")
-    refuse_lost_input(value, name)
     if not isinstance(value, ndarray | float | int | np.floating | np.integer):
         raise ValueError(
             f"{type(model).__name__}.{name} is a {type(value).__name__}, not a dense array "
             "(densify a sparse coef_ first)"
         )
+    refuse_lost_input(value, name)
     array = np.asarray(value, dtype=np.float64)
     if not np.isfinite(array).all():
         raise ValueError(f"{type(model).__name__}.{name} holds values that are not finite")
