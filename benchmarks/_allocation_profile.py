@@ -13,7 +13,8 @@ from _harness.spec import load
 from _measurement_config import CONFIG
 from _measurement_setup import outside_checkout
 
-SLOWDOWN = 1 / 1.10
+RUNTIME_SLOWDOWN_BOUNDARY = 1.05
+SLOWDOWN = 1 / RUNTIME_SLOWDOWN_BOUNDARY
 
 
 def paired_rounds(root, cell):
@@ -82,7 +83,7 @@ def select(root, default_cell):
         "round": number,
         "job": f"{cell['cell_id']}-{number}-fse",
         "rule": "worst valid encode regression, otherwise representative; nearest median round",
-        "runtime_slowdown_boundary": 1.10,
+        "runtime_slowdown_boundary": RUNTIME_SLOWDOWN_BOUNDARY,
         "open_evidence": open_evidence,
     }
 
