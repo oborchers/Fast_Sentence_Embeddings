@@ -34,39 +34,35 @@ def _sources():
     return {p.name: sha256(p) for p in [*sorted(here.glob("rerank*.py")), *shared]}
 
 
-def expand(cells):
-    """One cell per resolved retrieval task; other kinds pass unchanged."""
+def _expand_cell(cell):
     from _quality.suites import filters_for, resolve
 
+    expected, expanded = [], []
+    for entry in cell["tasks"]:
+        for benchmark, task in resolve(entry):
+            filters = filters_for(task)
+            if len(filters["hf_subsets"]) != 1 or len(filters["eval_splits"]) != 1:
+                raise ValueError("rerank needs exactly one subset and split")
+            expected.append(
+                [benchmark, task.metadata.name, filters["hf_subsets"][0], filters["eval_splits"][0]]
+            )
+            expanded.append(
+                {
+                    **cell,
+                    "id": cell["id"] + "_" + task.metadata.name,
+                    "benchmark": benchmark,
+                    "task": task.metadata.name,
+                    "evaluation_filters": filters,
+                }
+            )
+    return [{**c, "expected_tasks": expected} for c in expanded]
+
+
+def expand(cells):
+    """One cell per resolved retrieval task; other kinds pass unchanged."""
     result = []
     for cell in cells:
-        if cell["kind"] != "rerank":
-            result.append(cell)
-            continue
-        expected = []
-        expanded = []
-        for entry in cell["tasks"]:
-            for benchmark, task in resolve(entry):
-                filters = filters_for(task)
-                if len(filters["hf_subsets"]) != 1 or len(filters["eval_splits"]) != 1:
-                    raise ValueError("rerank needs exactly one subset and split")
-                identity = [
-                    benchmark,
-                    task.metadata.name,
-                    filters["hf_subsets"][0],
-                    filters["eval_splits"][0],
-                ]
-                expected.append(identity)
-                expanded.append(
-                    {
-                        **cell,
-                        "id": cell["id"] + "_" + task.metadata.name,
-                        "benchmark": benchmark,
-                        "task": task.metadata.name,
-                        "evaluation_filters": filters,
-                    }
-                )
-        result.extend({**c, "expected_tasks": expected} for c in expanded)
+        result.extend(_expand_cell(cell) if cell["kind"] == "rerank" else [cell])
     if len({c["id"] for c in result}) != len(result):
         raise ValueError("task expansion produced duplicate identifiers")
     return result
