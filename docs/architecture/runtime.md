@@ -62,7 +62,7 @@ The public `MemorySink`, `ShardSink` and `ScoreSink` use the same row argument
 checks, including vector and score sinks passed to `Heads`. `target(first_row,
 n_rows)` accepts Python `int` and NumPy integer scalars, excluding booleans.
 `commit(first_row, rows)` applies the same check to `first_row`. Wrong types
-(including floats, infinity and NaN) raise `TypeError`; negative or oversized
+(including floats, infinity, NaN and NumPy time durations) raise `TypeError`; negative or oversized
 integers raise `ValueError`. Checks precede allocation, shard reservation and
 commit state changes. Validated integers become Python integers before arithmetic.
 

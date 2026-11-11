@@ -41,7 +41,22 @@ def sink(request, tmp_path):
         yield result
 
 
-BAD_TYPES = [False, True, np.bool_(False), 0.0, np.float32(0), np.inf, np.nan, "0", None, [], {}]
+BAD_TYPES = [
+    False,
+    True,
+    np.bool_(False),
+    0.0,
+    np.float32(0),
+    np.inf,
+    np.nan,
+    np.timedelta64(0, "ns"),
+    np.timedelta64(1, "ns"),
+    np.timedelta64(0, "D"),
+    "0",
+    None,
+    [],
+    {},
+]
 BAD_VALUES = [-1, np.int64(-1), 2**63, np.uint64(2**63), 2**100]
 
 
