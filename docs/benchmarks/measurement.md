@@ -792,6 +792,19 @@ ST checks `RLIMIT_NOFILE` inside its adapter and raises the soft limit to at lea
 
 Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall`. The local quality run also takes `rerank` (see the reranker study below). A fitted artifact is referenced by its preceding cell ID. The retired one-off GloVe corpus-selection experiment is not part of this entry.
 
+Static quality loaders preserve the pinned model's normalization rule: fse Encoder
+uses `normalize="model"`, and both StaticModel loaders use the setting from
+`config.json` (default false). Each MTEB row's `normalization` records the effective
+loaded rule. The static ST models and bekko therefore retain raw vector lengths
+for clustering and classification. Native vector probes follow the same model
+rule. Fitted SIF and ParaNMT artifacts keep their explicitly normalized output.
+Transformer references keep their existing normalized path.
+
+Dense reranker stages still search by cosine. Already normalized outputs pass
+through unchanged, including potion vectors. Unnormalized outputs receive fse's
+`normalize@1` through `fse._reference.postprocess` before the existing dot product.
+Historical scores and README values are not rewritten by this loader correction.
+
 MTEB remains pinned at 2.26.25 and unmodified. Expansion preserves the benchmark's actual language subsets, evaluation splits and seed. Evaluation resolves the configured benchmark task, not an unrestricted task with the same name. Summaries separate worker configurations. English evaluation excludes MindSmallReranking and is labelled 40 of 41 tasks. Its two failed attempts do not yield a score. NanoBEIR has 13 tasks. A single named task runs in full. Neither production nor rehearsal silently samples evaluation rows.
 
 SIF uses wordfreq English weights and ten uncentered components fitted only on the pinned training corpus. The fit receipt includes corpus digest, revision, seed, frequency implementation, component state hash and exported encoder hash. FastText retains its OOV ngrams. ParaNMT can use the separate plain-mean action. Classical external-tokenizer evaluation uses the preserved historical tokenization. STS Pearson and MTEB Spearman are different metrics.

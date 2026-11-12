@@ -53,7 +53,7 @@ def reference_vectors(cell, texts):
     )
     if cell["reference"] == "st-float32":
         model = model.float()
-    vectors = model.encode(list(texts), normalize_embeddings=True, convert_to_numpy=True)
+    vectors = model.encode(list(texts), convert_to_numpy=True)
     return np.asarray(vectors, dtype=np.float32), str(next(model.parameters()).dtype)
 
 

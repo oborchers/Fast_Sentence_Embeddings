@@ -46,6 +46,14 @@ def dense(encoder, data, depth=DEPTH):
     """Exact cosine search with the normalized vectors of an encoder (an MTEB adapter)."""
     docs = np.asarray(encoder.encode([{"text": data.docs}]), dtype=np.float32)
     queries = np.asarray(encoder.encode([{"text": data.queries}]), dtype=np.float32)
+    if not encoder.normalization:
+        from fse._contract import Normalize
+        from fse._reference import postprocess
+
+        # Preserve already normalized outputs bit for bit. Raw model outputs use
+        # exactly fse's normalize@1, not a second, different normalization rule.
+        docs = postprocess(docs, (Normalize(),))
+        queries = postprocess(queries, (Normalize(),))
     for name, rows in (("documents", docs), ("queries", queries)):
         norms = np.linalg.norm(rows, axis=1)
         if not np.isfinite(rows).all() or np.abs(norms[norms > 0] - 1).max() > 1e-3:
