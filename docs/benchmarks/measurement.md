@@ -1429,6 +1429,12 @@ remaining budget controls admission. `prefilter` passes
 `--ignore-host-load`. This bypasses only the host-load admission gate, while
 retaining telemetry and the shared heavy lock.
 
+During allocation rehearsal, the inherited `MEASURE_REHEARSAL=1` makes
+`--diagnose` with `--allocation-root` functional. The development runner then
+reduces the search input and writes its functional plan. Without an allocation
+root, the environment does not change development mode. Production allocations
+keep their full input and timing protocol. A rehearsal never enables AVX2.
+
 Both profiles use `--study search-prefilter --profile-cell o2-d1024-q8
 --profile-seconds 960`. Their fixed origin is `prefilter-results`; they select
 the candidate comparison arm near the median paired factor. The 960-second
