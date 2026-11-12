@@ -125,27 +125,35 @@ class Allocation:
             "remaining_seconds": str(self.budget.remaining()),
         }
 
-    def run_step(self, step, values):
-        """Run one step to its end; the exit status of the step."""
+    def prepare_step(self, step, values):
+        """Resolve evidence and command before the final admission check."""
         self.check_budget()
         reason = prerequisites.refusal(self, step, values)
         if reason:
-            return self.skip(step, reason)
+            return None, None, reason
         context = None
         if any(step["name"] in s.get("requires", []) for s in self.definition["steps"]):
             try:
                 context = prerequisites.identity(self, values)
             except (OSError, ValueError) as error:
-                return self.skip(step, f"prerequisite identity unavailable: {error}")
+                return None, None, f"prerequisite identity unavailable: {error}"
         try:
             command = spec.render(step, self.step_values(values, step))
         except ValueError as error:
-            return self.skip(step, f"invalid step: {error}")
+            return None, None, f"invalid step: {error}"
+        return command, context, None
+
+    def admission_refusal(self, step):
         if self.stopping:
-            return self.skip(step, "stop signal before the step")
+            return "stop signal before the step"
         if not self.budget.admit(step["estimate_seconds"]):
-            return self.skip(step, "time or money budget with reserve exhausted")
-        reason = prerequisites.deadline_refusal(self, step)
+            return "time or money budget with reserve exhausted"
+        return prerequisites.deadline_refusal(self, step)
+
+    def run_step(self, step, values):
+        """Run one step to its end; the exit status of the step."""
+        command, context, reason = self.prepare_step(step, values)
+        reason = reason or self.admission_refusal(step)
         if reason:
             return self.skip(step, reason)
         if not self.claim(step):

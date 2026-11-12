@@ -193,6 +193,18 @@ def _terminated(root):
     return {"case": "allocation-sigterm", **record, "problems": problems}
 
 
+def _dependent_problems(allocation, record, code, name):
+    expected = "two:finished" if name == "success" else "two:not_started"
+    problems = []
+    if record["steps"][-1] != expected or code != int(name != "success"):
+        problems.append(f"unexpected dependent admission: {record}")
+    if name != "success":
+        row = read_rows(allocation.record, "steps.jsonl")[-1]
+        if not row["reason"] or (allocation.results({"name": "two"}) / "started").exists():
+            problems.append("refused prerequisite lacks reason or started a child")
+    return problems
+
+
 def _prerequisite_cases(out):
     cases = []
     for name in ("success", "failed", "skipped", "unsealed", "late", "mismatch"):
@@ -213,14 +225,7 @@ def _prerequisite_cases(out):
         code = allocation.run_step(second, values)
         allocation.finish(int(name != "success"))
         record = _record(allocation, int(name != "success"))
-        expected = "two:finished" if name == "success" else "two:not_started"
-        problems = []
-        if record["steps"][-1] != expected or code != int(name != "success"):
-            problems.append(f"unexpected dependent admission: {record}")
-        if name != "success":
-            row = read_rows(allocation.record, "steps.jsonl")[-1]
-            if not row["reason"] or (allocation.results(second) / "started").exists():
-                problems.append("refused prerequisite lacks reason or started a child")
+        problems = _dependent_problems(allocation, record, code, name)
         cases.append({"case": f"prerequisite-{name}", **record, "problems": problems})
     return cases
 
