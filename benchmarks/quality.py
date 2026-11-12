@@ -242,6 +242,11 @@ def _local(parser, args):
     """``--run --local-run``: MTEB cells on a Unix machine, class correctness, never publishable."""
     if not args.run:
         parser.error("--local-run goes with --run")
+    spec = contract(args.input)
+    if spec.get("billing_profile") == "gpu_quality_billing" or any(
+        cell.get("device") == "cuda" for cell in spec["cells"]
+    ):
+        parser.error("CUDA quality requires --gpu-phase and its allocation, not --local-run")
     for path in (args.results, args.work, args.cache):
         outside_checkout(path)
     from _quality.local import run as local_run

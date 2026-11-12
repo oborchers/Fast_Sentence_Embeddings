@@ -5,6 +5,8 @@ from __future__ import annotations
 from contextlib import ExitStack, contextmanager
 from functools import wraps
 
+from _quality.checks import ModelCheckError
+
 BGE_QUERY = "Represent this sentence for searching relevant passages: "
 QWEN_QUERY = (
     "Instruct: Given a question, retrieve questions that are semantically equivalent "
@@ -76,7 +78,7 @@ class Observer:
                 return original(*args, **kwargs)
             self.prompt = effective_prompt(self.model, kwargs)
             if self.smoke and (self.prompt or "") != expected(self.cell, self.role):
-                raise ValueError(f"unexpected smoke prompt for {self.role}: {self.prompt!r}")
+                raise ModelCheckError(f"unexpected smoke prompt for {self.role}: {self.prompt!r}")
             self.active = True
             try:
                 return original(*args, **kwargs)
@@ -111,13 +113,13 @@ class Observer:
                 for text, count in zip(texts, counts, strict=True)
             )
         ):
-            raise ValueError("smoke prompt prefix must occur exactly once at the start")
+            raise ModelCheckError("smoke prompt prefix must occur exactly once at the start")
         if (
             self.smoke
             and not prompt
             and any(text.startswith((BGE_QUERY, "Instruct:")) for text in texts)
         ):
-            raise ValueError("unexpected instruction prefix in an unprompted smoke input")
+            raise ModelCheckError("unexpected instruction prefix in an unprompted smoke input")
         key = (self.role, self.prompt)
         if key not in self.records:
             self.records[key] = {
@@ -137,7 +139,7 @@ class Observer:
             roles = {role for role, _ in self.records}
             required = {None} if self.cell["task"] == "STSBenchmark" else {"query", "document"}
             if roles != required:
-                raise ValueError(
+                raise ModelCheckError(
                     f"missing smoke prompt observations: expected {required}, got {roles}"
                 )
         return list(self.records.values())

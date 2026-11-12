@@ -103,15 +103,9 @@ def st_model(cell):
             model_kwargs={"dtype": cell["torch_dtype"]},
         )
         if cell["device"] == "cuda":
-            import torch
+            from _quality.checks import cuda_model
 
-            native = st_of(model)
-            if native.device.type != "cuda" or any(
-                p.device.type != "cuda" for p in native.parameters()
-            ):
-                raise RuntimeError("GPU quality model left CUDA; CPU fallback is forbidden")
-            if any(p.dtype != torch.float32 for p in native.parameters() if p.is_floating_point()):
-                raise ValueError("GPU quality requires observed float32 weights")
+            cuda_model(st_of(model))
         return model
     from sentence_transformers import SentenceTransformer
 

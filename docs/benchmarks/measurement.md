@@ -1930,6 +1930,9 @@ probe, binding the allocation root, clock, runner, sources, configurations,
 model pins and CUDA lock. Missing or unreadable verdicts refuse that model.
 The full phase never runs without the successful sealed probe in its own root.
 Smoke rows remain functional only and cannot supply quality means.
+Both steps receive the selected study input, including a smaller approved
+budget. Each controller checks its effective budget against the stored machine
+admission record. CUDA studies refuse the local quality execution path.
 
 Every task runs in a fresh process group through `quality.py`, with taskwise
 budget admission. The controller kills that group at the work deadline,
@@ -1940,6 +1943,10 @@ CUDA build, GPU memory peaks and disabled TF32. The loaded model must actually
 have CUDA parameters and float32 weights. `--summarize` keeps CUDA rows separate
 from CPU rows and gives no benchmark mean for incomplete benchmark coverage.
 Quality wall time remains diagnostic and carries no throughput claim.
+Receipts store both observed TF32 switches before and after evaluation. A changed
+switch fails the step. Only explicit model/prompt rejections and CUDA memory
+exhaustion count as completed model rejections. Download, file and provenance
+errors fail the step. An aborted smoke task retains its aborted status.
 
 The dedicated `gpu_quality_billing` profile has an eight-hour **planning
 ceiling**, including preparation and collection. This is not approval to spend

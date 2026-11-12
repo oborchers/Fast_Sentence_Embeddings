@@ -11,12 +11,16 @@ from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
 
-from _harness.budget import select_billing
+from _harness.allocation import Allocation
+from _harness.budget import Budget, select_billing
 from _harness.ledger import Ledger, watching
 from _harness.records import atomic, document, sha256
+from _harness.spec import load
 from _measurement import write_environment
 from _measurement_config import CONFIG, validate_cell
 from _speed_gpu_study import probe_verdicts, verdict
+
+from _quality.checks import ModelCheckError
 
 MODELS = ("sentence-transformers/all-mpnet-base-v2", "Qwen/Qwen3-Embedding-0.6B")
 
@@ -34,6 +38,8 @@ def select(spec, phase, *, unpriced=False):
         else ["MTEB(eng, v2)", "NanoBEIR"]
     )
     for cell in spec["cells"]:
+        if type(cell.get("estimated_seconds")) not in (int, float):
+            raise ValueError("GPU quality estimated_seconds must be a number, not bool")
         validate_cell(cell)
         if cell.get("tasks") != tasks or cell["id"].startswith("smoke-ref-") != (phase == "probe"):
             raise ValueError("GPU quality requires its full declared tasks and smoke prompt checks")
@@ -72,11 +78,27 @@ def environment():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.cuda.reset_peak_memory_stats()
-    return {"torch_version": torch.__version__, **observation(torch)}
+    return {
+        "torch_version": torch.__version__,
+        "precision_before": precision(torch),
+        **observation(torch),
+    }
+
+
+def precision(torch):
+    flags = {
+        "matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+        "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
+    }
+    if any(flags.values()):
+        raise RuntimeError("GPU quality requires TF32 disabled throughout evaluation")
+    return flags
 
 
 def child(path):
     """One full, unsampled MTEB task, through the central quality entry."""
+    import torch
+
     from _quality.mteb import evaluate
 
     job = document(path)
@@ -94,12 +116,11 @@ def child(path):
     context = {"results": Path(job["results"]), "fits": {}}
     try:
         row = evaluate(cell, context)
-    except Exception as error:
+    except (ModelCheckError, torch.cuda.OutOfMemoryError) as error:
         row = {"status": "failed", "reason": repr(error)}
-    import torch
     from _speed_gpu import observation
 
-    gpu.update(observation(torch))
+    gpu.update(precision_after=precision(torch), **observation(torch))
     atomic(
         Path(job["output"]), {**row, "gpu": gpu, "class": "correctness", "speed_evidence": False}
     )
@@ -137,9 +158,10 @@ def run(args, spec):
     context = {"allocation_root": args.allocation_root, "allocated_at": args.allocated_at}
     expected = identity(args, spec)
     allowed = {} if args.gpu_phase == "probe" else probe_verdicts(context, spec, expected)
+    budget = allocation_budget(args, spec)
     args.results.mkdir(parents=True, exist_ok=False)
     args.work.mkdir(parents=True, exist_ok=False)
-    ledger = Ledger(args.results, spec, args.allocated_at)
+    ledger = Ledger(args.results, spec, args.allocated_at, budget=budget)
     write_environment(args, spec)
     os.environ["MEASURE_WORK"] = str(args.work)
     model_verdicts = {}
@@ -160,6 +182,20 @@ def run(args, spec):
     return ledger.done()
 
 
+def allocation_budget(args, spec):
+    """Execution must use exactly the budget and definition sealed at machine admission."""
+    budget = Budget.from_contract(spec, args.allocated_at)
+    allocation = Allocation(
+        args.allocation_root,
+        "quality",
+        load(args.allocation, "quality"),
+        args.allocated_at,
+        budget,
+    )
+    allocation.check_budget()
+    return budget
+
+
 def record_probe(cell, result, verdicts):
     """Every smoke task must pass. One model rejection leaves the other model eligible."""
     previous = verdicts.setdefault(
@@ -168,6 +204,8 @@ def record_probe(cell, result, verdicts):
     previous["tasks"].append(cell["task"])
     if result["status"] != "valid":
         previous.update(verdict="failed", reason=result["reason"])
+    if result["status"] == "aborted":
+        return {**result, "verdict": "failed"}
     # A checked rejection completes the probe successfully, as in the throughput probe.
     return {
         **result,
