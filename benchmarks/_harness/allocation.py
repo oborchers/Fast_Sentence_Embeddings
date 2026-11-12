@@ -130,12 +130,10 @@ class Allocation:
         reason = prerequisites.refusal(self, step, values)
         if reason:
             return None, None, reason
-        context = None
-        if any(step["name"] in s.get("requires", []) for s in self.definition["steps"]):
-            try:
-                context = prerequisites.identity(self, values)
-            except (OSError, ValueError) as error:
-                return None, None, f"prerequisite identity unavailable: {error}"
+        try:
+            context = prerequisites.identity(self, values)
+        except (OSError, ValueError) as error:
+            return None, None, f"prerequisite identity unavailable: {error}"
         try:
             command = spec.render(step, self.step_values(values, step))
         except ValueError as error:

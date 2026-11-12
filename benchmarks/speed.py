@@ -43,6 +43,7 @@ def arguments():
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
+    mode.add_argument("--decide", action="store_true", help="seal the complete AVX2 decision")
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--profile", type=Path, help="profile an addressed child from profile@1")
     mode.add_argument("--profile-check", type=Path, help="check profiler access from profile@1")
@@ -66,6 +67,11 @@ def arguments():
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
     args = parser.parse_args()
+    if args.decide:
+        allowed = {"--decide", "--allocation-root", "--results"}
+        supplied = {arg.split("=", 1)[0] for arg in sys.argv[1:] if arg.startswith("--")}
+        if supplied != allowed or args.allocation_root is None:
+            parser.error("--decide requires exactly --allocation-root and --results")
     phase_required = args.study == "gpu" and (args.run or args.rehearse or args.describe)
     if (args.gpu_phase is not None and args.study != "gpu") or (
         phase_required and args.gpu_phase is None
@@ -107,6 +113,10 @@ def child_job(file):
 
 def main():
     args = arguments()
+    if args.decide:
+        from _prefilter_decision import run as decide
+
+        return decide(args.allocation_root, args.results)
     profile_status = profile_utility(args)
     if profile_status is not None:
         return profile_status

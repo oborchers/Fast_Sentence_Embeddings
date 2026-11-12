@@ -67,6 +67,45 @@ def completion_status(results, code):
         return code or 1, f"invalid DONE: {error}"
 
 
+def recorded(root, names):
+    """Verify saved allocation receipts without reopening relocated work or environments.
+
+    The original identity remains content, including its original absolute paths.
+    All steps must name that same identity and the saved allocation definition.
+    This uses the admission receipt verifier, also after collection.
+    """
+    record = root / "allocation-results"
+    if (record / "DONE").exists():
+        verify(record)
+    saved = document(record / "allocation.json")
+    checked = document(record / "machine-check.json")
+    if checked["status"] != "accepted" or checked["rehearsal"] is not False:
+        raise ValueError("accepted production allocation required")
+    rows = read_rows(record, "steps.jsonl")
+    context, receipts = None, {}
+    declared = [s["name"] for s in saved["definition"]["steps"]]
+    for name in names:
+        matches = [row for row in rows if row["step"] == name]
+        if declared.count(name) != 1 or len(matches) != 1:
+            raise ValueError("required allocation step is missing or duplicated")
+        row = matches[0]
+        if row["status"] != "finished" or type(row["exit_status"]) is not int or row["exit_status"]:
+            raise ValueError("required allocation step did not finish successfully")
+        evidence = row["evidence"]
+        current = evidence["identity"]
+        if context is None:
+            context = current
+        if current != context or current["entry"] != "speed":
+            raise ValueError("required steps belong to different allocations")
+        if any(current[key] != saved[key] for key in ("definition", "allocated_at")):
+            raise ValueError("step identity differs from saved allocation")
+        folder = name + "-results"
+        if row["results"] != folder or receipt(root / folder, context) != evidence:
+            raise ValueError("required step seal differs from its admission receipt")
+        receipts[name] = evidence["done_sha256"]
+    return context, receipts
+
+
 def refusal(allocation, step, values):
     """Return an explicit refusal, or None when every prerequisite is satisfied."""
     requires = step.get("requires", [])
