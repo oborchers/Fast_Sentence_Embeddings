@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from _harness.collect import verify
-from _harness.records import read_rows, sha256
+from _harness.records import document, read_rows, sha256
 
 
 def runner_identity():
@@ -51,6 +51,17 @@ def receipt(results, context):
     if type(done["exit_status"]) is not int or done["exit_status"] != 0:
         raise ValueError("prerequisite DONE exit status is not zero")
     return {"identity": context, "done_sha256": sha256(results / "DONE")}
+
+
+def completion_status(results, code):
+    """Malformed completion evidence fails the step without hiding its dependents."""
+    try:
+        status = document(results / "DONE")["exit_status"]
+        if type(status) is not int:
+            raise ValueError("DONE exit status must be an integer")
+        return status or code, None
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return code or 1, f"invalid DONE: {error}"
 
 
 def refusal(allocation, step, values):

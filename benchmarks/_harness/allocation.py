@@ -178,14 +178,15 @@ class Allocation:
         sealed = (results / "DONE").exists()
         if not sealed:
             seal_unstarted(results, code or 1, f"step ended without DONE (exit {code})")
-        status = int(document(results / "DONE")["exit_status"]) or code
+        status, reason = prerequisites.completion_status(results, code)
         evidence = None
         if sealed and status == 0 and context is not None:
             try:
                 evidence = prerequisites.receipt(results, context)
-            except (OSError, ValueError, KeyError, TypeError):
+            except (OSError, ValueError, KeyError, TypeError) as error:
                 status = 1
-        self.step_row(step, "finished" if sealed else "unsealed", status, evidence=evidence)
+                reason = f"invalid prerequisite seal: {error}"
+        self.step_row(step, "finished" if sealed else "unsealed", status, reason, evidence)
         return status
 
     def skip(self, step, reason):
