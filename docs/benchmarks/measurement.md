@@ -609,6 +609,12 @@ container cannot establish CUDA readiness.
 
 Select this file with `MEASURE_ALLOCATION`, the `gpu` study and the
 `gpu_billing` profile (60 minutes with a 300-second collection reserve).
+Set `SPEED_GPU_USD_PER_HOUR` to the approved current compute price as a
+strictly positive, finite JSON number. There is no default or CPU-price
+fallback. Bootstrap, machine admission, setup and execution resolve the same
+value through the shared billing resolver. The allocation inherits the
+environment unchanged for both steps. Missing or invalid prices are refused
+before machine observation, setup or step execution; `--describe` needs no price.
 The `main` environment retains the pinned fse installation; `gpu` uses
 `speed-gpu.lock.txt` for CUDA 13.2. Both steps execute in `gpu`:
 `gpu-probe` runs `speed.py --run --study gpu --gpu-phase probe`, then

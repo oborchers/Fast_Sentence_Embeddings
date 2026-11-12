@@ -96,6 +96,8 @@ def _cgroup(name):
 
 def observe(work, *, gpu=False):
     """What the machine is now. None marks a value the machine does not offer."""
+    if type(gpu) is not bool:
+        raise ValueError("gpu must be a boolean")
     model, flags = _cpuinfo()
     cpu_max, memory_max = _cgroup("cpu.max"), _cgroup("memory.max")
     quota = None if not cpu_max or cpu_max[0] == "max" else int(cpu_max[0]) / int(cpu_max[1])
