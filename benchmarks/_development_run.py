@@ -28,6 +28,7 @@ from _quality.development import quality_gate
 def _locked(args, cell, prepared, ledger, quality):
     stamp = context(cell, prepared, quality["identities"])
     stamp["cpu_affinity"] = args.cpu_affinity
+    stamp["ignore_host_load"] = args.ignore_host_load
 
     def notify(row):
         if row["event"] == "waiting_for_lock":
