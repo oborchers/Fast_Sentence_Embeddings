@@ -173,13 +173,14 @@ def measure(job):
     for number in range(job["warmup_calls"] + job["repetitions"]):
         check(job.get("wall_deadline"))
         phase = "warmup" if number < job["warmup_calls"] else "measured"
-        call_before = _quiet(job, waiting)
+        _quiet(job, waiting)
         context = _file_source(corpus) if texts is None else _strings_source(texts)
         with context as (source, warm):
+            call_before = observations(job["work"], excluded=())
             started = time.perf_counter()
             identity = identify(source, None)
             elapsed = time.perf_counter() - started
-        call_after = observations(job["work"], excluded=())
+            call_after = observations(job["work"], excluded=())
         proof = _proof(identity)
         if expected is not None and proof != expected:
             raise ValueError("the source identity changed between calls")
