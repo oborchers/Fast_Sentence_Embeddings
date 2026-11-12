@@ -15,6 +15,7 @@ from _development_identity import STAGE
 from _development_identity_run import run as run_identity
 from _development_locks import coordinated
 from _development_pairs import block
+from _development_path_evidence import PathEvidenceError
 from _development_preflight import preflight
 from _development_records import record_result, session
 from _development_resources import plans
@@ -145,6 +146,8 @@ def _cell(args, cell, prepared, ledger):
         result = dict(status="inconclusive", decision="inconclusive_noise", reason=str(error))
     except MemoryError as error:
         result = dict(status="not_executable", decision="not_executable_memory", reason=str(error))
+    except PathEvidenceError as error:
+        result = dict(status="invalid", decision="invalid_path", reason=str(error))
     except Exception as error:
         record_result(ledger, cell, started, status="failed", decision="failed", reason=repr(error))
         stop_after(ledger, cell)
