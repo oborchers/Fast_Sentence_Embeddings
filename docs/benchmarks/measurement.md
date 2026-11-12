@@ -574,8 +574,8 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
 - `machine_check`: what the machine must be. Fields: `cpu_model` (exact), `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_hard_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB for quality, six GiB for speed). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
 - GPU checks add `gpu_name` (exact string), `gpu_count` (exact positive integer),
   `gpu_memory_bytes` (positive integer minimum per device) and
-  `cuda_driver_version` (minimum numeric driver version, such as `570.26`).
-  Driver components compare numerically; `570.26` equals `570.26.0`.
+  `cuda_driver_version` (minimum numeric driver version, such as `595.45.04`).
+  Driver components compare numerically; `595.45` equals `595.45.0`.
   Only allocations declaring a GPU field query `nvidia-smi`, with a ten-second
   timeout. The query records every device's name, UUID, memory and driver.
   [NVIDIA's query interface](https://docs.nvidia.com/deploy/nvidia-smi/index.html)
@@ -601,16 +601,16 @@ The core holds no limit. The values live in the data of the allocation. Those of
 
 `benchmarks/config/allocation-gpu.json` declares one NVIDIA L40S with at least
 44 GiB (47244640256 bytes) of reported device memory. Its driver floor is
-`570.26`, the Linux value for CUDA 12.8 GA in
-[NVIDIA's CUDA Toolkit and Corresponding Driver Versions table](https://docs.nvidia.com/cuda/archive/12.8.0/cuda-toolkit-release-notes/index.html#cuda-driver).
-This uses the toolkit driver floor rather than the weaker CUDA 12.x minor
+`595.45.04`, the Linux value for CUDA 13.2 GA in
+[NVIDIA's CUDA Toolkit and Corresponding Driver Versions table](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html#cuda-driver).
+This uses the toolkit driver floor rather than the weaker CUDA 13.x minor
 compatibility floor. The rehearsal also requires this GPU, so a CPU-only
 container cannot establish CUDA readiness.
 
 Select this file with `MEASURE_ALLOCATION`, the `gpu` study and the
 `gpu_billing` profile (60 minutes with a 300-second collection reserve).
 The `main` environment retains the pinned fse installation; `gpu` uses
-`speed-gpu.lock.txt` for CUDA 12.8. Both steps execute in `gpu`:
+`speed-gpu.lock.txt` for CUDA 13.2. Both steps execute in `gpu`:
 `gpu-probe` runs `speed.py --run --study gpu --gpu-phase probe`, then
 `gpu-measure` runs the same entry with `--gpu-phase measure`.
 The latter requires a verified successful `gpu-probe` receipt and admission

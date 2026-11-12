@@ -5,7 +5,7 @@
       "gpu_name": "NVIDIA L40S",
       "gpu_count": 1,
       "gpu_memory_bytes": 47244640256,
-      "cuda_driver_version": "570.26"
+      "cuda_driver_version": "595.45.04"
     },
     "rehearsal_machine_check": {
       "cpu_quota_cpus": {
@@ -24,7 +24,7 @@
       "gpu_name": "NVIDIA L40S",
       "gpu_count": 1,
       "gpu_memory_bytes": 47244640256,
-      "cuda_driver_version": "570.26"
+      "cuda_driver_version": "595.45.04"
     },
     "environments": [
       {
