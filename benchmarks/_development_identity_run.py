@@ -41,7 +41,7 @@ def run(args, cell, prepared, ledger):
         append(args.results / "coordination.jsonl", row)
 
     def quiet():
-        return args.functional or observations(args.work)["load"][0] < 5
+        return args.functional or args.ignore_host_load or observations(args.work)["load"][0] < 5
 
     tag = cell["id"] + "-descriptive"
     role = "heavy" if args.functional else "timing"  # functional work is untimed
