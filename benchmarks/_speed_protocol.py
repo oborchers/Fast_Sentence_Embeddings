@@ -61,10 +61,7 @@ def validate(cells):
         validate_cell(cell)
         protocol(cell)
         pair_rounds(cell)
-        if cell["kind"] in ("heads-kind", "heads-sinks"):
-            from _speed_heads_study import validate
-
-            validate(cell)
+        validate_head(cell)
         if cell["kind"] == "write":
             from _speed_write_pair import validate as validate_write
 
@@ -175,3 +172,10 @@ def reduce_cells(contract):
             workers=min(cell["workers"], 2),
             functional_only=True,
         )
+
+
+def validate_head(cell):
+    if cell["kind"] in ("heads-kind", "heads-sinks"):
+        from _speed_heads_study import validate
+
+        validate(cell)

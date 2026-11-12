@@ -285,23 +285,30 @@ def model_bytes(model):
     return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))
 
 
-def measure_child(job):
+def specialized_child(job):
     if job.get("kind") == "heads-sinks":
         from _speed_heads_sinks import child
 
-        return child(job)
+        return child
     if job.get("kind") == "search":
         from _speed_search_child import run
 
-        return run(job)
+        return run
     if job.get("kind") == "predict":
         from _speed_predict import predict_child
 
-        return predict_child(job)
+        return predict_child
     if job.get("kind") == "write":
-        return headline_child(job)
+        return headline_child
     if job["backend"] == "rust":
-        return rust_child(job)
+        return rust_child
+    return None
+
+
+def measure_child(job):
+    specialized = specialized_child(job)
+    if specialized is not None:
+        return specialized(job)
     transformers.validate_job(job)
     adapter = ADAPTERS[job["backend"]]
     configure(job["workers"], native_threads=adapter["native_threads"])

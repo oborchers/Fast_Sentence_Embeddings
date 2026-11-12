@@ -28,6 +28,11 @@ def validate(cell):
         raise ValueError("publication heads require float32 POTION vectors of width 256")
     if cell["model"] != "minishlab/potion-base-8M":
         raise ValueError("publication heads require the pinned POTION-base-8M")
+    validate_kind(cell)
+    validate_workload(cell)
+
+
+def validate_kind(cell):
     if cell["kind"] == "heads-kind":
         if cell.get("head_kind") not in ("multilabel", "calibrated"):
             raise ValueError("head_kind must be multilabel or calibrated")
@@ -35,6 +40,9 @@ def validate(cell):
             raise ValueError("head kinds require one four-output head and no reference arm")
     elif cell["heads"] != 4 or cell["dimensions"] != 16 or cell["reference"] != "fse-two-pass":
         raise ValueError("head sinks require four heads against fse-two-pass")
+
+
+def validate_workload(cell):
     pair_rounds(cell)
     expected = (5_000_000, 1, 5) if cell["kind"] == "heads-kind" else (10_000_000, 16, 3)
     prefix = "production_" if cell.get("functional_only") else ""
@@ -105,42 +113,60 @@ def compare_samples(rows):
 
 
 def summary(cell, rows, identity):
-    from _measurement import spread
     from _speed_run import arm_summary, validate_pair_arms
 
     validate(cell)
-    labels = ["fse", "fse-two-pass"] if cell["kind"] == "heads-sinks" else ["fse"]
-    if any(r.get("diagnostic_profile") for r in rows):
-        raise ValueError("diagnostic profiles cannot enter head summaries")
-    complete = all(sum(r["label"] == label for r in rows) == pair_rounds(cell) for label in labels)
+    arms = grouped_arms(cell, rows)
+    complete = all(len(values) == pair_rounds(cell) for values in arms.values())
     if complete:
-        validate_pair_arms(
-            {label: [r for r in rows if r["label"] == label] for label in labels}, pair_rounds(cell)
-        )
-    short = not cell.get("functional_only") and any(
-        min(r.get("inference_call_seconds", [r["seconds"]])) < 2 for r in rows
-    )
+        validate_pair_arms(arms, pair_rounds(cell))
+    status, reason = summary_status(cell, rows, complete)
     result = {
         "protocol": protocol(cell)["name"],
-        "status": "partial" if not complete else ("invalid" if short else "valid"),
-        "reason": "budget or stop signal"
-        if not complete
-        else ("call shorter than two seconds" if short else None),
+        "status": status,
+        "reason": reason,
         "input_identity": identity,
         "sample_checked": bool(rows),
         "aa": {"status": "not_run"},
-        "arms": {
-            label: arm_summary([r for r in rows if r["label"] == label])
-            for label in labels
-            if any(r["label"] == label for r in rows)
-        },
+        "arms": {name: arm_summary(values) for name, values in arms.items() if values},
     }
-    if complete and len(labels) == 2:
-        arms = [[r for r in rows if r["label"] == label] for label in labels]
-        result["paired_speedup"] = spread(
-            [b["seconds"] / a["seconds"] for a, b in zip(*arms, strict=True)]
-        )
+    if complete and len(arms) == 2:
+        result["paired_speedup"] = paired_factor(arms)
     return result
+
+
+def grouped_arms(cell, rows):
+    labels = ["fse", "fse-two-pass"] if cell["kind"] == "heads-sinks" else ["fse"]
+    arms = {label: [] for label in labels}
+    for row in rows:
+        if row.get("diagnostic_profile"):
+            raise ValueError("diagnostic profiles cannot enter head summaries")
+        if row["label"] not in arms:
+            raise ValueError("unexpected head study arm")
+        arms[row["label"]].append(row)
+    return arms
+
+
+def summary_status(cell, rows, complete):
+    if not complete:
+        return "partial", "budget or stop signal"
+    short = not cell.get("functional_only") and any(
+        min(r.get("inference_call_seconds", [r["seconds"]])) < 2 for r in rows
+    )
+    if short:
+        return "invalid", "call shorter than two seconds"
+    return "valid", None
+
+
+def paired_factor(arms):
+    from _measurement import spread
+
+    return spread(
+        [
+            b["seconds"] / a["seconds"]
+            for a, b in zip(arms["fse"], arms["fse-two-pass"], strict=True)
+        ]
+    )
 
 
 def run(context, cell):
