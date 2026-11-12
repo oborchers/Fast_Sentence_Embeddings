@@ -67,8 +67,7 @@ class Allocation:
     def refuse(self, reason):
         """No step starts: every step folder is sealed as unstarted, the allocation fails."""
         for step in self.definition["steps"]:
-            seal_unstarted(self.results(step), 1, reason)
-            self.step_row(step, "not_started", 1, reason)
+            self.skip(step, reason)
         self.finish(1)
 
     def step_row(self, step, status, exit_status, reason=None, evidence=None):
@@ -190,7 +189,10 @@ class Allocation:
         return status
 
     def skip(self, step, reason):
-        seal_unstarted(self.results(step), 1, reason)
+        if not self.results(step).exists():
+            seal_unstarted(self.results(step), 1, reason)
+        else:
+            reason += "; existing result folder preserved"
         self.step_row(step, "not_started", 1, reason)
         return 1
 

@@ -12,9 +12,12 @@ from _harness.records import document, read_rows, sha256
 def runner_identity():
     """Identify the executing runner revision, including dirty or added Python sources."""
     root = Path(__file__).resolve().parents[2]
-    revision = subprocess.check_output(
-        ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
-    ).strip()
+    try:
+        revision = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, stderr=subprocess.PIPE
+        ).strip()
+    except subprocess.CalledProcessError as error:
+        raise ValueError("executing runner revision could not be read") from error
     return {
         "revision": revision,
         "sources": {
