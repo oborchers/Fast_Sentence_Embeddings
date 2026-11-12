@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from _development_config import validate_cell
@@ -35,6 +36,12 @@ def search(root, contract):
         validate_cell(cell, {})
         control = document(root / (cell["id"] + "-aa.json"))
         frozen = control["cell"]
+        validate_cell(frozen, {})
+        if (
+            frozen["iterations"] < cell["iterations"]
+            or not cell["target_seconds"] <= frozen["target_seconds"] <= cell["max_target_seconds"]
+        ):
+            raise ValueError("frozen iterations or target is outside calibration bounds")
         if any(
             frozen[k] != v for k, v in cell.items() if k not in ("iterations", "target_seconds")
         ):
@@ -47,7 +54,8 @@ def search(root, contract):
             raise ValueError("eight-pair prefilter profile required")
         _workload(frozen)
         own = [r for r in operations if r["cell_id"] == cell["id"]]
-        _paths(root, own, builds, frozen)
+        _sizing(own)
+        _paths(root, own, builds, frozen, control)
         blocks = _blocks(frozen, own, control)
         decisions.append({"cell_id": cell["id"], **judge(frozen, *blocks)})
     return decisions, builds
@@ -74,16 +82,79 @@ def _workload(cell):
         raise ValueError("search workload differs from the AVX2 enabling study")
 
 
-def _paths(root, rows, builds, cell):
+def _paths(root, rows, builds, cell, control):
     if not rows:
         raise ValueError("missing path observations")
+    common = None
     for row in rows:
         job, candidate = _path_job(root, row, cell)
+        witness = _inputs(row, job, control, candidate)
+        common = witness if common is None else common
+        if witness != common:
+            raise ValueError("search inputs changed between arms or phases")
         validate_path(row, job, candidate=candidate)
         key = "candidate" if candidate else "base"
         current = build(row, "development")
         if builds.setdefault(key, current) != current:
             raise ValueError("search executing build changed")
+
+
+def _inputs(row, job, control, candidate):
+    context = control["context"]
+    if (
+        job["artifact"] != context["models"]["artifacts"][job["table_dtype"]]
+        or job["corpus"] != context["corpus"]
+    ):
+        raise ValueError("search inputs differ from the calibrated model or corpus")
+    if row["identity"] != context["identities"][int(candidate)]:
+        raise ValueError("search build differs from its quality control")
+    if (
+        row["texts"] != job["texts"]
+        or job["texts"] != control["texts"]
+        or control["texts"] != 859346
+        or row["requested_workers"] != job["workers"]
+    ):
+        raise ValueError("search corpus row count differs")
+    pool, digest = row["query_pool"], row["query_digest"]
+    if (
+        pool["selected"] != 256
+        or pool["disjoint_checked"] is not True
+        or not isinstance(digest, str)
+        or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+    ):
+        raise ValueError("complete disjoint query pool identity required")
+    return {
+        "artifact": job["artifact"],
+        "corpus": job["corpus"],
+        "queries": job["query_corpora"],
+        "query_pool": pool,
+        "query_digest": digest,
+        "texts": job["texts"],
+        "workers": row["requested_workers"],
+    }
+
+
+def _sizing(rows):
+    phases = {row["phase"] for row in rows}
+    names = sorted(name for name in phases if name.startswith("size-"))
+    expected = {f"size-0-{n}" for n in range(len(names))}
+    if (
+        not names
+        or set(names) != expected
+        or phases - expected - {"aa-tune-0", "aa-validate-0", "comparison", "confirmation"}
+    ):
+        raise ValueError("missing sizing attempts or unknown calibration phase")
+    for phase in names:
+        own = [row for row in rows if row["phase"] == phase]
+        if len(own) != 2 or [(r["pair"], r["position"], r["arm"]) for r in own] != [
+            (0, 0, "base"),
+            (0, 1, "candidate"),
+        ]:
+            raise ValueError("incomplete sizing pair")
+        if own[0]["output"] != own[1]["output"] or any(
+            number(r["seconds"], "sizing duration") <= 0 for r in own
+        ):
+            raise ValueError("sizing pair output or duration differs")
 
 
 def _path_job(root, row, cell):
@@ -139,6 +210,8 @@ def _block(cell, rows, phase):
 def _blocks(cell, rows, control):
     production(control)
     attempts = control["attempts"]
+    if not isinstance(attempts, list) or len(attempts) != 1 or cell["max_calibration_steps"] != 1:
+        raise ValueError("AVX2 study requires exactly one calibration attempt")
     index = len(attempts) - 1
     tune = _block(cell, rows, f"aa-tune-{index}")
     aa = _block(cell, rows, f"aa-validate-{index}")
