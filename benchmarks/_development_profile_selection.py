@@ -30,7 +30,7 @@ def select(root, cell_id):
     rows = [
         r
         for r in read_rows(root, "operations.jsonl")
-        if r["cell_id"] == cell_id and r["phase"] == "compare"
+        if r["cell_id"] == cell_id and r["phase"] == "comparison"
     ]
     pairs = {}
     for row in rows:
@@ -52,9 +52,9 @@ def select(root, cell_id):
     row = pairs[number, "candidate"]
     return {
         "cell": cell_id,
-        "phase": "compare",
+        "phase": "comparison",
         "pair": number,
-        "job": f"{cell_id}-compare-{number}-{row['position']}",
+        "job": f"{cell_id}-comparison-{number}-{row['position']}",
         "python": identity(row, "development")["executable"],
         "rule": "declared prefilter candidate; comparison pair nearest median ratio",
         "open_evidence": [],
