@@ -4,7 +4,7 @@ from _development_heads import nonregression
 from _development_heads_multi import practical
 from _development_statistics import decide, decision_enabled
 from _development_system import LABEL
-from _harness.decide import evaluate
+from _harness.decide import evaluate_study as evaluate
 from _harness.records import append, atomic
 
 
