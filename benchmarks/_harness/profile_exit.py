@@ -11,15 +11,16 @@ SOURCE = "https://github.com/benfred/py-spy/blob/v0.4.2/src/main.rs#L417-L424"
 ERROR = "Error: No child process (os error 10)"
 
 
-def echild_warning(spec, folder, status, meta):
+def echild_warning(spec, folder, status, meta, *, operation="profile"):
     """Defer only this known post-write error to data and provenance verification."""
-    if spec["tool"] != "py-spy" or status != 1:
+    if operation not in ("profile", "access") or spec["tool"] != "py-spy" or status != 1:
         return None
     if meta["deadline"] or meta["escalated"] is not None or meta["signal"] is not None:
         return None
     if document(folder / "profiler.json")["version"] != "py-spy 0.4.2":
         return None
-    log = (folder / "profile.log").read_text()
+    log = (folder / (operation + ".log")).read_text()
+    output = folder / "access" if operation == "access" else folder
     suffix = re.search(
         r"py-spy> Stopped sampling because process exited\n"
         r"py-spy> Wrote speedscope file to '([^'\n]+)'\. Samples: (\d+) Errors: (\d+)\n"
@@ -28,7 +29,7 @@ def echild_warning(spec, folder, status, meta):
     )
     if suffix is None or log.count("Error:") != 1:
         return None
-    if suffix[1] != str(folder / "cpu.speedscope.json"):
+    if suffix[1] != str(output / "cpu.speedscope.json"):
         return None
     return {
         "type": "py_spy_post_write_echild",

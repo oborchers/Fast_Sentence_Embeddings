@@ -60,9 +60,9 @@ def access_program(path, receipt):
     """Use a standalone script so isolated Python does not need repository imports."""
     path.write_text(
         "import json, os, time\n"
-        f"with open({str(receipt)!r}, 'x') as stream:\n"
-        "    json.dump({'diagnostic_pid': os.getpid(), 'diagnostic_parent_pid': os.getppid(), 'diagnostic_profile': True, 'valid_for_comparison': False}, stream)\n"
         "until = time.monotonic() + 1.5\n"
         "while time.monotonic() < until:\n"
         "    values = [str(i) for i in range(1000)]\n"
+        f"with open({str(receipt)!r}, 'x') as stream:\n"
+        "    json.dump({'diagnostic_pid': os.getpid(), 'diagnostic_parent_pid': os.getppid(), 'diagnostic_profile': True, 'valid_for_comparison': False}, stream)\n"
     )
