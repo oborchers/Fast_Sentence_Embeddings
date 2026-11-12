@@ -1,7 +1,8 @@
-"""Select the deciding version child and profile it within the saved allocation budget."""
+"""Select a fixed publication child or the deciding version child and profile it within the saved allocation budget."""
 
 from __future__ import annotations
 
+import math
 import statistics
 import sys
 from functools import partial
@@ -19,8 +20,16 @@ SLOWDOWN = 1 / RUNTIME_SLOWDOWN_BOUNDARY
 
 def paired_rounds(root, cell):
     rows = [r for r in read_rows(root, "operations.jsonl") if r["cell_id"] == cell["cell_id"]]
-    arms = {label: {} for label in ("fse", "fse-base")}
+    reference = cell["reference"]
+    if not isinstance(reference, str) or reference == "fse":
+        raise ValueError("profile origin needs a distinct reference arm")
+    arms = {label: {} for label in ("fse", reference)}
     for row in rows:
+        if row["label"] not in arms or row.get("diagnostic_profile"):
+            raise ValueError("unexpected profile origin arm or diagnostic observation")
+        seconds = row["seconds"]
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
+            raise ValueError("profile origin seconds must be positive and finite")
         arm = arms[row["label"]]
         if row["round"] in arm:
             raise ValueError("duplicate profile origin round")
@@ -29,7 +38,7 @@ def paired_rounds(root, cell):
     if any(set(arm) != expected for arm in arms.values()):
         raise ValueError("missing profile origin paired rounds")
     return [
-        (arms["fse-base"][n]["seconds"] / arms["fse"][n]["seconds"], n) for n in sorted(expected)
+        (arms[reference][n]["seconds"] / arms["fse"][n]["seconds"], n) for n in sorted(expected)
     ]
 
 
@@ -76,24 +85,50 @@ def select(root, default_cell):
         if len(matches) != 1:
             raise ValueError("representative profile cell is missing or invalid")
         cell = matches[0]
+    return selection(root, cell, functional, open_evidence)
+
+
+def selection(root, cell, functional, open_evidence, *, fixed=False):
     pairs = paired_rounds(root, cell)
     median = statistics.median(factor for factor, _ in pairs)
     _, number = min(pairs, key=lambda pair: (abs(pair[0] - median), pair[1]))
+    rule = (
+        "fixed cell and fse arm; nearest median counterpart/fse round"
+        if fixed
+        else (
+            "functional_only: representative; nearest median round"
+            if functional
+            else "worst valid encode regression, otherwise representative; nearest median round"
+        )
+    )
     return {
         "cell": cell["cell_id"],
         "round": number,
         "job": f"{cell['cell_id']}-{number}-fse",
-        "rule": "functional_only: representative; nearest median round"
-        if functional
-        else "worst valid encode regression, otherwise representative; nearest median round",
-        "runtime_slowdown_boundary": RUNTIME_SLOWDOWN_BOUNDARY,
+        "rule": rule,
         "open_evidence": open_evidence,
+        **({} if fixed else {"runtime_slowdown_boundary": RUNTIME_SLOWDOWN_BOUNDARY}),
         **(
             {"boundary_evaluation": {"status": "not_evaluated", "reason": "functional_only"}}
-            if functional
+            if functional and not fixed
             else {}
         ),
     }
+
+
+def select_fixed(root, cell_id):
+    """Publication profiles never replace their declared cell with a regression."""
+    verify(root)
+    matches = [c for c in read_rows(root, "cells.jsonl") if c["cell_id"] == cell_id]
+    if len(matches) != 1 or matches[0]["status"] != "valid":
+        raise ValueError("fixed profile cell is missing or invalid")
+    cell = matches[0]
+    if (cell["kind"], cell["reference"]) not in (
+        ("encode", "model2vec"),
+        ("heads-sinks", "fse-two-pass"),
+    ):
+        raise ValueError("fixed profile requires a model2vec library or head sink pair")
+    return selection(root, cell, False, [], fixed=True)
 
 
 def profile_spec(args, selected, budget):
@@ -125,8 +160,10 @@ def run(args):
 
     if args.allocation_root is None or args.allocated_at is None:
         raise ValueError("allocation profile needs root and allocation timestamp")
-    if args.study != "versions" or args.profile_seconds <= 90:
-        raise ValueError("version profile needs --study versions and more than 90 profile seconds")
+    if args.study not in ("versions", "readme") or args.profile_seconds <= 90:
+        raise ValueError(
+            "allocation profile needs --study versions or readme and more than 90 profile seconds"
+        )
     for path in (args.results, args.work):
         outside_checkout(path)
         if not path.is_absolute() or path.exists():
@@ -140,7 +177,8 @@ def run(args):
     try:
         if not budget.admit(90):
             raise ValueError("allocation profile budget exhausted")
-        selected = select(root / "speed-results", args.profile_cell)
+        selector = select_fixed if args.study == "readme" else select
+        selected = selector(root / "speed-results", args.profile_cell)
         request = profile_spec(args, selected, budget)
         # Keep the generated request outside the result folder, which the profiler creates.
         file = root / (args.results.name + ".profile.json")
