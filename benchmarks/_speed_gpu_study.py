@@ -49,6 +49,8 @@ def probe_verdicts(context, contract):
         saved = document(results / "gpu-verdicts.json")
     except (OSError, ValueError):
         return {}
+    if not isinstance(saved, dict):
+        return {}
     if saved.get("identity") != identity(context, contract):
         raise ValueError("GPU probe model revisions, allocation, lock or cell controls differ")
     return saved.get("verdicts", {}) if isinstance(saved.get("verdicts"), dict) else {}

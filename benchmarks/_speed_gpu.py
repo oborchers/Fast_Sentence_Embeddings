@@ -249,6 +249,7 @@ def child(job):
                 "identity": identity,
                 "gpu_verdict": "failed",
                 "reason": str(error),
+                "gpu": observation(torch),
                 "gpu_phase": "probe",
                 "speed_evidence": False,
             },
