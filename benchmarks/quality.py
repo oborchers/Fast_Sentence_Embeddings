@@ -27,6 +27,11 @@ def _phase_contract(args):
     return spec
 
 
+def _rehearsal_billing(spec, args):
+    if args.planning_minutes is None and "MEASURE_PLANNING_MINUTES" not in os.environ:
+        spec["billing"].update(planning_minutes=180, planning_balance_usd=10)
+
+
 def specification(args):
     spec = _phase_contract(args)
     if args.rehearse:
@@ -58,7 +63,7 @@ def specification(args):
                 "estimated_seconds": 60,
             },
         ]
-        spec["billing"].update(planning_minutes=180, planning_balance_usd=10)
+        _rehearsal_billing(spec, args)
     if args.rehearse:
         spec["cells"].append(
             {
@@ -275,6 +280,9 @@ def _validate_modes(parser, args):
 def main():
     parser = _parser()
     args = parser.parse_args()
+    from _harness.budget import resolve_planning_minutes
+
+    resolve_planning_minutes(args.planning_minutes)
     _validate_modes(parser, args)
     if args.gpu_task:
         from _quality.gpu import child

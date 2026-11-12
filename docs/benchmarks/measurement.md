@@ -2086,7 +2086,8 @@ execution phase, the operator must supply `SPEED_GPU_USD_PER_HOUR` as the
 approved hourly quote, encoded as a positive finite JSON number. The variable
 must be inherited unchanged by every process. There is no default or CPU-price
 fallback. Booleans, strings, zero, negative values and nonfinite numbers fail
-before allocation work. The money ceiling is exactly one hour times that quote.
+before allocation work. The default money ceiling is one hour times that quote. An explicit planning
+duration scales it to the effective number of hours.
 The resolved hourly quote and balance are stored in the normal allocation,
 setup and measurement billing records. `--describe` permits inspection without
 a price, and omits the unresolved price and balance. Inspection is not spending

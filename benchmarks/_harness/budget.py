@@ -69,7 +69,7 @@ def add_planning_argument(parser):
     )
 
 
-def planning_override(billing, value):
+def resolve_planning_minutes(value):
     inherited = os.environ.get("MEASURE_PLANNING_MINUTES")
     source = "argument"
     if value is not None:
@@ -82,8 +82,13 @@ def planning_override(billing, value):
         source = os.environ.get("MEASURE_PLANNING_MINUTES_SOURCE", "argument")
         if source not in ("config", "argument"):
             raise ValueError("unknown planning minutes source")
+    return value, source if value is not None else "config"
+
+
+def planning_override(billing, value):
+    value, source = resolve_planning_minutes(value)
     if value is None:
-        return billing, "config"
+        return billing, source
     result = dict(billing)
     result["planning_balance_usd"] *= value / billing["planning_minutes"]
     result["planning_minutes"] = value

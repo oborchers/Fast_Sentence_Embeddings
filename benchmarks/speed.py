@@ -129,6 +129,9 @@ def child_job(file):
 
 def main():
     args = arguments()
+    from _harness.budget import resolve_planning_minutes
+
+    resolve_planning_minutes(args.planning_minutes)
     profile_status = profile_utility(args)
     if profile_status is not None:
         return profile_status

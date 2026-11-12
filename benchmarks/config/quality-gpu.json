@@ -16,7 +16,7 @@
     "collection_reserve_seconds": 600,
     "disk_usd_per_gb_month": 0,
     "month_hours": 720,
-    "price_source": "SPEED_GPU_USD_PER_HOUR; eight-hour planning ceiling only, not spending approval"
+    "price_source": "SPEED_GPU_USD_PER_HOUR; eight-hour default; money ceiling is live hourly price times effective planning hours, not spending approval"
   },
   "cells": [
     {

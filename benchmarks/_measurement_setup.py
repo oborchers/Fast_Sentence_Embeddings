@@ -87,6 +87,11 @@ def setup(root, contract, allocated_at, entry, allocation=None):
     revision each one declares."""
     definition = load_allocation(allocation or CONFIG / "allocation.json", entry)
     outside_checkout(root)
+    if (root.parent / "allocation-results" / "allocation.json").exists():
+        from _harness.allocation import Allocation
+
+        budget = Budget.from_contract(contract, allocated_at)
+        Allocation(root.parent, entry, definition, allocated_at, budget).check_budget()
     root.mkdir(parents=True, exist_ok=False)
     (root / "tools").mkdir()
     execute = partial(setup_command, allocated_at=allocated_at, contract=contract)
