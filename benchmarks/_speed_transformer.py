@@ -14,14 +14,20 @@ from _speed_versions import pair_rounds
 
 
 def validate(cell):
-    """Keep device and precision explicit; the first variant supports CPU only."""
+    """Keep device, precision and fixed input explicit for CPU and CUDA."""
     from _measurement_config import validate_digest
 
-    if cell.get("device") != "cpu":
-        raise ValueError("transformer device must be 'cpu'")
+    if cell.get("device") not in ("cpu", "cuda"):
+        raise ValueError("transformer device must be cpu or cuda")
+    if cell["device"] == "cuda":
+        from _speed_gpu import validate as validate_gpu
+
+        validate_gpu(cell)
     if cell.get("backend") != "st" or cell.get("reference") is not None:
         raise ValueError("transformer requires backend 'st' without a reference")
-    if cell.get("torch_dtype") != "float32" or cell.get("dtype") != "float32":
+    if cell.get("dtype") != "float32" or (
+        cell["device"] == "cpu" and cell.get("torch_dtype") != "float32"
+    ):
         raise ValueError("transformer requires float32 weights and output")
     for field in (
         "texts",
@@ -99,7 +105,7 @@ def sample_check(job, texts, warm):
 
 
 def summary(cell, rows, identity):
-    if len(rows) != pair_rounds(cell):
+    if len(rows) != repetitions(cell):
         raise ValueError("incomplete transformer repetitions")
     if len({json.dumps(r["identity"], sort_keys=True) for r in rows}) != 1:
         raise ValueError("transformer package identity changed between repetitions")
@@ -107,6 +113,15 @@ def summary(cell, rows, identity):
     if any(not math.isfinite(t) or t <= 0 for t in seconds):
         raise ValueError("transformer duration must be positive and finite")
     short = not cell.get("functional_only") and any(t < 2 for t in seconds)
+    if cell.get("gpu_phase") == "probe":
+        return {
+            "protocol": "transformer@1",
+            "status": "valid",
+            "gpu_phase": "probe",
+            "input_identity": identity,
+            "sample_checked": True,
+            "speed_evidence": False,
+        }
     rates = [cell["texts"] / t for t in seconds]
     return {
         "protocol": "transformer@1",
@@ -147,7 +162,7 @@ def run(context, cell):
     path, sample, identity = prepare_input(context, cell)
     admit(context, cell, identity)
     rows = []
-    for number in range(pair_rounds(cell)):
+    for number in range(repetitions(cell)):
         if not context["ledger"].admit(cell["estimated_seconds"] / cell["rounds"]):
             return {
                 "protocol": "transformer@1",
@@ -172,3 +187,7 @@ def run(context, cell):
     result = summary(cell, rows, identity)
     cleanup(context, [path, path.with_suffix(".json"), sample])
     return result
+
+
+def repetitions(cell):
+    return 1 if cell.get("gpu_phase") == "probe" else pair_rounds(cell)

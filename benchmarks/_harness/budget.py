@@ -6,6 +6,7 @@ collection; nothing extends it and nothing retries.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
@@ -53,9 +54,11 @@ def _billing_profile(contract, profile, study):
     return profile
 
 
-def select_billing(contract, profile=None, study=None):
+def select_billing(contract, profile=None, study=None, *, allow_unpriced=False):
     """Resolve the same profile for bootstrap, setup, allocation and measurement."""
     profile = _billing_profile(contract, profile, study)
+    if study == "gpu" and profile != "gpu_billing":
+        raise ValueError("the gpu study requires gpu_billing, not another billing profile")
     validate_billing(contract["billing"])
     override = {}
     if profile is not None:
@@ -66,9 +69,32 @@ def select_billing(contract, profile=None, study=None):
         override = contract[profile]
         validate_billing(override)
     billing = {**contract["billing"], **override}
-    validate_billing(billing, required=True)
+    if profile == "gpu_billing":
+        billing = gpu_price(billing, allow_unpriced=allow_unpriced)
+    validate_billing(billing, required=not (profile == "gpu_billing" and allow_unpriced))
     contract.update(billing=billing, billing_profile=profile)
     return contract
+
+
+def gpu_price(billing, *, allow_unpriced=False):
+    """Require an explicit approved quote, with a one-hour money ceiling."""
+    result = {
+        k: v
+        for k, v in billing.items()
+        if k not in ("compute_usd_per_hour", "planning_balance_usd")
+    }
+    raw = os.environ.get("SPEED_GPU_USD_PER_HOUR")
+    if raw is None and allow_unpriced:
+        return result
+    try:
+        price = json.loads(raw) if raw is not None else None
+    except (ValueError, TypeError) as error:
+        raise ValueError("SPEED_GPU_USD_PER_HOUR requires a positive finite JSON number") from error
+    if type(price) not in (int, float) or price <= 0:
+        raise ValueError("SPEED_GPU_USD_PER_HOUR requires a positive finite JSON number")
+    _billing_number("compute_usd_per_hour", price)
+    result.update(compute_usd_per_hour=price, planning_balance_usd=price)
+    return result
 
 
 class WallBudgetExpiredError(TimeoutError):
@@ -96,7 +122,7 @@ class Budget:
         if not math.isfinite(self.hourly) or self.hourly <= 0:
             raise ValueError("positive finite total hourly cost required")
         self.ceiling_seconds = min(
-            billing["planning_minutes"] * 60, billing["planning_balance_usd"] * 3600 / self.hourly
+            billing["planning_minutes"] * 60, billing["planning_balance_usd"] / self.hourly * 3600
         )
         if not math.isfinite(self.ceiling_seconds) or self.ceiling_seconds <= 0:
             raise ValueError("positive finite budget ceiling required")

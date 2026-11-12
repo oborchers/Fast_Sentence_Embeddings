@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from _development_system import machine, source_identity
-from _harness.decide import evaluate
+from _harness.decide import evaluate_study as evaluate
 from _harness.records import document, exit_code, read_rows, sha256
 
 
