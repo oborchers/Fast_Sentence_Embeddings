@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from _development_config import add_arguments, dispatch
+from _harness.budget import select_billing
 from _harness.ledger import Ledger, watching
 from _harness.records import append, atomic
 from _measurement import finalize_rehearsal, rehearsal_limits, write_environment
@@ -22,7 +23,7 @@ def specification(args):
     if args.gpu_phase:
         from _quality.gpu import select
 
-        spec = select(spec, args.gpu_phase)
+        spec = select(spec, args.gpu_phase, planning_minutes=args.planning_minutes)
     if args.rehearse:
         rehearsal_limits()
         spec["functional_only"] = True
@@ -97,6 +98,8 @@ def specification(args):
             c["id"] for c in spec["cells"]
         }:
             raise ValueError("unknown or duplicate requested cells")
+    if not args.gpu_phase:
+        spec = select_billing(spec, planning_minutes=args.planning_minutes)
     validate_prerequisites(spec["cells"])
     from _quality.suites import expand
 
@@ -223,6 +226,9 @@ def _parser():
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-revision")
     parser.add_argument("--allocation", type=Path, default=CONFIG / "allocation.json")
+    from _harness.budget import add_planning_argument
+
+    add_planning_argument(parser)
     add_arguments(parser, mode, quality=True)
     return parser
 
@@ -287,12 +293,9 @@ def main():
 
 def _allocated(parser, args):
     spec = contract(args.input)
-    if spec.get("billing_profile") == "gpu_quality_billing":
-        from _harness.budget import select_billing
-
-        spec = select_billing(spec)
-        if args.run and args.gpu_phase is None:
-            parser.error("GPU quality execution requires --gpu-phase")
+    spec = select_billing(spec, planning_minutes=args.planning_minutes)
+    if spec.get("billing_profile") == "gpu_quality_billing" and args.run and args.gpu_phase is None:
+        parser.error("GPU quality execution requires --gpu-phase")
     if sys.platform != "linux" or sys.version.split()[0] != spec["machine"]["python_patch"]:
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:

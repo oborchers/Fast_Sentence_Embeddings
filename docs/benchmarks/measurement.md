@@ -2151,12 +2151,11 @@ switch fails the step. Only explicit model/prompt rejections and CUDA memory
 exhaustion count as completed model rejections. Download, file and provenance
 errors fail the step. An aborted smoke task retains its aborted status.
 
-The dedicated `gpu_quality_billing` profile has an eight-hour **planning
-ceiling**, including preparation and collection. This is not approval to spend
+The dedicated `gpu_quality_billing` profile defaults to eight hours of planning,
+including preparation and collection. This is not approval to spend
 or a runtime promise. As for throughput, `SPEED_GPU_USD_PER_HOUR` must contain
-the approved live hourly price as a positive finite JSON number. The resolved
-money ceiling is eight times that price. A smaller declared planning duration
-reduces that ceiling proportionally. A duration above eight hours is refused.
+the approved live hourly price as a positive finite JSON number. The resolved money ceiling is the live hourly price multiplied by the effective
+planning duration in hours. The configured eight hours are a default, not a fixed maximum.
 
 The preliminary estimate is two hours for mpnet and four hours for Qwen3 on
 one L40S, plus two hours for provisioning, downloads, task loading, repeated
@@ -2205,3 +2204,39 @@ model verdict isolation and deadline mechanics without CUDA. No Linux comparison
 CUDA execution, paid run or full quality score was produced by this implementation.
 Rehearse the selected adapters and lifecycle in the pinned Linux image before
 any paid run. Real float32 CUDA memory fit remains unverified until that probe.
+
+
+### Per-allocation planning duration
+
+Both entries accept `--planning-minutes N` for setup, description, execution,
+bootstrap generation and allocation profiles. The allocation controller
+(`python -m _harness.allocation begin` and `run`) accepts the same option.
+`N` must be a positive finite JSON number, without quotes or booleans.
+Omitting it preserves the selected billing profile's configured limits.
+This option changes no cells, tasks, pairs or prerequisites.
+
+For example, inspect the GPU quality plan with ten hours, without starting work:
+
+```sh
+python benchmarks/quality.py --describe --input benchmarks/config/quality-gpu.json \
+  --gpu-phase measure --planning-minutes 600
+```
+
+Pass the same argument to allocation `begin`, setup and `run`. Bootstrap
+scripts generated with `--planning-minutes` export it automatically. Alternatively,
+set `MEASURE_PLANNING_MINUTES` to the approved JSON number in the launch
+environment. Every allocation step inherits the effective duration and its
+`config` or `argument` source. An explicit step argument that differs is refused.
+All steps still share the original `allocated_at`, collection reserve and money
+limit. Increasing the duration never resets the clock or restarts an allocation.
+Changing the budget after machine admission is refused.
+
+For GPU profiles, the money ceiling comes only from
+`SPEED_GPU_USD_PER_HOUR * planning_minutes / 60`, never a configured GPU price.
+For other profiles, an override scales the configured balance in proportion to
+the duration. Time and money admission still use the smaller limit after disk
+costs. Setup and allocation records store the resolved billing values and
+`planning_minutes_source`. Sealed measurement `environment.json` records store
+these fields in `contract`. Allocation profiles retain the shared allocation
+record. The override grants no spending approval. No paid run or Linux
+comparison was performed to implement this option (class correctness only).

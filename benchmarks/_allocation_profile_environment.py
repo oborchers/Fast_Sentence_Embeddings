@@ -70,6 +70,8 @@ def prepare(runner, origin, *, allocation, selected):
     atomic(
         runner.root / "preparation.json",
         {
+            "billing": allocation.budget.billing,
+            "planning_minutes_source": allocation.budget.planning_minutes_source,
             "origin_python": original,
             "profile_python": current,
             "tool_environment": str(destination),

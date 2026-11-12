@@ -187,7 +187,10 @@ def study_contract(args, require_environment=True):
     from _speed_versions import billing_contract
 
     contract = billing_contract(
-        load_contract(args.input), args.study, allow_unpriced=not require_environment
+        load_contract(args.input),
+        args.study,
+        allow_unpriced=not require_environment,
+        planning_minutes=args.planning_minutes,
     )
     headline = args.study == "headline"
     contract["cells"] = select(contract["cells"], args.study, contract.get("readme"))
