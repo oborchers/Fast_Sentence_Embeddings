@@ -53,16 +53,18 @@ def loader(cell, context):
 def native_model(cell, fit):
     from pathlib import Path
 
-    import fse
-
     backend = cell["backend"]
     if cell.get("fit") and fit is None:
         raise ValueError("fit prerequisite did not complete successfully")
     if fit:
+        import fse
+
         if sha256(Path(fit["artifact"])) != fit["artifact_sha256"]:
             raise ValueError("fitted artifact changed before evaluation")
         model = fse.Encoder.load(fit["artifact"], mmap=True)
     elif backend == "fse":
+        import fse
+
         if cell["model"].startswith("minishlab/"):
             model = fse.StaticModel.from_pretrained(
                 cell["model"], revision=MODEL_PINS[cell["model"]]
@@ -92,7 +94,7 @@ def st_model(cell):
     if cell.get("mteb_loader"):
         import mteb
 
-        return mteb.get_model(
+        model = mteb.get_model(
             cell["model"],
             revision=MODEL_PINS[cell["model"]],
             device=cell["device"],
@@ -100,6 +102,17 @@ def st_model(cell):
             # object is refused by its metadata serializer; ST accepts the name.
             model_kwargs={"dtype": cell["torch_dtype"]},
         )
+        if cell["device"] == "cuda":
+            import torch
+
+            native = st_of(model)
+            if native.device.type != "cuda" or any(
+                p.device.type != "cuda" for p in native.parameters()
+            ):
+                raise RuntimeError("GPU quality model left CUDA; CPU fallback is forbidden")
+            if any(p.dtype != torch.float32 for p in native.parameters() if p.is_floating_point()):
+                raise ValueError("GPU quality requires observed float32 weights")
+        return model
     from sentence_transformers import SentenceTransformer
 
     return SentenceTransformer(

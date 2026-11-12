@@ -184,7 +184,14 @@ def describe(args, entry):
         return study_contract(args, require_environment=False)
     from _measurement_config import contract
 
-    return contract(args.input)
+    spec = contract(args.input)
+    if args.gpu_phase:
+        from _quality.gpu import select
+
+        return select(spec, args.gpu_phase, unpriced=True)
+    if spec.get("billing_profile") == "gpu_quality_billing":
+        return budget_module.select_billing(spec, allow_unpriced=True)
+    return spec
 
 
 def outside_checkout(path):
