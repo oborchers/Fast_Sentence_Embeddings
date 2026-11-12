@@ -48,7 +48,7 @@ def _billing_profile(contract, profile, study):
     inherited = os.environ.get("MEASURE_BILLING_PROFILE") or None
     if profile is not None and inherited is not None and profile != inherited:
         raise ValueError("explicit and inherited billing profiles disagree")
-    profile = profile if profile is not None else inherited
+    profile = profile if profile is not None else inherited or contract.get("billing_profile")
     if profile is None and study is not None and study + "_billing" in contract:
         profile = study + "_billing"
     return profile
@@ -69,11 +69,21 @@ def select_billing(contract, profile=None, study=None, *, allow_unpriced=False):
         override = contract[profile]
         validate_billing(override)
     billing = {**contract["billing"], **override}
-    if profile == "gpu_billing":
-        billing = gpu_price(billing, allow_unpriced=allow_unpriced)
-    validate_billing(billing, required=not (profile == "gpu_billing" and allow_unpriced))
+    billing = _priced_billing(billing, profile, allow_unpriced)
     contract.update(billing=billing, billing_profile=profile)
     return contract
+
+
+def _priced_billing(billing, profile, allow_unpriced):
+    gpu_profile = profile in ("gpu_billing", "gpu_quality_billing")
+    if profile == "gpu_quality_billing" and billing["planning_minutes"] > 480:
+        raise ValueError("GPU quality planning ceiling is eight hours; no automatic extension")
+    if gpu_profile:
+        billing = gpu_price(billing, allow_unpriced=allow_unpriced)
+        if profile == "gpu_quality_billing" and "planning_balance_usd" in billing:
+            billing["planning_balance_usd"] *= billing["planning_minutes"] / 60
+    validate_billing(billing, required=not (gpu_profile and allow_unpriced))
+    return billing
 
 
 def gpu_price(billing, *, allow_unpriced=False):

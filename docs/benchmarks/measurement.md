@@ -1964,3 +1964,105 @@ only. They check contracts, refusal, prefix identity and acceptance mechanics
 without claiming a real CUDA precision or memory result. Actual CUDA execution,
 production-batch fit and precision differences require the first paid GPU probe.
 No Linux comparison or speed measurement was run for this implementation.
+
+### CUDA transformer quality (class correctness)
+
+DR-401 (MTEB-Qualitätszellen für mpnet und Qwen3 auf der GPU-Allokation anlegen)
+adds `quality-gpu.json` and the separate `allocation-gpu-quality.json` (entry
+`quality`). The throughput allocation and its `gpu_billing` remain unchanged.
+The quality allocation runs `gpu-probe` followed by `gpu-quality`, with
+`requires: [gpu-probe]`, in the same `gpu` environment. The CUDA lock now
+includes the pinned quality packages. All 84 previous package versions remain
+unchanged, including torch 2.15.0+cu132, Sentence Transformers 6.2.0,
+Transformers 5.22.1, tokenizers 0.23.3 and NumPy 2.5.4.
+
+The two full reference cells evaluate all-mpnet-base-v2 and
+Qwen3-Embedding-0.6B through the existing MTEB registry loader, on CUDA with
+float32 weights, batch sizes 32 and 8, and one process. Their model revisions,
+normalization, native context limits, instructions and task filters match the
+CPU reference cells. There is no truncation to the throughput study's 512-token
+Qwen input. The tasks remain the full 40 computed tasks of `MTEB(eng, v2)` and
+13 NanoBEIR tasks per model. MindSmallReranking stays excluded. There is no
+sampling, batch reduction, CPU fallback, retry or automatic budget extension.
+The smoke phase evaluates the complete STSBenchmark and NanoQuoraRetrieval
+tasks for each model, including the existing independent prompt assertions.
+
+Each model receives its own smoke verdict. A checked model failure rejects
+only that model's full cells. Infrastructure failures fail the probe step.
+The full phase reuses the sealed prerequisite verifier of the throughput
+probe, binding the allocation root, clock, runner, sources, configurations,
+model pins and CUDA lock. Missing or unreadable verdicts refuse that model.
+The full phase never runs without the successful sealed probe in its own root.
+Smoke rows remain functional only and cannot supply quality means.
+Both steps receive the selected study input, including a smaller approved
+budget. Each controller checks its effective budget against the stored machine
+admission record. CUDA studies refuse the local quality execution path.
+
+Every task runs in a fresh process group through `quality.py`, with taskwise
+budget admission. The controller kills that group at the work deadline,
+before the 600-second collection reserve. A deadline task is `aborted`, later
+tasks are `not_started`, and partial results remain collectable. SIGTERM stops
+new tasks. GPU receipts record the observed device, UUID, driver, torch version,
+CUDA build, GPU memory peaks and disabled TF32. The loaded model must actually
+have CUDA parameters and float32 weights. `--summarize` keeps CUDA rows separate
+from CPU rows and gives no benchmark mean for incomplete benchmark coverage.
+Quality wall time remains diagnostic and carries no throughput claim.
+Receipts store both observed TF32 switches before and after evaluation. A changed
+switch fails the step. Only explicit model/prompt rejections and CUDA memory
+exhaustion count as completed model rejections. Download, file and provenance
+errors fail the step. An aborted smoke task retains its aborted status.
+
+The dedicated `gpu_quality_billing` profile has an eight-hour **planning
+ceiling**, including preparation and collection. This is not approval to spend
+or a runtime promise. As for throughput, `SPEED_GPU_USD_PER_HOUR` must contain
+the approved live hourly price as a positive finite JSON number. The resolved
+money ceiling is eight times that price. A smaller declared planning duration
+reduces that ceiling proportionally. A duration above eight hours is refused.
+
+The preliminary estimate is two hours for mpnet and four hours for Qwen3 on
+one L40S, plus two hours for provisioning, downloads, task loading, repeated
+model loads, CPU classifiers and collection. This is a planning assumption,
+not measured L40S evidence: an assumed 7.2 million effective encoding passages
+at 1,000/s (mpnet) or 500/s (Qwen3) gives 7,200 or 14,400 seconds. The passage
+count includes repeat encodings and is an explicit assumed workload envelope,
+not a claim about exact MTEB dataset size. Dividing those model allowances by
+53 tasks gives the configured conservative per-task admission estimates of
+136 and 272 seconds. Task sizes vary greatly, so these averages do not bound
+an individual task. The step estimate is 21,700 seconds, and the four smoke
+tasks have a separate 720-second estimate. The hard work deadline remains
+independent of these estimates. Before any paid start, calibrate the assumptions
+from the GPU probe, including setup and CPU evaluation costs. Oliver decides
+whether to start, the actual budget and the live price after that calibration.
+No run is authorized by this configuration or its estimates.
+
+A quality allocation can run after throughput on the same pod or on a separate
+pod. Use a fresh root and a fresh quality `allocated_at` clock either way,
+account for any preceding pod charges separately, and keep the collector
+responsible for both. Reuse external model/dataset caches if desired, never
+throughput result receipts. The root must not overlap a previous allocation.
+The launch decision stays with Oliver. Bootstrap preparation uses:
+
+```sh
+# Set these in the operator's launch environment, together with the approved price.
+MEASURE_BILLING_PROFILE=gpu_quality_billing
+MEASURE_INPUT=/external/measurement-source/benchmarks/config/quality-gpu.json
+MEASURE_ALLOCATION=/external/measurement-source/benchmarks/config/allocation-gpu-quality.json
+# Generate the bootstrap with quality.py --bootstrap --source-revision FULL_COMMIT.
+# MEASURE_ROOT and MEASURE_ALLOCATED_AT identify this fresh quality allocation.
+```
+
+Inspect either phase without CUDA, optional quality packages or a live price:
+
+```sh
+python benchmarks/quality.py --describe --input benchmarks/config/quality-gpu.json --gpu-phase probe
+python benchmarks/quality.py --describe --input benchmarks/config/quality-gpu.json --gpu-phase measure
+```
+
+Prior art: the [Sentence Transformers loader options](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html)
+make device and dtype explicit. The [Qwen3 model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)
+defines the 32K context and instruction-aware model. These references were
+checked on 2026-11-12. Local verification checks configuration, parsers, seals,
+model verdict isolation and deadline mechanics without CUDA. No Linux comparison,
+CUDA execution, paid run or full quality score was produced by this implementation.
+Rehearse the selected adapters and lifecycle in the pinned Linux image before
+any paid run. Real float32 CUDA memory fit remains unverified until that probe.

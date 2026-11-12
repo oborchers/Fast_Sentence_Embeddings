@@ -64,3 +64,15 @@ typing-inspection==0.4.4
 tzdata==2026.6
 xxhash==4.0.2
 yarl==1.25.1
+certifi==2026.10.23
+charset-normalizer==3.5.2
+defusedxml==0.7.1
+mteb==2.26.25
+nltk==3.10.4
+polars-runtime-32==2.1.0
+polars==2.1.0
+pytrec_eval-terrier==0.5.11
+requests==2.34.2
+urllib3==2.8.0
+gensim==4.4.0
+wordfreq==3.1.1
