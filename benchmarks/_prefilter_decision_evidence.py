@@ -286,9 +286,7 @@ def _float32_rounds(own, cell, rounds, expected_build):
 
 
 def _float32_quiet(root, operations, quiet_cell, cell, builds):
-    production(quiet_cell)
-    if quiet_cell["id"] == cell["cell_id"]:
-        raise ValueError("float32 quiet cell must be separate")
+    _float32_quiet_cell(quiet_cell, cell)
     own = [r for r in operations if r["cell_id"] == quiet_cell["id"]]
     seconds = document(root / "quiet.json")["seconds"]
     if not isinstance(seconds, list) or not seconds:
@@ -298,7 +296,7 @@ def _float32_quiet(root, operations, quiet_cell, cell, builds):
     ):
         raise ValueError("missing float32 quiet observations")
     for row, duration in zip(own, seconds, strict=True):
-        production(row)
+        _float32_quiet_production(row)
         if (
             row["label"] != "fse"
             or row["model"] != quiet_cell["model"]
@@ -309,6 +307,23 @@ def _float32_quiet(root, operations, quiet_cell, cell, builds):
         ):
             raise ValueError("float32 quiet build, cell or duration differs")
     return len(own)
+
+
+def _float32_quiet_cell(quiet_cell, cell):
+    _float32_quiet_production(quiet_cell)
+    for key in ("id", "model"):
+        if not isinstance(quiet_cell[key], str) or not quiet_cell[key]:
+            raise ValueError("nonempty float32 quiet cell identifiers required")
+    if quiet_cell["id"] == cell["cell_id"]:
+        raise ValueError("float32 quiet cell must be separate")
+
+
+def _float32_quiet_production(value):
+    if any(
+        value.get(key, False) is not False
+        for key in ("functional_only", "diagnostic_profile", "sizing_only")
+    ):
+        raise ValueError("production float32 quiet evidence required")
 
 
 def profiles(root, context, origin):
