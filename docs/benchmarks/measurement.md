@@ -559,6 +559,74 @@ A library cell declares `model`, `reference`, `workers`, `texts`, `dimensions`, 
 
 Dtype cells use `reference: fse-control`, the same table dtype in both arms and bit-exact output checks. For a source-code comparison, a reviewed data cell can use `reference: fse-base` with `--base-python /external/base-env/bin/python`. The base and candidate use their own installed package identities. Such a pair is a base/candidate comparison, not an identical-code A/A control.
 
+### README study for 2.1
+
+`speed.py --describe --study readme` shows the effective selection, overrides and
+`readme_billing`, without importing optional measurement libraries. The same selection
+feeds `--rehearse --study readme` and `--run --study readme`. Historical stage
+selections keep their original workloads. A selected input with
+`planned_input_sha256` must match both its byte count and its digest in production.
+
+| Selection | Workload | Rounds |
+| :--- | :--- | :--- |
+| Eight library pairs | POTION: 2.5 million texts with one worker, 20 million with 16; static ST: 2 million and 5 million | 3 |
+| Streamed headline | 100 million texts, 16 workers, float32 table, int8 output, durability `none` | 3 |
+| Six paragraph dtype controls | 600,000 paragraphs with one worker, 5 million with 16 | 5 |
+| Two bekko pairs | 2 million texts with one worker, 5 million with 16 | 3 |
+| Three existing head pairs | 5 million texts, one worker | 3 against Model2Vec, otherwise 5 |
+| Three search cells | Exact float32, exact int8, binary float32 over 832,318 rows | 3 rotating rounds |
+| Absolute MiniLM transformer | 32,768 texts, 16 CPU workers, float32 weights and output, batch size 32 | 5 |
+
+The selection has 24 cells. It excludes version comparisons, sentence dtype controls,
+headline predictions, the 32-worker headline and the conditional prefilter.
+DR-384 (Kopfarten und Sinks der linearen Köpfe in der Veröffentlichungsstudie messen)
+will add its head-kind and sink cells to `readme.cell_ids` later. No placeholder IDs
+are reserved. A shipped prefilter needs its own explicit selection after approval.
+The 32-worker headline footnote is retired for this study. Existing published
+README values are not changed by defining this workload.
+
+The planned publication question is which 2.1 README values have valid Linux
+evidence. An invalid cell supplies no replacement value and is never retried.
+There is no effect-size decision in this publication study. Historical planning
+limits in `readme_billing` are 295 minutes, USD 7.35 and a 600-second collection
+reserve, including provisioning, setup, warmups, profiles, waits and collection.
+These limits do not authorize spending. Exhaustion stops admission at a safe boundary.
+The production memory plan must fit 85 percent of 128 GB (108.8 GB), independently
+of the reduced functional plan. Profiles and the pinned Linux rehearsal belong to
+the allocation acceptance before any paid publication run.
+
+#### Absolute transformer variant (`transformer@1`)
+
+Fields are device-neutral: `kind: transformer`, `reference: null`, `backend: st`,
+`device`, `torch_dtype`, `dtype`, `batch_size`, `workers`, `texts`, `dimensions`,
+`rounds`, `input: st` and `input_prefix_texts`. The current device is explicitly
+`cpu`; missing devices and every other value are rejected. Both precision fields
+must be `float32`. The model revision comes only from `pins.json`.
+
+The adapter reuses `st_encoder`, its native Sentence Transformers loader and its
+reusable CPU process pool, with one Torch thread per worker. It uses the documented
+[encode default batch size of 32](https://www.sbert.net/docs/package_reference/sentence_transformer/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode)
+for this transformer, rather than the static embedding cells' batch size 1024.
+Each child checks the native single-process result against the warmed pool on
+16 rows (including all eight UNK paragraphs), then checks the timed sample against
+the warm sample. Shape, float32 output and finite values are checked. Warmup,
+model loading, sample checks and pool startup are outside the timer.
+
+MiniLM uses the first 32,768 lines of the two-million-line production `st` file,
+including the eight mandatory UNK paragraphs. Sampling and shuffling use the parent
+count before taking the prefix, so this is not a separate random draw. Its own
+byte count and SHA256 are fixed in the cell. A future GPU cell can use exactly
+these bytes. Rehearsal inputs remain reduced and do not claim that production hash.
+The sizing assumption is an upper throughput of 10,000 texts/s on 16 CPU workers:
+32,768 / 10,000 = 3.2768 seconds, above the two-second gate and three-second target.
+This is an estimate, not a speed result. Any production call below two seconds
+invalidates the cell, without automatic resizing or retry.
+
+The result contains only absolute texts/s, their median and interquartile range
+(IQR, inclusive quartiles). It has no fse arm, paired factor or optimization decision.
+Raw operation receipts retain durations, package identities, workers and input/model
+identities. Five complete rounds with a stable package identity are required.
+
 ### Protocol variants
 
 `benchmarks/_speed_protocol.py` names the variant of each cell from its `kind` and `reference`, refuses a combination it does not list, and records the variant name in the cell result. The variants stay separate and versioned; the tolerances are the constants of `check_output` in `_speed_cells.py` (rtol 3e-5, atol 3e-6; they equal the `speed.json` `rules` values, which the code does not read) and no variant widens them. A study is refused before any download when it has `fse-base` cells and no `--base-python`, or head cells and an fse without `fse.Heads`.
@@ -572,6 +640,7 @@ Dtype cells use `reference: fse-control`, the same table dtype in both arms and 
 | `version-write@1` | `write` against `fse-base` | persisted sample codes and scales, bit for bit across arms | none |
 | `write@1` | `write` without a reference | bits (codes, scales, inventories) | none |
 | `search-time@1` | `search`, against `fse-exact` | measured final pool pass: ids and score bits, binary candidate membership and recall | none |
+| `transformer@1` | `transformer` without a reference | native single-process sample and warmed pool sample | none |
 | `predict@1` | `predict` (labels or probabilities) | sample bits against cpu and numpy | none |
 
 The registry also exposes `paired` (comparison arms), `own_memory_plan` (skip the

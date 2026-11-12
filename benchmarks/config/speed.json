@@ -746,6 +746,30 @@
       "pool_size": 256,
       "k": 10,
       "relative_to": "search-exact-int8"
+    },
+    {
+      "id": "transformer-minilm-cpu-16",
+      "stage": "transformers",
+      "kind": "transformer",
+      "reference": null,
+      "backend": "st",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "device": "cpu",
+      "torch_dtype": "float32",
+      "dtype": "float32",
+      "batch_size": 32,
+      "workers": 16,
+      "texts": 32768,
+      "dimensions": 384,
+      "rounds": 5,
+      "estimated_seconds": 180,
+      "input": "st",
+      "input_prefix_texts": 2000000,
+      "sizing_estimate": {
+        "assumed_upper_texts_per_second": 10000,
+        "expected_minimum_call_seconds": 3.2768,
+        "basis": "Planning assumption: <= 10000 texts/s on 16 CPU workers; not measured. Production calls below 2 s are invalid, never resized or retried."
+      }
     }
   ],
   "quiet_cell": {
@@ -843,5 +867,106 @@
     "planning_minutes": 120,
     "planning_balance_usd": 2.98,
     "collection_reserve_seconds": 600
+  },
+  "readme_billing": {
+    "planning_minutes": 295,
+    "planning_balance_usd": 7.35,
+    "collection_reserve_seconds": 600
+  },
+  "readme": {
+    "cell_ids": [
+      "libraries-model2vec-1",
+      "libraries-rust-1",
+      "libraries-fastembed-1",
+      "libraries-st-1",
+      "libraries-model2vec-16",
+      "libraries-rust-16",
+      "libraries-fastembed-16",
+      "libraries-st-16",
+      "bekko-st-1",
+      "bekko-st-16",
+      "dtype-paragraph-float32-1",
+      "dtype-paragraph-float32-16",
+      "dtype-paragraph-float16-1",
+      "dtype-paragraph-float16-16",
+      "dtype-paragraph-int8-1",
+      "dtype-paragraph-int8-16",
+      "heads-folded-model2vec-1",
+      "heads-folded-unfolded-1",
+      "heads-4-onepass-1",
+      "search-exact-float32",
+      "search-exact-int8",
+      "search-binary-float32",
+      "headline-100m",
+      "transformer-minilm-cpu-16"
+    ],
+    "overrides": {
+      "libraries-model2vec-1": {
+        "texts": 2500000,
+        "planned_input_bytes": 340829768,
+        "estimated_seconds": 975
+      },
+      "libraries-rust-1": {
+        "texts": 2500000,
+        "planned_input_bytes": 340829768,
+        "estimated_seconds": 150
+      },
+      "libraries-fastembed-1": {
+        "texts": 2500000,
+        "planned_input_bytes": 340829768,
+        "estimated_seconds": 1050
+      },
+      "libraries-model2vec-16": {
+        "texts": 20000000,
+        "planned_input_bytes": 2728056171,
+        "estimated_seconds": 667
+      },
+      "libraries-rust-16": {
+        "texts": 20000000,
+        "planned_input_bytes": 2728056171,
+        "estimated_seconds": 400
+      },
+      "libraries-fastembed-16": {
+        "texts": 20000000,
+        "planned_input_bytes": 2728056171,
+        "estimated_seconds": 1200
+      },
+      "headline-100m": {
+        "workers": 16
+      },
+      "dtype-paragraph-float32-1": {
+        "rounds": 5
+      },
+      "dtype-paragraph-float32-16": {
+        "rounds": 5
+      },
+      "dtype-paragraph-float16-1": {
+        "rounds": 5
+      },
+      "dtype-paragraph-float16-16": {
+        "rounds": 5
+      },
+      "dtype-paragraph-int8-1": {
+        "rounds": 5
+      },
+      "dtype-paragraph-int8-16": {
+        "rounds": 5
+      },
+      "heads-folded-model2vec-1": {
+        "texts": 5000000,
+        "rounds": 3,
+        "estimated_seconds": 750
+      },
+      "heads-folded-unfolded-1": {
+        "texts": 5000000,
+        "rounds": 5,
+        "estimated_seconds": 750
+      },
+      "heads-4-onepass-1": {
+        "texts": 5000000,
+        "rounds": 5,
+        "estimated_seconds": 750
+      }
+    }
   }
 }

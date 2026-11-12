@@ -91,13 +91,24 @@ def prepare_input(context, cell):
         source = [text[:limit] for text in source]
     path = context["work"] / (cell["id"] + ".txt")
     unit = "paragraphs" if paragraphs else "sentences"
-    identity = inputs.write_input(path, source, mandatory, cell["texts"], 0, unit=unit)
+    if cell["kind"] == "transformer":
+        from _speed_transformer import prepare_prefix
+
+        identity = prepare_prefix(path, source, mandatory, cell)
+    else:
+        identity = inputs.write_input(path, source, mandatory, cell["texts"], 0, unit=unit)
     if (
         not cell.get("functional_only")
         and cell.get("planned_input_bytes") is not None
         and identity["file_bytes"] != cell["planned_input_bytes"]
     ):
         raise ValueError("prepared input differs from the fixed production byte count")
+    if (
+        not cell.get("functional_only")
+        and cell.get("planned_input_sha256")
+        and identity["sha256"] != cell["planned_input_sha256"]
+    ):
+        raise ValueError("prepared input differs from the fixed production digest")
     identity["common_character_limit"] = None if mandatory else limit
     sample = path.with_suffix(".sample.json")
     durable.atomic(sample, identity["sample_rows"])
@@ -123,7 +134,7 @@ def launch(context, cell, label, number, path, sample, identity):
         artifact=model.get("artifacts", {}).get(
             cell.get("table_dtype", cell["dtype"]), model["artifact"]
         ),
-        artifact_sha256=model["artifact_sha256"][cell.get("table_dtype", cell["dtype"])],
+        artifact_sha256=model["artifact_sha256"].get(cell.get("table_dtype", cell["dtype"])),
         vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
@@ -258,7 +269,7 @@ def memory_preflight(context, contract):
         )
         if protocols.protocol(cell)["own_memory_plan"] and cell["kind"] != "write":
             continue
-        model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+        model_bytes = engines.model_bytes(context["models"][cell["model"]])
         if cell["kind"] == "write":
             from _speed_write_pair import memory_plan
 
@@ -276,7 +287,7 @@ def memory_preflight(context, contract):
 
 def pair(context, cell):
     path, sample, identity = prepare_input(context, cell)
-    model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+    model_bytes = engines.model_bytes(context["models"][cell["model"]])
     maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
@@ -316,14 +327,15 @@ def quiet(context, contract):
     cleanup(context, [path, path.with_suffix(".json"), sample])
 
 
-def study_contract(args):
+def study_contract(args, require_environment=True):
     contract = billing_contract(load_contract(args.input), args.study)
     headline = args.study == "headline"
-    contract["cells"] = protocols.select(contract["cells"], args.study)
+    contract["cells"] = protocols.select(contract["cells"], args.study, contract.get("readme"))
     if not contract["cells"]:
         raise ValueError("study has no matching cells")
     protocols.validate(contract["cells"])
-    protocols.require(contract["cells"], args.base_python, args.rehearse)
+    if require_environment:
+        protocols.require(contract["cells"], args.base_python, args.rehearse)
     if headline:
         if args.workers is None:
             raise ValueError("headline requires explicit --workers 16 or 32")
@@ -389,6 +401,10 @@ def run_cell(context, contract, cell, started):
     ledger = context["ledger"]
     if cell["kind"] == "write":
         run_headline(context, {**contract, "cells": [cell]})
+    elif cell["kind"] == "transformer":
+        from _speed_transformer import run
+
+        ledger.result(cell, started, **run(context, cell))
     elif not protocols.protocol(cell)["paired"]:
         from _speed_predict import run_predict
 
@@ -416,6 +432,12 @@ def run_headline(context, contract):
         and identity["file_bytes"] != cell["planned_input_bytes"]
     ):
         raise ValueError("headline input differs from planned byte count")
+    if (
+        not cell.get("functional_only")
+        and cell.get("planned_input_sha256")
+        and identity["sha256"] != cell["planned_input_sha256"]
+    ):
+        raise ValueError("headline input differs from planned digest")
     durable.append(ledger.root / "inputs.jsonl", dict(cell_id=cell["id"], **identity))
     sample = path.with_suffix(".sample.json")
     durable.atomic(sample, identity["sample_rows"])

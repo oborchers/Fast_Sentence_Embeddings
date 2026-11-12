@@ -252,6 +252,15 @@ def prepare_models(root, contract, reuse=None):
             local_files_only=reuse is not None,
             allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
+        if all(c["kind"] == "transformer" for c in contract["cells"] if c["model"] == repo):
+            result[repo] = {
+                "snapshot": snapshot,
+                "revision": revision,
+                "artifact": None,
+                "artifacts": {},
+                "artifact_sha256": {},
+            }
+            continue
         encoder = load_encoder(root, contract, repo, snapshot)
         artifacts = save_artifacts(root, contract, repo, encoder)
         result[repo] = {
@@ -262,6 +271,12 @@ def prepare_models(root, contract, reuse=None):
             "revision": revision,
         }
     return result
+
+
+def model_bytes(model):
+    if model["artifact"] is not None:
+        return Path(model["artifact"]).stat().st_size
+    return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))
 
 
 def measure_child(job):
@@ -277,6 +292,10 @@ def measure_child(job):
         return headline_child(job)
     if job["backend"] == "rust":
         return rust_child(job)
+    if job.get("kind") == "transformer":
+        from _speed_transformer import validate
+
+        validate(job)
     adapter = ADAPTERS[job["backend"]]
     configure(job["workers"], native_threads=adapter["native_threads"])
     import resource
@@ -295,6 +314,12 @@ def measure_child(job):
         warm = encode(texts)
         if warm.shape != (len(texts), job["dimensions"]):
             raise ValueError("warm output shape changed")
+        transformer_sample = None
+        if job.get("kind") == "transformer":
+            from _speed_transformer import sample_check
+
+            sample_check(job, texts, warm)
+            transformer_sample = warm[indices].copy()
         del warm
         gc.collect()
         before = telemetry()
@@ -305,6 +330,12 @@ def measure_child(job):
         if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
             raise ValueError("backend output contract changed")
         sample = np.ascontiguousarray(vectors[indices])
+        if transformer_sample is not None:
+            from _speed_cells import check_output
+
+            check_output(transformer_sample, sample, exact=False)
+        if not np.isfinite(vectors).all():
+            raise ValueError("nonfinite backend output")
         with Path(job["vectors_file"]).open("xb") as stream:
             np.save(stream, sample, allow_pickle=False)
             stream.flush()
@@ -326,6 +357,10 @@ def measure_child(job):
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "workers": job["workers"],
                 "worker_path": adapter["factory"].__name__,
+                "transformer_sample_checked": transformer_sample is not None,
+                "device": job.get("device", "cpu"),
+                "torch_dtype": job.get("torch_dtype"),
+                "batch_size": job.get("batch_size"),
                 "widened_weights": bool(job.get("widen_weights")) and job["backend"] == "st",
             },
         )
@@ -351,12 +386,23 @@ def st_encoder(job):
     if workers > 1:
         st_file_limits()
     torch.set_num_threads(1 if workers > 1 else workers)
-    model = SentenceTransformer(job["snapshot"], device="cpu", local_files_only=True)
+    transformer = job.get("kind") == "transformer"
+    if transformer:
+        from _speed_transformer import validate
+
+        validate(job)
+    device = job["device"] if transformer else "cpu"
+    options = {"model_kwargs": {"torch_dtype": torch.float32}} if transformer else {}
+    model = SentenceTransformer(job["snapshot"], device=device, local_files_only=True, **options)
     if job.get("widen_weights"):
         widen_weights(model)
     if workers == 1:
         return lambda texts: model.encode(
-            texts, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
+            texts,
+            batch_size=job.get("batch_size", 32),
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
         )
     torch.set_num_interop_threads(1)
     original = SentenceTransformer.__dict__.get("_multi_process_worker")
@@ -373,7 +419,7 @@ def st_encoder(job):
         return model.encode(
             texts,
             pool=pool,
-            batch_size=1024,
+            batch_size=job.get("batch_size", 1024),
             normalize_embeddings=True,
             convert_to_numpy=True,
             show_progress_bar=False,

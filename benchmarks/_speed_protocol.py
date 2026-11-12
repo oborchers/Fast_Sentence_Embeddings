@@ -25,6 +25,7 @@ VARIANTS = {
     ("write", "fse-base"): ("version-write@1", "bits", False, True, True, False),
     ("write", None): ("write@1", "bits", False, False, True, False),
     ("search", "fse-exact"): ("search-time@1", "bits", False, False, True, True),
+    ("transformer", None): ("transformer@1", "tolerance", False, False, False, True),
     ("predict", None): ("predict@1", "bits", False, False, True, False),
 }
 
@@ -51,11 +52,17 @@ def protocol(cell):
 
 def validate(cells):
     """Refuse a study with a cell no variant covers, before anything runs."""
+    from _measurement_config import validate_cell
     from _speed_versions import pair_rounds
 
     for cell in cells:
+        validate_cell(cell)
         protocol(cell)
         pair_rounds(cell)
+        if cell["kind"] == "transformer":
+            from _speed_transformer import validate
+
+            validate(cell)
         if cell["kind"] == "write":
             from _speed_write_pair import validate as validate_write
 
@@ -111,7 +118,18 @@ def require(cells, base_python, functional=False):
             raise ValueError("search-prefilter requires a shipped enabled prefilter variant")
 
 
-def select(cells, study):
+def select(cells, study, readme=None):
+    if study == "readme":
+        if not isinstance(readme, dict):
+            raise ValueError("readme selection must be declared")
+        by_id = {c["id"]: c for c in cells}
+        ids = readme["cell_ids"]
+        if len(ids) != len(set(ids)) or any(i not in by_id for i in ids):
+            raise ValueError("readme needs unique existing cell identifiers")
+        if set(readme["overrides"]) - set(ids):
+            raise ValueError("readme overrides must belong to selected cells")
+        return [dict(by_id[i], **readme["overrides"].get(i, {})) for i in ids]
+
     if study == "search-prefilter":
         cells = [
             dict(c, relative_to="search-exact-int8")

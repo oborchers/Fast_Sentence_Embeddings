@@ -28,6 +28,10 @@ def contract(path):
 
 
 def validate_cell(cell):
+    if cell.get("kind") == "transformer":
+        from _speed_transformer import validate
+
+        validate(cell)
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", cell["id"]):
         raise ValueError("cell identifier must be a safe file stem")
     for key in ("texts", "workers", "estimated_seconds"):
@@ -51,6 +55,11 @@ def validate_prerequisites(cells):
 
 
 def validate_transformer(cell):
+    if cell.get("kind") == "transformer":
+        from _speed_transformer import validate
+
+        validate(cell)
+        return
     controls = ("device", "torch_dtype", "batch_size")
     if not cell.get("mteb_loader") and any(key in cell for key in controls):
         raise ValueError("device, torch_dtype and batch_size require mteb_loader")
