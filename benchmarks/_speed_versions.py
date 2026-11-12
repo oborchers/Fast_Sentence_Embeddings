@@ -37,3 +37,8 @@ def preflight_plan(cell, production, model_bytes, limit):
     cell["planned_input_bytes"] = production["planned_input_bytes"]
     plan = inputs.memory_plan(production, cell["planned_input_bytes"], model_bytes, limit)
     return {**plan, "fallback": {"texts": 5_000_000, "rejected_plan": rejected}}
+
+
+def require_budget(ledger, estimate):
+    if not ledger.admit(estimate):
+        raise RuntimeError("preparation admission budget or stop signal exhausted")

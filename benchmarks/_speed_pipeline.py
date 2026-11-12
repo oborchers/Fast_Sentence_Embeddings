@@ -19,7 +19,7 @@ from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
-from _speed_heads import fse_head, model2vec_head
+from _speed_heads import check_kind, fse_head, model2vec_head
 from _speed_write import headline_child
 
 RUST_SOURCE = r"""
@@ -47,7 +47,7 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
 def fse_encoder(job):
     from fse import Encoder
 
-    if job["kind"] == "heads":
+    if job["kind"] in ("heads", "heads-kind"):
         return fse_head(job)
     model = Encoder.load(job["artifact"], mmap=True)
     if model.word_vectors.dtype != job.get("table_dtype", job["dtype"]):
@@ -286,6 +286,10 @@ def model_bytes(model):
 
 
 def measure_child(job):
+    if job.get("kind") == "heads-sinks":
+        from _speed_heads_sinks import child
+
+        return child(job)
     if job.get("kind") == "search":
         from _speed_search_child import run
 
@@ -330,6 +334,7 @@ def measure_child(job):
         if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
             raise ValueError("backend output contract changed")
         sample = np.ascontiguousarray(vectors[indices])
+        head_check = check_kind(job, texts, sample, indices)
         transformers.check_measured(vectors, sample, transformer_sample)
         with Path(job["vectors_file"]).open("xb") as stream:
             np.save(stream, sample, allow_pickle=False)
@@ -341,6 +346,7 @@ def measure_child(job):
             Path(job["receipt"]),
             {
                 **child_record(job),
+                **head_check,
                 "identity": identity,
                 "warmup_cpu_pressure": interval(warm_before, warm_after),
                 "warmup_telemetry_before": warm_before,

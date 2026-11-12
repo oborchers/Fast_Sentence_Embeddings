@@ -18,7 +18,13 @@ def verify_artifact(job):
 def resolve(spec, job, root):
     from _development_profile_origin import single
 
-    if job["backend"] != "fse" or job["kind"] not in ("encode", "dtype", "heads"):
+    if job["backend"] != "fse" or job["kind"] not in (
+        "encode",
+        "dtype",
+        "heads",
+        "heads-kind",
+        "heads-sinks",
+    ):
         raise ValueError("speed profiling requires an fse encode, dtype or heads job")
     tag = f"{job['id']}-{job['round']}-{job['label']}"
     if spec["job"] != tag or spec["nominal_arm"] != job["label"]:
@@ -101,6 +107,7 @@ def rebuild(spec, origin, job, run_child):
         input_file=rebuilt["input_file"],
         sample_file=rebuilt["sample_file"],
         vectors_file=str(work / "sample"),
+        head_sample_file=str(root / "sample.npz"),
     )
 
 
