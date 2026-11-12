@@ -72,6 +72,9 @@ def memory_plan(job, input_bytes, model_bytes, limit, kind="production"):
         "model_copies": model_bytes * (w + 1),
         "sample_buffers": min(n, 10000) * d * 4 * 3,
     }
+    if job.get("kind") == "transformer":
+        components["transformer_activations_and_pool"] = w * 512 * 1024**2
+        components["prefix_preparation_arrays"] = job["input_prefix_texts"] * 8 * 3
     if job.get("widen_weights"):
         # The stored float16 table and its float32 copy exist together while it is widened.
         components["widened_weights_original"] = model_bytes // 2
@@ -145,8 +148,24 @@ def corpus_sources(contract, cache, memory=None):
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]], whole
 
 
+def prefix_positions(positions, count, mandatory, prefix_texts):
+    if prefix_texts is None:
+        return positions, count
+    if type(prefix_texts) is not int or not len(mandatory) <= prefix_texts <= count:
+        raise ValueError("prefix must include mandatory rows and fit its parent")
+    return positions[: prefix_texts - len(mandatory)], prefix_texts
+
+
 def write_input(
-    path, source, mandatory, count, seed, token_counts=None, admission=None, unit="sentences"
+    path,
+    source,
+    mandatory,
+    count,
+    seed,
+    token_counts=None,
+    admission=None,
+    unit="sentences",
+    prefix_texts=None,
 ):
     import numpy as np
 
@@ -155,6 +174,8 @@ def write_input(
     rng = np.random.Generator(np.random.PCG64(seed))
     positions = rng.integers(len(source), size=count - len(mandatory), dtype=np.int64)
     rng.shuffle(positions)
+    parent_count = count
+    positions, count = prefix_positions(positions, count, mandatory, prefix_texts)
     sample = np.sort(
         np.r_[
             np.arange(len(mandatory)),
@@ -194,6 +215,7 @@ def write_input(
         "distinct_input_texts": unique_input,
         "repetition_factor": count / unique_source,
         "texts": count,
+        "prefix_of_texts": parent_count if prefix_texts is not None else None,
         "seed": seed,
         "sha256": sha256(path),
         "file_bytes": path.stat().st_size,

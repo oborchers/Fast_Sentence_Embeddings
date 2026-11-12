@@ -24,6 +24,7 @@ def arguments():
         "--study",
         choices=(
             "all",
+            "readme",
             "libraries",
             "headline",
             "dtypes",
