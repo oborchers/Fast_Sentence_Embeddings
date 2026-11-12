@@ -344,6 +344,46 @@ this checkout's extension on Linux using CPython 3.13.18 of the image in `pins.j
 the image and is never pushed to a registry. Rebuild after product changes. A container
 functional probe establishes function only, with no Linux or host-Mac speed claim.
 
+### CPU pressure and report-only noise labels
+
+Each operation records `cpu_pressure` in its before/after telemetry. On Linux,
+this includes `/proc/pressure/cpu`, the executing process's cgroup2
+`cpu.pressure`, and `cpu.stat`. The runner resolves cgroup membership through
+`/proc/self/cgroup` and `/proc/self/mountinfo`, rather than assuming the mount
+root is the executing cgroup. Each source retains its path, monotonic observation
+time and parsed counters. Missing, unreadable or unsupported sources, including
+PSI on macOS, have values `"unavailable"`. They never refuse an operation.
+
+The operation's `cpu_pressure` report uses the difference of PSI `total`
+counters, in microseconds, divided by elapsed monotonic microseconds between
+observations of that source. It retains `some` and, when supplied, `full` stall
+fractions. Rolling `avg10`, `avg60` and `avg300` values remain raw context.
+`contended` is true when either scope's `some` fraction exceeds 0.10. The scopes
+remain separate because host pressure on shared hardware is not container
+pressure. If neither scope is contended but one is unavailable, the combined
+flag is `"unavailable"`. Missing observations, changed paths and decreasing
+counters produce unavailable intervals. `cpu.stat` retains raw counters and
+interval deltas, including available throttling counters, without a new gate.
+
+Operation records cover measured calls, sizing and calibration. Warmups retain
+separate observations. Repeated local groups use the full group interval, with
+individual warmup and measured groups in the call log. Rust observations cover
+the child process lifetime, including model/input loading and output writing,
+because its inner timer runs inside the Rust executable.
+
+Distribution summaries report `noisy` when IQR exceeds 0.10 times the median.
+New IQR summaries use inclusive linear interpolation (a singleton has zero IQR).
+Search keeps its existing exclusive quartiles. Arm reports count contended and
+unavailable operations. Both `contended` and `noisy` are reporting labels only:
+they do not change admission, validity, decisions, retries or exit status.
+Existing A/A decision rules remain independent of these labels.
+
+Sources: [kernel PSI interface](https://docs.kernel.org/accounting/psi.html)
+(`total` units and the two scopes) and
+[cgroup v2 CPU interface](https://docs.kernel.org/admin-guide/cgroup-v2.html#cpu)
+(`cpu.stat` counters). Verification uses small external correctness probes,
+without speed claims or a Linux comparison.
+
 ### Document-ID adapter profile
 
 `profile: "document-ids@1"` and `document-ids-1m@1` extend the same v2 controller with optional stored IDs,

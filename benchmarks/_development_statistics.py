@@ -6,6 +6,7 @@ import math
 import statistics
 
 from _development_search import enabled as search_cost
+from _measurement_pressure import noise, report
 
 GATE_MINIMUMS = {"noise_multiplier": 3.0, "minimum_saving": 0.02, "confirmation_fraction": 0.5}
 
@@ -28,6 +29,7 @@ def summary(values):
     )
     return {
         "raw": values,
+        **noise(values),
         "median": statistics.median(values),
         "min": min(values),
         "max": max(values),
@@ -53,6 +55,7 @@ def paired(cell, records):
         raise ValueError("unexpected extra paired observations")
     result = {
         "factor": summary(factors),
+        "cpu_pressure": report(records),
         "seconds": {
             name: summary([r["seconds"] for r in records if r["arm"] == name])
             for name in ("base", "candidate")

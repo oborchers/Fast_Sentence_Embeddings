@@ -21,6 +21,7 @@ from _development_statistics import summary
 from _development_system import LABEL, observations
 from _harness.budget import check
 from _harness.records import append, atomic
+from _measurement_pressure import interval
 
 
 def run(args, cell, prepared, ledger):
@@ -172,22 +173,37 @@ def measure(job):
     for number in range(job["warmup_calls"] + job["repetitions"]):
         check(job.get("wall_deadline"))
         phase = "warmup" if number < job["warmup_calls"] else "measured"
-        _quiet(job, waiting)
+        call_before = _quiet(job, waiting)
         context = _file_source(corpus) if texts is None else _strings_source(texts)
         with context as (source, warm):
             started = time.perf_counter()
             identity = identify(source, None)
             elapsed = time.perf_counter() - started
+        call_after = observations(job["work"], excluded=())
         proof = _proof(identity)
         if expected is not None and proof != expected:
             raise ValueError("the source identity changed between calls")
         expected = proof
         (warmups if phase == "warmup" else seconds).append(elapsed)
         warms.append(warm)
-        append(calls, {**LABEL, "phase": phase, "number": number, "seconds": elapsed, "warm": warm})
+        append(
+            calls,
+            {
+                **LABEL,
+                "phase": phase,
+                "number": number,
+                "seconds": elapsed,
+                "warm": warm,
+                "telemetry_before": call_before,
+                "telemetry_after": call_after,
+                "cpu_pressure": interval(call_before, call_after),
+            },
+        )
     if texts is not None and expected["rows"] != len(texts):
         raise ValueError("the identity counts a different number of rows than the list")
+    after = observations(job["work"], excluded=())
     return {
+        "cpu_pressure": interval(before, after),
         "wait_seconds": waiting[0],
         "seconds": seconds,
         "warmup_seconds": warmups,
@@ -198,7 +214,7 @@ def measure(job):
         "input": {k: v for k, v in corpus.items() if k != "source"},
         "policy": policy,
         "telemetry_before": before,
-        "telemetry_after": observations(job["work"], excluded=()),
+        "telemetry_after": after,
         "peak_rss_bytes": _peak(),
     }
 

@@ -14,12 +14,18 @@ from pathlib import Path
 
 from _harness.records import append, atomic, sha256
 from _measurement_config import CONFIG
+from _measurement_pressure import noise, snapshot
 
 
 def spread(values):
     if not values or any(not math.isfinite(v) or v <= 0 for v in values):
         raise ValueError("positive finite observations required")
-    return {"median": statistics.median(values), "min": min(values), "max": max(values)}
+    return {
+        "median": statistics.median(values),
+        "min": min(values),
+        "max": max(values),
+        **noise(values),
+    }
 
 
 def package_identity(name):
@@ -52,6 +58,7 @@ def telemetry():
         "unix": time.time(),
         "monotonic": time.monotonic(),
         "load": os.getloadavg(),
+        "cpu_pressure": snapshot(),
         "disk": disk._asdict(),
     }
     for name in ("memory.max", "memory.current"):

@@ -10,6 +10,7 @@ from pathlib import Path
 from _harness.records import atomic
 from _harness.search import common_passes, sequence_digest
 from _measurement import child_record, telemetry
+from _measurement_pressure import interval
 from _speed_cells import configure
 from _speed_search import arrays, prefilter, save_array, search_pool
 from _speed_search_identity import require_bits, verify
@@ -39,12 +40,20 @@ def block(store, pool, job, passes):
 
 
 def warmup(store, pool, job):
+    observations = []
     started = time.perf_counter()
     while True:
+        before = telemetry()
         seconds, results = block(store, pool, job, 1)
+        after = telemetry()
+        observations.append(
+            dict(
+                telemetry_before=before, telemetry_after=after, cpu_pressure=interval(before, after)
+            )
+        )
         del results
         if time.perf_counter() - started >= 2:
-            return seconds
+            return seconds, observations
 
 
 def run(job):
@@ -65,7 +74,7 @@ def run(job):
         if job["mode"] == "binary":
             require_bits(store)
         enabled = prefilter(store, job)
-        warm_seconds = warmup(store, pool, job)
+        warm_seconds, warm_pressure = warmup(store, pool, job)
         before = telemetry()
         passes = 1 if job["phase"] == "calibration" else job["pool_passes"]
         seconds, results = block(store, pool, job, passes)
@@ -88,6 +97,7 @@ def run(job):
         "identity_after": after_identity,
         "seconds": seconds,
         "warmup_last_pool_seconds": warm_seconds,
+        "warmup_observations": warm_pressure,
         "calibrated_passes": common_passes([seconds]),
         "pool_passes": passes,
         "sequence_sha256": sequence_digest(before_identity["queries"], len(pool), passes, q),
@@ -98,6 +108,7 @@ def run(job):
         "worker_path": "VectorStore.search/thread-pool",
         "telemetry_before": before,
         "telemetry_after": after,
+        "cpu_pressure": interval(before, after),
         "affinity": sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None,
         "peak_rss_native_units": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
     }

@@ -13,6 +13,8 @@ import shutil
 import time
 from pathlib import Path
 
+from _measurement_pressure import snapshot
+
 CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
@@ -40,6 +42,7 @@ def observe(work):
     memory = None if not memory_max or memory_max[0] == "max" else int(memory_max[0])
     affinity = sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None
     return {
+        "cpu_pressure": snapshot(),
         "cpu_model": model,
         "flags": flags,
         "affinity": affinity,

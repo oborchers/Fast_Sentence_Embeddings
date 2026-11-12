@@ -12,6 +12,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from _harness import functional, resources
+from _measurement_pressure import snapshot
 
 LABEL = {"mode": "local-development", "publishable": False}
 
@@ -186,6 +187,7 @@ def observations(work, excluded=()):
         "unix": time.time(),
         "monotonic": time.monotonic(),
         "load": list(os.getloadavg()),
+        "cpu_pressure": snapshot(),
         "nice": os.getpriority(os.PRIO_PROCESS, 0) if hasattr(os, "getpriority") else None,
         "foreign_cpu": foreign_cpu(excluded),
         "disk": shutil.disk_usage(work)._asdict(),

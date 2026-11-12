@@ -16,6 +16,7 @@ import _speed_protocol as protocols
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
+from _measurement_pressure import interval
 from _speed_cells import configure
 from _speed_heads import fse_head, model2vec_head
 from _speed_write import headline_child
@@ -155,6 +156,7 @@ def rust_child(job):
     )
     if record["actual_threads"] != job["workers"] or sha256(binary) != job["binary_sha256"]:
         raise ValueError("Rust worker count or code changed")
+    after = telemetry()
     record.update(
         label=job["label"],
         round=job["round"],
@@ -173,7 +175,8 @@ def rust_child(job):
         output_checked=False,
         vector_format="raw",
         telemetry_before=before,
-        telemetry_after=telemetry(),
+        telemetry_after=after,
+        cpu_pressure=interval(before, after),
     )
     atomic(Path(job["receipt"]), {**record, **child_record(job)})
 
@@ -292,7 +295,9 @@ def measure_child(job):
     indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
     encode = adapter["factory"](job)
     try:
+        warm_before = telemetry()
         warm = encode(texts)
+        warm_after = telemetry()
         if warm.shape != (len(texts), job["dimensions"]):
             raise ValueError("warm output shape changed")
         del warm
@@ -316,6 +321,9 @@ def measure_child(job):
             {
                 **child_record(job),
                 "identity": identity,
+                "warmup_cpu_pressure": interval(warm_before, warm_after),
+                "warmup_telemetry_before": warm_before,
+                "warmup_telemetry_after": warm_after,
                 "versions": {d.metadata["Name"]: d.version for d in distributions()},
                 "seconds": seconds,
                 "shape": list(sample.shape),
@@ -323,6 +331,7 @@ def measure_child(job):
                 "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
                 "telemetry_before": before,
                 "telemetry_after": after,
+                "cpu_pressure": interval(before, after),
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "workers": job["workers"],
                 "worker_path": adapter["factory"].__name__,

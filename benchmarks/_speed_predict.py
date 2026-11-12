@@ -18,6 +18,7 @@ import _speed_cells as inputs
 from _harness import resources
 from _harness.records import append, atomic, document, sha256, sync_directory
 from _measurement import package_identity, spread, telemetry
+from _measurement_pressure import interval, report
 from _speed_write import headline_tokens
 
 PROFILE = "toxicity-placeholder@1"
@@ -249,6 +250,7 @@ def summarize(cell, rows, identity, matches):
         reason="call shorter than two seconds" if short else (None if complete else "round budget"),
         input_identity=identity,
         input_matches_headline=matches,
+        cpu_pressure=report(rows),
         rounds_completed=len(rows),
         sample_checked=bool(rows),
         sample_cpu_bitwise_equal=bool(rows),
@@ -353,9 +355,11 @@ def predict_child(job):
             raise ValueError(f"predict {field} changed")
     model, provenance = classifier(job)
     predict = model.predict if job["output"] == "labels" else model.predict_proba
+    warm_before = telemetry()
     warm_started = time.perf_counter()
     warm = predict(Path(job["warmup_file"]), workers=job["workers"])
     warm_seconds = time.perf_counter() - warm_started
+    warm_after = telemetry()
     checked_output(warm, job["warmup_rows"], job["output"], len(job["head"]["labels"]))
     del warm
     gc.collect()
@@ -376,6 +380,9 @@ def predict_child(job):
         dict(
             seconds=seconds,
             warmup_seconds=warm_seconds,
+            warmup_cpu_pressure=interval(warm_before, warm_after),
+            warmup_telemetry_before=warm_before,
+            warmup_telemetry_after=warm_after,
             warmup_rows=job["warmup_rows"],
             affinity=sorted(os.sched_getaffinity(0)),
             requested_worker_limit=job["workers"],
@@ -392,5 +399,6 @@ def predict_child(job):
             identity=identity,
             telemetry_before=before,
             telemetry_after=after,
+            cpu_pressure=interval(before, after),
         ),
     )

@@ -54,12 +54,14 @@ def sequence_digest(query_digest, pool_size, passes, queries_per_call):
 
 def summarize(rows, pool_size, passes):
     values = [row["seconds"] / (pool_size * passes) for row in rows]
+    iqr = statistics.quantiles(values, n=4)[2] - statistics.quantiles(values, n=4)[0]
     return {
         "seconds_per_request": {
             "median": statistics.median(values),
             "min": min(values),
             "max": max(values),
-            "iqr": statistics.quantiles(values, n=4)[2] - statistics.quantiles(values, n=4)[0],
+            "iqr": iqr,
+            "noisy": iqr > 0.10 * statistics.median(values),
         },
         "ordered_seconds_per_request": values,
         "block_seconds": [row["seconds"] for row in rows],
