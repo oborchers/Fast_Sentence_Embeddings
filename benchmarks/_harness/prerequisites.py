@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
 from _harness.collect import verify
-from _harness.records import document, read_rows, sha256
+from _harness.records import document, read_rows, seal, sha256
 
 
 def runner_identity():
@@ -67,6 +68,15 @@ def completion_status(results, code):
         return code or 1, f"invalid DONE: {error}"
 
 
+def snapshot(record):
+    """Called only by Allocation before starting decide, never rewrite a snapshot."""
+    target = record / "decision-inputs"
+    target.mkdir(exist_ok=False)
+    for name in ("allocation.json", "machine-check.json", "steps.jsonl"):
+        shutil.copyfile(record / name, target / name)
+    seal(target, 0, 0, extra={"completed_at": None})
+
+
 def recorded(root, names):
     """Verify saved allocation receipts without reopening relocated work or environments.
 
@@ -77,6 +87,10 @@ def recorded(root, names):
     record = root / "allocation-results"
     if (record / "DONE").exists():
         verify(record)
+    snapshot_root = record / "decision-inputs"
+    if snapshot_root.exists() or snapshot_root.is_symlink():
+        record = snapshot_root
+    verify(record)
     saved = document(record / "allocation.json")
     checked = document(record / "machine-check.json")
     if checked["status"] != "accepted" or checked["rehearsal"] is not False:

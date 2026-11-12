@@ -68,10 +68,7 @@ def arguments():
     add_arguments(parser, mode)
     args = parser.parse_args()
     if args.decide:
-        allowed = {"--decide", "--allocation-root", "--results"}
-        supplied = {arg.split("=", 1)[0] for arg in sys.argv[1:] if arg.startswith("--")}
-        if supplied != allowed or args.allocation_root is None:
-            parser.error("--decide requires exactly --allocation-root and --results")
+        decide_arguments(parser)
     phase_required = args.study == "gpu" and (args.run or args.rehearse or args.describe)
     if (args.gpu_phase is not None and args.study != "gpu") or (
         phase_required and args.gpu_phase is None
@@ -82,6 +79,18 @@ def arguments():
     if args.ignore_host_load and (not args.diagnose or args.allocation_root is None):
         parser.error("--ignore-host-load requires --diagnose and --allocation-root")
     return args
+
+
+def decide_arguments(parser):
+    """The decision mode has no inherited study flags or remainder command."""
+    strict = argparse.ArgumentParser(allow_abbrev=False)
+    strict.add_argument("--decide", action="store_true", required=True)
+    strict.add_argument("--allocation-root", type=Path, required=True)
+    strict.add_argument("--results", type=Path, required=True)
+    strict.parse_args()
+    options = [arg.split("=", 1)[0] for arg in sys.argv[1:] if arg.startswith("--")]
+    if len(options) != 3 or len(set(options)) != 3:
+        parser.error("--decide requires each option exactly once")
 
 
 def profile_utility(args):

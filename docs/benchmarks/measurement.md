@@ -270,6 +270,14 @@ and `profile-memory-results`, plus the saved identity and admission receipts in
 `allocation-results`. The allocation step `decide` has no `requires`, so missing or
 failed evidence produces a sealed `inconclusive` result instead of hiding the decision.
 
+Immediately before starting `decide`, the allocation controller writes the immutable,
+sealed `allocation-results/decision-inputs` snapshot of `allocation.json`,
+`machine-check.json` and `steps.jsonl`. The reader verifies this snapshot's manifest,
+including after collection. Only the allocation controller creates it. A modified
+or incomplete snapshot is refused. Without a snapshot, offline evaluation requires
+a fully sealed `allocation-results` folder. No unsealed allocation record can
+authorize a final decision.
+
 The decision reuses the prerequisite receipt and manifest verifier. All four steps
 must have successful seals and match one saved allocation identity. The search
 evidence must use `cells@2`, both main cells, eight pairs and ten percent saving in

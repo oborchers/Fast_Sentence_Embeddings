@@ -45,11 +45,30 @@ def search(root, contract):
             or frozen["target_aa_iqr"] > 0.02
         ):
             raise ValueError("eight-pair prefilter profile required")
+        _workload(frozen)
         own = [r for r in operations if r["cell_id"] == cell["id"]]
         _paths(root, own, builds, frozen)
         blocks = _blocks(frozen, own, control)
         decisions.append({"cell_id": cell["id"], **judge(frozen, *blocks)})
     return decisions, builds
+
+
+def _workload(cell):
+    required = {
+        "stage": "store-search",
+        "corpus": "wikitext-train",
+        "workers": 2,
+        "queries": 8,
+        "k": 10,
+        "output_dtype": "int8",
+        "table_dtype": "float32",
+        "filter_kind": "none",
+        "base_doc_ids": "none",
+        "candidate_doc_ids": "none",
+        "resident_cycles": 1,
+    }
+    if any(cell[key] != value for key, value in required.items()):
+        raise ValueError("search workload differs from the AVX2 enabling study")
 
 
 def _paths(root, rows, builds, cell):
@@ -72,9 +91,10 @@ def _paths(root, rows, builds, cell):
             raise ValueError("search operation differs from child receipt")
         if job["tag"] != tag or job["id"] != row["cell_id"] or job["action"] != "measure":
             raise ValueError("search operation address differs from job")
+        expected = {**cell, "warmup_seconds": 0} if phase.startswith("size-") else cell
         if any(
             job[k] != v
-            for k, v in cell.items()
+            for k, v in expected.items()
             if k not in ("iterations", "target_seconds", "corpus")
         ):
             raise ValueError("search job differs from frozen cell")
@@ -243,3 +263,18 @@ def _profile_origin(folder, origin, spec, row):
         or rewritten["origin"]["job_sha256"] != provenance["job_sha256"]
     ):
         raise ValueError("profile executed a different origin job")
+    receipt = document(folder / "receipt.json")
+    if (
+        receipt.get("diagnostic_profile") is not True
+        or receipt.get("valid_for_comparison") is not False
+    ):
+        raise ValueError("diagnostic profile receipt required")
+    if (
+        receipt["output"] != operation["output"]
+        or identity(receipt, "development") != provenance["after"]
+    ):
+        raise ValueError("profile output or executed identity differs")
+    validate_path(receipt, rewritten, candidate=True)
+    threads = row["coverage"]["search_threads"]
+    if threads["requested_workers"] != job["workers"] or len(threads["observed"]) < job["workers"]:
+        raise ValueError("profile does not cover the native search workers")

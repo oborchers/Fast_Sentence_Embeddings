@@ -34,7 +34,7 @@ def evaluate_all(root):
             raise ValueError("AVX2 requires cells@2 with ten percent saving")
         if rule["main"] != ["o1-d256-q8", "o2-d1024-q8"] or rule["edge"]:
             raise ValueError("AVX2 requires exactly both main search cells")
-        if contract.get("functional_only") or contract["local_phase"] != "all":
+        if contract.get("functional_only") or contract["local_phase"] != "compare":
             raise ValueError("full production development study required")
         rows, builds = search(origin, contract)
         float32(root / "speed-f32-results", builds)

@@ -39,6 +39,7 @@ class Allocation:
         self.allocated_at, self.budget = allocated_at, budget
         self.record = root / "allocation-results"
         self.stopping, self.active = False, None
+        self.receipt_errors = {}
 
     def results(self, step):
         return self.root / f"{step['name']}-results"
@@ -133,7 +134,11 @@ class Allocation:
         try:
             context = prerequisites.identity(self, values)
         except (OSError, ValueError) as error:
-            return None, None, f"prerequisite identity unavailable: {error}"
+            reason = f"prerequisite identity unavailable: {error}"
+            if any(step["name"] in s.get("requires", []) for s in self.definition["steps"]):
+                return None, None, reason
+            self.receipt_errors[step["name"]] = reason
+            context = None
         try:
             command = spec.render(step, self.step_values(values, step))
         except ValueError as error:
@@ -162,6 +167,8 @@ class Allocation:
             )
             return 1
         try:
+            if step["name"] == "decide" and "--decide" in command:
+                prerequisites.snapshot(self.record)
             process = self.start(step, command)
         except OSError as error:
             return self.skip(step, f"step could not start: {error!r}")
@@ -176,6 +183,7 @@ class Allocation:
         if not sealed:
             seal_unstarted(results, code or 1, f"step ended without DONE (exit {code})")
         status, reason = prerequisites.completion_status(results, code)
+        reason = reason or self.receipt_errors.pop(step["name"], None)
         evidence = None
         if sealed and status == 0 and context is not None:
             try:
