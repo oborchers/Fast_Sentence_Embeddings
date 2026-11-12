@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import statistics
 from pathlib import Path
 
@@ -15,6 +14,8 @@ from _speed_versions import pair_rounds
 
 def validate(cell):
     """Keep device and precision explicit; the first variant supports CPU only."""
+    from _measurement_config import validate_digest
+
     if cell.get("device") != "cpu":
         raise ValueError("transformer device must be 'cpu'")
     if cell.get("backend") != "st" or cell.get("reference") is not None:
@@ -36,11 +37,6 @@ def validate(cell):
     validate_digest(cell.get("planned_input_sha256"))
     validate_estimate(cell.get("estimated_seconds"))
     pair_rounds(cell)
-
-
-def validate_digest(value):
-    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
-        raise ValueError("transformer planned_input_sha256 must be a SHA256 hex string")
 
 
 def validate_estimate(value):

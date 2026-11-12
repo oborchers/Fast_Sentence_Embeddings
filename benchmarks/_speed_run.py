@@ -105,7 +105,7 @@ def prepare_input(context, cell):
         raise ValueError("prepared input differs from the fixed production byte count")
     if (
         not cell.get("functional_only")
-        and cell.get("planned_input_sha256")
+        and "planned_input_sha256" in cell
         and identity["sha256"] != cell["planned_input_sha256"]
     ):
         raise ValueError("prepared input differs from the fixed production digest")
@@ -434,7 +434,7 @@ def run_headline(context, contract):
         raise ValueError("headline input differs from planned byte count")
     if (
         not cell.get("functional_only")
-        and cell.get("planned_input_sha256")
+        and "planned_input_sha256" in cell
         and identity["sha256"] != cell["planned_input_sha256"]
     ):
         raise ValueError("headline input differs from planned digest")

@@ -121,12 +121,9 @@ def readme_cell(cell, overrides):
     for key in fields & set(overrides):
         if type(overrides[key]) is not int or overrides[key] <= 0:
             raise ValueError(f"readme {key} must be a positive integer")
-    digest = overrides.get("planned_input_sha256")
-    if "planned_input_sha256" in overrides:
-        import re
+    from _measurement_config import validate_input_hash
 
-        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise ValueError("readme input digest must be a SHA256 hex string")
+    validate_input_hash(overrides)
     return dict(cell, **overrides)
 
 

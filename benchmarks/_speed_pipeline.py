@@ -240,9 +240,10 @@ def prepare_models(root, contract, reuse=None):
     from huggingface_hub import snapshot_download
 
     result = {}
-    needed = {c["model"] for c in contract["cells"]}
+    used_cells = [*contract["cells"]]
     if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
-        needed.add(contract["quiet_cell"]["model"])
+        used_cells.append(contract["quiet_cell"])
+    needed = {c["model"] for c in used_cells}
     for repo, revision in contract["models"].items():
         if repo not in needed:
             continue
@@ -253,7 +254,8 @@ def prepare_models(root, contract, reuse=None):
             local_files_only=reuse is not None,
             allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
-        if all(c["kind"] == "transformer" for c in contract["cells"] if c["model"] == repo):
+        uses = [c for c in used_cells if c["model"] == repo]
+        if uses and all(c["kind"] == "transformer" for c in uses):
             result[repo] = {
                 "snapshot": snapshot,
                 "revision": revision,
