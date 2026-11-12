@@ -1408,7 +1408,8 @@ use `profile@1`. Each sealed profile result includes the effective
 origin writes `<results>/profile-evidence.json` and seals that step as failed.
 The profile source, datasets, artifacts and speed results remain read-only.
 `speed.py --collect <allocation> --archive <archives>` verifies and collects
-all four result folders. Diagnostic seconds never enter speed summaries.
+all declared result folders, including the allocation log. Diagnostic seconds
+never enter speed summaries.
 
 The local lifecycle probes cover normal completion, SIGTERM, exhausted budget,
 rejected machine, a second step after failure and restart refusal. The full

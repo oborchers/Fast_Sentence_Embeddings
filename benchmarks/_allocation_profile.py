@@ -25,11 +25,7 @@ def paired_rounds(root, cell):
         raise ValueError("profile origin needs a distinct reference arm")
     arms = {label: {} for label in ("fse", reference)}
     for row in rows:
-        if row["label"] not in arms or row.get("diagnostic_profile"):
-            raise ValueError("unexpected profile origin arm or diagnostic observation")
-        seconds = row["seconds"]
-        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
-            raise ValueError("profile origin seconds must be positive and finite")
+        validate_observation(row, arms)
         arm = arms[row["label"]]
         if row["round"] in arm:
             raise ValueError("duplicate profile origin round")
@@ -40,6 +36,14 @@ def paired_rounds(root, cell):
     return [
         (arms[reference][n]["seconds"] / arms["fse"][n]["seconds"], n) for n in sorted(expected)
     ]
+
+
+def validate_observation(row, arms):
+    if row["label"] not in arms or row.get("diagnostic_profile"):
+        raise ValueError("unexpected profile origin arm or diagnostic observation")
+    seconds = row["seconds"]
+    if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("profile origin seconds must be positive and finite")
 
 
 def boundary_evidence(root, cell):
