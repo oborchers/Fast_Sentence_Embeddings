@@ -122,7 +122,7 @@ def readme_cell(cell, overrides):
         if type(overrides[key]) is not int or overrides[key] <= 0:
             raise ValueError(f"readme {key} must be a positive integer")
     digest = overrides.get("planned_input_sha256")
-    if digest is not None:
+    if "planned_input_sha256" in overrides:
         import re
 
         if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):

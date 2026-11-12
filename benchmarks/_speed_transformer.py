@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import statistics
 from pathlib import Path
 
@@ -20,13 +21,26 @@ def validate(cell):
         raise ValueError("transformer requires backend 'st' without a reference")
     if cell.get("torch_dtype") != "float32" or cell.get("dtype") != "float32":
         raise ValueError("transformer requires float32 weights and output")
-    for field in ("texts", "workers", "dimensions", "batch_size", "input_prefix_texts"):
+    for field in (
+        "texts",
+        "workers",
+        "dimensions",
+        "batch_size",
+        "input_prefix_texts",
+        "planned_input_bytes",
+    ):
         if type(cell.get(field)) is not int or cell[field] <= 0:
             raise ValueError(f"transformer {field} must be a positive integer")
     if cell["input_prefix_texts"] < cell["texts"] or cell.get("input") != "st":
         raise ValueError("transformer requires a prefix of the st input")
+    validate_digest(cell.get("planned_input_sha256"))
     validate_estimate(cell.get("estimated_seconds"))
     pair_rounds(cell)
+
+
+def validate_digest(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ValueError("transformer planned_input_sha256 must be a SHA256 hex string")
 
 
 def validate_estimate(value):
