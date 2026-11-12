@@ -94,6 +94,10 @@ def decide_arguments(parser):
 
 
 def profile_utility(args):
+    if args.decide:
+        from _prefilter_decision import run as decide
+
+        return decide(args.allocation_root, args.results)
     if args.allocation_profile:
         from _allocation_profile import run as allocation_profile
 
@@ -122,10 +126,6 @@ def child_job(file):
 
 def main():
     args = arguments()
-    if args.decide:
-        from _prefilter_decision import run as decide
-
-        return decide(args.allocation_root, args.results)
     profile_status = profile_utility(args)
     if profile_status is not None:
         return profile_status

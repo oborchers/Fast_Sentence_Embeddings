@@ -84,6 +84,28 @@ def recorded(root, names):
     All steps must name that same identity and the saved allocation definition.
     This uses the admission receipt verifier, also after collection.
     """
+    record = _record_source(root)
+    saved = document(record / "allocation.json")
+    checked = document(record / "machine-check.json")
+    if checked["status"] != "accepted" or checked["rehearsal"] is not False:
+        raise ValueError("accepted production allocation required")
+    rows = read_rows(record, "steps.jsonl")
+    context, receipts = None, {}
+    declared = [s["name"] for s in saved["definition"]["steps"]]
+    for name in names:
+        row = _recorded_row(rows, declared, name)
+        evidence = row["evidence"]
+        current = evidence["identity"]
+        context = current if context is None else context
+        _recorded_identity(current, context, saved)
+        folder = name + "-results"
+        if row["results"] != folder or receipt(root / folder, context) != evidence:
+            raise ValueError("required step seal differs from its admission receipt")
+        receipts[name] = evidence["done_sha256"]
+    return context, receipts
+
+
+def _record_source(root):
     record = root / "allocation-results"
     if (record / "DONE").exists():
         verify(record)
@@ -95,33 +117,24 @@ def recorded(root, names):
         type(done["exit_status"]) is not int or done["exit_status"] != 0
     ):
         raise ValueError("decision snapshot did not finish successfully")
-    saved = document(record / "allocation.json")
-    checked = document(record / "machine-check.json")
-    if checked["status"] != "accepted" or checked["rehearsal"] is not False:
-        raise ValueError("accepted production allocation required")
-    rows = read_rows(record, "steps.jsonl")
-    context, receipts = None, {}
-    declared = [s["name"] for s in saved["definition"]["steps"]]
-    for name in names:
-        matches = [row for row in rows if row["step"] == name]
-        if declared.count(name) != 1 or len(matches) != 1:
-            raise ValueError("required allocation step is missing or duplicated")
-        row = matches[0]
-        if row["status"] != "finished" or type(row["exit_status"]) is not int or row["exit_status"]:
-            raise ValueError("required allocation step did not finish successfully")
-        evidence = row["evidence"]
-        current = evidence["identity"]
-        if context is None:
-            context = current
-        if current != context or current["entry"] != "speed":
-            raise ValueError("required steps belong to different allocations")
-        if any(current[key] != saved[key] for key in ("definition", "allocated_at")):
-            raise ValueError("step identity differs from saved allocation")
-        folder = name + "-results"
-        if row["results"] != folder or receipt(root / folder, context) != evidence:
-            raise ValueError("required step seal differs from its admission receipt")
-        receipts[name] = evidence["done_sha256"]
-    return context, receipts
+    return record
+
+
+def _recorded_row(rows, declared, name):
+    matches = [row for row in rows if row["step"] == name]
+    if declared.count(name) != 1 or len(matches) != 1:
+        raise ValueError("required allocation step is missing or duplicated")
+    row = matches[0]
+    if row["status"] != "finished" or type(row["exit_status"]) is not int or row["exit_status"]:
+        raise ValueError("required allocation step did not finish successfully")
+    return row
+
+
+def _recorded_identity(current, context, saved):
+    if current != context or current["entry"] != "speed":
+        raise ValueError("required steps belong to different allocations")
+    if any(current[key] != saved[key] for key in ("definition", "allocated_at")):
+        raise ValueError("step identity differs from saved allocation")
 
 
 def refusal(allocation, step, values):

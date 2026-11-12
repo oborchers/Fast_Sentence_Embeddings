@@ -165,12 +165,16 @@ def float32(root, builds):
         for r in checks
     ):
         raise ValueError("float32 outputs differ")
-    operations = read_rows(root, "operations.jsonl")
     declared = contract["cells"][0]
     if cell["cell_id"] != declared["id"] or any(
         cell[k] != declared[k] for k in ("kind", "dtype", "reference")
     ):
         raise ValueError("float32 cell differs from its contract")
+    _float32_operations(root, cell, rounds, builds)
+
+
+def _float32_operations(root, cell, rounds, builds):
+    operations = read_rows(root, "operations.jsonl")
     for label, arm in (("fse-base", "base"), ("fse", "candidate")):
         own = [r for r in operations if r["label"] == label]
         if [r["round"] for r in own] != list(range(rounds)):
@@ -216,20 +220,24 @@ def profiles(root, context, origin):
             or row.get("open_evidence")
         ):
             raise ValueError("profile is incomplete")
-        for key in ("coverage", "access_coverage"):
-            if row[key]["valid"] is not True or row[key]["requested"] != spec["requested"]:
-                raise ValueError("profile child coverage is incomplete")
-        if spec["requested"] != {"processes": "child", "threads": "all"}:
-            raise ValueError("complete child and thread coverage required")
-        if (
-            document(folder / "coverage.json") != row["coverage"]
-            or document(folder / "check.json") != row["access_coverage"]
-        ):
-            raise ValueError("profile coverage differs from verified records")
-        data = folder / ("cpu.speedscope.json" if tool == "py-spy" else "mem.bin")
-        if not data.is_file() or not data.stat().st_size:
-            raise ValueError("profile data is missing")
+        _coverage(folder, spec, row)
         _profile_origin(folder, origin, spec, row)
+
+
+def _coverage(folder, spec, row):
+    for key in ("coverage", "access_coverage"):
+        if row[key]["valid"] is not True or row[key]["requested"] != spec["requested"]:
+            raise ValueError("profile child coverage is incomplete")
+    if spec["requested"] != {"processes": "child", "threads": "all"}:
+        raise ValueError("complete child and thread coverage required")
+    if (
+        document(folder / "coverage.json") != row["coverage"]
+        or document(folder / "check.json") != row["access_coverage"]
+    ):
+        raise ValueError("profile coverage differs from verified records")
+    data = folder / ("cpu.speedscope.json" if spec["tool"] == "py-spy" else "mem.bin")
+    if not data.is_file() or not data.stat().st_size:
+        raise ValueError("profile data is missing")
 
 
 def _profile_origin(folder, origin, spec, row):
