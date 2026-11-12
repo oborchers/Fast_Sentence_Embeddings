@@ -158,22 +158,35 @@ def profile_spec(args, selected, budget):
     }
 
 
+def _request(args, budget):
+    if args.study == "search-prefilter":
+        from _development_profile_selection import profile_spec as prefilter_spec
+        from _development_profile_selection import select as select_prefilter
+
+        selected = select_prefilter(args.allocation_root / "prefilter-results", args.profile_cell)
+        return selected, prefilter_spec(args, selected, budget)
+    selector = select_fixed if args.study == "readme" else select
+    selected = selector(args.allocation_root / "speed-results", args.profile_cell)
+    return selected, profile_spec(args, selected, budget)
+
+
 def run(args):
     from _allocation_profile_environment import prepare
     from _development_profile import run as profile
 
     if args.allocation_root is None or args.allocated_at is None:
         raise ValueError("allocation profile needs root and allocation timestamp")
-    if args.study not in ("versions", "readme") or args.profile_seconds <= 90:
+    if args.study not in ("versions", "readme", "search-prefilter") or args.profile_seconds <= 90:
         raise ValueError(
-            "allocation profile needs --study versions or readme and more than 90 profile seconds"
+            "allocation profile needs versions, readme or search-prefilter and more than 90 seconds"
         )
     for path in (args.results, args.work):
         outside_checkout(path)
         if not path.is_absolute() or path.exists():
             raise ValueError("fresh absolute allocation profile paths required")
     root = args.allocation_root
-    budget = budget_of(args.input, CONFIG / "pins.json", None, args.allocated_at, args.study)
+    billing = "prefilter_billing" if args.study == "search-prefilter" else None
+    budget = budget_of(args.input, CONFIG / "pins.json", billing, args.allocated_at, args.study)
     allocation = Allocation(
         root, "speed", load(args.allocation, "speed"), args.allocated_at, budget
     )
@@ -181,9 +194,7 @@ def run(args):
     try:
         if not budget.admit(90):
             raise ValueError("allocation profile budget exhausted")
-        selector = select_fixed if args.study == "readme" else select
-        selected = selector(root / "speed-results", args.profile_cell)
-        request = profile_spec(args, selected, budget)
+        selected, request = _request(args, budget)
         # Keep the generated request outside the result folder, which the profiler creates.
         file = root / (args.results.name + ".profile.json")
         if file.exists():
