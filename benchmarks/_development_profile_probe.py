@@ -25,6 +25,14 @@ def child(file):
             "total_allocations": reader.metadata.total_allocations,
             "version": memray.__version__,
         }
+        if job.get("search_threads"):
+            result["search_threads"] = sorted(
+                {
+                    r.thread_name
+                    for r in reader.get_allocation_records()
+                    if "fse-search" in r.thread_name
+                }
+            )
     elif action == "version":
         import memray
 

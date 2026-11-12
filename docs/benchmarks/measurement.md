@@ -1400,6 +1400,43 @@ prove function only. No Linux comparison or speed claim follows from them.
 
 ## Profile jobs (`profile@1`)
 
+### Allocation profiles of the prefilter search
+
+The prefilter allocation uses `--allocation-profile py-spy` and
+`--allocation-profile memray` with `--study search-prefilter`. Both commands
+also require `--allocation-root`, `--allocation`, `--input`, `--allocated-at`,
+fresh `--results` and `--work`, `--profile-cell o2-d1024-q8` and
+`--profile-seconds 960`. The input is the speed configuration containing
+`prefilter_billing`, not the development cell definition. Both allocation steps
+require the successful `prefilter` step and declare `estimate_seconds: 960`.
+Their result folders are `profile-cpu-results` and `profile-memory-results`;
+their work folders are `profile-cpu-work` and `profile-memory-work`.
+
+The selector verifies the seal of `<allocation>/prefilter-results`, requires
+the declared cell to be valid and all comparison pairs to be present, and
+chooses the candidate operation whose base/candidate ratio is nearest the
+comparison median (earliest pair breaks ties). It never selects an A/A arm,
+which executes the base build. The generated `profile@1` request addresses
+that exact development job and uses its recorded interpreter. Existing runner
+source hashes, input hashes and package identities must match the sealed origin.
+
+The existing development `measure` action rebuilds the d1024 store in fresh
+profile work. Environment preparation, lock waits, store construction, warmup,
+profiling and sealing share the 960-second deadline. This is a budget, not a
+claim that production reconstruction finishes on every machine. Exhaustion
+leaves incomplete evidence and never retries. Diagnostic search output must
+match the origin and its untimed path evidence must prove the candidate path.
+
+Search profiles additionally require evidence for at least the requested worker
+count of `fse-search` threads. CPU coverage uses nonempty py-spy thread samples;
+memory coverage streams allocation records and retains search thread names.
+Missing search coverage fails the profile even when preparation produced data.
+This follows py-spy's [per-thread Speedscope representation](https://github.com/benfred/py-spy/blob/v0.4.2/src/speedscope.rs)
+and memray's [allocation record thread names](https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_memray.pyx),
+rather than inferring search coverage from process-wide sample counts.
+
+### Addressed profile contract
+
 `speed.py --profile FILE` profiles one addressed, completed child from a sealed
 result folder. It does not rerun a comparison. `--profile-check FILE` checks
 profiler access without opening the origin. Both commands hold the shared heavy

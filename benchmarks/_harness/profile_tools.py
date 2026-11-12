@@ -136,4 +136,21 @@ def coverage(spec, folder, receipt, leader_pid, profiler):
     }
     if spec["action"] == "profile-head" and (folder / "profile.log").exists():
         result["profile_ready"] = "profile_ready" in (folder / "profile.log").read_text()
+    if receipt.get("profile") == "int8-prefilter-search@1":
+        names = _search_threads(tool, folder)
+        result["search_threads"] = {
+            "requested_workers": receipt["requested_workers"],
+            "observed": names,
+            "evidence": "allocation thread names" if tool == "memray" else "sampled thread names",
+        }
+        result["valid"] &= len(names) >= receipt["requested_workers"]
     return result
+
+
+def _search_threads(tool, folder):
+    if tool == "memray":
+        return document(folder / "memray-metadata.json").get("search_threads", [])
+    if tool == "py-spy":
+        profiles = document(folder / "cpu.speedscope.json")["profiles"]
+        return sorted({p["name"] for p in profiles if "fse-search" in p["name"] and p["samples"]})
+    return []
