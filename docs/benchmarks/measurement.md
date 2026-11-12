@@ -1413,6 +1413,29 @@ selects the representative cell and `--profile-seconds` sets the profile budget
 (more than 90 seconds). The allocation file can reuse these commands for another
 versions allocation without changing the origin environment.
 
+For Pod 1, select `benchmarks/config/allocation-readme.json` and
+`MEASURE_STUDY=readme`. It installs only `main` and `reference` plus the Rust
+toolchain, then runs `speed` and four profiles. The library CPU and memory
+steps address `libraries-model2vec-16`; the head sink CPU and memory steps
+address `heads-sinks-16`. Every step explicitly declares its cell with
+`--profile-cell` and always profiles its `fse` arm (one pass for head sinks).
+No regression in another cell changes that selection. Both complete arms are
+required, and the selected round minimizes distance from the median of the
+same-round counterpart/fse ratios, with the earliest round breaking ties.
+Missing, duplicate, invalid or diagnostic observations fail selection.
+Each profile has a 360-second admission estimate and deadline, including
+preparation, input reconstruction and shutdown. All steps share `readme_billing`
+from the original allocation timestamp and retain the collection reserve.
+The same provenance, coverage and unchanged-origin checks below apply. Actual
+native CPU and memory profiles must succeed in the pinned Linux rehearsal
+before the allocation runs. Configuration and selection probes alone do not
+prove profiler access or a successful profile.
+
+Open prerequisite: "Gelungene Linux-Profile offen, Nachweis in der Pod-1-Probe
+vor dem bezahlten Lauf". The free Pod 1 rehearsal in the pinned Linux image
+(Plan v5, section 8) owns this evidence. An emulated amd64 image on an ARM Mac
+does not supply it.
+
 The CPU step installs the hashed `benchmarks/config/profile-cpu.lock.txt` in a
 separate tool environment after measurement. It runs py-spy with native frames
 on the original candidate interpreter. The memory step creates a fresh virtual
@@ -1432,7 +1455,8 @@ use `profile@1`. Each sealed profile result includes the effective
 origin writes `<results>/profile-evidence.json` and seals that step as failed.
 The profile source, datasets, artifacts and speed results remain read-only.
 `speed.py --collect <allocation> --archive <archives>` verifies and collects
-all four result folders. Diagnostic seconds never enter speed summaries.
+all declared result folders, including the allocation log. Diagnostic seconds
+never enter speed summaries.
 
 The local lifecycle probes cover normal completion, SIGTERM, exhausted budget,
 rejected machine, a second step after failure and restart refusal. The full
