@@ -43,6 +43,7 @@ def arguments():
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--describe", action="store_true")
+    mode.add_argument("--decide", action="store_true", help="seal the complete AVX2 decision")
     mode.add_argument("--child-job", type=Path, help=argparse.SUPPRESS)
     mode.add_argument("--profile", type=Path, help="profile an addressed child from profile@1")
     mode.add_argument("--profile-check", type=Path, help="check profiler access from profile@1")
@@ -66,6 +67,8 @@ def arguments():
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
     args = parser.parse_args()
+    if args.decide:
+        decide_arguments(parser)
     phase_required = args.study == "gpu" and (args.run or args.rehearse or args.describe)
     if (args.gpu_phase is not None and args.study != "gpu") or (
         phase_required and args.gpu_phase is None
@@ -78,7 +81,23 @@ def arguments():
     return args
 
 
+def decide_arguments(parser):
+    """The decision mode has no inherited study flags or remainder command."""
+    strict = argparse.ArgumentParser(allow_abbrev=False)
+    strict.add_argument("--decide", action="store_true", required=True)
+    strict.add_argument("--allocation-root", type=Path, required=True)
+    strict.add_argument("--results", type=Path, required=True)
+    strict.parse_args()
+    options = [arg.split("=", 1)[0] for arg in sys.argv[1:] if arg.startswith("--")]
+    if len(options) != 3 or len(set(options)) != 3:
+        parser.error("--decide requires each option exactly once")
+
+
 def profile_utility(args):
+    if args.decide:
+        from _prefilter_decision import run as decide
+
+        return decide(args.allocation_root, args.results)
     if args.allocation_profile:
         from _allocation_profile import run as allocation_profile
 

@@ -258,6 +258,48 @@ require `decision_gate: false` and retain the legacy paired `descriptive_only` l
 They do not select the new one-arm descriptive phase.
 An optional study-level `decision` block combines named `main` cells and `edge` factor bounds. It never replaces the per-cell noise or confirmation rules. The versioned `cells@1` rule applies `practical_saving` only to the comparison, preserving historical decisions. The new `cells@2` rule requires that saving in both comparison and confirmation (0.10 for the AVX2 enabling study). Missing confirmation stays open. Edge factor bounds are unchanged. Under `cells@2`, the development study always writes `final: false`, including after a rejection. Enabling requires a separate sealed decision over all required evidence, including float32 correctness, execution-path evidence and complete profiles. `stop_early` still stops later cells after a measured rejection of the study rule. The internal `_development_decision.replay(results)` adapter preserves this provisional status and re-evaluates complete recorded blocks without changing the source folder. Historical contracts need an explicit version adapter, never current defaults.
 
+### Complete AVX2 allocation decision
+
+```sh
+python benchmarks/speed.py --decide --allocation-root /external/allocation --results /external/decision-results
+```
+
+`--decide` accepts exactly these two path options, with fresh absolute output outside
+the checkout. It reads `speed-f32-results`, `prefilter-results`, `profile-cpu-results`
+and `profile-memory-results`, plus the saved identity and admission receipts in
+`allocation-results`. The allocation step `decide` has no `requires`, so missing or
+failed evidence produces a sealed `inconclusive` result instead of hiding the decision.
+
+Immediately before starting `decide`, the allocation controller writes the immutable,
+sealed `allocation-results/decision-inputs` snapshot of `allocation.json`,
+`machine-check.json` and `steps.jsonl`. The reader verifies this snapshot's manifest,
+including after collection. Only the allocation controller creates it. A modified
+or incomplete snapshot is refused. Without a snapshot, offline evaluation requires
+a fully sealed `allocation-results` folder. No unsealed allocation record can
+authorize a final decision.
+
+The decision reuses the prerequisite receipt and manifest verifier. All four steps
+must have successful seals and match one saved allocation identity. The search
+evidence must use `cells@2`, both main cells, eight pairs and ten percent saving in
+comparison and confirmation. Raw paired observations are evaluated with the existing
+noise and confirmation rules. Every recorded phase, including sizing and both A/A
+arms, must prove the path of its executing build. Production groups must meet the
+two-second floor and their frozen target, with identical output proofs.
+
+The float32 control must have at least three valid bit-exact rounds on the same
+builds. Both complete profiles must address the candidate comparison child of
+`o2-d1024-q8` in `prefilter-results`, with its exact job hash and build provenance.
+Missing, mismatched, functional, unsealed or incomplete evidence gives `inconclusive`,
+`final: false`, and a nonzero exit. Only complete evidence can yield a final decision.
+No decision edits the enabled backend variants.
+
+The output contains `decision.json`, `cells.jsonl`, `progress.json`, `manifest.json`
+and `DONE`. The decision and seal contain no replay-host paths, clocks or package
+identities. `DONE.completed_at` is null for this derived artifact. Replaying identical
+collected inputs into a fresh output folder produces byte-identical files, without
+reopening original models, environments or work directories. Preserve original
+absolute paths inside saved evidence as identity content when relocating folders.
+
 Maximum factor and maximum distance from one remain descriptive. Required cells cannot offset one
 another. `--local-phase` selects `prepare`, `descriptive`, `regression-screen`, `calibrate`,
 `aa`, `screen`, `compare` or `confirm`; the default `compare` includes controls and confirmation. A screen cannot
