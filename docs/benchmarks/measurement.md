@@ -1466,6 +1466,14 @@ prove function only. No Linux comparison or speed claim follows from them.
 
 ## Profile jobs (`profile@1`)
 
+The sealed AVX2 decision checks float32 control rounds separately from quiet
+observations. Quiet operations must belong to the declared `quiet_cell`, use
+the `fse` label and candidate build, and match every duration in `quiet.json`
+in round order. Both groups require production evidence. Only the paired
+control calls must reach two seconds. Missing, duplicate or foreign operations
+leave the decision `inconclusive`; the total operation count includes exactly
+the paired rounds and the recorded quiet observations.
+
 ### Allocation profiles of the prefilter search
 
 The prefilter allocation uses `--allocation-profile py-spy` and
