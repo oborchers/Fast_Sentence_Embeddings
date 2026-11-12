@@ -1739,7 +1739,7 @@ uses direct matmul at line 150. `modeling_utils.py:1664` rejects SDPA for that
 architecture. This is a frozen cell choice, never a runtime fallback.
 The adapter checks the loaded `config._attn_implementation` against that choice
 and records the observed implementation in every successful receipt.
-The final module in `modules.json` determines normalization. Observed devices,
+The final module in `<snapshot>/modules.json` determines normalization. Observed devices,
 weight dtypes and normalization are checked, rather than inferred from a request.
 
 Every child first loads a separate float32 reference on that GPU, with TF32 off
@@ -1759,7 +1759,7 @@ memory admission separately includes text, model, output/cast and sample buffers
 
 The probe also encodes 1,000 texts, with synchronization. It writes no throughput
 summary. Each completed model probe writes a `passed` or `failed` verdict and its
-reason into `gpu-verdicts.json`. Accuracy and GPU out-of-memory failures reject
+reason into `<probe-results>/gpu-verdicts.json`. Accuracy and GPU out-of-memory failures reject
 that model, while allowing the other model probes to continue. A model rejection
 is a valid completed probe, including when every model fails. Missing CUDA,
 wrong GPU/build, package-lock or model-revision mismatches and infrastructure
