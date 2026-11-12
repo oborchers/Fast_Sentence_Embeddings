@@ -2209,8 +2209,8 @@ any paid run. Real float32 CUDA memory fit remains unverified until that probe.
 
 ### Per-allocation planning duration
 
-Both entries accept `--planning-minutes N` for setup, description, execution,
-bootstrap generation and allocation profiles. The allocation controller
+Both entries accept `--planning-minutes N` for setup, description, execution
+and bootstrap generation. `speed.py` also accepts it for allocation profiles. The allocation controller
 (`python -m _harness.allocation begin` and `run`) accepts the same option.
 `N` must be a positive finite JSON number, without quotes or booleans.
 Omitting it preserves the selected billing profile's configured limits.
