@@ -7,9 +7,12 @@ no step starts. Standard library only; it runs on a bare interpreter right after
 
 from __future__ import annotations
 
+import csv
 import os
+import re
 import resource
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -18,7 +21,64 @@ from _harness.pressure import snapshot
 CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
-FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", *RANGES)
+GPU_FIELDS = ("gpu_name", "gpu_count", "gpu_memory_bytes", "cuda_driver_version")
+FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", *RANGES, *GPU_FIELDS)
+
+
+def _version(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", value):
+        raise ValueError("cuda_driver_version must be a dotted numeric driver version")
+    parts = tuple(int(part) for part in value.split("."))
+    return (*parts, 0) if len(parts) == 2 else parts
+
+
+def _gpu():
+    """Observe all NVIDIA devices, with memory.total converted from MiB to bytes.
+
+    A failed or malformed query leaves every GPU field unobservable. CPU-only
+    allocations do not need this query or an NVIDIA installation.
+    """
+    missing = dict.fromkeys((*GPU_FIELDS, "gpu_devices"))
+    try:
+        output = subprocess.check_output(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,driver_version,uuid",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+        devices = [_gpu_row(row) for row in csv.reader(output.splitlines(), skipinitialspace=True)]
+    except (OSError, subprocess.SubprocessError, ValueError, csv.Error):
+        return missing
+    return {
+        "gpu_devices": devices,
+        "gpu_count": len(devices),
+        "gpu_name": devices[0]["name"] if len(devices) == 1 else None,
+        "gpu_memory_bytes": min((d["memory_bytes"] for d in devices), default=None),
+        "cuda_driver_version": min(
+            (d["driver_version"] for d in devices), key=_version, default=None
+        ),
+    }
+
+
+def _gpu_row(row):
+    if len(row) != 4:
+        raise ValueError("GPU query needs name, memory, driver and UUID")
+    name, memory, driver, uuid = (part.strip() for part in row)
+    _version(driver)
+    if not name or not uuid.startswith("GPU-") or not memory.isascii() or not memory.isdecimal():
+        raise ValueError("GPU query contains unavailable fields")
+    if int(memory) <= 0:
+        raise ValueError("GPU memory must be positive")
+    return {
+        "name": name,
+        "memory_bytes": int(memory) * 1024**2,
+        "driver_version": driver,
+        "uuid": uuid,
+    }
 
 
 def _cpuinfo():
@@ -34,7 +94,7 @@ def _cgroup(name):
     return path.read_text().split() if path.exists() else None
 
 
-def observe(work):
+def observe(work, *, gpu=False):
     """What the machine is now. None marks a value the machine does not offer."""
     model, flags = _cpuinfo()
     cpu_max, memory_max = _cgroup("cpu.max"), _cgroup("memory.max")
@@ -42,6 +102,7 @@ def observe(work):
     memory = None if not memory_max or memory_max[0] == "max" else int(memory_max[0])
     affinity = sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None
     return {
+        **(_gpu() if gpu else {}),
         "cpu_pressure": snapshot(),
         "cpu_model": model,
         "flags": flags,
@@ -59,6 +120,8 @@ def observe(work):
 
 
 def validate(expected):
+    if not isinstance(expected, dict):
+        raise ValueError("machine check must be an object")
     unknown = set(expected) - set(FIELDS)
     if unknown:
         raise ValueError(f"unknown machine check fields: {sorted(unknown)}")
@@ -66,7 +129,37 @@ def validate(expected):
         bounds = expected.get(name, {})
         if set(bounds) - {"min", "max"}:
             raise ValueError(f"{name} takes only min and max")
+    _validate_gpu(expected)
     return expected
+
+
+def _validate_gpu(expected):
+    if "gpu_name" in expected:
+        name = expected["gpu_name"]
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("gpu_name must be a nonempty exact device name")
+    for name in ("gpu_count", "gpu_memory_bytes"):
+        if name in expected and (type(expected[name]) is not int or expected[name] <= 0):
+            raise ValueError(f"{name} must be a positive integer")
+    if "cuda_driver_version" in expected:
+        _version(expected["cuda_driver_version"])
+
+
+def _gpu_deviations(observed, expected):
+    found = []
+    for name in GPU_FIELDS:
+        if name not in expected:
+            continue
+        value, declared = observed.get(name), expected[name]
+        if name == "cuda_driver_version":
+            matches = value is not None and _version(value) >= _version(declared)
+        elif name == "gpu_memory_bytes":
+            matches = value is not None and value >= declared
+        else:
+            matches = value == declared
+        if not matches:
+            found.append(f"{name}: observed {value!r}, declared {declared!r}")
+    return found
 
 
 def _range(name, value, bounds, unlimited_ok):
@@ -97,13 +190,14 @@ def deviations(observed, expected):
         if name in expected:
             unlimited = name in ("cpu_quota_cpus", "memory_max_bytes")
             found += _range(name, observed[name], expected[name], unlimited)
-    return found
+    return found + _gpu_deviations(observed, expected)
 
 
 def check(expected, work):
     """The record of one check: accepted only without any deviation."""
-    observed = observe(work)
-    found = deviations(observed, validate(expected))
+    validate(expected)
+    observed = observe(work, gpu=any(name in expected for name in GPU_FIELDS))
+    found = deviations(observed, expected)
     return {
         "status": "rejected" if found else "accepted",
         "checked_at": time.time(),

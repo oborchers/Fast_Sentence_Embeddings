@@ -1,0 +1,103 @@
+{
+  "speed": {
+    "format": "allocation@1",
+    "machine_check": {
+      "gpu_name": "NVIDIA L40S",
+      "gpu_count": 1,
+      "gpu_memory_bytes": 47244640256,
+      "cuda_driver_version": "570.26"
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 6442450944
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288,
+      "gpu_name": "NVIDIA L40S",
+      "gpu_count": 1,
+      "gpu_memory_bytes": 47244640256,
+      "cuda_driver_version": "570.26"
+    },
+    "environments": [
+      {
+        "name": "main",
+        "role": "candidate",
+        "lock": "speed-main.lock.txt",
+        "revision": "pins"
+      },
+      {
+        "name": "gpu",
+        "role": "reference",
+        "lock": "speed-gpu.lock.txt",
+        "revision": null
+      }
+    ],
+    "steps": [
+      {
+        "name": "gpu-probe",
+        "environment": "gpu",
+        "estimate_seconds": 240,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--run",
+          "--study",
+          "gpu",
+          "--gpu-phase",
+          "probe",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-gpu.json"
+        ]
+      },
+      {
+        "name": "gpu-measure",
+        "environment": "gpu",
+        "estimate_seconds": 1620,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--run",
+          "--study",
+          "gpu",
+          "--gpu-phase",
+          "measure",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-gpu.json"
+        ],
+        "requires": [
+          "gpu-probe"
+        ],
+        "requires_by_seconds": 1320
+      }
+    ],
+    "toolchains": []
+  }
+}
