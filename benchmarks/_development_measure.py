@@ -71,7 +71,7 @@ def _quiet(job, waiting):
         ):
             raise RuntimeError("timing cell lock ownership changed")
         observed = observations(job["work"], excluded=(os.getppid(),))
-        if not busy(heavy) and observed["load"][0] < 5:
+        if not busy(heavy) and (job.get("ignore_host_load", False) or observed["load"][0] < 5):
             waiting[0] += time.monotonic() - started
             return observed
         append(

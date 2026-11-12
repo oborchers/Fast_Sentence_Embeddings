@@ -324,6 +324,16 @@ heavy.lock until the leader and its descendants have ended. A failed owner-file
 write rolls back only the lock directory and file created by that acquisition.
 
 Timing waits for `os.getloadavg()[0] < 5` before each cell, arm and measured call.
+For an allocation, `speed.py --diagnose --allocation-root PATH --ignore-host-load`
+disables this load gate at cell, arm and operation admission, including the
+separate source-identity and rescore-cost cell paths. This explicit protocol
+deviation was approved on 12 November 2026 for containers reporting shared host
+load rather than exclusive container load. The flag requires both `--diagnose`
+and `--allocation-root`. The default local path keeps its load gate. Heavy-lock
+coordination, timing-lock ownership, budgets and session-expiry checks remain
+active. Load telemetry is still recorded. The session contract and every child
+job record `ignore_host_load`, so the deviation remains visible in the evidence.
+Reused controls must match this load policy as part of their measurement context.
 Foreign processes above fifty percent CPU are telemetry only; process arguments are
 never collected. Measurement priority targets nice 0. `speed.py --diagnose` refuses a nonzero inherited nice before it creates directories or starts the budget, except with `--diagnostic-rehearsal` or `--local-phase prepare`, where `os.getpriority` is available. zsh's default BG_NICE adds 5 to the nice value of `cmd &` jobs and is the usual cause. Builds/checks use nice 10 when
 available. macOS uses `taskpolicy -B` when available. Linux supports explicitly
@@ -836,6 +846,19 @@ ST checks `RLIMIT_NOFILE` inside its adapter and raises the soft limit to at lea
 ## Quality study data
 
 Quality cells declare source model and revision through the common pins, backend, workers, corpus and task selection. Supported calculation kinds are offline SIF `fit`, plain `mean`, historical `sts`, `mteb`, neighbor `recall`. The local quality run also takes `rerank` (see the reranker study below). A fitted artifact is referenced by its preceding cell ID. The retired one-off GloVe corpus-selection experiment is not part of this entry.
+
+Static quality loaders preserve the pinned model's normalization rule: fse Encoder
+uses `normalize="model"`, and both StaticModel loaders use the setting from
+`config.json` (default false). Each MTEB row's `normalization` records the effective
+loaded rule. The static ST models and bekko therefore retain raw vector lengths
+for clustering and classification. Native vector probes follow the same model
+rule. Fitted SIF and ParaNMT artifacts keep their explicitly normalized output.
+Transformer references keep their existing normalized path.
+
+Dense reranker stages still search by cosine. Already normalized outputs pass
+through unchanged, including potion vectors. Unnormalized outputs receive fse's
+`normalize@1` through `fse._reference.postprocess` before the existing dot product.
+Historical scores and README values are not rewritten by this loader correction.
 
 MTEB remains pinned at 2.26.25 and unmodified. Expansion preserves the benchmark's actual language subsets, evaluation splits and seed. Evaluation resolves the configured benchmark task, not an unrestricted task with the same name. Summaries separate worker configurations. English evaluation excludes MindSmallReranking and is labelled 40 of 41 tasks. Its two failed attempts do not yield a score. NanoBEIR has 13 tasks. A single named task runs in full. Neither production nor rehearsal silently samples evaluation rows.
 
@@ -1510,7 +1533,7 @@ smallest tested depth for each criterion below. This is class correctness, with 
 claim, timing metric or Linux comparison. No paid resources are needed.
 
 The models are POTION-base-8M and static-retrieval-mrl-en-v1, pinned through `pins.json`.
-Each uses the same normalized float32 encoder table for every output format. Each corpus
+Each uses the same float32 encoder table and the model's normalization rule for every output format. Each corpus
 is written through `ShardSink` in MTEB order, with positional document IDs, then opened as
 `VectorStore`. Row count, dtype, document positions and store integrity are checked. Rows
 record store bytes and encoder identity. `search(mode="exact")` is explicit for every

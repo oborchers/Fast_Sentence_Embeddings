@@ -300,6 +300,12 @@ def add_arguments(parser, mode, quality=False):
         parser.add_argument("--base-python")
         parser.add_argument("--reuse-work", type=Path)
     else:
+        parser.add_argument(
+            "--ignore-host-load",
+            action="store_true",
+            help="ignore the host-load admission gate for --diagnose with --allocation-root; "
+            "keep telemetry and heavy-lock coordination",
+        )
         parser.add_argument("--cells", nargs="+")
         parser.add_argument(
             "--local-phase",

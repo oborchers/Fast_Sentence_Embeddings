@@ -35,7 +35,11 @@ def _measure(args, cell, ledger):
         append(args.results / "coordination.jsonl", row)
 
     def admitted():
-        return args.functional or observations(args.work)["load"][0] < LOAD_LIMIT
+        return (
+            args.functional
+            or args.ignore_host_load
+            or observations(args.work)["load"][0] < LOAD_LIMIT
+        )
 
     def stopped():
         return ledger.stopping or time.monotonic() - waited > WAIT_SECONDS

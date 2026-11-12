@@ -12,7 +12,7 @@ from _measurement import package_identity
 from _measurement_config import MODEL_PINS
 
 from _quality.guard import admit
-from _quality.identity import execution, model_files, st_of, training_relation
+from _quality.identity import execution, model_files, normalization, st_of, training_relation
 from _quality.prompts import capture
 from _quality.suites import filters_for, task_of
 
@@ -65,13 +65,13 @@ def native_model(cell, fit):
     elif backend == "fse":
         if cell["model"].startswith("minishlab/"):
             model = fse.StaticModel.from_pretrained(
-                cell["model"], revision=MODEL_PINS[cell["model"]], normalize=True
+                cell["model"], revision=MODEL_PINS[cell["model"]]
             ).encoder
         else:
             model = fse.Encoder.from_pretrained(
                 cell["model"],
                 revision=MODEL_PINS[cell["model"]],
-                normalize=True,
+                normalize="model",
                 truncate=cell.get("truncate", False),
                 truncate_dim=cell.get("truncate_dim", "model"),
             )
@@ -134,6 +134,7 @@ def make_adapter(cell, model):
     class Adapter(AbsEncoder):
         def __init__(self):
             self.native = model
+            self.normalization = normalization(cell, model)
             self.mteb_model_meta = ModelMeta.create_empty().model_copy(
                 update={
                     "name": cell["model"],
@@ -189,7 +190,7 @@ def evaluate(cell, context):
         "mteb_version": version("mteb"),
         "table_dtype": stored_dtype(cell, st_of(model)),
         "output_dim": context["identity"]["execution"]["output_dim"],
-        "normalization": True,
+        "normalization": context["identity"]["execution"]["normalization"],
         "timing_scope": "diagnostic only, never inference throughput",
         "fit_id": cell.get("fit"),
         "fit": context["fits"].get(cell.get("fit")),

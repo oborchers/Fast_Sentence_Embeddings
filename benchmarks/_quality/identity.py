@@ -64,6 +64,7 @@ def execution(cell, native):
         "output_dtype": str(vector.dtype),
         "requested_workers": cell["workers"],
         "platform": sys.platform,
+        "normalization": normalization(cell, native),
     }
     if cell["backend"] == "st":
         import torch
@@ -118,7 +119,18 @@ def model2vec_pinned(model):
     from model2vec import StaticModel
 
     folder = snapshot_download(model, revision=MODEL_PINS[model])
-    return StaticModel.from_pretrained(folder, normalize=True, force_download=False)
+    return StaticModel.from_pretrained(folder, force_download=False)
+
+
+def normalization(cell, native):
+    """Effective output rule of the loaded model, including the ST adapter's override."""
+    if cell["backend"] == "fse":
+        return bool(native.steps) and native.steps[-1] == "normalize@1"
+    if cell["backend"] == "model2vec":
+        return native.normalize
+    # Historical ST adapters explicitly request normalized embeddings; registry
+    # references are checked in execution() to end in Normalize.
+    return True
 
 
 def model_files(cell):

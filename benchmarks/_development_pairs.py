@@ -51,7 +51,7 @@ def wait_for_arm(args, ledger, cell_id):
         _session_gap(args, cell_id, ledger)
         observed = observations(args.work)
         append(args.results / "preflights.jsonl", {**observed, "heavy_busy": busy(heavy)})
-        if not busy(heavy) and observed["load"][0] < 5:
+        if not busy(heavy) and (args.ignore_host_load or observed["load"][0] < 5):
             _session_gap(args, cell_id, ledger)
             return
         ledger.stage = "waiting_for_load_or_heavy_work"
