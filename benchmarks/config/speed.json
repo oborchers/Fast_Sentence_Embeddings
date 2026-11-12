@@ -547,12 +547,13 @@
       "rounds": 3,
       "estimated_seconds": 720,
       "dimensions": 16,
-      "planned_input_bytes": 1363450703,
+      "planned_input_bytes": 1363839338,
       "heads": 4,
       "vector_dimensions": 256,
       "id": "heads-sinks-16",
       "kind": "heads-sinks",
-      "reference": "fse-two-pass"
+      "reference": "fse-two-pass",
+      "planned_input_sha256": "18fbe15e68303def80ed7313f0b904a7272c9bb463ae8e19779b251311492951"
     },
     {
       "id": "version-encode-float32-1",
