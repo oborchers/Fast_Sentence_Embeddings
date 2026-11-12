@@ -44,7 +44,10 @@
     "fse/paragram-300-sl999": "c99818c1470d5c4e454eb9d59dfce2b179dba455",
     "cross-encoder/ms-marco-MiniLM-L6-v2": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
     "Qwen/Qwen3-Reranker-0.6B": "e61197ed45024b0ed8a2d74b80b4d909f1255473",
-    "Qwen/Qwen3-Reranker-4B": "22e683669bc0f0bd69640a1354a6d0aebcfeede5"
+    "Qwen/Qwen3-Reranker-4B": "22e683669bc0f0bd69640a1354a6d0aebcfeede5",
+    "BAAI/bge-small-en-v1.5": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "sentence-transformers/all-mpnet-base-v2": "9a3225965996d404b775526de6dbfe85d3368642",
+    "Qwen/Qwen3-Embedding-0.6B": "b22da495047858cce924d27d76261e96be6febc0"
   },
   "versions": {
     "mteb": "2.26.25",

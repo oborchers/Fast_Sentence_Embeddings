@@ -1359,3 +1359,98 @@ or turn diagnostic timings into comparison evidence.
 Profiler format sources: [py-spy 0.4.2 speedscope writer](https://github.com/benfred/py-spy/blob/v0.4.2/src/speedscope.rs),
 [memray 1.20.0 metadata](https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_metadata.py).
 Darwin group-query behavior: [XNU killpg1 implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c).
+
+
+## Transformer references (class correctness)
+
+The `ref-*` cells in `benchmarks/config/quality.json` evaluate all-MiniLM-L6-v2,
+bge-small-en-v1.5, all-mpnet-base-v2 and Qwen3-Embedding-0.6B with the same
+`MTEB(eng, v2)` and `NanoBEIR` selection as the English quality table.
+The existing `eval-all-MiniLM-L6-v2` path remains a separate historical adapter.
+Pins live only in `benchmarks/config/pins.json`. No README score changes here.
+
+These references use `mteb.get_model` from MTEB 2.26.25 and pass its registry
+wrapper directly to `mteb.evaluate`. MTEB retains the input loader, task metadata,
+subset, split and prompt type. No text adapter replaces its instruction logic.
+`model_kwargs={"dtype": "float32"}` reaches SentenceTransformer through
+`ModelMeta.load_model` and both registry wrappers. The observed weights must be
+float32 and the final module must be `Normalize`. The dtype name remains a string
+because MTEB serializes these arguments as experiment metadata and rejects a
+`torch.dtype` object. The observed dtype is still checked against `torch.float32`.
+CPU is the configured device;
+MPS and CUDA can be selected explicitly in a separate study. Batch size is 32,
+or 8 for Qwen3. These controls are accepted only with `backend: "st"` and `mteb_loader: true`;
+other adapters reject them instead of ignoring them. They are part of the model
+cache and summary identity.
+Execution records include actual device, weight and output dtypes, maximum
+sequence length, module names, torch threads, registry revision and wrapper class.
+
+MTEB supplies task-specific instructions. The Qwen model card's web-search
+example is not an additional prefix. Its document inputs get no instruction.
+The pinned implementations are the authority:
+[Qwen model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B/blob/b22da495047858cce924d27d76261e96be6febc0/README.md),
+[MTEB instruct wrapper](https://github.com/embeddings-benchmark/mteb/blob/2.26.25/mteb/models/instruct_wrapper.py),
+[Qwen registry](https://github.com/embeddings-benchmark/mteb/blob/2.26.25/mteb/models/model_implementations/qwen3_models.py),
+[BGE registry](https://github.com/embeddings-benchmark/mteb/blob/2.26.25/mteb/models/model_implementations/bge_models.py),
+and [SentenceTransformer wrapper](https://github.com/embeddings-benchmark/mteb/blob/2.26.25/mteb/models/sentence_transformer_wrapper.py).
+
+Each reference result records the prompt passed to the inner encode call, by
+prompt type, and the first eight token IDs from the actual tokenized input.
+It records prefix occurrences in the first input and their minimum and maximum
+across batches. Observation forwards all arguments and returned values unchanged;
+all temporary hooks are removed on success or failure. It stores no input text.
+Sentence Transformers 6.2.0 uses `preprocess` in inference, while `tokenize` is a
+deprecated alias. The observer reads the first Transformer's `_call_processor`
+inputs after `InputFormatter` has prepended the prompt, together with the token
+IDs returned by that same call. It skips the separate bare-prefix length probe.
+It never reconstructs input text or starts a second tokenization call.
+
+Before a full run, the coordinator runs the four `smoke-ref-*` cells. Each covers
+STSBenchmark and NanoQuoraRetrieval. They fail on a missing, changed or doubled
+prefix, a prompted document, or a missing query/document observation. The exact
+independent expectations are:
+
+| Model | NanoQuoraRetrieval query | NanoQuoraRetrieval document | STSBenchmark, both sides |
+| :--- | :--- | :--- | :--- |
+| MiniLM, mpnet | No prompt | No prompt | No prompt |
+| bge-small | `Represent this sentence for searching relevant passages: ` (trailing space) | No prompt | No prompt |
+| Qwen3 | `Instruct: Given a question, retrieve questions that are semantically equivalent to the given question\nQuery:` | No prompt | `Instruct: Retrieve semantically similar text.\nQuery:` |
+
+Here `\n` means one newline. Each nonempty prefix must occur exactly once at the
+start of the text sent to tokenization. No prompt accepts either `None` or `""`.
+The smoke cells carry `functional_only: true` through both local and standard
+execution. Summaries exclude them, even when smoke and full cells share one result
+folder. They are functional evidence, not a full quality cohort or speed claim.
+
+Inspect configuration without loading models:
+
+```bash
+python benchmarks/quality.py --describe
+```
+
+After checking the real parser and `load()` and obtaining the shared heavy-lock
+window, the coordinator can select the smoke cells through the existing entry:
+
+```bash
+python benchmarks/quality.py --run --local-run --input benchmarks/config/quality.json \
+  --cells smoke-ref-all-MiniLM-L6-v2 smoke-ref-bge-small-en-v1-5 \
+  smoke-ref-all-mpnet-base-v2 smoke-ref-qwen3-embedding-0-6b \
+  --local-budget-seconds 1200 --local-min-free-gb 40 --local-rss-limit-gb 12 \
+  --results /external/transformer-smoke/results --work /external/transformer-smoke/work
+```
+
+This is a selection example, not permission to run or extend a window. Declare
+preparation, lock wait and execution in the total budget. Stop at a safe boundary;
+never automatically extend or repeat. Full runs belong to the coordinator.
+
+Compare MiniLM's two smoke scores with the historical adapter on the same tasks:
+absolute native `main_score` difference must be at most `1e-4`. This checks the
+loading path, not instructions. For the independent STSBenchmark reference, save
+an upstream result from [MTEB results](https://github.com/embeddings-benchmark/results)
+under `<results>/references/<org>__<model>/<revision>/STSBenchmark.json`.
+Freeze split `test`, subset `default`, revision and file SHA-256 before comparing.
+Only an exact model-revision match supports the bound of `0.005` native
+`main_score` (0.5 README points). A larger difference stops the study for review;
+a different revision is reported without acceptance. Existing vector probes keep
+`rtol=3e-5` and `atol=3e-6` separately. Quality evaluation seconds are diagnostic,
+never inference throughput. No Linux speed comparison is part of these cells.

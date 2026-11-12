@@ -101,7 +101,9 @@ def specification(args):
         raise ValueError("empty quality study")
     for cell in spec["cells"]:
         validate_cell(cell)
-        cell["functional_only"] = spec.get("functional_only", False)
+        cell["functional_only"] = cell.get("functional_only", False) or spec.get(
+            "functional_only", False
+        )
     return spec
 
 

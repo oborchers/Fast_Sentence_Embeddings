@@ -33,9 +33,10 @@ def validate_cell(cell):
     for key in ("texts", "workers", "estimated_seconds"):
         if key in cell and (not math.isfinite(cell[key]) or cell[key] <= 0):
             raise ValueError(f"positive finite {key} required")
-    for key in ("truncate", "trust_remote_code"):
+    for key in ("truncate", "trust_remote_code", "mteb_loader", "functional_only"):
         if key in cell and not isinstance(cell[key], bool):
             raise ValueError(f"{key} must be true or false")
+    validate_transformer(cell)
     if cell.get("model") and cell["model"] not in MODEL_PINS:
         raise ValueError(f"model is not pinned: {cell['model']}")
 
@@ -47,3 +48,25 @@ def validate_prerequisites(cells):
         if cell.get("fit") and cell["fit"] not in previous:
             raise ValueError("fit prerequisite must precede its dependent cell")
         previous.add(cell["id"])
+
+
+def validate_transformer(cell):
+    controls = ("device", "torch_dtype", "batch_size")
+    if not cell.get("mteb_loader") and any(key in cell for key in controls):
+        raise ValueError("device, torch_dtype and batch_size require mteb_loader")
+    validate_transformer_values(cell)
+    if cell.get("mteb_loader"):
+        if cell.get("backend") != "st" or cell.get("fit"):
+            raise ValueError("mteb_loader requires st without a fitted artifact")
+        if any(key not in cell for key in controls):
+            raise ValueError("mteb_loader requires device, torch_dtype and batch_size")
+
+
+def validate_transformer_values(cell):
+    for key, allowed in (("device", ("cpu", "mps", "cuda")), ("torch_dtype", ("float32",))):
+        if key in cell and cell[key] not in allowed:
+            raise ValueError(f"{key} must be one of {allowed}")
+    if "batch_size" in cell:
+        size = cell["batch_size"]
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise ValueError("batch_size must be a positive integer")
