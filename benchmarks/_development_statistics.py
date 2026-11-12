@@ -78,6 +78,13 @@ def paired(cell, records):
     return result
 
 
+def _pressure_by_arm(records):
+    return {
+        name: report([row for row in records if row["arm"] == name])
+        for name in ("base", "candidate")
+    }
+
+
 def _ratio(cell, records, number):
     rows = [row for row in records if row["pair"] == number]
     expected = order(cell, number)

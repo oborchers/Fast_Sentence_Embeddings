@@ -210,7 +210,7 @@ def measure(job):
     after = observations(job["work"], excluded=())
     return {
         "cpu_pressure": interval(before, after),
-        "cpu_pressure_scope": "whole child including warmups and preparation",
+        "cpu_pressure_scope": "identity call loop including warmups and file preparation",
         "measured_cpu_pressure": report(measured_calls),
         "wait_seconds": waiting[0],
         "seconds": seconds,
