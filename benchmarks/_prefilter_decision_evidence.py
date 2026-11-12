@@ -287,7 +287,11 @@ def _float32_quiet(root, operations, quiet_cell, cell, builds):
         raise ValueError("float32 quiet cell must be separate")
     own = [r for r in operations if r["cell_id"] == quiet_cell["id"]]
     seconds = document(root / "quiet.json")["seconds"]
-    if not seconds or [r["round"] for r in own] != list(range(len(seconds))):
+    if not isinstance(seconds, list) or not seconds:
+        raise ValueError("nonempty float32 quiet durations required")
+    if any(type(r["round"]) is not int for r in own) or [r["round"] for r in own] != list(
+        range(len(seconds))
+    ):
         raise ValueError("missing float32 quiet observations")
     for row, duration in zip(own, seconds, strict=True):
         production(row)
@@ -296,6 +300,7 @@ def _float32_quiet(root, operations, quiet_cell, cell, builds):
             or row["model"] != quiet_cell["model"]
             or build(row, "speed") != builds["candidate"]
             or number(row["seconds"], "quiet duration") <= 0
+            or number(duration, "recorded quiet duration") <= 0
             or row["seconds"] != duration
         ):
             raise ValueError("float32 quiet build, cell or duration differs")
