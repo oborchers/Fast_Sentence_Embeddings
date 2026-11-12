@@ -19,6 +19,8 @@ def validate(cell):
         "heads",
         "vector_dimensions",
         "planned_input_bytes",
+        "estimated_seconds",
+        "rounds",
     ):
         if type(cell.get(name)) is not int or cell[name] <= 0:
             raise ValueError(f"head {name} must be a positive integer")
@@ -34,6 +36,13 @@ def validate(cell):
     elif cell["heads"] != 4 or cell["dimensions"] != 16 or cell["reference"] != "fse-two-pass":
         raise ValueError("head sinks require four heads against fse-two-pass")
     pair_rounds(cell)
+    expected = (5_000_000, 1, 5) if cell["kind"] == "heads-kind" else (10_000_000, 16, 3)
+    prefix = "production_" if cell.get("functional_only") else ""
+    actual = (cell.get(prefix + "texts"), cell.get(prefix + "workers"), cell["rounds"])
+    if actual != expected:
+        raise ValueError(
+            "head publication texts, workers and rounds differ from the fixed protocol"
+        )
 
 
 def memory_plan(cell, model_bytes, limit, retained=0, *, work=None):
@@ -41,10 +50,13 @@ def memory_plan(cell, model_bytes, limit, retained=0, *, work=None):
     validate(cell)
     n, d, w = cell["texts"], cell["vector_dimensions"], cell["workers"]
     sinks = cell["kind"] == "heads-sinks"
+    functional = cell.get("functional_only", False)
+    # The shared POTION input caps every text at 3072 characters (at most four UTF-8 bytes each).
+    input_bytes = n * (3072 * 4 + 1) if functional else cell["planned_input_bytes"]
     components = {
-        "controller_libraries_reserve": 8 * resources.GIB,
+        "controller_libraries_reserve": (2 if functional else 8) * resources.GIB,
         "retained_source": retained,
-        "input_pages_and_preparation": cell["planned_input_bytes"] + n * 8 * 4,
+        "input_pages_and_preparation": input_bytes + n * 8 * 4,
         "document_ids": n * 8 if sinks else 0,
         "models_and_plans": model_bytes * (w + 1) * 2,
         "worker_buffers": w * 256 * 1024**2,
@@ -52,10 +64,16 @@ def memory_plan(cell, model_bytes, limit, retained=0, *, work=None):
         "one_store_set_pages" if sinks else "output_texts_and_scratch": n
         * (4 * (d + cell["dimensions"]) + 20)
         if sinks
-        else n * cell["dimensions"] * 8 + cell["planned_input_bytes"] * 5 + n * 72,
+        else n * cell["dimensions"] * 8 + input_bytes * 5 + n * 72,
     }
-    disk = cell["planned_input_bytes"] + n * (4 * (d + cell["dimensions"]) + 20) + 5 * resources.GIB
-    return resources.assess(components, limit=limit, work=work, disk=disk if work else None)
+    disk = input_bytes + n * (4 * (d + cell["dimensions"]) + 20) + 5 * resources.GIB
+    return resources.assess(
+        components,
+        limit=limit,
+        work=work,
+        disk=disk if work else None,
+        kind="functional" if functional else "production",
+    )
 
 
 def preflight(context, cell, limit):
@@ -90,6 +108,7 @@ def summary(cell, rows, identity):
     from _measurement import spread
     from _speed_run import arm_summary, validate_pair_arms
 
+    validate(cell)
     labels = ["fse", "fse-two-pass"] if cell["kind"] == "heads-sinks" else ["fse"]
     if any(r.get("diagnostic_profile") for r in rows):
         raise ValueError("diagnostic profiles cannot enter head summaries")

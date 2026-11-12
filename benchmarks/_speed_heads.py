@@ -16,6 +16,8 @@ Pairs: ``fse`` (folded ``predict_proba``) against ``model2vec`` (``encode`` with
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 from _development_heads import SPEC
 from _development_heads_multi import models as head_group
 
@@ -145,3 +147,23 @@ def check_kind(job, texts, sample, indices):
     reference = kind_head(job).predict_proba([texts[i] for i in indices], backend="numpy")
     check_output(reference, sample, exact=True)
     return {"sample_numpy_bitwise_equal": True, "sample_checked_rows": len(indices)}
+
+
+def sample_indices(job):
+    """Check new head sample positions in their original JSON form before conversion."""
+    from pathlib import Path
+
+    import numpy as np
+    from _harness.records import document
+
+    raw = document(Path(job["sample_file"]))
+    if job["kind"] in ("heads-kind", "heads-sinks"):
+        if not isinstance(raw, list) or len(raw) != min(10_000, job["texts"]):
+            raise ValueError(
+                "head sample needs 10,000 ordered positions (all rows in small probes)"
+            )
+        if any(type(i) is not int or not 0 <= i < job["texts"] for i in raw):
+            raise ValueError("head sample positions must be integers in the input range")
+        if any(a >= b for a, b in pairwise(raw)):
+            raise ValueError("head sample positions must be unique and increasing")
+    return np.asarray(raw, dtype=np.int64)

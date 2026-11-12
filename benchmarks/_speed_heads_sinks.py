@@ -7,13 +7,14 @@ import resource
 import sys
 import time
 from contextlib import ExitStack
+from importlib.metadata import distributions
 from pathlib import Path
 
 from _harness.pressure import interval
-from _harness.records import atomic, document, sha256
+from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _speed_cells import check_output, configure, remove_headline
-from _speed_heads import _encoder, _group
+from _speed_heads import _encoder, _group, sample_indices
 from _speed_write import sync_headline
 
 
@@ -94,7 +95,7 @@ def verify(job, root, encoder, heads):
 
     from fse import ScoreStore, VectorStore
 
-    indices = np.asarray(document(Path(job["sample_file"])), dtype=np.int64)
+    indices = sample_indices(job)
     if len(indices) != min(10_000, job["texts"]):
         raise ValueError("head sink sample must have 10,000 rows (all rows in small probes)")
     with VectorStore.open(root / "vectors", encoder=encoder) as store:
@@ -149,9 +150,17 @@ def child(job):
     # Initialize both plans before any full warmup or measured input read.
     heads.predict(["warm the unfolded plans"], output="decision", return_vectors=True)
     try:
+        warm_before = telemetry()
         operation(job, encoder, heads, root)
+        warm_after = telemetry()
         verify(job, root, encoder, heads)
-        warmup = synchronized_remove(root)
+        warmup = {
+            **synchronized_remove(root),
+            "full_input": True,
+            "telemetry_before": warm_before,
+            "telemetry_after": warm_after,
+            "cpu_pressure": interval(warm_before, warm_after),
+        }
         before = telemetry()
         measured = operation(job, encoder, heads, root)
         after = telemetry()
@@ -171,6 +180,7 @@ def child(job):
                 **measured,
                 **stores,
                 "warmup": warmup,
+                "versions": {d.metadata["Name"]: d.version for d in distributions()},
                 "identity": identity,
                 "head_sample_file": str(sample_path),
                 "head_sample_sha256": sha256(sample_path),

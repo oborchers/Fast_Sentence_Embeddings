@@ -19,7 +19,7 @@ from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
-from _speed_heads import check_kind, fse_head, model2vec_head
+from _speed_heads import check_kind, fse_head, model2vec_head, sample_indices
 from _speed_write import headline_child
 
 RUST_SOURCE = r"""
@@ -315,7 +315,7 @@ def measure_child(job):
         texts = [line.rstrip("\n") for line in stream]
     if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("input changed")
-    indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
+    indices = sample_indices(job)
     encode = adapter["factory"](job)
     try:
         warm_before = telemetry()
