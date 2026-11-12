@@ -17,6 +17,7 @@ import _speed_protocol as protocols
 import _speed_write as writing
 from _harness import records as durable
 from _harness.ledger import Ledger, watching
+from _harness.pressure import report
 from _measurement import write_environment
 from _measurement_config import CONFIG
 from _measurement_config import contract as load_contract
@@ -220,6 +221,7 @@ def arm_summary(rows):
     return {
         "seconds": records.spread(seconds),
         "ordered_seconds": seconds,
+        "cpu_pressure": report(rows),
         "identity": rows[0]["identity"],
         "versions": rows[0].get("versions", {}),
     }
@@ -454,6 +456,7 @@ def run_headline(context, contract):
         protocol=protocols.protocol(cell)["name"],
         status="failed" if error else ("valid" if complete else "partial"),
         input_identity=identity,
+        cpu_pressure=report(rows),
         rounds_completed=len(rows),
         sample_checked=bool(rows),
         seconds=records.spread([r["seconds"] for r in rows]) if rows else None,

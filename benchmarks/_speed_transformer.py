@@ -7,6 +7,7 @@ import math
 import statistics
 from pathlib import Path
 
+from _harness.pressure import noise, report
 from _harness.records import append
 from _speed_cells import check_output
 from _speed_versions import pair_rounds
@@ -107,18 +108,18 @@ def summary(cell, rows, identity):
         raise ValueError("transformer duration must be positive and finite")
     short = not cell.get("functional_only") and any(t < 2 for t in seconds)
     rates = [cell["texts"] / t for t in seconds]
-    q1, _, q3 = statistics.quantiles(rates, n=4, method="inclusive")
     return {
         "protocol": "transformer@1",
         "status": "invalid" if short else "valid",
         "reason": "call shorter than two seconds" if short else None,
         "input_identity": identity,
+        "cpu_pressure": report(rows),
         "sample_checked": True,
         "device": cell["device"],
         "torch_dtype": cell["torch_dtype"],
         "batch_size": cell["batch_size"],
         "rounds_completed": len(rows),
-        "texts_per_second": None if short else {"median": statistics.median(rates), "iqr": q3 - q1},
+        "texts_per_second": None if short else {"median": statistics.median(rates), **noise(rates)},
     }
 
 

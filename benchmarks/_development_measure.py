@@ -27,6 +27,7 @@ from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, apply_affinity, observations
 from _harness.budget import check
+from _harness.pressure import interval, snapshot
 from _harness.records import append
 
 
@@ -83,10 +84,13 @@ def _quiet(job, waiting):
 def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
     check_write_disk(job)
+    before["cpu_pressure"] = snapshot()
     seconds, output, repeated = repeat(operation, job["iterations"])
+    pressure_after = snapshot()
     job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
     after = observations(job["work"], excluded=(os.getppid(),))
+    after["cpu_pressure"] = pressure_after
     append(
         Path(job["receipt"]).with_suffix(".calls.jsonl"),
         {
@@ -106,6 +110,7 @@ def _call(operation, job, phase, number, waiting):
             "including_open_seconds": including_open,
             "telemetry_before": before,
             "telemetry_after": after,
+            "cpu_pressure": interval(before, after),
         },
     )
     proof = output_proof(job, output)
@@ -182,6 +187,7 @@ def _measured(operation, job, waiting, policy, resource):
         "output": proof,
         "telemetry_before": before,
         "telemetry_after": after,
+        "cpu_pressure": interval(before, after),
         "policy": policy,
         "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         * (1 if sys.platform == "darwin" else 1024),

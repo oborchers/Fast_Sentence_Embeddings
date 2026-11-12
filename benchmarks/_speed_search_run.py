@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+from _harness.pressure import report
 from _harness.records import append, atomic, document
 from _harness.search import order, sequence_digest, summarize
 from _measurement import spread
@@ -206,6 +207,7 @@ def summary(cell, rows, all_rows, errors, passes):
         return dict(status="failed", reason="search path changed between rounds")
     short = any(r["seconds"] < 2 for r in rows) and not cell.get("functional_only")
     result = dict(
+        cpu_pressure=report(rows),
         protocol="search-time@1",
         status="invalid" if short else "valid",
         reason="search block below stability target" if short else None,

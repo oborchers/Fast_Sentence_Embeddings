@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 from _harness.budget import check
+from _harness.pressure import interval, noise, report, snapshot
 
 PROFILE = "rescore-cost@1"
 STAGE = "store-rescore"
@@ -109,21 +110,43 @@ def _verify(store, queries, candidates, workers):
 
 
 def _time(store, queries, candidates, workers, deadline):
-    seconds = []
+    seconds, calls = [], []
     for number in range(WARMUPS + REPEATS):
         check(deadline)
+        before = {"cpu_pressure": snapshot()}
         start = time.perf_counter()
         store.rescore(queries, candidates, K, workers=workers)
+        elapsed = time.perf_counter() - start
+        after = {"cpu_pressure": snapshot()}
+        calls.append(
+            dict(
+                phase="warmup" if number < WARMUPS else "measured",
+                seconds=elapsed,
+                telemetry_before=before,
+                telemetry_after=after,
+                cpu_pressure=interval(before, after),
+            )
+        )
         if number >= WARMUPS:
-            seconds.append(time.perf_counter() - start)
+            seconds.append(elapsed)
     q1, _, q3 = statistics.quantiles(seconds, n=4, method="inclusive")
-    return {"raw": seconds, "median": statistics.median(seconds), "q1": q1, "q3": q3}
+    return {
+        "raw": seconds,
+        "median": statistics.median(seconds),
+        "q1": q1,
+        "q3": q3,
+        **noise(seconds),
+        "calls": calls,
+        "cpu_pressure": report(calls[WARMUPS:]),
+    }
 
 
 def _profile(store, queries, candidates):
     """One call on this thread (workers=1) under cProfile, and its tracemalloc peak."""
     profile = cProfile.Profile()
+    cpu_before = {"cpu_pressure": snapshot()}
     profile.runcall(store.rescore, queries, candidates, K, workers=1)
+    cpu_after = {"cpu_pressure": snapshot()}
     stats = pstats.Stats(profile)
     rows = sorted(stats.stats.items(), key=lambda item: -item[1][2])  # by own time
     total = sum(item[1][2] for item in rows) or 1.0
@@ -135,11 +158,19 @@ def _profile(store, queries, candidates):
         name: sum(v[3] for k, v in stats.stats.items() if any(t in k[2] for t in tags)) / total
         for name, tags in GROUPS.items()
     }
+    memory_before = {"cpu_pressure": snapshot()}
     tracemalloc.start()
     store.rescore(queries, candidates, K, workers=1)
     peak = tracemalloc.get_traced_memory()[1]
     tracemalloc.stop()
+    memory_after = {"cpu_pressure": snapshot()}
     return {
+        "cpu_pressure": {
+            "cpu_profile": interval(cpu_before, cpu_after),
+            "memory_profile": interval(memory_before, memory_after),
+        },
+        "cpu_profile_telemetry": [cpu_before, cpu_after],
+        "memory_profile_telemetry": [memory_before, memory_after],
         "own_time_total": total,
         "top_by_own_time": top,
         "cumulative_share": groups,

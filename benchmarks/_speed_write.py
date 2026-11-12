@@ -7,6 +7,7 @@ import os
 import time
 from pathlib import Path
 
+from _harness.pressure import interval
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _speed_cells import configure, remove_headline
@@ -90,6 +91,7 @@ def headline_child(job):
             bytes_written=sum(row["bytes"] for row in files),
             telemetry_before=before,
             telemetry_after=after,
+            cpu_pressure=interval(before, after),
             telemetry_after_sync=sync_telemetry,
             disk_before=disk_before,
             disk_with_output=__import__("shutil").disk_usage(path.parent)._asdict(),
@@ -174,10 +176,19 @@ def warm_headline(job, model, path):
 
     if path.exists() or path.is_symlink():
         raise ValueError("headline warmup output must be fresh")
+    before = telemetry()
     with ShardSink(path, model, dtype="int8", durability="none") as sink:
         model.encode(Path(job["input_file"]), workers=job["workers"], sink=sink)
+    after = telemetry()
     if sink.published_rows != job["texts"]:
         raise ValueError("headline warmup row count differs")
     files, _, _ = sync_headline(path)
     remove_headline(path.parent, path, files)
-    return dict(texts=sink.published_rows, full_input=True, synchronized_and_removed=True)
+    return dict(
+        texts=sink.published_rows,
+        full_input=True,
+        synchronized_and_removed=True,
+        telemetry_before=before,
+        telemetry_after=after,
+        cpu_pressure=interval(before, after),
+    )
