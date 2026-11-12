@@ -119,6 +119,17 @@ def profile_spec(args, selected, budget):
     }
 
 
+def _request(args, budget):
+    if args.study == "search-prefilter":
+        from _development_profile_selection import profile_spec as prefilter_spec
+        from _development_profile_selection import select as select_prefilter
+
+        selected = select_prefilter(args.allocation_root / "prefilter-results", args.profile_cell)
+        return selected, prefilter_spec(args, selected, budget)
+    selected = select(args.allocation_root / "speed-results", args.profile_cell)
+    return selected, profile_spec(args, selected, budget)
+
+
 def run(args):
     from _allocation_profile_environment import prepare
     from _development_profile import run as profile
@@ -143,15 +154,7 @@ def run(args):
     try:
         if not budget.admit(90):
             raise ValueError("allocation profile budget exhausted")
-        if args.study == "search-prefilter":
-            from _development_profile_selection import profile_spec as prefilter_spec
-            from _development_profile_selection import select as select_prefilter
-
-            selected = select_prefilter(root / "prefilter-results", args.profile_cell)
-            request = prefilter_spec(args, selected, budget)
-        else:
-            selected = select(root / "speed-results", args.profile_cell)
-            request = profile_spec(args, selected, budget)
+        selected, request = _request(args, budget)
         # Keep the generated request outside the result folder, which the profiler creates.
         file = root / (args.results.name + ".profile.json")
         if file.exists():
