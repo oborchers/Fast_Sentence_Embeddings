@@ -66,6 +66,9 @@ def _workload(cell):
         "base_doc_ids": "none",
         "candidate_doc_ids": "none",
         "resident_cycles": 1,
+        "model": "minishlab/potion-base-8M"
+        if cell["id"] == "o1-d256-q8"
+        else "sentence-transformers/static-retrieval-mrl-en-v1",
     }
     if any(cell[key] != value for key, value in required.items()):
         raise ValueError("search workload differs from the AVX2 enabling study")

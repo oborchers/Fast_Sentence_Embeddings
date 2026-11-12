@@ -46,7 +46,7 @@ def evaluate_all(root):
             )
         else:
             result["reason"] = "search decision evidence is incomplete"
-    except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError):
+    except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, ArithmeticError):
         # Stable reason codes make malformed evidence reproducible after collection,
         # without embedding host-dependent exception paths or timestamps.
         result["reason"] = "required evidence is missing, invalid or mismatched"

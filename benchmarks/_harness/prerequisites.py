@@ -90,7 +90,11 @@ def recorded(root, names):
     snapshot_root = record / "decision-inputs"
     if snapshot_root.exists() or snapshot_root.is_symlink():
         record = snapshot_root
-    verify(record)
+    _, done = verify(record)
+    if record == snapshot_root and (
+        type(done["exit_status"]) is not int or done["exit_status"] != 0
+    ):
+        raise ValueError("decision snapshot did not finish successfully")
     saved = document(record / "allocation.json")
     checked = document(record / "machine-check.json")
     if checked["status"] != "accepted" or checked["rehearsal"] is not False:
