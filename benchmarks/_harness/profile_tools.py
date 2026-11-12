@@ -90,6 +90,11 @@ def _samply(folder, pid):
     return {
         "processes": sorted({int(t["pid"]) for t in threads}),
         "threads": [{k: t[k] for k in ("pid", "tid", "name")} for t in threads],
+        "sampled_threads": [
+            t["name"]
+            for t in threads
+            if int(t["pid"]) == pid and any(s is not None for s in t["samples"]["stack"])
+        ],
         "samples": sum(
             sum(stack is not None for stack in t["samples"]["stack"])
             for t in threads
@@ -137,7 +142,7 @@ def coverage(spec, folder, receipt, leader_pid, profiler):
     if spec["action"] == "profile-head" and (folder / "profile.log").exists():
         result["profile_ready"] = "profile_ready" in (folder / "profile.log").read_text()
     if receipt.get("profile") == "int8-prefilter-search@1":
-        names = _search_threads(tool, folder)
+        names = _search_threads(tool, folder, observed)
         result["search_threads"] = {
             "requested_workers": receipt["requested_workers"],
             "observed": names,
@@ -147,10 +152,12 @@ def coverage(spec, folder, receipt, leader_pid, profiler):
     return result
 
 
-def _search_threads(tool, folder):
+def _search_threads(tool, folder, observed):
     if tool == "memray":
-        return document(folder / "memray-metadata.json").get("search_threads", [])
-    if tool == "py-spy":
+        names = document(folder / "memray-metadata.json").get("search_threads", [])
+    elif tool == "py-spy":
         profiles = document(folder / "cpu.speedscope.json")["profiles"]
-        return sorted({p["name"] for p in profiles if "fse-search" in p["name"] and p["samples"]})
-    return []
+        names = [p["name"] for p in profiles if p["samples"]]
+    else:
+        names = observed["sampled_threads"]
+    return sorted({name for raw in names for name in re.findall(r"\bfse-search_\d+\b", raw)})

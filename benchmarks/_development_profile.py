@@ -210,7 +210,9 @@ def _operations(runner, check_only, result):
 
             if receipt["output"] != origin["row"]["output"]:
                 raise ValueError("profile search output differs from origin")
-            validate_path(receipt, job, candidate=True)
+            candidate = origin["row"]["path_evidence"]["prefilter_variant"] == "avx2"
+            validate_path(origin["row"], origin["job"], candidate=candidate)
+            validate_path(receipt, job, candidate=candidate)
         verify_again(spec, origin)
         if spec["entry"] == "speed":
             verify_rebuilt(spec, job)

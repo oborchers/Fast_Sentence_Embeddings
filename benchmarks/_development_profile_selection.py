@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import statistics
 
+from _development_path_evidence import validate as validate_path
 from _harness.collect import verify
 from _harness.profile import identity
 from _harness.records import document, read_rows
@@ -50,11 +51,13 @@ def select(root, cell_id):
     median = statistics.median(f for f, _ in factors)
     _, number = min(factors, key=lambda item: (abs(item[0] - median), item[1]))
     row = pairs[number, "candidate"]
+    tag = f"{cell_id}-comparison-{number}-{row['position']}"
+    validate_path(row, document(root / (tag + ".job.json")), candidate=True)
     return {
         "cell": cell_id,
         "phase": "comparison",
         "pair": number,
-        "job": f"{cell_id}-comparison-{number}-{row['position']}",
+        "job": tag,
         "python": identity(row, "development")["executable"],
         "rule": "declared prefilter candidate; comparison pair nearest median ratio",
         "open_evidence": [],
