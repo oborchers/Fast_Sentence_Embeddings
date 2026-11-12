@@ -60,9 +60,10 @@ class Runner:
             raise WallBudgetExpiredError("profile process group exceeded its deadline")
         if self.state.number is not None:
             raise InterruptedError("profile interrupted")
-        if status and name == "profile":
-            self.child_failure()
-            warning = echild_warning(self.spec, self.root, status, meta)
+        if status and name in ("profile", "access"):
+            if name == "profile":
+                self.child_failure()
+            warning = echild_warning(self.spec, self.root, status, meta, operation=name)
             if warning is not None:
                 return {**meta, "exit_warning": warning}
         if status or meta["escalated"]:
@@ -150,6 +151,11 @@ class Runner:
         try:
             meta = self.launch(command(self.spec, executable, folder, target), "access")
             result = self.inspect(folder, document(receipt), meta, profiler)
+            if "exit_warning" in meta:
+                result["warnings"] = [meta["exit_warning"]]
+                self.notify(
+                    {"event": "profile_exit_warning", "operation": "access", **meta["exit_warning"]}
+                )
         except Exception as error:
             atomic(
                 self.root / "check.json",

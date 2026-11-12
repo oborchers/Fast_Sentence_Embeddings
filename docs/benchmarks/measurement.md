@@ -1728,10 +1728,11 @@ The allocation CPU profile requests `child`, so that option is absent.
 Its group reaper runs only after polling proves that py-spy has exited.
 The runner installs handlers for SIGINT and SIGTERM, and does not ignore SIGCHLD.
 
-Only the main `profile` operation may defer this exact exit 1 for py-spy 0.4.2.
+Only the main `profile` operation and its `access` probe may defer this exact exit 1 for py-spy 0.4.2.
 It requires an unforced, unsignalled completion before the deadline, the exact
 normal-exit/write/visit/ECHILD log suffix for this output path, and no other
-`Error:` line. The profiler access probe remains strict. Acceptance then requires
+`Error:` line. The access probe checks `access.log` and the output path
+`access/cpu.speedscope.json` with the same validator. Acceptance then requires
 a successful diagnostic receipt, complete parseable sampled data with valid
 frame references, positive weights, consistent durations and matching sample
 counts, explicit nonempty samples for the addressed child, normal coverage
@@ -1740,6 +1741,8 @@ fails with a reason. Other exit codes, versions and errors remain failures.
 
 An accepted profile records `warnings` in its cell and a `profile_exit_warning`
 event, including the original exit status, error, sample/error counts and source.
+An accepted access probe records its warning in `check.json` and the cell's
+`access_coverage.warnings`, with a `profile_exit_warning` event marked `operation: access`.
 The raw log and `<results>/profile-execution.json` retain exit 1. Sampling errors remain
 visible and limit interpretation. A warning does not remove other open evidence
 or turn diagnostic timings into comparison evidence.
