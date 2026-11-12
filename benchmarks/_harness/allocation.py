@@ -159,6 +159,11 @@ class Allocation:
         if not self.claim(step):
             self.step_row(step, "restart_refused", RESTART_STATUS, "step already started once")
             return RESTART_STATUS
+        if self.results(step).exists():
+            self.step_row(
+                step, "not_started", 1, "result folder already exists; evidence not reused"
+            )
+            return 1
         try:
             process = self.start(step, command)
         except OSError as error:

@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from _harness.collect import verify
 from _harness.records import read_rows, sha256
+
+
+def runner_identity():
+    """Identify the executing runner revision, including dirty or added Python sources."""
+    root = Path(__file__).resolve().parents[2]
+    revision = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
+    ).strip()
+    return {
+        "revision": revision,
+        "sources": {
+            str(p.relative_to(root)): sha256(p) for p in sorted((root / "benchmarks").rglob("*.py"))
+        },
+    }
 
 
 def identity(allocation, values):
@@ -24,6 +39,7 @@ def identity(allocation, values):
         "entry": allocation.entry,
         "allocated_at": allocation.allocated_at,
         "definition": allocation.definition,
+        "runner": runner_identity(),
         "parameters": values,
         "files": {str(p.resolve()): sha256(p) for p in sorted(files)},
     }

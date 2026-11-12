@@ -23,7 +23,7 @@ from pathlib import Path
 from _harness.allocation import Allocation
 from _harness.budget import Budget
 from _harness.ledger import Ledger, watching
-from _harness.records import atomic, document, read_rows
+from _harness.records import atomic, document, read_rows, seal
 
 BILLING = {
     "compute_usd_per_hour": 1,
@@ -207,7 +207,7 @@ def _dependent_problems(allocation, record, code, name):
 
 def _prerequisite_cases(out):
     cases = []
-    for name in ("success", "failed", "skipped", "unsealed", "late", "mismatch"):
+    for name in ("success", "failed", "skipped", "unsealed", "late", "mismatch", "existing"):
         args = {"failed": ["--fail"], "unsealed": ["--unsealed"]}.get(name, [])
         allocation, _ = _allocation(out / f"prerequisite-{name}", [("one", args), ("two", [])])
         first, second = allocation.definition["steps"]
@@ -218,6 +218,10 @@ def _prerequisite_cases(out):
         saved = document(allocation.record / "allocation.json")
         saved["definition"] = allocation.definition
         atomic(allocation.record / "allocation.json", saved)
+        if name == "existing":
+            results = allocation.results(first)
+            results.mkdir()
+            seal(results, 0, 0)
         allocation.run_step(first, {})
         if name == "late":
             allocation.budget.clock = lambda allocation=allocation: allocation.allocated_at + 60
