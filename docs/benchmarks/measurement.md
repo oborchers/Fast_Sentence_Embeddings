@@ -1735,7 +1735,7 @@ Models use the configured attention and an empty prompt (documents for Qwen3).
 MiniLM, bge-small and Qwen3 use `sdpa`. MPNet explicitly uses `eager` for both
 reference and measurement, with coordinator approval. Transformers 5.22.1
 `models/mpnet/modeling_mpnet.py:44` declares no SDPA support and its attention
-uses direct matmul at line 153. `modeling_utils.py:1664` rejects SDPA for that
+uses direct matmul at line 150. `modeling_utils.py:1664` rejects SDPA for that
 architecture. This is a frozen cell choice, never a runtime fallback.
 The adapter checks the loaded `config._attn_implementation` against that choice
 and records the observed implementation in every successful receipt.

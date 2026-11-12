@@ -356,12 +356,16 @@ def run(args):
 
 
 def run_cells(context, contract):
-    ledger = context["ledger"]
     memory_preflight(context, contract)
     if all(c.get("device") == "cuda" for c in contract["cells"]):
         from _speed_gpu_study import run
 
         return run(context, contract)
+    return run_cpu_cells(context, contract)
+
+
+def run_cpu_cells(context, contract):
+    ledger = context["ledger"]
     if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
         ledger.stage, ledger.current = "quiet", "quiet"
         require_budget(
