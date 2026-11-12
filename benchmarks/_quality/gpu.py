@@ -226,7 +226,13 @@ def process_cells(args, ledger, allowed, model_verdicts):
         if not ledger.admit(cell["estimated_seconds"]):
             ledger.result(cell, started, status="not_started", reason="budget or stop signal")
             continue
-        result = launch(cell, args, ledger)
+        try:
+            result = launch(cell, args, ledger)
+        except Exception as error:
+            ledger.result(
+                cell, started, status="failed", reason=repr(error), failure_class="infrastructure"
+            )
+            raise
         if args.gpu_phase == "probe":
             result = record_probe(cell, result, model_verdicts)
         ledger.result(cell, started, **result)
