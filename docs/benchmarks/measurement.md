@@ -1369,7 +1369,8 @@ must match unmodified MTEB metrics exactly. Its Top-10 positional differences an
 score difference over store Top-1000 hits are recorded separately as arithmetic-path
 differences. They are not attributed to quantization.
 
-The full tasks are SciFact and NFCorpus of MTEB(eng, v2), subset `default`, split `test`.
+The full tasks are SciFact and NFCorpus, resolved individually by pinned MTEB 2.26.25,
+subset `default`, split `test`.
 FiQA2018 is deferred because `ignore_identical_ids=True`; support can be a separate
 ticket. It has no runnable cell in this study. `formats-smoke` evaluates the
 full NFCorpus task for POTION, without sampling. Benchmark, task, subset, split, dataset

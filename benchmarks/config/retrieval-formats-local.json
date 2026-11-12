@@ -82,8 +82,8 @@
       "id": "formats-potion-base-8M",
       "kind": "rerank",
       "tasks": [
-        "MTEB(eng, v2)/SciFact",
-        "MTEB(eng, v2)/NFCorpus"
+        "SciFact",
+        "NFCorpus"
       ],
       "stages": [
         "potion-base-8M-float32",
@@ -100,8 +100,8 @@
       "id": "formats-static-retrieval-mrl-en-v1",
       "kind": "rerank",
       "tasks": [
-        "MTEB(eng, v2)/SciFact",
-        "MTEB(eng, v2)/NFCorpus"
+        "SciFact",
+        "NFCorpus"
       ],
       "stages": [
         "static-retrieval-mrl-en-v1-float32",
@@ -118,7 +118,7 @@
       "id": "formats-smoke",
       "kind": "rerank",
       "tasks": [
-        "MTEB(eng, v2)/NFCorpus"
+        "NFCorpus"
       ],
       "stages": [
         "potion-base-8M-float32",
