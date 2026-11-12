@@ -50,7 +50,7 @@ def finish(ledger):
 
 
 def overall_of(ledger):
-    return evaluate(
+    return _study_decision(
         ledger.contract["decision"],
         ledger.finished,
         [c["id"] for c in ledger.contract["cells"]],
@@ -58,6 +58,14 @@ def overall_of(ledger):
         ledger.contract["local_phase"],
         getattr(ledger, "stopped_after", None),
     )
+
+
+def _study_decision(rule, rows, selected, functional, phase, stopped_after):
+    """cells@2 needs a separate sealed decision over all required evidence."""
+    result = evaluate(rule, rows, selected, functional, phase, stopped_after)
+    if rule["rule"] == "cells@2":
+        result["final"] = False
+    return result
 
 
 def stop_after(ledger, cell):
@@ -108,7 +116,7 @@ def replay(results):
         decisions[cell_id] = _replay_cell(results, contract, row)
     result = {"cells": decisions}
     if "decision" in contract:
-        result["overall"] = evaluate(
+        result["overall"] = _study_decision(
             contract["decision"],
             rows,
             [c["id"] for c in contract["cells"]],

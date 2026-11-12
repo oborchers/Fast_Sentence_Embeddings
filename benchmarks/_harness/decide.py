@@ -1,4 +1,4 @@
-"""The versioned cells@1 decision over named main and edge cells.
+"""Versioned decisions over named main and edge cells.
 
 This module consumes observations, never schedules or measures work. Missing,
 partial and noisy evidence stays open. Only a measured failure is final early.
@@ -33,8 +33,14 @@ def fraction(value, name):
 def validate(rule, cells):
     """Validate against all resolved cells before selection, without changing the rule."""
     fields = {"rule", "practical_saving", "main", "edge", "stop_early"}
-    if not isinstance(rule, dict) or set(rule) != fields or rule["rule"] != "cells@1":
-        raise ValueError("cells@1 requires exactly rule, practical_saving, main, edge, stop_early")
+    if (
+        not isinstance(rule, dict)
+        or set(rule) != fields
+        or rule["rule"] not in ("cells@1", "cells@2")
+    ):
+        raise ValueError(
+            "cells@1 or cells@2 requires exactly rule, practical_saving, main, edge, stop_early"
+        )
     if fraction(rule["practical_saving"], "practical_saving") == 1:
         raise ValueError("practical_saving must be below one")
     main, edge = rule["main"], rule["edge"]
@@ -98,6 +104,11 @@ def _main(rule, row):
     if row["decision"] != "keep" or row["status"] != "valid":
         return "open"
     saving = number(row["comparison"]["time_saving"], "comparison saving")
+    if rule["rule"] == "cells@2":
+        if "confirmation" not in row:
+            return "open"
+        confirmed = number(row["confirmation"]["time_saving"], "confirmation saving")
+        saving = min(saving, confirmed)
     return "pass" if saving >= rule["practical_saving"] else "fail"
 
 
