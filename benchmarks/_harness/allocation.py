@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-from _harness import machine, spec
+from _harness import machine, prerequisites, spec
 from _harness.budget import Budget, select_billing
 from _harness.collect import collect, verify
 from _harness.records import append, atomic, document, read_rows, seal, seal_unstarted
@@ -67,11 +67,10 @@ class Allocation:
     def refuse(self, reason):
         """No step starts: every step folder is sealed as unstarted, the allocation fails."""
         for step in self.definition["steps"]:
-            seal_unstarted(self.results(step), 1, reason)
-            self.step_row(step, "not_started", 1, reason)
+            self.skip(step, reason)
         self.finish(1)
 
-    def step_row(self, step, status, exit_status, reason=None):
+    def step_row(self, step, status, exit_status, reason=None, evidence=None):
         append(
             self.record / "steps.jsonl",
             {
@@ -79,6 +78,7 @@ class Allocation:
                 "status": status,
                 "exit_status": exit_status,
                 "reason": reason,
+                "evidence": evidence,
                 "results": self.results(step).name,
                 "at_unix": time.time(),
                 "elapsed_seconds": self.budget.elapsed(),
@@ -121,22 +121,48 @@ class Allocation:
             "results": str(self.results(step)),
             "work": str(self.root / f"{name}-work"),
             "python": str(python),
+            "remaining_seconds": str(self.budget.remaining()),
         }
 
-    def run_step(self, step, values):
-        """Run one step to its end; the exit status of the step."""
+    def prepare_step(self, step, values):
+        """Resolve evidence and command before the final admission check."""
         self.check_budget()
+        reason = prerequisites.refusal(self, step, values)
+        if reason:
+            return None, None, reason
+        context = None
+        if any(step["name"] in s.get("requires", []) for s in self.definition["steps"]):
+            try:
+                context = prerequisites.identity(self, values)
+            except (OSError, ValueError) as error:
+                return None, None, f"prerequisite identity unavailable: {error}"
         try:
             command = spec.render(step, self.step_values(values, step))
         except ValueError as error:
-            return self.skip(step, f"invalid step: {error}")
+            return None, None, f"invalid step: {error}"
+        return command, context, None
+
+    def admission_refusal(self, step):
         if self.stopping:
-            return self.skip(step, "stop signal before the step")
+            return "stop signal before the step"
         if not self.budget.admit(step["estimate_seconds"]):
-            return self.skip(step, "time or money budget with reserve exhausted")
+            return "time or money budget with reserve exhausted"
+        return prerequisites.deadline_refusal(self, step)
+
+    def run_step(self, step, values):
+        """Run one step to its end; the exit status of the step."""
+        command, context, reason = self.prepare_step(step, values)
+        reason = reason or self.admission_refusal(step)
+        if reason:
+            return self.skip(step, reason)
         if not self.claim(step):
             self.step_row(step, "restart_refused", RESTART_STATUS, "step already started once")
             return RESTART_STATUS
+        if self.results(step).exists():
+            self.step_row(
+                step, "not_started", 1, "result folder already exists; evidence not reused"
+            )
+            return 1
         try:
             process = self.start(step, command)
         except OSError as error:
@@ -144,16 +170,29 @@ class Allocation:
         if self.stopping:  # a signal between the admission and the registration
             process.send_signal(signal.SIGTERM)
         code = process.wait()
+        return self.completed_step(step, code, context)
+
+    def completed_step(self, step, code, context):
         results = self.results(step)
         sealed = (results / "DONE").exists()
         if not sealed:
             seal_unstarted(results, code or 1, f"step ended without DONE (exit {code})")
-        status = int(document(results / "DONE")["exit_status"]) or code
-        self.step_row(step, "finished" if sealed else "unsealed", status)
+        status, reason = prerequisites.completion_status(results, code)
+        evidence = None
+        if sealed and status == 0 and context is not None:
+            try:
+                evidence = prerequisites.receipt(results, context)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                status = 1
+                reason = f"invalid prerequisite seal: {error}"
+        self.step_row(step, "finished" if sealed else "unsealed", status, reason, evidence)
         return status
 
     def skip(self, step, reason):
-        seal_unstarted(self.results(step), 1, reason)
+        if not self.results(step).exists():
+            seal_unstarted(self.results(step), 1, reason)
+        else:
+            reason += "; existing result folder preserved"
         self.step_row(step, "not_started", 1, reason)
         return 1
 
@@ -178,6 +217,7 @@ class Allocation:
         """Refuse a changed profile, limit or clock after the machine check."""
         saved = document(self.record / "allocation.json")
         expected = {
+            "definition": self.definition,
             "allocated_at": self.allocated_at,
             "billing_profile": self.budget.profile,
             "billing": self.budget.billing,
