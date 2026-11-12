@@ -258,25 +258,72 @@ def float32(root, builds):
         cell[k] != declared[k] for k in ("kind", "dtype", "reference")
     ):
         raise ValueError("float32 cell differs from its contract")
-    _float32_operations(root, cell, rounds, builds)
+    _float32_operations(root, cell, rounds, builds, contract["quiet_cell"])
 
 
-def _float32_operations(root, cell, rounds, builds):
+def _float32_operations(root, cell, rounds, builds, quiet_cell):
     operations = read_rows(root, "operations.jsonl")
+    quiet_rows = _float32_quiet(root, operations, quiet_cell, cell, builds)
+    measured = [r for r in operations if r["cell_id"] == cell["cell_id"]]
     for label, arm in (("fse-base", "base"), ("fse", "candidate")):
-        own = [r for r in operations if r["label"] == label]
-        if [r["round"] for r in own] != list(range(rounds)):
-            raise ValueError("missing float32 rounds")
-        for row in own:
-            production(row)
-            if (
-                row["cell_id"] != cell["cell_id"]
-                or number(row["seconds"], "float32 duration") < 2
-                or build(row, "speed") != builds[arm]
-            ):
-                raise ValueError("float32 build or duration differs")
-    if len(operations) != rounds * 2:
+        own = [r for r in measured if r["label"] == label]
+        _float32_rounds(own, cell, rounds, builds[arm])
+    if len(operations) != rounds * 2 + quiet_rows:
         raise ValueError("unexpected float32 observations")
+
+
+def _float32_rounds(own, cell, rounds, expected_build):
+    if [r["round"] for r in own] != list(range(rounds)):
+        raise ValueError("missing float32 rounds")
+    for row in own:
+        production(row)
+        if (
+            row["cell_id"] != cell["cell_id"]
+            or number(row["seconds"], "float32 duration") < 2
+            or build(row, "speed") != expected_build
+        ):
+            raise ValueError("float32 build or duration differs")
+
+
+def _float32_quiet(root, operations, quiet_cell, cell, builds):
+    _float32_quiet_cell(quiet_cell, cell)
+    own = [r for r in operations if r["cell_id"] == quiet_cell["id"]]
+    seconds = document(root / "quiet.json")["seconds"]
+    if not isinstance(seconds, list) or not seconds:
+        raise ValueError("nonempty float32 quiet durations required")
+    if any(type(r["round"]) is not int for r in own) or [r["round"] for r in own] != list(
+        range(len(seconds))
+    ):
+        raise ValueError("missing float32 quiet observations")
+    for row, duration in zip(own, seconds, strict=True):
+        _float32_quiet_production(row)
+        if (
+            row["label"] != "fse"
+            or row["model"] != quiet_cell["model"]
+            or build(row, "speed") != builds["candidate"]
+            or number(row["seconds"], "quiet duration") <= 0
+            or number(duration, "recorded quiet duration") <= 0
+            or row["seconds"] != duration
+        ):
+            raise ValueError("float32 quiet build, cell or duration differs")
+    return len(own)
+
+
+def _float32_quiet_cell(quiet_cell, cell):
+    _float32_quiet_production(quiet_cell)
+    for key in ("id", "model"):
+        if not isinstance(quiet_cell[key], str) or not quiet_cell[key]:
+            raise ValueError("nonempty float32 quiet cell identifiers required")
+    if quiet_cell["id"] == cell["cell_id"]:
+        raise ValueError("float32 quiet cell must be separate")
+
+
+def _float32_quiet_production(value):
+    if any(
+        value.get(key, False) is not False
+        for key in ("functional_only", "diagnostic_profile", "sizing_only")
+    ):
+        raise ValueError("production float32 quiet evidence required")
 
 
 def profiles(root, context, origin):
