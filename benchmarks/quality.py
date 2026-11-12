@@ -18,12 +18,17 @@ from _measurement_config import CONFIG, contract, validate_cell, validate_prereq
 from _measurement_setup import outside_checkout, setup, utility
 
 
-def specification(args):
+def _phase_contract(args):
     spec = contract(args.input)
     if args.gpu_phase:
         from _quality.gpu import select
 
         spec = select(spec, args.gpu_phase, planning_minutes=args.planning_minutes)
+    return spec
+
+
+def specification(args):
+    spec = _phase_contract(args)
     if args.rehearse:
         rehearsal_limits()
         spec["functional_only"] = True
