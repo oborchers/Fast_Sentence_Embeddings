@@ -267,18 +267,22 @@ def _float32_operations(root, cell, rounds, builds, quiet_cell):
     measured = [r for r in operations if r["cell_id"] == cell["cell_id"]]
     for label, arm in (("fse-base", "base"), ("fse", "candidate")):
         own = [r for r in measured if r["label"] == label]
-        if [r["round"] for r in own] != list(range(rounds)):
-            raise ValueError("missing float32 rounds")
-        for row in own:
-            production(row)
-            if (
-                row["cell_id"] != cell["cell_id"]
-                or number(row["seconds"], "float32 duration") < 2
-                or build(row, "speed") != builds[arm]
-            ):
-                raise ValueError("float32 build or duration differs")
+        _float32_rounds(own, cell, rounds, builds[arm])
     if len(operations) != rounds * 2 + quiet_rows:
         raise ValueError("unexpected float32 observations")
+
+
+def _float32_rounds(own, cell, rounds, expected_build):
+    if [r["round"] for r in own] != list(range(rounds)):
+        raise ValueError("missing float32 rounds")
+    for row in own:
+        production(row)
+        if (
+            row["cell_id"] != cell["cell_id"]
+            or number(row["seconds"], "float32 duration") < 2
+            or build(row, "speed") != expected_build
+        ):
+            raise ValueError("float32 build or duration differs")
 
 
 def _float32_quiet(root, operations, quiet_cell, cell, builds):
