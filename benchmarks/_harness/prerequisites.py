@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
 from _harness.collect import verify
-from _harness.records import document, read_rows, sha256
+from _harness.records import document, read_rows, seal, sha256
 
 
 def runner_identity():
@@ -65,6 +66,75 @@ def completion_status(results, code):
         return status or code, None
     except (OSError, ValueError, KeyError, TypeError) as error:
         return code or 1, f"invalid DONE: {error}"
+
+
+def snapshot(record):
+    """Called only by Allocation before starting decide, never rewrite a snapshot."""
+    target = record / "decision-inputs"
+    target.mkdir(exist_ok=False)
+    for name in ("allocation.json", "machine-check.json", "steps.jsonl"):
+        shutil.copyfile(record / name, target / name)
+    seal(target, 0, 0, extra={"completed_at": None})
+
+
+def recorded(root, names):
+    """Verify saved allocation receipts without reopening relocated work or environments.
+
+    The original identity remains content, including its original absolute paths.
+    All steps must name that same identity and the saved allocation definition.
+    This uses the admission receipt verifier, also after collection.
+    """
+    record = _record_source(root)
+    saved = document(record / "allocation.json")
+    checked = document(record / "machine-check.json")
+    if checked["status"] != "accepted" or checked["rehearsal"] is not False:
+        raise ValueError("accepted production allocation required")
+    rows = read_rows(record, "steps.jsonl")
+    context, receipts = None, {}
+    declared = [s["name"] for s in saved["definition"]["steps"]]
+    for name in names:
+        row = _recorded_row(rows, declared, name)
+        evidence = row["evidence"]
+        current = evidence["identity"]
+        context = current if context is None else context
+        _recorded_identity(current, context, saved)
+        folder = name + "-results"
+        if row["results"] != folder or receipt(root / folder, context) != evidence:
+            raise ValueError("required step seal differs from its admission receipt")
+        receipts[name] = evidence["done_sha256"]
+    return context, receipts
+
+
+def _record_source(root):
+    record = root / "allocation-results"
+    if (record / "DONE").exists():
+        verify(record)
+    snapshot_root = record / "decision-inputs"
+    if snapshot_root.exists() or snapshot_root.is_symlink():
+        record = snapshot_root
+    _, done = verify(record)
+    if record == snapshot_root and (
+        type(done["exit_status"]) is not int or done["exit_status"] != 0
+    ):
+        raise ValueError("decision snapshot did not finish successfully")
+    return record
+
+
+def _recorded_row(rows, declared, name):
+    matches = [row for row in rows if row["step"] == name]
+    if declared.count(name) != 1 or len(matches) != 1:
+        raise ValueError("required allocation step is missing or duplicated")
+    row = matches[0]
+    if row["status"] != "finished" or type(row["exit_status"]) is not int or row["exit_status"]:
+        raise ValueError("required allocation step did not finish successfully")
+    return row
+
+
+def _recorded_identity(current, context, saved):
+    if current != context or current["entry"] != "speed":
+        raise ValueError("required steps belong to different allocations")
+    if any(current[key] != saved[key] for key in ("definition", "allocated_at")):
+        raise ValueError("step identity differs from saved allocation")
 
 
 def refusal(allocation, step, values):

@@ -19,6 +19,10 @@ from _measurement_setup import outside_checkout, setup, utility
 
 def specification(args):
     spec = contract(args.input)
+    if args.gpu_phase:
+        from _quality.gpu import select
+
+        spec = select(spec, args.gpu_phase)
     if args.rehearse:
         rehearsal_limits()
         spec["functional_only"] = True
@@ -173,6 +177,7 @@ def _parser():
     mode.add_argument("--summarize", type=Path)
     mode.add_argument("--collect", type=Path)
     mode.add_argument("--bootstrap", action="store_true")
+    mode.add_argument("--gpu-task", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--input", type=Path, default=CONFIG / "quality.json")
     parser.add_argument("--cells", nargs="+")
     parser.add_argument("--results", type=Path, default=Path("/quality-results"))
@@ -182,6 +187,8 @@ def _parser():
         "--fixture-repo", type=Path, help="clone containing the pinned historical STS Git object"
     )
     parser.add_argument("--allocated-at", type=float)
+    parser.add_argument("--gpu-phase", choices=("probe", "measure"))
+    parser.add_argument("--allocation-root", type=Path)
     parser.add_argument(
         "--local-run",
         action="store_true",
@@ -235,6 +242,11 @@ def _local(parser, args):
     """``--run --local-run``: MTEB cells on a Unix machine, class correctness, never publishable."""
     if not args.run:
         parser.error("--local-run goes with --run")
+    spec = contract(args.input)
+    if spec.get("billing_profile") == "gpu_quality_billing" or any(
+        cell.get("device") == "cuda" for cell in spec["cells"]
+    ):
+        parser.error("CUDA quality requires --gpu-phase and its allocation, not --local-run")
     for path in (args.results, args.work, args.cache):
         outside_checkout(path)
     from _quality.local import run as local_run
@@ -242,9 +254,21 @@ def _local(parser, args):
     return local_run(args)
 
 
+def _validate_modes(parser, args):
+    if args.gpu_phase and (args.local_run or args.rehearse or not (args.run or args.describe)):
+        parser.error("--gpu-phase requires --run or --describe, without local-run or rehearse")
+    if args.gpu_phase and args.cells:
+        parser.error("GPU quality phases use their complete declared cell selection")
+
+
 def main():
     parser = _parser()
     args = parser.parse_args()
+    _validate_modes(parser, args)
+    if args.gpu_task:
+        from _quality.gpu import child
+
+        return child(args.gpu_task)
     local_status = dispatch(args, quality=True)
     if local_status is not None:
         return local_status
@@ -258,7 +282,17 @@ def main():
         return 0
     if args.local_run:
         return _local(parser, args)
+    return _allocated(parser, args)
+
+
+def _allocated(parser, args):
     spec = contract(args.input)
+    if spec.get("billing_profile") == "gpu_quality_billing":
+        from _harness.budget import select_billing
+
+        spec = select_billing(spec)
+        if args.run and args.gpu_phase is None:
+            parser.error("GPU quality execution requires --gpu-phase")
     if sys.platform != "linux" or sys.version.split()[0] != spec["machine"]["python_patch"]:
         raise RuntimeError("pinned Linux Python required")
     if args.allocated_at is None:
@@ -270,6 +304,10 @@ def main():
         return 0
     for path in (args.results, args.work, args.cache):
         outside_checkout(path)
+    if args.gpu_phase:
+        from _quality.gpu import run as gpu_run
+
+        return gpu_run(args, specification(args))
     code = run(args)
     return code
 

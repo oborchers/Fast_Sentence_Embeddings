@@ -109,7 +109,11 @@ class Runner:
                 verify_echild_data(folder, receipt, meta["exit_warning"])
             if self.spec["tool"] == "memray":
                 # Read in the profile interpreter, without controller dependencies.
-                value = self.probe("memray-metadata", profile=str(folder / "mem.bin"))
+                value = self.probe(
+                    "memray-metadata",
+                    profile=str(folder / "mem.bin"),
+                    search_threads=receipt.get("profile") == "int8-prefilter-search@1",
+                )
                 atomic(folder / "memray-metadata.json", value)
             result = coverage(self.spec, folder, receipt, meta["leader_pid"], profiler)
         except (WallBudgetExpiredError, InterruptedError):
@@ -201,6 +205,7 @@ def _operations(runner, check_only, result):
         receipt = document(Path(job["receipt"]))
         current = identity(receipt, spec["entry"])
         same_identity(origin["identity"], current, extra)
+        _verify_search(origin, job, receipt)
         verify_again(spec, origin)
         if spec["entry"] == "speed":
             verify_rebuilt(spec, job)
@@ -215,6 +220,18 @@ def _operations(runner, check_only, result):
             "nominal_arm": spec["nominal_arm"],
             "job_sha256": origin["job_sha256"],
         }
+
+
+def _verify_search(origin, job, receipt):
+    if receipt.get("profile") != "int8-prefilter-search@1":
+        return
+    from _development_path_evidence import validate as validate_path
+
+    if receipt["output"] != origin["row"]["output"]:
+        raise ValueError("profile search output differs from origin")
+    candidate = origin["row"]["path_evidence"]["prefilter_variant"] == "avx2"
+    validate_path(origin["row"], origin["job"], candidate=candidate)
+    validate_path(receipt, job, candidate=candidate)
 
 
 def _attempt(runner, check_only):

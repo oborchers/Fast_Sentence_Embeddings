@@ -3,7 +3,7 @@ umask 077
 entry=@ENTRY@
 revision=@REVISION@
 # Refuse an unpriced GPU allocation before directories, SSH setup or network work.
-if test "$entry" = speed && { test "${MEASURE_STUDY:-}" = gpu || test "${MEASURE_BILLING_PROFILE:-}" = gpu_billing; }; then
+if test "${MEASURE_STUDY:-}" = gpu || test "${MEASURE_BILLING_PROFILE:-}" = gpu_billing || test "${MEASURE_BILLING_PROFILE:-}" = gpu_quality_billing; then
   /usr/local/bin/python - <<'GPU_PRICE_PREFLIGHT'
 @BUDGET@
 gpu_price({})
