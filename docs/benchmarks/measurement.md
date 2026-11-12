@@ -1683,8 +1683,9 @@ python benchmarks/speed.py --describe --study gpu --gpu-phase probe
 python benchmarks/speed.py --describe --study gpu --gpu-phase measure
 ```
 
-`--gpu-phase` accepts only `probe` and `measure`, and is required exactly with
-`--study gpu`. The allocation executes both phases in the `gpu` environment,
+`--gpu-phase` accepts only `probe` and `measure`, only with `--study gpu`.
+It is required for run, rehearsal and description, while setup and bootstrap
+do not execute a model phase. The allocation executes both phases in the `gpu` environment,
 from `config/speed-gpu.lock.txt`. The lock pins PyTorch 2.15.0+cu132,
 Sentence Transformers 6.2.0 and Transformers 5.22.1. Setup uses the official
 CUDA 13.2 wheel index for that lock. CPU environments keep their CPU index.

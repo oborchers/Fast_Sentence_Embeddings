@@ -66,8 +66,13 @@ def arguments():
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
     args = parser.parse_args()
-    if (args.gpu_phase is not None) != (args.study == "gpu"):
-        parser.error("--gpu-phase is required exactly when --study gpu is selected")
+    phase_required = args.study == "gpu" and (args.run or args.rehearse or args.describe)
+    if (args.gpu_phase is not None and args.study != "gpu") or (
+        phase_required and args.gpu_phase is None
+    ):
+        parser.error(
+            "--gpu-phase requires --study gpu and is mandatory for run, rehearse and describe"
+        )
     if args.ignore_host_load and (not args.diagnose or args.allocation_root is None):
         parser.error("--ignore-host-load requires --diagnose and --allocation-root")
     return args
