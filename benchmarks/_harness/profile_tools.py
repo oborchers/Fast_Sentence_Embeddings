@@ -141,7 +141,7 @@ def coverage(spec, folder, receipt, leader_pid, profiler):
     }
     if spec["action"] == "profile-head" and (folder / "profile.log").exists():
         result["profile_ready"] = "profile_ready" in (folder / "profile.log").read_text()
-    if receipt.get("profile") == "int8-prefilter-search@1":
+    if receipt.get("profile") == "int8-prefilter-search@1" and receipt["requested_workers"] > 1:
         names = _search_threads(tool, folder, observed)
         result["search_threads"] = {
             "requested_workers": receipt["requested_workers"],
