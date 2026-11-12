@@ -1464,3 +1464,82 @@ Only an exact model-revision match supports the bound of `0.005` native
 a different revision is reported without acceptance. Existing vector probes keep
 `rtol=3e-5` and `atol=3e-6` separately. Quality evaluation seconds are diagnostic,
 never inference throughput. No Linux speed comparison is part of these cells.
+
+### Retrieval per output format (class correctness)
+
+DR-381 (Retrieval-Qualität je Ausgabeformat mit exakter Store-Suche messen) extends the
+reranker study through `benchmarks/config/retrieval-formats-local.json`, not another runner.
+The question is how float16 and int8 persisted output affect retrieval quality, and which
+tested int8 candidate depth recovers the exact float32 reference. The decision is the
+smallest tested depth for each criterion below. This is class correctness, with no speed
+claim, timing metric or Linux comparison. No paid resources are needed.
+
+The models are POTION-base-8M and static-retrieval-mrl-en-v1, pinned through `pins.json`.
+Each uses the same normalized float32 encoder table for every output format. Each corpus
+is written through `ShardSink` in MTEB order, with positional document IDs, then opened as
+`VectorStore`. Row count, dtype, document positions and store integrity are checked. Rows
+record store bytes and encoder identity. `search(mode="exact")` is explicit for every
+format. The float32 store defines the ranking reference. The existing dense numpy arm
+must match unmodified MTEB metrics exactly. Its Top-10 positional differences and maximum
+score difference over store Top-1000 hits are recorded separately as arithmetic-path
+differences. They are not attributed to quantization.
+
+The full tasks are SciFact and NFCorpus, resolved individually by pinned MTEB 2.26.25,
+subset `default`, split `test`.
+FiQA2018 is deferred because `ignore_identical_ids=True`; support can be a separate
+ticket. It has no runnable cell in this study. `formats-smoke` evaluates the
+full NFCorpus task for POTION, without sampling. Benchmark, task, subset, split, dataset
+revision and evaluation filters accompany expansion, data, cache keys and result rows.
+Tasks with multiple subsets/splits, given candidates, skipped first results or
+`ignore_identical_ids` are refused by the store adapter. Unsupported identical-ID filtering
+is refused before loading task data. A summary emits a mean only when
+the exact expected task set is valid. Selection means are not benchmark means.
+
+The int8 Top-d candidates are rescored by the float32 store at the fixed depths
+10, 20, 50, 100, 200, 500 and 1000. These arms contain only those candidates, with no
+appended tail. Ties use the store's smaller-position rule, also when rescoring, as defined
+in [the store contract](../architecture/store.md) and implemented in
+`src/fse/_store/_rescore.py`. The metrics stay separate:
+
+- nDCG@10 and Recall@10/100 against the task's relevance judgments. Recall@100 for a
+  candidate list shorter than 100 is explicitly marked. Descending rank scores preserve
+  the ranking through pytrec_eval.
+- Mean coverage of the exact float32 Top-10 by the int8 Top-d candidates.
+- Fraction of queries whose rescored ordered Top-10 equals the exact float32 Top-10.
+  This must equal the fraction with full candidate coverage, or the cell fails.
+
+Direct float16 and int8 arms also report ordered Top-10 equality. Each task records the
+smallest tested depth reaching float32 Recall@10, float32 Recall@100 (only depths at least
+100), and full float32 Top-10 coverage. A null depth means not reached through 1000.
+There is no inferred depth between tested values and no statistical equivalence claim.
+
+Before loading, the existing metadata admission guard applies. Before encoding, actual
+full task sizes bound dense scores (`queries * documents * 4` bytes), sorting scratch,
+two vector formats, query vectors, text copies, rankings and candidate scratch. The MTEB
+phase adds its simultaneous score block (up to 50,000 corpus documents), normalized
+vector copies, top-k tensors, heaps, result dictionaries and evaluator copies. The maximum
+of the dense, MTEB and store/rescore phase estimates controls admission. These estimates
+are not measured peak-memory guarantees. The cell
+is `refused` if that estimate exceeds remaining resident-memory allowance. Store mappings
+close and temporary stores are removed after each row, also on failure. Raw ranking
+artifacts preserve query IDs and the document-ID mapping outside the checkout. Dense
+scores and cached rankings are freed at the last use of a task.
+
+Declare a total budget including preparation and lock waits. The initial functional
+probe uses 900 seconds, an estimated 120 seconds, no cost, and stops after the running
+task on exhaustion or the first failure. It supports correctness only. The study's
+relevant boundary is exact MTEB agreement and full-coverage/order consistency, not time.
+Use fresh external folders and the shared locks. No automatic retry or budget extension:
+
+```sh
+HF_HOME=/external/hf HF_DATASETS_CACHE=/external/hf/datasets \
+  python benchmarks/speed.py --local-heavy --worker-name dr381-retrieval-formats -- \
+  /external/quality-env/bin/python benchmarks/quality.py --run --local-run \
+  --input benchmarks/config/retrieval-formats-local.json --cells formats-smoke \
+  --local-budget-seconds 900 --results /external/formats-smoke-01 \
+  --work /external/formats-smoke-work-01
+```
+
+Full studies select `formats-potion-base-8M` and
+`formats-static-retrieval-mrl-en-v1`. Collect and summarize through
+the central quality entry. Neither this study nor its summary updates README values.
