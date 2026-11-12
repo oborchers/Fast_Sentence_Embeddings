@@ -286,6 +286,10 @@ def model_bytes(model):
 
 
 def measure_child(job):
+    if job.get("device") == "cuda":
+        from _speed_gpu import child
+
+        return child(job)
     if job.get("kind") == "search":
         from _speed_search_child import run
 

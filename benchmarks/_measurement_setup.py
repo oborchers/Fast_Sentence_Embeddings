@@ -35,7 +35,9 @@ def _install_environment(execute, uv, root, environment):
         "-r",
         CONFIG / environment["lock"],
         "--extra-index-url",
-        "https://download.pytorch.org/whl/cpu",
+        "https://download.pytorch.org/whl/cu132"
+        if environment["lock"] == "speed-gpu.lock.txt"
+        else "https://download.pytorch.org/whl/cpu",
         "--index-strategy=unsafe-best-match",
     )
     execute(uv, "pip", "check", "--python", destination / "bin/python")

@@ -54,6 +54,11 @@
       "name": "collection",
       "estimate_minutes": 3,
       "budget_minutes": 10
+    },
+    {
+      "name": "gpu",
+      "estimate_minutes": 27,
+      "budget_minutes": 55
     }
   ],
   "rules": {
@@ -772,6 +777,94 @@
       },
       "planned_input_bytes": 4476881,
       "planned_input_sha256": "e78741796f2265790ddd020e86aba486e44f00a33e2600d64661e56078450a03"
+    },
+    {
+      "id": "transformer-minilm-cuda",
+      "stage": "gpu",
+      "kind": "transformer",
+      "reference": null,
+      "backend": "st",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "device": "cuda",
+      "torch_dtype": "float16",
+      "dtype": "float32",
+      "batch_size": 512,
+      "workers": 1,
+      "texts": 500000,
+      "dimensions": 384,
+      "rounds": 3,
+      "estimated_seconds": 390,
+      "input": "st",
+      "input_prefix_texts": 2000000,
+      "max_seq_length": 256,
+      "planned_input_bytes": 68156910,
+      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2"
+    },
+    {
+      "id": "transformer-bge-small-cuda",
+      "stage": "gpu",
+      "kind": "transformer",
+      "reference": null,
+      "backend": "st",
+      "model": "BAAI/bge-small-en-v1.5",
+      "device": "cuda",
+      "torch_dtype": "float16",
+      "dtype": "float32",
+      "batch_size": 512,
+      "workers": 1,
+      "texts": 500000,
+      "dimensions": 384,
+      "rounds": 3,
+      "estimated_seconds": 390,
+      "input": "st",
+      "input_prefix_texts": 2000000,
+      "max_seq_length": 512,
+      "planned_input_bytes": 68156910,
+      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2"
+    },
+    {
+      "id": "transformer-mpnet-cuda",
+      "stage": "gpu",
+      "kind": "transformer",
+      "reference": null,
+      "backend": "st",
+      "model": "sentence-transformers/all-mpnet-base-v2",
+      "device": "cuda",
+      "torch_dtype": "float16",
+      "dtype": "float32",
+      "batch_size": 512,
+      "workers": 1,
+      "texts": 200000,
+      "dimensions": 768,
+      "rounds": 3,
+      "estimated_seconds": 390,
+      "input": "st",
+      "input_prefix_texts": 2000000,
+      "max_seq_length": 384,
+      "planned_input_bytes": 27258333,
+      "planned_input_sha256": "cedd89096cc32cb58ac15d8ef41d9829b174ba93048ee2289bafa32686cd2bec"
+    },
+    {
+      "id": "transformer-qwen3-cuda",
+      "stage": "gpu",
+      "kind": "transformer",
+      "reference": null,
+      "backend": "st",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "device": "cuda",
+      "torch_dtype": "bfloat16",
+      "dtype": "float32",
+      "batch_size": 128,
+      "workers": 1,
+      "texts": 100000,
+      "dimensions": 1024,
+      "rounds": 3,
+      "estimated_seconds": 390,
+      "input": "st",
+      "input_prefix_texts": 2000000,
+      "max_seq_length": 512,
+      "planned_input_bytes": 13619755,
+      "planned_input_sha256": "9ca33adf4aae2adb5d387b0be37f1faf21df89ca227b0f54d75372ddcf9369e5"
     }
   ],
   "quiet_cell": {
@@ -1012,5 +1105,12 @@
         "planned_input_sha256": "64bd628b0b456c9a8529a4b358232a3caa3e77e18150f02b9587a3559bcfbce0"
       }
     }
+  },
+  "gpu_billing": {
+    "planning_minutes": 60,
+    "collection_reserve_seconds": 300,
+    "disk_usd_per_gb_month": 0,
+    "month_hours": 720,
+    "price_source": "SPEED_GPU_USD_PER_HOUR is required for allocation, setup and execution; one approved hourly price funds exactly one hour"
   }
 }

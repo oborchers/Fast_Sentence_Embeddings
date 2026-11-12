@@ -25,6 +25,7 @@ def arguments():
         choices=(
             "all",
             "readme",
+            "gpu",
             "libraries",
             "headline",
             "dtypes",
@@ -37,6 +38,7 @@ def arguments():
         ),
         default="libraries",
     )
+    parser.add_argument("--gpu-phase", choices=("probe", "measure"))
     parser.add_argument("--workers", type=int, choices=(16, 32))
     parser.add_argument("--reuse-work", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -64,6 +66,8 @@ def arguments():
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
     args = parser.parse_args()
+    if (args.gpu_phase is not None) != (args.study == "gpu"):
+        parser.error("--gpu-phase is required exactly when --study gpu is selected")
     if args.ignore_host_load and (not args.diagnose or args.allocation_root is None):
         parser.error("--ignore-host-load requires --diagnose and --allocation-root")
     return args

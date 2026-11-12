@@ -20,8 +20,8 @@ from _harness.ledger import Ledger, watching
 from _harness.pressure import report
 from _measurement import write_environment
 from _measurement_config import CONFIG
-from _measurement_config import contract as load_contract
-from _speed_versions import billing_contract, pair_rounds, preflight_plan
+from _speed_protocol import study_contract
+from _speed_versions import pair_rounds, preflight_plan
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
@@ -64,6 +64,8 @@ def prepare(args, contract, ledger):
     )
     return {
         "work": args.work,
+        "allocation_root": args.allocation_root,
+        "allocated_at": args.allocated_at,
         "datasets": (args.reuse_work or args.work) / "datasets",
         **corpus_memory,
         "ledger": ledger,
@@ -147,7 +149,11 @@ def launch(context, cell, label, number, path, sample, identity):
         job["sample_texts_sha256"] = durable.sha256(Path(job["sample_texts_file"]))
     spec = root / f"{cell['id']}-{number}-{label}.job.json"
     durable.atomic(spec, job)
-    python = engines.interpreter(job["backend"], context["reference_python"])
+    python = (
+        sys.executable
+        if cell.get("device") == "cuda"
+        else engines.interpreter(job["backend"], context["reference_python"])
+    )
     if label == "fse-base":
         if not context["base_python"]:
             raise ValueError("fse-base requires --base-python")
@@ -329,28 +335,6 @@ def quiet(context, contract):
     cleanup(context, [path, path.with_suffix(".json"), sample])
 
 
-def study_contract(args, require_environment=True):
-    contract = billing_contract(load_contract(args.input), args.study)
-    headline = args.study == "headline"
-    contract["cells"] = protocols.select(contract["cells"], args.study, contract.get("readme"))
-    if not contract["cells"]:
-        raise ValueError("study has no matching cells")
-    protocols.validate(contract["cells"])
-    if require_environment:
-        protocols.require(contract["cells"], args.base_python, args.rehearse)
-    if headline:
-        if args.workers is None:
-            raise ValueError("headline requires explicit --workers 16 or 32")
-        contract["format"] = "headline-study-v1"
-        for cell in contract["cells"]:
-            cell["workers"] = args.workers
-    if args.rehearse:
-        contract["rehearsal_limits"] = records.rehearsal_limits()
-        contract["functional_only"] = True
-        protocols.reduce_cells(contract)
-    return contract
-
-
 def run(args):
     contract = study_contract(args)
     args.results.mkdir(parents=True, exist_ok=False)
@@ -374,6 +358,10 @@ def run(args):
 def run_cells(context, contract):
     ledger = context["ledger"]
     memory_preflight(context, contract)
+    if all(c.get("device") == "cuda" for c in contract["cells"]):
+        from _speed_gpu_study import run
+
+        return run(context, contract)
     if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
         ledger.stage, ledger.current = "quiet", "quiet"
         require_budget(
