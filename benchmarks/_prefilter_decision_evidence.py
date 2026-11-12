@@ -78,39 +78,47 @@ def _paths(root, rows, builds, cell):
     if not rows:
         raise ValueError("missing path observations")
     for row in rows:
-        phase = row["phase"]
-        control = phase.startswith(("aa-tune-", "aa-validate-"))
-        if (
-            not control
-            and phase not in ("comparison", "confirmation")
-            and not phase.startswith("size-")
-        ):
-            raise ValueError("unexpected search phase")
-        candidate = not control and row["arm"] == "candidate"
-        tag = f"{row['cell_id']}-{phase}-{row['pair']}-{row['position']}"
-        job = document(root / (tag + ".job.json"))
-        receipt = document(root / (tag + ".json"))
-        if any(row.get(k) != v for k, v in receipt.items()):
-            raise ValueError("search operation differs from child receipt")
-        if job["tag"] != tag or job["id"] != row["cell_id"] or job["action"] != "measure":
-            raise ValueError("search operation address differs from job")
-        expected = {**cell, "warmup_seconds": 0} if phase.startswith("size-") else cell
-        if any(
-            job[k] != v
-            for k, v in expected.items()
-            if k not in ("iterations", "target_seconds", "corpus")
-        ):
-            raise ValueError("search job differs from frozen cell")
-        if (
-            row["operation_repetitions"] != job["iterations"]
-            or row["input"]["sha256"] != job["corpus"]["sha256"]
-        ):
-            raise ValueError("search receipt differs from frozen job workload")
+        job, candidate = _path_job(root, row, cell)
         validate_path(row, job, candidate=candidate)
         key = "candidate" if candidate else "base"
         current = build(row, "development")
         if builds.setdefault(key, current) != current:
             raise ValueError("search executing build changed")
+
+
+def _path_job(root, row, cell):
+    phase = row["phase"]
+    control = phase.startswith(("aa-tune-", "aa-validate-"))
+    if (
+        not control
+        and phase not in ("comparison", "confirmation")
+        and not phase.startswith("size-")
+    ):
+        raise ValueError("unexpected search phase")
+    tag = f"{row['cell_id']}-{phase}-{row['pair']}-{row['position']}"
+    job = document(root / (tag + ".job.json"))
+    receipt = document(root / (tag + ".json"))
+    if any(row.get(k) != v for k, v in receipt.items()):
+        raise ValueError("search operation differs from child receipt")
+    if job["tag"] != tag or job["id"] != row["cell_id"] or job["action"] != "measure":
+        raise ValueError("search operation address differs from job")
+    _job_workload(row, job, cell, phase)
+    return job, not control and row["arm"] == "candidate"
+
+
+def _job_workload(row, job, cell, phase):
+    expected = {**cell, "warmup_seconds": 0} if phase.startswith("size-") else cell
+    if any(
+        job[k] != v
+        for k, v in expected.items()
+        if k not in ("iterations", "target_seconds", "corpus")
+    ):
+        raise ValueError("search job differs from frozen cell")
+    if (
+        row["operation_repetitions"] != job["iterations"]
+        or row["input"]["sha256"] != job["corpus"]["sha256"]
+    ):
+        raise ValueError("search receipt differs from frozen job workload")
 
 
 def _block(cell, rows, phase):
