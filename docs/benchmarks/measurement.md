@@ -1389,6 +1389,11 @@ native CPU and memory profiles must succeed in the pinned Linux rehearsal
 before the allocation runs. Configuration and selection probes alone do not
 prove profiler access or a successful profile.
 
+Open prerequisite: "Gelungene Linux-Profile offen, Nachweis in der Pod-1-Probe
+vor dem bezahlten Lauf". The free Pod 1 rehearsal in the pinned Linux image
+(Plan v5, section 8) owns this evidence. An emulated amd64 image on an ARM Mac
+does not supply it.
+
 The CPU step installs the hashed `benchmarks/config/profile-cpu.lock.txt` in a
 separate tool environment after measurement. It runs py-spy with native frames
 on the original candidate interpreter. The memory step creates a fresh virtual
