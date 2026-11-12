@@ -324,6 +324,14 @@ heavy.lock until the leader and its descendants have ended. A failed owner-file
 write rolls back only the lock directory and file created by that acquisition.
 
 Timing waits for `os.getloadavg()[0] < 5` before each cell, arm and measured call.
+For an allocation, `speed.py --diagnose --allocation-root PATH --ignore-host-load`
+disables this load gate at all three admission points. This explicit protocol
+deviation was approved on 12 November 2026 for containers reporting shared host
+load rather than exclusive container load. The flag requires both `--diagnose`
+and `--allocation-root`. The default local path keeps its load gate. Heavy-lock
+coordination, timing-lock ownership, budgets and session-expiry checks remain
+active. Load telemetry is still recorded. The session contract and every child
+job record `ignore_host_load`, so the deviation remains visible in the evidence.
 Foreign processes above fifty percent CPU are telemetry only; process arguments are
 never collected. Measurement priority targets nice 0. `speed.py --diagnose` refuses a nonzero inherited nice before it creates directories or starts the budget, except with `--diagnostic-rehearsal` or `--local-phase prepare`, where `os.getpriority` is available. zsh's default BG_NICE adds 5 to the nice value of `cmd &` jobs and is the usual cause. Builds/checks use nice 10 when
 available. macOS uses `taskpolicy -B` when available. Linux supports explicitly

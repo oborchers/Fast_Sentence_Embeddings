@@ -68,6 +68,7 @@ def session(args, spec):
         "local_phase": getattr(args, "local_phase", "quality"),
         "descriptive_repetitions": getattr(args, "descriptive_repetitions", None),
         "regression_limit": getattr(args, "regression_limit", None),
+        "ignore_host_load": bool(getattr(args, "ignore_host_load", False)),
     }
     atomic(
         args.results / "environment.json",

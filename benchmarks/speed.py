@@ -62,7 +62,10 @@ def arguments():
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
     add_arguments(parser, mode)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.ignore_host_load and (not args.diagnose or args.allocation_root is None):
+        parser.error("--ignore-host-load requires --diagnose and --allocation-root")
+    return args
 
 
 def profile_utility(args):

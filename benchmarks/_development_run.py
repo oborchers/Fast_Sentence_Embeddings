@@ -36,7 +36,7 @@ def _locked(args, cell, prepared, ledger, quality):
         append(args.results / "coordination.jsonl", row)
 
     def admitted():
-        return args.functional or observations(args.work)["load"][0] < 5
+        return args.functional or args.ignore_host_load or observations(args.work)["load"][0] < 5
 
     # Functional work is untimed: it takes the role of builds and checks, so a timing window of
     # another worker is never disturbed by it.

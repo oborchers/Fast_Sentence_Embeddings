@@ -42,6 +42,7 @@ def launch(args, job, python, tag, timed=False):
     job = {
         "functional_only": bool(getattr(args, "functional", False)),
         **job,
+        "ignore_host_load": bool(getattr(args, "ignore_host_load", False)),
         "wall_deadline": getattr(args, "wall_deadline", None),
         **LABEL,
         "receipt": str(args.results / (tag + ".json")),
