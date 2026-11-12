@@ -1693,8 +1693,14 @@ python benchmarks/speed.py --describe --study gpu --gpu-phase measure
 
 `--gpu-phase` accepts only `probe` and `measure`, only with `--study gpu`.
 It is required for run, rehearsal and description, while setup and bootstrap
-do not execute a model phase. The allocation executes both phases in the `gpu` environment,
-from `config/speed-gpu.lock.txt`. The lock pins PyTorch 2.15.0+cu132,
+do not execute a model phase. An explicit GPU allocation must execute both phases in the `gpu` environment,
+from `config/speed-gpu.lock.txt`. The default `config/allocation.json` remains
+a CPU allocation and cannot run this study. Supply the separate GPU allocation
+through `--allocation` for setup and execution, or `MEASURE_ALLOCATION` for
+bootstrap. That file must declare the `gpu` environment and ordered `gpu-probe`
+and `gpu-measure` steps, with the existing successful-step prerequisite and
+1,320-second admission deadline. The GPU machine/allocation definition is
+delivered separately from this adapter. The lock pins PyTorch 2.15.0+cu132,
 Sentence Transformers 6.2.0 and Transformers 5.22.1. Setup uses the official
 CUDA 13.2 wheel index for that lock. CPU environments keep their CPU index.
 The CUDA build changed from the original CUDA 12.8 plan because PyTorch 2.15.0

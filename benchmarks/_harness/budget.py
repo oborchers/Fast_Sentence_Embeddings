@@ -122,7 +122,7 @@ class Budget:
         if not math.isfinite(self.hourly) or self.hourly <= 0:
             raise ValueError("positive finite total hourly cost required")
         self.ceiling_seconds = min(
-            billing["planning_minutes"] * 60, billing["planning_balance_usd"] * 3600 / self.hourly
+            billing["planning_minutes"] * 60, billing["planning_balance_usd"] / self.hourly * 3600
         )
         if not math.isfinite(self.ceiling_seconds) or self.ceiling_seconds <= 0:
             raise ValueError("positive finite budget ceiling required")
