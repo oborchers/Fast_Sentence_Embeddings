@@ -54,7 +54,50 @@ def _billing_profile(contract, profile, study):
     return profile
 
 
-def select_billing(contract, profile=None, study=None, *, allow_unpriced=False):
+def planning_argument(raw):
+    """Parse a CLI or inherited JSON number without coercing strings or booleans."""
+    value = json.loads(raw)
+    _billing_number("planning_minutes", value)
+    return value
+
+
+def add_planning_argument(parser):
+    parser.add_argument(
+        "--planning-minutes",
+        type=planning_argument,
+        help="positive finite allocation duration, overriding the selected billing profile",
+    )
+
+
+def resolve_planning_minutes(value):
+    inherited = os.environ.get("MEASURE_PLANNING_MINUTES")
+    source = "argument"
+    if value is not None:
+        _billing_number("planning_minutes", value)
+    if inherited is not None:
+        inherited = planning_argument(inherited)
+        if value is not None and value != inherited:
+            raise ValueError("step planning minutes differ from the allocation")
+        value = inherited
+        source = os.environ.get("MEASURE_PLANNING_MINUTES_SOURCE", "argument")
+        if source not in ("config", "argument"):
+            raise ValueError("unknown planning minutes source")
+    return value, source if value is not None else "config"
+
+
+def planning_override(billing, value):
+    value, source = resolve_planning_minutes(value)
+    if value is None:
+        return billing, source
+    result = dict(billing)
+    result["planning_balance_usd"] *= value / billing["planning_minutes"]
+    result["planning_minutes"] = value
+    return result, source
+
+
+def select_billing(
+    contract, profile=None, study=None, *, allow_unpriced=False, planning_minutes=None
+):
     """Resolve the same profile for bootstrap, setup, allocation and measurement."""
     profile = _billing_profile(contract, profile, study)
     if study == "gpu" and profile != "gpu_billing":
@@ -69,18 +112,17 @@ def select_billing(contract, profile=None, study=None, *, allow_unpriced=False):
         override = contract[profile]
         validate_billing(override)
     billing = {**contract["billing"], **override}
+    billing, source = planning_override(billing, planning_minutes)
     billing = _priced_billing(billing, profile, allow_unpriced)
-    contract.update(billing=billing, billing_profile=profile)
+    contract.update(billing=billing, billing_profile=profile, planning_minutes_source=source)
     return contract
 
 
 def _priced_billing(billing, profile, allow_unpriced):
     gpu_profile = profile in ("gpu_billing", "gpu_quality_billing")
-    if profile == "gpu_quality_billing" and billing["planning_minutes"] > 480:
-        raise ValueError("GPU quality planning ceiling is eight hours; no automatic extension")
     if gpu_profile:
         billing = gpu_price(billing, allow_unpriced=allow_unpriced)
-        if profile == "gpu_quality_billing" and "planning_balance_usd" in billing:
+        if "planning_balance_usd" in billing:
             billing["planning_balance_usd"] *= billing["planning_minutes"] / 60
     validate_billing(billing, required=not (gpu_profile and allow_unpriced))
     return billing
@@ -121,9 +163,19 @@ class Budget:
     """The seconds an allocation may use: the smaller of the planned minutes and the planned
     balance at the hourly cost of compute plus disk."""
 
-    def __init__(self, billing, disk_gb, allocated_at, clock=time.time, *, profile=None):
+    def __init__(
+        self,
+        billing,
+        disk_gb,
+        allocated_at,
+        clock=time.time,
+        *,
+        profile=None,
+        planning_minutes_source="config",
+    ):
         validate_billing(billing, required=True)
         self.billing, self.profile = dict(billing), profile
+        self.planning_minutes_source = planning_minutes_source
         self.allocated_at, self.clock = allocated_at, clock
         self.reserve_seconds = billing.get("collection_reserve_seconds", DEFAULT_RESERVE_SECONDS)
         self.hourly = billing["compute_usd_per_hour"] + (
@@ -145,6 +197,7 @@ class Budget:
             allocated_at,
             clock,
             profile=contract.get("billing_profile"),
+            planning_minutes_source=contract.get("planning_minutes_source", "config"),
         )
 
     def elapsed(self):

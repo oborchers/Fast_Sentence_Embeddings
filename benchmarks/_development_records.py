@@ -8,9 +8,9 @@ from pathlib import Path
 
 from _development_budget import minimum_measured_seconds
 from _development_system import LABEL, machine, mark_functional, observations, source_identity
-from _harness.budget import WallBudgetExpiredError
+from _harness.budget import WallBudgetExpiredError, resolve_planning_minutes
 from _harness.ledger import Ledger, watching
-from _harness.records import append, atomic, sha256
+from _harness.records import append, atomic, document, sha256
 from _measurement_setup import outside_checkout
 
 
@@ -41,6 +41,33 @@ class LocalLedger(Ledger):
         }
 
 
+def allocation_limit(args, spec, seconds):
+    root = getattr(args, "allocation_root", None)
+    if root is None:
+        return seconds
+    saved = document(root / "allocation-results" / "allocation.json")
+    value, source = resolve_planning_minutes(args.planning_minutes)
+    if value is not None and (
+        value != saved["billing"]["planning_minutes"]
+        or source != saved.get("planning_minutes_source", "config")
+    ):
+        raise ValueError("diagnostic planning budget differs from the allocation")
+    spec.update(
+        billing=saved["billing"],
+        billing_profile=saved["billing_profile"],
+        planning_minutes_source=saved.get("planning_minutes_source", "config"),
+        allocated_at=saved["allocated_at"],
+    )
+    remaining = (
+        saved["budget_ceiling_seconds"]
+        - saved["collection_reserve_seconds"]
+        - max(0, time.time() - saved["allocated_at"])
+    )
+    if remaining <= 0:
+        raise ValueError("allocation budget exhausted before diagnostic step")
+    return min(seconds, remaining)
+
+
 @contextmanager
 def session(args, spec):
     if getattr(args, "functional", False):
@@ -49,6 +76,7 @@ def session(args, spec):
     seconds = args.wall_time_seconds
     if seconds is None:
         seconds = 900.0 if getattr(args, "local_phase", None) == "descriptive" else 7200.0
+    seconds = allocation_limit(args, spec, seconds)
     args.wall_deadline = started + seconds
     if args.estimated_seconds is not None and args.estimated_seconds > seconds:
         raise ValueError("declared runtime estimate exceeds the total wall-time budget")

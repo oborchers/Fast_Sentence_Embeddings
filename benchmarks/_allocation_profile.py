@@ -186,7 +186,14 @@ def run(args):
             raise ValueError("fresh absolute allocation profile paths required")
     root = args.allocation_root
     billing = "prefilter_billing" if args.study == "search-prefilter" else None
-    budget = budget_of(args.input, CONFIG / "pins.json", billing, args.allocated_at, args.study)
+    budget = budget_of(
+        args.input,
+        CONFIG / "pins.json",
+        billing,
+        args.allocated_at,
+        args.study,
+        args.planning_minutes,
+    )
     allocation = Allocation(
         root, "speed", load(args.allocation, "speed"), args.allocated_at, budget
     )

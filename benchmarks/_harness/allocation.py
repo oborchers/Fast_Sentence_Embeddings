@@ -57,6 +57,7 @@ class Allocation:
                 "allocated_at": self.allocated_at,
                 "billing_profile": self.budget.profile,
                 "billing": self.budget.billing,
+                "planning_minutes_source": self.budget.planning_minutes_source,
                 "budget_ceiling_seconds": self.budget.ceiling_seconds,
                 "collection_reserve_seconds": self.budget.reserve_seconds,
             },
@@ -100,7 +101,12 @@ class Allocation:
     def start(self, step, command):
         logs = self.root / f"{step['name']}-logs"
         logs.mkdir(exist_ok=True)
-        env = {**os.environ, "MEASURE_BILLING_PROFILE": self.budget.profile or ""}
+        env = {
+            **os.environ,
+            "MEASURE_BILLING_PROFILE": self.budget.profile or "",
+            "MEASURE_PLANNING_MINUTES": json.dumps(self.budget.billing["planning_minutes"]),
+            "MEASURE_PLANNING_MINUTES_SOURCE": self.budget.planning_minutes_source,
+        }
         process = subprocess.Popen(command, env=env)
         self.active = process  # registered at once: a stop signal reaches it from here on
         try:
@@ -227,6 +233,7 @@ class Allocation:
             "allocated_at": self.allocated_at,
             "billing_profile": self.budget.profile,
             "billing": self.budget.billing,
+            "planning_minutes_source": self.budget.planning_minutes_source,
             "budget_ceiling_seconds": self.budget.ceiling_seconds,
             "collection_reserve_seconds": self.budget.reserve_seconds,
         }
@@ -246,9 +253,9 @@ class Allocation:
         return [self.record, *(self.results(step) for step in self.definition["steps"])]
 
 
-def budget_of(study_file, pins_file, profile, allocated_at, study=None):
+def budget_of(study_file, pins_file, profile, allocated_at, study=None, planning_minutes=None):
     contract, pins = json.loads(study_file.read_text()), json.loads(pins_file.read_text())
-    resolved = select_billing(contract, profile, study)
+    resolved = select_billing(contract, profile, study, planning_minutes=planning_minutes)
     return Budget.from_contract({**resolved, "machine": pins["machine"]}, allocated_at)
 
 
@@ -271,6 +278,9 @@ def _parser():
     parser.add_argument("--allocated-at", type=float)
     parser.add_argument("--study-file", type=Path)
     parser.add_argument("--pins-file", type=Path)
+    from _harness.budget import add_planning_argument
+
+    add_planning_argument(parser)
     parser.add_argument("--billing-profile")
     parser.add_argument("--study")
     parser.add_argument("--rehearsal", action="store_true")
@@ -307,6 +317,7 @@ def main(argv=None):
         args.billing_profile,
         args.allocated_at,
         values.get("study"),
+        args.planning_minutes,
     )
     values["billing_profile"] = budget.profile or ""
     allocation = Allocation(args.root, args.entry, definition, args.allocated_at, budget)

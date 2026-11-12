@@ -65,6 +65,9 @@ def arguments():
     parser.add_argument("--reference-python", default="/speed-env/reference/bin/python")
     parser.add_argument("--base-python", help="installed base fse interpreter for fse-base cells")
     parser.add_argument("--allocated-at", type=float)
+    from _harness.budget import add_planning_argument
+
+    add_planning_argument(parser)
     add_arguments(parser, mode)
     args = parser.parse_args()
     if args.decide:
@@ -126,6 +129,9 @@ def child_job(file):
 
 def main():
     args = arguments()
+    from _harness.budget import resolve_planning_minutes
+
+    resolve_planning_minutes(args.planning_minutes)
     profile_status = profile_utility(args)
     if profile_status is not None:
         return profile_status
@@ -137,7 +143,9 @@ def main():
     if args.child_job:
         child_job(args.child_job)
         return 0
-    specification = billing_contract(contract(args.input), args.study)
+    specification = billing_contract(
+        contract(args.input), args.study, planning_minutes=args.planning_minutes
+    )
     if (
         sys.platform != "linux"
         or sys.version.split()[0] != specification["machine"]["python_patch"]

@@ -87,6 +87,11 @@ def setup(root, contract, allocated_at, entry, allocation=None):
     revision each one declares."""
     definition = load_allocation(allocation or CONFIG / "allocation.json", entry)
     outside_checkout(root)
+    if (root.parent / "allocation-results" / "allocation.json").exists():
+        from _harness.allocation import Allocation
+
+        budget = Budget.from_contract(contract, allocated_at)
+        Allocation(root.parent, entry, definition, allocated_at, budget).check_budget()
     root.mkdir(parents=True, exist_ok=False)
     (root / "tools").mkdir()
     execute = partial(setup_command, allocated_at=allocated_at, contract=contract)
@@ -121,6 +126,7 @@ def setup(root, contract, allocated_at, entry, allocation=None):
         "fse_revision": contract["fse_revision"],
         "billing": contract["billing"],
         "billing_profile": contract.get("billing_profile"),
+        "planning_minutes_source": contract.get("planning_minutes_source", "config"),
         "python": sys.version,
         "base_image": contract["machine"]["image"],
     }
@@ -133,7 +139,7 @@ def setup(root, contract, allocated_at, entry, allocation=None):
     atomic(root / "setup.json", {"locks": locks, **record})
 
 
-def bootstrap(entry, revision):
+def bootstrap(entry, revision, planning_minutes=None):
     if (
         entry not in ("speed", "quality")
         or not revision
@@ -142,12 +148,20 @@ def bootstrap(entry, revision):
         raise ValueError("bootstrap requires an entry and full immutable source commit")
     # The record writer of the harness is inlined: the script seals the results of a run that
     # never started on a bare interpreter, before any environment or clone exists.
+    planning_export = ""
+    if planning_minutes is not None:
+        budget_module._billing_number("planning_minutes", planning_minutes)
+        planning_export = (
+            f"export MEASURE_PLANNING_MINUTES={planning_minutes!r}\n"
+            "export MEASURE_PLANNING_MINUTES_SOURCE=argument"
+        )
     records = Path(records_module.__file__).read_text()
     return (
         (CONFIG / "bootstrap.sh")
         .read_text()
         .replace("@RECORDS@", records)
         .replace("@BUDGET@", Path(budget_module.__file__).read_text())
+        .replace("@PLANNING@", planning_export)
         .replace("@ENTRY@", entry)
         .replace("@REVISION@", revision)
     )
@@ -169,7 +183,7 @@ def utility(args, entry):
             print(json.dumps(collect(args.collect, args.archive)))
         return True
     if args.bootstrap:
-        print(bootstrap(entry, args.source_revision))
+        print(bootstrap(entry, args.source_revision, args.planning_minutes))
         return True
     if args.describe:
         print(json.dumps(describe(args, entry), indent=2))
@@ -188,10 +202,10 @@ def describe(args, entry):
     if args.gpu_phase:
         from _quality.gpu import select
 
-        return select(spec, args.gpu_phase, unpriced=True)
-    if spec.get("billing_profile") == "gpu_quality_billing":
-        return budget_module.select_billing(spec, allow_unpriced=True)
-    return spec
+        return select(spec, args.gpu_phase, unpriced=True, planning_minutes=args.planning_minutes)
+    return budget_module.select_billing(
+        spec, allow_unpriced=True, planning_minutes=args.planning_minutes
+    )
 
 
 def outside_checkout(path):

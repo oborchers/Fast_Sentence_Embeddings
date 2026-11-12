@@ -25,8 +25,10 @@ from _quality.checks import ModelCheckError
 MODELS = ("sentence-transformers/all-mpnet-base-v2", "Qwen/Qwen3-Embedding-0.6B")
 
 
-def select(spec, phase, *, unpriced=False):
-    spec = select_billing(spec, "gpu_quality_billing", allow_unpriced=unpriced)
+def select(spec, phase, *, unpriced=False, planning_minutes=None):
+    spec = select_billing(
+        spec, "gpu_quality_billing", allow_unpriced=unpriced, planning_minutes=planning_minutes
+    )
     spec["cells"] = [
         c for c in spec["cells"] if c.get("functional_only", False) == (phase == "probe")
     ]

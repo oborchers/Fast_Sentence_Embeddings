@@ -1171,7 +1171,7 @@
     "collection_reserve_seconds": 300,
     "disk_usd_per_gb_month": 0,
     "month_hours": 720,
-    "price_source": "SPEED_GPU_USD_PER_HOUR is required for allocation, setup and execution; one approved hourly price funds exactly one hour"
+    "price_source": "SPEED_GPU_USD_PER_HOUR is required for allocation, setup and execution; one hour by default; money ceiling is the approved hourly price times effective planning hours"
   },
   "prefilter_billing": {
     "planning_minutes": 285,
