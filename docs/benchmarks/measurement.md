@@ -1738,12 +1738,15 @@ frame references, positive weights, consistent durations and matching sample
 counts, explicit nonempty samples for the addressed child, normal coverage
 verification, and all usual provenance checks. Missing or malformed evidence
 fails with a reason. Other exit codes, versions and errors remain failures.
+The access probe writes its successful diagnostic receipt only after completing
+its workload, so a child failure before completion cannot leave a success receipt.
 
 An accepted profile records `warnings` in its cell and a `profile_exit_warning`
 event, including the original exit status, error, sample/error counts and source.
 An accepted access probe records its warning in `<results>/check.json` and the cell's
 `access_coverage.warnings`, with a `profile_exit_warning` event marked `operation: access`.
-The raw log and `<results>/profile-execution.json` retain exit 1. Sampling errors remain
+The raw logs and `<results>/profile-execution.json` or `<results>/access-execution.json`
+retain exit 1 for the respective operation. Sampling errors remain
 visible and limit interpretation. A warning does not remove other open evidence
 or turn diagnostic timings into comparison evidence.
 
