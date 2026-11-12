@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -102,11 +101,6 @@ def main():
     local_status = dispatch(args)
     if local_status is not None:
         return local_status
-    if args.describe:
-        from _speed_run import study_contract
-
-        print(json.dumps(study_contract(args, require_environment=False), indent=2))
-        return 0
     if utility(args, "speed"):
         return 0
     if args.child_job:

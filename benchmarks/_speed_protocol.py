@@ -59,10 +59,6 @@ def validate(cells):
         validate_cell(cell)
         protocol(cell)
         pair_rounds(cell)
-        if cell["kind"] == "transformer":
-            from _speed_transformer import validate
-
-            validate(cell)
         if cell["kind"] == "write":
             from _speed_write_pair import validate as validate_write
 
@@ -118,18 +114,41 @@ def require(cells, base_python, functional=False):
             raise ValueError("search-prefilter requires a shipped enabled prefilter variant")
 
 
+def readme_cell(cell, overrides):
+    fields = {"texts", "workers", "rounds", "estimated_seconds", "planned_input_bytes"}
+    if set(overrides) - (fields | {"planned_input_sha256"}):
+        raise ValueError("unsupported readme override")
+    for key in fields & set(overrides):
+        if type(overrides[key]) is not int or overrides[key] <= 0:
+            raise ValueError(f"readme {key} must be a positive integer")
+    digest = overrides.get("planned_input_sha256")
+    if digest is not None:
+        import re
+
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("readme input digest must be a SHA256 hex string")
+    return dict(cell, **overrides)
+
+
+def select_readme(cells, readme):
+    if not isinstance(readme, dict):
+        raise ValueError("readme selection must be declared")
+    ids, overrides = readme.get("cell_ids"), readme.get("overrides")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise ValueError("readme cell_ids must be a nonempty list of strings")
+    by_id = {c["id"]: c for c in cells}
+    if len(ids) != len(set(ids)) or set(ids) - set(by_id):
+        raise ValueError("readme needs unique existing cell identifiers")
+    if not isinstance(overrides, dict) or set(overrides) - set(ids):
+        raise ValueError("readme overrides must belong to selected cells")
+    if not all(isinstance(value, dict) for value in overrides.values()):
+        raise ValueError("readme overrides must be objects")
+    return [readme_cell(by_id[i], overrides.get(i, {})) for i in ids]
+
+
 def select(cells, study, readme=None):
     if study == "readme":
-        if not isinstance(readme, dict):
-            raise ValueError("readme selection must be declared")
-        by_id = {c["id"]: c for c in cells}
-        ids = readme["cell_ids"]
-        if len(ids) != len(set(ids)) or any(i not in by_id for i in ids):
-            raise ValueError("readme needs unique existing cell identifiers")
-        if set(readme["overrides"]) - set(ids):
-            raise ValueError("readme overrides must belong to selected cells")
-        return [dict(by_id[i], **readme["overrides"].get(i, {})) for i in ids]
-
+        return select_readme(cells, readme)
     if study == "search-prefilter":
         cells = [
             dict(c, relative_to="search-exact-int8")

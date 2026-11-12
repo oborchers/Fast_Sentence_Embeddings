@@ -148,6 +148,14 @@ def corpus_sources(contract, cache, memory=None):
     return source, [mandatory[r["source_position"]] for r in contract["unknown_cases"]], whole
 
 
+def prefix_positions(positions, count, mandatory, prefix_texts):
+    if prefix_texts is None:
+        return positions, count
+    if type(prefix_texts) is not int or not len(mandatory) <= prefix_texts <= count:
+        raise ValueError("prefix must include mandatory rows and fit its parent")
+    return positions[: prefix_texts - len(mandatory)], prefix_texts
+
+
 def write_input(
     path,
     source,
@@ -167,11 +175,7 @@ def write_input(
     positions = rng.integers(len(source), size=count - len(mandatory), dtype=np.int64)
     rng.shuffle(positions)
     parent_count = count
-    if prefix_texts is not None:
-        if type(prefix_texts) is not int or not len(mandatory) <= prefix_texts <= count:
-            raise ValueError("prefix must include mandatory rows and fit its parent")
-        positions = positions[: prefix_texts - len(mandatory)]
-        count = prefix_texts
+    positions, count = prefix_positions(positions, count, mandatory, prefix_texts)
     sample = np.sort(
         np.r_[
             np.arange(len(mandatory)),

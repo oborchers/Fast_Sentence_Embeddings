@@ -25,7 +25,50 @@ def validate(cell):
             raise ValueError(f"transformer {field} must be a positive integer")
     if cell["input_prefix_texts"] < cell["texts"] or cell.get("input") != "st":
         raise ValueError("transformer requires a prefix of the st input")
+    validate_estimate(cell.get("estimated_seconds"))
     pair_rounds(cell)
+
+
+def validate_estimate(value):
+    if type(value) not in (int, float):
+        raise ValueError("transformer estimated_seconds must be a positive finite number")
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite or value <= 0:
+        raise ValueError("transformer estimated_seconds must be a positive finite number")
+
+
+def validate_job(job):
+    if job.get("kind") == "transformer":
+        validate(job)
+
+
+def check_warm(job, texts, warm, indices):
+    if job.get("kind") != "transformer":
+        return None
+    sample_check(job, texts, warm)
+    return warm[indices].copy()
+
+
+def check_measured(vectors, sample, warmed):
+    if warmed is None:
+        return
+    import numpy as np
+
+    check_output(warmed, sample, exact=False)
+    if not np.isfinite(vectors).all():
+        raise ValueError("nonfinite transformer output")
+
+
+def receipt_fields(job, warmed):
+    if warmed is None:
+        return {}
+    return {
+        "transformer_sample_checked": True,
+        **{key: job[key] for key in ("device", "torch_dtype", "batch_size")},
+    }
 
 
 def prepare_prefix(path, source, mandatory, cell):
@@ -69,11 +112,29 @@ def summary(cell, rows, identity):
     }
 
 
+def admit(context, cell, identity):
+    from _harness.resources import require_limit
+    from _speed_cells import memory_plan
+    from _speed_pipeline import model_bytes
+
+    plan = memory_plan(
+        cell,
+        identity["file_bytes"],
+        model_bytes(context["models"][cell["model"]]),
+        require_limit(),
+        "functional" if cell.get("functional_only") else "production",
+    )
+    append(context["ledger"].root / "memory.jsonl", dict(cell_id=cell["id"], **plan))
+    if not plan["admitted"]:
+        raise MemoryError("transformer input exceeds the actual memory allowance")
+
+
 def run(context, cell):
     from _speed_run import cleanup, launch, prepare_input, sample_array
 
     validate(cell)
     path, sample, identity = prepare_input(context, cell)
+    admit(context, cell, identity)
     rows = []
     for number in range(pair_rounds(cell)):
         if not context["ledger"].admit(cell["estimated_seconds"] / cell["rounds"]):

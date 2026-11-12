@@ -154,7 +154,6 @@ def utility(args, entry):
 
     from _harness.allocation import collect_all
     from _harness.collect import collect
-    from _measurement_config import contract as load_contract
 
     if args.collect:
         if not args.archive:
@@ -169,9 +168,19 @@ def utility(args, entry):
         print(bootstrap(entry, args.source_revision))
         return True
     if args.describe:
-        print(json.dumps(load_contract(args.input), indent=2))
+        print(json.dumps(describe(args, entry), indent=2))
         return True
     return False
+
+
+def describe(args, entry):
+    if entry == "speed":
+        from _speed_run import study_contract
+
+        return study_contract(args, require_environment=False)
+    from _measurement_config import contract
+
+    return contract(args.input)
 
 
 def outside_checkout(path):

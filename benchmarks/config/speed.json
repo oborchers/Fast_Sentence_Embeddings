@@ -769,7 +769,9 @@
         "assumed_upper_texts_per_second": 10000,
         "expected_minimum_call_seconds": 3.2768,
         "basis": "Planning assumption: <= 10000 texts/s on 16 CPU workers; not measured. Production calls below 2 s are invalid, never resized or retried."
-      }
+      },
+      "planned_input_bytes": 4476881,
+      "planned_input_sha256": "e78741796f2265790ddd020e86aba486e44f00a33e2600d64661e56078450a03"
     }
   ],
   "quiet_cell": {
@@ -904,68 +906,110 @@
       "libraries-model2vec-1": {
         "texts": 2500000,
         "planned_input_bytes": 340829768,
-        "estimated_seconds": 975
+        "estimated_seconds": 975,
+        "planned_input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e"
       },
       "libraries-rust-1": {
         "texts": 2500000,
         "planned_input_bytes": 340829768,
-        "estimated_seconds": 150
+        "estimated_seconds": 150,
+        "planned_input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e"
       },
       "libraries-fastembed-1": {
         "texts": 2500000,
         "planned_input_bytes": 340829768,
-        "estimated_seconds": 1050
+        "estimated_seconds": 1050,
+        "planned_input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e"
       },
       "libraries-model2vec-16": {
         "texts": 20000000,
         "planned_input_bytes": 2728056171,
-        "estimated_seconds": 667
+        "estimated_seconds": 667,
+        "planned_input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6"
       },
       "libraries-rust-16": {
         "texts": 20000000,
         "planned_input_bytes": 2728056171,
-        "estimated_seconds": 400
+        "estimated_seconds": 400,
+        "planned_input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6"
       },
       "libraries-fastembed-16": {
         "texts": 20000000,
         "planned_input_bytes": 2728056171,
-        "estimated_seconds": 1200
+        "estimated_seconds": 1200,
+        "planned_input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6"
       },
       "headline-100m": {
-        "workers": 16
+        "workers": 16,
+        "planned_input_bytes": 13639687281,
+        "planned_input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef"
       },
       "dtype-paragraph-float32-1": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 380746290,
+        "planned_input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9"
       },
       "dtype-paragraph-float32-16": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 3172275067,
+        "planned_input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05"
       },
       "dtype-paragraph-float16-1": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 380746290,
+        "planned_input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9"
       },
       "dtype-paragraph-float16-16": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 3172275067,
+        "planned_input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05"
       },
       "dtype-paragraph-int8-1": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 380746290,
+        "planned_input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9"
       },
       "dtype-paragraph-int8-16": {
-        "rounds": 5
+        "rounds": 5,
+        "planned_input_bytes": 3172275067,
+        "planned_input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05"
       },
       "heads-folded-model2vec-1": {
         "texts": 5000000,
         "rounds": 3,
-        "estimated_seconds": 750
+        "estimated_seconds": 750,
+        "planned_input_bytes": 681704397,
+        "planned_input_sha256": "b240bef38c7480a631120bdb8d905c63e7f9530b4d8115a84c04ddce87d91992"
       },
       "heads-folded-unfolded-1": {
         "texts": 5000000,
         "rounds": 5,
-        "estimated_seconds": 750
+        "estimated_seconds": 750,
+        "planned_input_bytes": 681704397,
+        "planned_input_sha256": "b240bef38c7480a631120bdb8d905c63e7f9530b4d8115a84c04ddce87d91992"
       },
       "heads-4-onepass-1": {
         "texts": 5000000,
         "rounds": 5,
-        "estimated_seconds": 750
+        "estimated_seconds": 750,
+        "planned_input_bytes": 681704397,
+        "planned_input_sha256": "b240bef38c7480a631120bdb8d905c63e7f9530b4d8115a84c04ddce87d91992"
+      },
+      "libraries-st-1": {
+        "planned_input_bytes": 272595911,
+        "planned_input_sha256": "fa525410db83d7405759ba34b06288d769286ab6730e5ac4e19167e84cba5024"
+      },
+      "libraries-st-16": {
+        "planned_input_bytes": 681709559,
+        "planned_input_sha256": "64bd628b0b456c9a8529a4b358232a3caa3e77e18150f02b9587a3559bcfbce0"
+      },
+      "bekko-st-1": {
+        "planned_input_bytes": 272595911,
+        "planned_input_sha256": "fa525410db83d7405759ba34b06288d769286ab6730e5ac4e19167e84cba5024"
+      },
+      "bekko-st-16": {
+        "planned_input_bytes": 681709559,
+        "planned_input_sha256": "64bd628b0b456c9a8529a4b358232a3caa3e77e18150f02b9587a3559bcfbce0"
       }
     }
   }

@@ -13,6 +13,7 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 import _speed_protocol as protocols
+import _speed_transformer as transformers
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
@@ -292,10 +293,7 @@ def measure_child(job):
         return headline_child(job)
     if job["backend"] == "rust":
         return rust_child(job)
-    if job.get("kind") == "transformer":
-        from _speed_transformer import validate
-
-        validate(job)
+    transformers.validate_job(job)
     adapter = ADAPTERS[job["backend"]]
     configure(job["workers"], native_threads=adapter["native_threads"])
     import resource
@@ -314,12 +312,7 @@ def measure_child(job):
         warm = encode(texts)
         if warm.shape != (len(texts), job["dimensions"]):
             raise ValueError("warm output shape changed")
-        transformer_sample = None
-        if job.get("kind") == "transformer":
-            from _speed_transformer import sample_check
-
-            sample_check(job, texts, warm)
-            transformer_sample = warm[indices].copy()
+        transformer_sample = transformers.check_warm(job, texts, warm, indices)
         del warm
         gc.collect()
         before = telemetry()
@@ -330,12 +323,7 @@ def measure_child(job):
         if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
             raise ValueError("backend output contract changed")
         sample = np.ascontiguousarray(vectors[indices])
-        if transformer_sample is not None:
-            from _speed_cells import check_output
-
-            check_output(transformer_sample, sample, exact=False)
-        if not np.isfinite(vectors).all():
-            raise ValueError("nonfinite backend output")
+        transformers.check_measured(vectors, sample, transformer_sample)
         with Path(job["vectors_file"]).open("xb") as stream:
             np.save(stream, sample, allow_pickle=False)
             stream.flush()
@@ -357,10 +345,7 @@ def measure_child(job):
                 "affinity": sorted(os.sched_getaffinity(0)),
                 "workers": job["workers"],
                 "worker_path": adapter["factory"].__name__,
-                "transformer_sample_checked": transformer_sample is not None,
-                "device": job.get("device", "cpu"),
-                "torch_dtype": job.get("torch_dtype"),
-                "batch_size": job.get("batch_size"),
+                **transformers.receipt_fields(job, transformer_sample),
                 "widened_weights": bool(job.get("widen_weights")) and job["backend"] == "st",
             },
         )
@@ -379,6 +364,8 @@ def st_pool_worker(*args):
 
 
 def st_encoder(job):
+    transformer = job.get("kind") == "transformer"
+    transformers.validate_job(job)
     import torch
     from sentence_transformers import SentenceTransformer
 
@@ -386,11 +373,6 @@ def st_encoder(job):
     if workers > 1:
         st_file_limits()
     torch.set_num_threads(1 if workers > 1 else workers)
-    transformer = job.get("kind") == "transformer"
-    if transformer:
-        from _speed_transformer import validate
-
-        validate(job)
     device = job["device"] if transformer else "cpu"
     options = {"model_kwargs": {"torch_dtype": torch.float32}} if transformer else {}
     model = SentenceTransformer(job["snapshot"], device=device, local_files_only=True, **options)
