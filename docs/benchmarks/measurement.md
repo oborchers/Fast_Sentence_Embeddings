@@ -1717,7 +1717,14 @@ Frozen prefix identities (SHA-256):
 The adapter requires exactly one CUDA device, named `NVIDIA L40S`, with at least
 44 GiB, and the locked CUDA 13.2 build. The allocation also checks the driver.
 There is no CPU fallback, precision fallback, batch reduction or retry.
-Models use explicit SDPA attention and an empty prompt (documents for Qwen3).
+Models use the configured attention and an empty prompt (documents for Qwen3).
+MiniLM, bge-small and Qwen3 use `sdpa`. MPNet explicitly uses `eager` for both
+reference and measurement, with coordinator approval. Transformers 5.22.1
+`models/mpnet/modeling_mpnet.py:44` declares no SDPA support and its attention
+uses direct matmul at line 153. `modeling_utils.py:1664` rejects SDPA for that
+architecture. This is a frozen cell choice, never a runtime fallback.
+The adapter checks the loaded `config._attn_implementation` against that choice
+and records the observed implementation in every successful receipt.
 The final module in `modules.json` determines normalization. Observed devices,
 weight dtypes and normalization are checked, rather than inferred from a request.
 

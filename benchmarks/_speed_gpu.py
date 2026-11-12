@@ -35,6 +35,9 @@ def validate(cell):
         raise ValueError(
             "CUDA model precision, length, batch and dimensions must match the contract"
         )
+    attention = "eager" if cell["model"] == "sentence-transformers/all-mpnet-base-v2" else "sdpa"
+    if cell.get("attention") != attention or cell.get("stage") != "gpu":
+        raise ValueError("CUDA attention and stage must match the fixed model contract")
     if cell.get("workers") != 1 or type(cell.get("workers")) is not int:
         raise ValueError("CUDA requires one process on one device")
     if cell.get("gpu_phase", "measure") not in ("probe", "measure"):
@@ -80,11 +83,13 @@ def load_model(job, dtype):
         job["snapshot"],
         device="cuda",
         local_files_only=True,
-        model_kwargs={"torch_dtype": dtype, "attn_implementation": "sdpa"},
+        model_kwargs={"torch_dtype": dtype, "attn_implementation": job["attention"]},
     )
     model.max_seq_length = job["max_seq_length"]
-    if model[0].auto_model.config._attn_implementation != "sdpa":
-        raise ValueError("observed attention implementation differs from SDPA")
+    if model[0].auto_model.config._attn_implementation != job["attention"]:
+        raise ValueError(
+            "observed attention implementation differs from the configured model contract"
+        )
     if model.device.type != "cuda" or any(p.device.type != "cuda" for p in model.parameters()):
         raise RuntimeError("model left CUDA; CPU fallback is forbidden")
     if any(p.dtype != dtype for p in model.parameters() if p.is_floating_point()):
@@ -286,7 +291,7 @@ def execute(job, texts, torch, identity, before):
             "device": str(model.device),
             "torch_dtype": job["torch_dtype"],
             "batch_size": job["batch_size"],
-            "attention": "sdpa",
+            "attention": model[0].auto_model.config._attn_implementation,
             "prompt": "",
             "precision_controls": {
                 "allow_tf32": torch.backends.cuda.matmul.allow_tf32,

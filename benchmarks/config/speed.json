@@ -798,7 +798,8 @@
       "input_prefix_texts": 2000000,
       "max_seq_length": 256,
       "planned_input_bytes": 68156910,
-      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2"
+      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2",
+      "attention": "sdpa"
     },
     {
       "id": "transformer-bge-small-cuda",
@@ -820,7 +821,8 @@
       "input_prefix_texts": 2000000,
       "max_seq_length": 512,
       "planned_input_bytes": 68156910,
-      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2"
+      "planned_input_sha256": "79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2",
+      "attention": "sdpa"
     },
     {
       "id": "transformer-mpnet-cuda",
@@ -842,7 +844,8 @@
       "input_prefix_texts": 2000000,
       "max_seq_length": 384,
       "planned_input_bytes": 27258333,
-      "planned_input_sha256": "cedd89096cc32cb58ac15d8ef41d9829b174ba93048ee2289bafa32686cd2bec"
+      "planned_input_sha256": "cedd89096cc32cb58ac15d8ef41d9829b174ba93048ee2289bafa32686cd2bec",
+      "attention": "eager"
     },
     {
       "id": "transformer-qwen3-cuda",
@@ -864,7 +867,8 @@
       "input_prefix_texts": 2000000,
       "max_seq_length": 512,
       "planned_input_bytes": 13619755,
-      "planned_input_sha256": "9ca33adf4aae2adb5d387b0be37f1faf21df89ca227b0f54d75372ddcf9369e5"
+      "planned_input_sha256": "9ca33adf4aae2adb5d387b0be37f1faf21df89ca227b0f54d75372ddcf9369e5",
+      "attention": "sdpa"
     }
   ],
   "quiet_cell": {

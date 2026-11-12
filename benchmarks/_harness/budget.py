@@ -57,6 +57,8 @@ def _billing_profile(contract, profile, study):
 def select_billing(contract, profile=None, study=None, *, allow_unpriced=False):
     """Resolve the same profile for bootstrap, setup, allocation and measurement."""
     profile = _billing_profile(contract, profile, study)
+    if study == "gpu" and profile != "gpu_billing":
+        raise ValueError("the gpu study requires gpu_billing, not another billing profile")
     validate_billing(contract["billing"])
     override = {}
     if profile is not None:
