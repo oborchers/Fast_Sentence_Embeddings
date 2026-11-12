@@ -159,3 +159,11 @@ def _overall(roles, functional):
     if all(value == "pass" for value in roles.values()):
         return "enable"
     return "inconclusive"
+
+
+def evaluate_study(rule, rows, selected, functional=False, phase="all", stopped_after=None):
+    """cells@2 needs a separate sealed decision over all required evidence."""
+    result = evaluate(rule, rows, selected, functional, phase, stopped_after)
+    if rule["rule"] == "cells@2":
+        result["final"] = False
+    return result
