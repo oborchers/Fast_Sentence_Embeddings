@@ -12,7 +12,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from _harness import functional, resources
-from _measurement_pressure import snapshot
+from _harness.pressure import snapshot
 
 LABEL = {"mode": "local-development", "publishable": False}
 

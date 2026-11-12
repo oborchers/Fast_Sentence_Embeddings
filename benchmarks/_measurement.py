@@ -12,9 +12,9 @@ import sys
 import time
 from pathlib import Path
 
+from _harness.pressure import noise, snapshot
 from _harness.records import append, atomic, sha256
 from _measurement_config import CONFIG
-from _measurement_pressure import noise, snapshot
 
 
 def spread(values):

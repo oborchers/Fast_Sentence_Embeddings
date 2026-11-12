@@ -7,10 +7,10 @@ import resource
 import time
 from pathlib import Path
 
+from _harness.pressure import interval
 from _harness.records import atomic
 from _harness.search import common_passes, sequence_digest
 from _measurement import child_record, telemetry
-from _measurement_pressure import interval
 from _speed_cells import configure
 from _speed_search import arrays, prefilter, save_array, search_pool
 from _speed_search_identity import require_bits, verify

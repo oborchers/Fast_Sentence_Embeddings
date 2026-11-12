@@ -31,18 +31,22 @@ def _cgroup(proc):
     if len(groups) != 1 or ".." in PurePosixPath(groups[0]).parts:
         return None
     group = PurePosixPath(groups[0])
-    candidates = []
-    for line in mounts.splitlines():
+    candidates = [
+        (len(root.parts), mount / str(group.relative_to(root)))
+        for root, mount in _mounts(mounts)
+        if group.is_relative_to(root)
+    ]
+    return max(candidates, key=lambda pair: pair[0])[1] if candidates else None
+
+
+def _mounts(text):
+    for line in text.splitlines():
         fields = line.split()
         if "-" not in fields or len(fields) < 7:
             continue
         separator = fields.index("-")
-        if separator + 1 >= len(fields) or fields[separator + 1] != "cgroup2":
-            continue
-        root, mount = PurePosixPath(_unescape(fields[3])), Path(_unescape(fields[4]))
-        if group.is_relative_to(root):
-            candidates.append((len(root.parts), mount / str(group.relative_to(root))))
-    return max(candidates, key=lambda pair: pair[0])[1] if candidates else None
+        if separator + 1 < len(fields) and fields[separator + 1] == "cgroup2":
+            yield PurePosixPath(_unescape(fields[3])), Path(_unescape(fields[4]))
 
 
 def _pressure(text):

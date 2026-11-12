@@ -13,7 +13,7 @@ import shutil
 import time
 from pathlib import Path
 
-from _measurement_pressure import snapshot
+from _harness.pressure import snapshot
 
 CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"

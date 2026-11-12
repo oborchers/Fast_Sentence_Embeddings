@@ -9,10 +9,10 @@ import sys
 import time
 from pathlib import Path
 
+from _harness.pressure import report
 from _harness.records import append, atomic, document
 from _harness.search import order, sequence_digest, summarize
 from _measurement import spread
-from _measurement_pressure import report
 from _speed_search import admission, prepare
 from _speed_search_identity import identity, verify
 

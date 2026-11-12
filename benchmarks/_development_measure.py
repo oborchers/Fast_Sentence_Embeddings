@@ -27,8 +27,8 @@ from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, apply_affinity, observations
 from _harness.budget import check
+from _harness.pressure import interval
 from _harness.records import append
-from _measurement_pressure import interval
 
 
 def _policy(job):

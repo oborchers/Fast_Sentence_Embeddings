@@ -17,10 +17,10 @@ import _speed_protocol as protocols
 import _speed_write as writing
 from _harness import records as durable
 from _harness.ledger import Ledger, watching
+from _harness.pressure import report
 from _measurement import write_environment
 from _measurement_config import CONFIG
 from _measurement_config import contract as load_contract
-from _measurement_pressure import report
 from _speed_versions import billing_contract, pair_rounds, preflight_plan
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")

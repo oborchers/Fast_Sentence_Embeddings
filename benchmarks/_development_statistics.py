@@ -6,7 +6,7 @@ import math
 import statistics
 
 from _development_search import enabled as search_cost
-from _measurement_pressure import noise, report
+from _harness.pressure import noise, report
 
 GATE_MINIMUMS = {"noise_multiplier": 3.0, "minimum_saving": 0.02, "confirmation_fraction": 0.5}
 

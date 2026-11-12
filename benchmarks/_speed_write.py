@@ -7,9 +7,9 @@ import os
 import time
 from pathlib import Path
 
+from _harness.pressure import interval
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
-from _measurement_pressure import interval
 from _speed_cells import configure, remove_headline
 
 

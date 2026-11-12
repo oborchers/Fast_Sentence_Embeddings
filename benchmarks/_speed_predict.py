@@ -16,9 +16,9 @@ from pathlib import Path
 
 import _speed_cells as inputs
 from _harness import resources
+from _harness.pressure import interval, report
 from _harness.records import append, atomic, document, sha256, sync_directory
 from _measurement import package_identity, spread, telemetry
-from _measurement_pressure import interval, report
 from _speed_write import headline_tokens
 
 PROFILE = "toxicity-placeholder@1"

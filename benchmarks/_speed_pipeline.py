@@ -13,10 +13,10 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 import _speed_protocol as protocols
+from _harness.pressure import interval
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
-from _measurement_pressure import interval
 from _speed_cells import configure
 from _speed_heads import fse_head, model2vec_head
 from _speed_write import headline_child

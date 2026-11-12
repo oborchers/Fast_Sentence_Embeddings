@@ -20,8 +20,8 @@ from _development_process import checked, launch
 from _development_statistics import summary
 from _development_system import LABEL, observations
 from _harness.budget import check
+from _harness.pressure import interval
 from _harness.records import append, atomic
-from _measurement_pressure import interval
 
 
 def run(args, cell, prepared, ledger):
