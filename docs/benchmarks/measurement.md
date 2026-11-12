@@ -1741,7 +1741,7 @@ fails with a reason. Other exit codes, versions and errors remain failures.
 
 An accepted profile records `warnings` in its cell and a `profile_exit_warning`
 event, including the original exit status, error, sample/error counts and source.
-An accepted access probe records its warning in `check.json` and the cell's
+An accepted access probe records its warning in `<results>/check.json` and the cell's
 `access_coverage.warnings`, with a `profile_exit_warning` event marked `operation: access`.
 The raw log and `<results>/profile-execution.json` retain exit 1. Sampling errors remain
 visible and limit interpretation. A warning does not remove other open evidence
