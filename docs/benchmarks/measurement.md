@@ -1449,13 +1449,18 @@ It reads `speed-f32-results`, `prefilter-results`, `profile-cpu-results`,
 exists before that final seal. SIGTERM or exhausted allocation admission can
 leave this step `not_started`; that also supplies no enabling decision.
 
-**Freeze builds are still placeholders.** The allocation currently uses
-`main: pins` and base `3b4061441d834eb06f605e1b6cd60dd0d118ceba`, matching the
-existing version allocation. Before any paid start, replace both in a separate
-small pull request: B0 is master at the feature freeze, and K is B0 plus the
-single AVX2 enabling line on a pushed branch. Set base to B0 and the shared
-candidate pin to K. Review the runner revision independently. The current
-placeholders do not define a valid AVX2 comparison.
+**Freeze builds are pinned explicitly.** The base environment uses B0,
+`b466f9c8d165bfcd6c96668413a85108f63b96d0`, master at the 2026-11-12 feature
+freeze. The `main` environment (role `candidate`) uses K,
+`ceb1f61ecc81599870753b58c84911ba83e81f6d`, on the pushed branch
+`dr409-k-avx2`. K adds only `"avx2"` to `_PREFILTER_ENABLED` in
+`src/fse/_backends/_cpu.py`. It has no pull request and must never be merged.
+The AVX2 decision belongs to 2.2 and does not gate the 2.1 release.
+Both environments retain their dependency locks. These explicit revisions
+override the shared `pins.json` product revision for this allocation only.
+Review the runner revision independently. Before any paid start, a separate
+x86 functional probe must prove that K executes AVX2. The local Mac build
+probe proves only that K retains the ARM `neon-sdot` path.
 
 Implementation validation uses class correctness only: configuration loading,
 rendered CLI parsing and refusal probes. No Linux comparison or speed

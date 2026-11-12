@@ -47,13 +47,13 @@
         "name": "main",
         "role": "candidate",
         "lock": "speed-main.lock.txt",
-        "revision": "pins"
+        "revision": "ceb1f61ecc81599870753b58c84911ba83e81f6d"
       },
       {
         "name": "base",
         "role": "base",
         "lock": "speed-base.lock.txt",
-        "revision": "3b4061441d834eb06f605e1b6cd60dd0d118ceba"
+        "revision": "b466f9c8d165bfcd6c96668413a85108f63b96d0"
       }
     ],
     "steps": [
