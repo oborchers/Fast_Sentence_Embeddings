@@ -1714,6 +1714,61 @@ Full studies select `formats-potion-base-8M` and
 `formats-static-retrieval-mrl-en-v1`. Collect and summarize through
 the central quality entry. Neither this study nor its summary updates README values.
 
+### Publication head kinds and persisted outputs
+
+The README selection includes `heads-multilabel-1` and `heads-calibrated-1`
+(`heads-kind@1`), with five million sentences, one worker and five observations.
+Each uses four float32 outputs from fixed PCG64 seed 17 weights and bias, without
+training. The multilabel head uses independent sigmoid probabilities. The
+calibrated head uses softmax with temperature 2.0 folded into its weights and
+bias. Both use raw POTION-base-8M means. Each measured observation checks the
+same 10,000 sampled rows bit for bit against the numpy backend (`fse._reference`)
+outside its timer. Their summaries contain absolute medians and IQR only,
+without a reference arm or speed factor. They have different output contracts.
+
+`heads-sinks-16` (`heads-sinks@1`) uses ten million sentences, 16 workers and
+three alternating rounds. Four heads with four outputs each write float32 logits
+and float32 encoder vectors with positional int64 document IDs. The `fse` arm
+writes both stores in one native-file `Heads.predict` call. The `fse-two-pass`
+arm reads the same input for `Encoder.encode` and then `Heads.predict`. Both
+head calls request vectors, preserving the same unfolded arithmetic path even
+when the second arm discards those vectors. Both arms write the same two stores,
+with `durability="none"` and `resume=True` on fresh sinks. Resume selects the
+native-file streaming API; this study does not time recovery of existing stores.
+
+Every arm has a full untimed warmup, including close, verification,
+synchronization and removal. Its continuous timer starts immediately before the
+first source read and ends after the final sink closes. Initial sink opening is
+outside that interval. Opening the second pass's score sink remains inside it.
+Every measured inference call must last at least two seconds. The receipt records
+individual call durations as well as the continuous interval. Functional probes
+are exempt from this production duration gate and provide no speed evidence.
+
+After each operation, both complete stores pass `verify`, row-count checks and
+checks of every document ID. The 10,000 vector and score sample rows also match
+the numpy reference bit for bit. Retained `.npz` samples are compared between
+arms, including indices, dtypes, shapes and all bits. Verification, sample
+serialization, external synchronization and removal are outside the timer.
+There is only one live set of stores, including during warmup. Cleanup inventories
+and logical file bytes are recorded separately from physical device writes.
+
+The admission plan includes retained corpus text, input pages and preparation,
+model and plan copies, worker buffers, document IDs, samples and one set of
+stores. It runs before input preparation and again against the executing memory
+and disk allowance. The selected publication cohort must remain below 108.8 GB
+of its declared 128 GB memory limit. Addressed speed profiles also accept the
+sink child and reconstruct its input through the existing profile entry.
+
+Prior art: the implementation follows the existing fse dual-sink and publication
+write adapters. External synchronization follows
+[Python's `os.fsync` contract](https://docs.python.org/3/library/os.html#os.fsync).
+Named sample arrays use the documented
+[NumPy `.npz` format](https://numpy.org/doc/stable/reference/generated/numpy.savez.html),
+loaded with pickle disabled. These references were checked on 2026-11-12.
+This prepares publication protocols. Local adapter probes are class correctness;
+no Linux comparison or publication result is produced by adding these cells.
+
+
 ### CUDA transformer throughput (transformer@1)
 
 `speed.py --study gpu` extends the existing absolute `transformer@1` variant to

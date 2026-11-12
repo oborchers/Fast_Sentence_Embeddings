@@ -264,3 +264,9 @@ def headline_rounds(context, cell, path, sample, identity, launch, cleanup):
     from _speed_write_pair import rounds
 
     return rounds(context, cell, path, sample, identity, launch, cleanup)
+
+
+def model_bytes(model):
+    if model["artifact"] is not None:
+        return Path(model["artifact"]).stat().st_size
+    return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))

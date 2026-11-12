@@ -508,6 +508,59 @@
       "vector_dimensions": 256
     },
     {
+      "stage": "heads",
+      "model": "minishlab/potion-base-8M",
+      "workers": 1,
+      "texts": 5000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 4,
+      "planned_input_bytes": 681704397,
+      "planned_input_sha256": "b240bef38c7480a631120bdb8d905c63e7f9530b4d8115a84c04ddce87d91992",
+      "heads": 1,
+      "vector_dimensions": 256,
+      "id": "heads-multilabel-1",
+      "kind": "heads-kind",
+      "head_kind": "multilabel",
+      "reference": null
+    },
+    {
+      "stage": "heads",
+      "model": "minishlab/potion-base-8M",
+      "workers": 1,
+      "texts": 5000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 4,
+      "planned_input_bytes": 681704397,
+      "planned_input_sha256": "b240bef38c7480a631120bdb8d905c63e7f9530b4d8115a84c04ddce87d91992",
+      "heads": 1,
+      "vector_dimensions": 256,
+      "id": "heads-calibrated-1",
+      "kind": "heads-kind",
+      "head_kind": "calibrated",
+      "reference": null
+    },
+    {
+      "stage": "heads",
+      "model": "minishlab/potion-base-8M",
+      "workers": 16,
+      "texts": 10000000,
+      "dtype": "float32",
+      "rounds": 3,
+      "estimated_seconds": 720,
+      "dimensions": 16,
+      "planned_input_bytes": 1363839338,
+      "heads": 4,
+      "vector_dimensions": 256,
+      "id": "heads-sinks-16",
+      "kind": "heads-sinks",
+      "reference": "fse-two-pass",
+      "planned_input_sha256": "18fbe15e68303def80ed7313f0b904a7272c9bb463ae8e19779b251311492951"
+    },
+    {
       "id": "version-encode-float32-1",
       "stage": "versions",
       "kind": "dtype",
@@ -997,7 +1050,10 @@
       "search-exact-int8",
       "search-binary-float32",
       "headline-100m",
-      "transformer-minilm-cpu-16"
+      "transformer-minilm-cpu-16",
+      "heads-multilabel-1",
+      "heads-calibrated-1",
+      "heads-sinks-16"
     ],
     "overrides": {
       "libraries-model2vec-1": {

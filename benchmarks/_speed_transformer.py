@@ -140,8 +140,7 @@ def summary(cell, rows, identity):
 
 def admit(context, cell, identity):
     from _harness.resources import require_limit
-    from _speed_cells import memory_plan
-    from _speed_pipeline import model_bytes
+    from _speed_cells import memory_plan, model_bytes
 
     plan = memory_plan(
         cell,

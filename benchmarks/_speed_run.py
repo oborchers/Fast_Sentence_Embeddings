@@ -21,16 +21,11 @@ from _harness.pressure import report
 from _measurement import write_environment
 from _measurement_config import CONFIG
 from _speed_protocol import study_contract
-from _speed_versions import pair_rounds, preflight_plan
+from _speed_versions import pair_rounds, preflight_plan, require_budget
 
 ENTRY = Path(__file__).resolve().with_name("speed.py")
 
 HERE = Path(__file__).resolve().parent
-
-
-def require_budget(ledger, estimate):
-    if not ledger.admit(estimate):
-        raise RuntimeError("preparation admission budget or stop signal exhausted")
 
 
 def prepare(args, contract, ledger):
@@ -141,6 +136,8 @@ def launch(context, cell, label, number, path, sample, identity):
         vectors_file=str(folder / "sample"),
         receipt=str(folder / "receipt.json"),
     )
+    if cell["kind"] == "heads-sinks":
+        job["head_sample_file"] = str(root / f"{cell['id']}-{number}-{label}.sample.npz")
     if label == "rust":
         job.update(context["rust"], rust_revision=context["rust"]["revision"])
     if cell["kind"] == "write":
@@ -275,9 +272,13 @@ def memory_preflight(context, contract):
             workers=cell.get("production_workers", cell["workers"]),
             functional_only=False,
         )
+        if cell["kind"] in ("heads-kind", "heads-sinks"):
+            from _speed_heads_study import preflight
+
+            rows.append(preflight(context, production, limit))
         if protocols.protocol(cell)["own_memory_plan"] and cell["kind"] != "write":
             continue
-        model_bytes = engines.model_bytes(context["models"][cell["model"]])
+        model_bytes = inputs.model_bytes(context["models"][cell["model"]])
         if cell["kind"] == "write":
             from _speed_write_pair import memory_plan
 
@@ -295,7 +296,7 @@ def memory_preflight(context, contract):
 
 def pair(context, cell):
     path, sample, identity = prepare_input(context, cell)
-    model_bytes = engines.model_bytes(context["models"][cell["model"]])
+    model_bytes = inputs.model_bytes(context["models"][cell["model"]])
     maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
     if maximum == "max":
         raise ValueError("finite cgroup memory limit required")
@@ -393,7 +394,11 @@ def run_cpu_cells(context, contract):
 
 def run_cell(context, contract, cell, started):
     ledger = context["ledger"]
-    if cell["kind"] == "write":
+    if cell["kind"] in ("heads-kind", "heads-sinks"):
+        from _speed_heads_study import run
+
+        ledger.result(cell, started, **run(context, cell))
+    elif cell["kind"] == "write":
         run_headline(context, {**contract, "cells": [cell]})
     elif cell["kind"] == "transformer":
         from _speed_transformer import run

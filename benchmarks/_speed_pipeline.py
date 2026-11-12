@@ -19,7 +19,7 @@ from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
 from _speed_cells import configure
-from _speed_heads import fse_head, model2vec_head
+from _speed_heads import check_kind, fse_head, model2vec_head, sample_indices
 from _speed_write import headline_child
 
 RUST_SOURCE = r"""
@@ -47,7 +47,7 @@ fn main()->Result<(),Box<dyn std::error::Error>> {
 def fse_encoder(job):
     from fse import Encoder
 
-    if job["kind"] == "heads":
+    if job["kind"] in ("heads", "heads-kind"):
         return fse_head(job)
     model = Encoder.load(job["artifact"], mmap=True)
     if model.word_vectors.dtype != job.get("table_dtype", job["dtype"]):
@@ -279,12 +279,6 @@ def prepare_models(root, contract, reuse=None):
     return result
 
 
-def model_bytes(model):
-    if model["artifact"] is not None:
-        return Path(model["artifact"]).stat().st_size
-    return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))
-
-
 def measure_child(job):
     if job.get("device") == "cuda":
         from _speed_gpu import child
@@ -293,19 +287,30 @@ def measure_child(job):
     return cpu_child(job)
 
 
-def cpu_child(job):
+def specialized_child(job):
+    if job.get("kind") == "heads-sinks":
+        from _speed_heads_sinks import child
+
+        return child
     if job.get("kind") == "search":
         from _speed_search_child import run
 
-        return run(job)
+        return run
     if job.get("kind") == "predict":
         from _speed_predict import predict_child
 
-        return predict_child(job)
+        return predict_child
     if job.get("kind") == "write":
-        return headline_child(job)
+        return headline_child
     if job["backend"] == "rust":
-        return rust_child(job)
+        return rust_child
+    return None
+
+
+def cpu_child(job):
+    specialized = specialized_child(job)
+    if specialized is not None:
+        return specialized(job)
     transformers.validate_job(job)
     adapter = ADAPTERS[job["backend"]]
     configure(job["workers"], native_threads=adapter["native_threads"])
@@ -319,7 +324,7 @@ def cpu_child(job):
         texts = [line.rstrip("\n") for line in stream]
     if len(texts) != job["texts"] or sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("input changed")
-    indices = np.asarray(json.loads(Path(job["sample_file"]).read_text()), dtype=np.int64)
+    indices = sample_indices(job)
     encode = adapter["factory"](job)
     try:
         warm_before = telemetry()
@@ -338,6 +343,7 @@ def cpu_child(job):
         if vectors.dtype != np.float32 or vectors.shape != (len(texts), job["dimensions"]):
             raise ValueError("backend output contract changed")
         sample = np.ascontiguousarray(vectors[indices])
+        head_check = check_kind(job, texts, sample, indices)
         transformers.check_measured(vectors, sample, transformer_sample)
         with Path(job["vectors_file"]).open("xb") as stream:
             np.save(stream, sample, allow_pickle=False)
@@ -349,6 +355,7 @@ def cpu_child(job):
             Path(job["receipt"]),
             {
                 **child_record(job),
+                **head_check,
                 "identity": identity,
                 "warmup_cpu_pressure": interval(warm_before, warm_after),
                 "warmup_telemetry_before": warm_before,

@@ -22,6 +22,8 @@ VARIANTS = {
     ("heads", "model2vec"): ("heads-compare@1", "tolerance", False, True, False, True),
     ("heads", "fse-unfolded"): ("heads-compare@1", "tolerance", False, True, False, True),
     ("heads", "fse-separate"): ("heads-compare@1", "bits", False, True, False, True),
+    ("heads-kind", None): ("heads-kind@1", "bits", False, False, True, True),
+    ("heads-sinks", "fse-two-pass"): ("heads-sinks@1", "bits", False, True, True, True),
     ("write", "fse-base"): ("version-write@1", "bits", False, True, True, False),
     ("write", None): ("write@1", "bits", False, False, True, False),
     ("search", "fse-exact"): ("search-time@1", "bits", False, False, True, True),
@@ -59,6 +61,7 @@ def validate(cells):
         validate_cell(cell)
         protocol(cell)
         pair_rounds(cell)
+        validate_head(cell)
         if cell["kind"] == "write":
             from _speed_write_pair import validate as validate_write
 
@@ -83,7 +86,7 @@ def require(cells, base_python, functional=False):
     """Refuse, before any download or input, a study whose environment cannot run its cells."""
     if any(c["reference"] == "fse-base" for c in cells) and not base_python:
         raise ValueError("fse-base cells need --base-python, the installed base fse")
-    if any(c["kind"] in ("heads", "predict") for c in cells):
+    if any(c["kind"] in ("heads", "predict", "heads-kind", "heads-sinks") for c in cells):
         import fse
 
         if not hasattr(fse, "Heads"):
@@ -169,6 +172,13 @@ def reduce_cells(contract):
             workers=min(cell["workers"], 2),
             functional_only=True,
         )
+
+
+def validate_head(cell):
+    if cell["kind"] in ("heads-kind", "heads-sinks"):
+        from _speed_heads_study import validate
+
+        validate(cell)
 
 
 def study_contract(args, require_environment=True):
