@@ -23,7 +23,7 @@ from pathlib import Path
 from _harness.allocation import Allocation
 from _harness.budget import Budget
 from _harness.ledger import Ledger, watching
-from _harness.records import atomic, document, read_rows
+from _harness.records import atomic, document, read_rows, seal
 
 BILLING = {
     "compute_usd_per_hour": 1,
@@ -88,7 +88,9 @@ def definition(*steps, expected=None):
         "format": "allocation@1",
         "machine_check": expected or {},
         "rehearsal_machine_check": {},
-        "environments": [{"name": "main", "role": "candidate", "lock": "none", "revision": None}],
+        "environments": [
+            {"name": "main", "role": "candidate", "lock": "speed-main.lock.txt", "revision": None}
+        ],
         "steps": [
             {
                 "name": name,
@@ -191,6 +193,47 @@ def _terminated(root):
     return {"case": "allocation-sigterm", **record, "problems": problems}
 
 
+def _dependent_problems(allocation, record, code, name):
+    expected = "two:finished" if name == "success" else "two:not_started"
+    problems = []
+    if record["steps"][-1] != expected or code != int(name != "success"):
+        problems.append(f"unexpected dependent admission: {record}")
+    if name != "success":
+        row = read_rows(allocation.record, "steps.jsonl")[-1]
+        if not row["reason"] or (allocation.results({"name": "two"}) / "started").exists():
+            problems.append("refused prerequisite lacks reason or started a child")
+    return problems
+
+
+def _prerequisite_cases(out):
+    cases = []
+    for name in ("success", "failed", "skipped", "unsealed", "late", "mismatch", "existing"):
+        args = {"failed": ["--fail"], "unsealed": ["--unsealed"]}.get(name, [])
+        allocation, _ = _allocation(out / f"prerequisite-{name}", [("one", args), ("two", [])])
+        first, second = allocation.definition["steps"]
+        second.update(requires=["one"], requires_by_seconds=60)
+        if name == "skipped":
+            first["estimate_seconds"] = 10**6
+        # The begun definition is immutable, just as for a loaded allocation.
+        saved = document(allocation.record / "allocation.json")
+        saved["definition"] = allocation.definition
+        atomic(allocation.record / "allocation.json", saved)
+        if name == "existing":
+            results = allocation.results(first)
+            results.mkdir()
+            seal(results, 0, 0)
+        allocation.run_step(first, {})
+        if name == "late":
+            allocation.budget.clock = lambda allocation=allocation: allocation.allocated_at + 60
+        values = {"cohort": "other"} if name == "mismatch" else {}
+        code = allocation.run_step(second, values)
+        allocation.finish(int(name != "success"))
+        record = _record(allocation, int(name != "success"))
+        problems = _dependent_problems(allocation, record, code, name)
+        cases.append({"case": f"prerequisite-{name}", **record, "problems": problems})
+    return cases
+
+
 def run_all(out):
     """All cases into ``out`` (fresh); raises when a case violates the contract."""
     out.mkdir(parents=True, exist_ok=False)
@@ -201,6 +244,7 @@ def run_all(out):
         _failed_first(out / "step-2-after-step-1-failed"),
         _budget_end(out / "allocation-budget-end"),
         _terminated(out / "allocation-sigterm"),
+        *_prerequisite_cases(out),
     ]
     bad = [c for c in cases if c.get("problems")]
     if bad:
@@ -220,8 +264,12 @@ def main(argv=None):
     parser.add_argument("--cells", type=int, default=2)
     parser.add_argument("--pause", type=float, default=0.0)
     parser.add_argument("--fail", action="store_true")
+    parser.add_argument("--unsealed", action="store_true")
     args = parser.parse_args(argv)
     if args.action == "step":
+        if args.unsealed:
+            args.results.mkdir()
+            return 0
         return step(args.results, args.allocated_at, args.cells, args.pause, args.fail)
     atomic(args.out.with_suffix(".json"), {"cases": run_all(args.out)})
     return 0
