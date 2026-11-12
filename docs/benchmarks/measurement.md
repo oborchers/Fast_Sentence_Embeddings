@@ -1228,6 +1228,14 @@ paths. The published speed study keeps `--rehearse`, which already reduces its i
   at most 64, block after block), how many entered the prefilter, the distinct fallback
   reasons (`none`, `query_range`, `unsafe_row`, `overflow`, `budget`) and the record of each
   call. A path that changes between rounds of one arm is an error.
+  The executing base build must report variant `null` and never enter the prefilter,
+  including both nominal arms of A/A tuning and validation. The executing candidate
+  build must report `avx2`, enter on every observed call and report fallback `none`.
+  This is checked for every arm, including sizing, comparison and confirmation.
+  Missing evidence or a mismatch makes the cell `invalid` with decision `invalid_path`.
+  The raw operation is retained and marked `valid_for_comparison: false`.
+  On ARM, simulated variant receipts can check this enforcement, but cannot prove
+  execution of the real AVX2 path. That needs an x86 probe.
 - **No load wait, still no disturbance.** Functional work takes the heavy lock (the role of
   builds and checks, so it never overlaps a timing window), starts its children with
   `nice -n 10` and does not wait for the one-minute load or for a peer's heavy lock. Wrap it in
