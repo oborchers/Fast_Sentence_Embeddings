@@ -35,23 +35,7 @@ def search(root, contract):
     for cell in cells:
         validate_cell(cell, {})
         control = document(root / (cell["id"] + "-aa.json"))
-        frozen = control["cell"]
-        validate_cell(frozen, {})
-        if (
-            frozen["iterations"] < cell["iterations"]
-            or not cell["target_seconds"] <= frozen["target_seconds"] <= cell["max_target_seconds"]
-        ):
-            raise ValueError("frozen iterations or target is outside calibration bounds")
-        if any(
-            frozen[k] != v for k, v in cell.items() if k not in ("iterations", "target_seconds")
-        ):
-            raise ValueError("calibration changed the declared workload")
-        if (
-            frozen["profile"] != "int8-prefilter-search@1"
-            or frozen["pairs"] != 8
-            or frozen["target_aa_iqr"] > 0.02
-        ):
-            raise ValueError("eight-pair prefilter profile required")
+        frozen = _frozen(cell, control)
         _workload(frozen)
         own = [r for r in operations if r["cell_id"] == cell["id"]]
         _sizing(own)
@@ -59,6 +43,25 @@ def search(root, contract):
         blocks = _blocks(frozen, own, control)
         decisions.append({"cell_id": cell["id"], **judge(frozen, *blocks)})
     return decisions, builds
+
+
+def _frozen(cell, control):
+    frozen = control["cell"]
+    validate_cell(frozen, {})
+    if (
+        frozen["iterations"] < cell["iterations"]
+        or not cell["target_seconds"] <= frozen["target_seconds"] <= cell["max_target_seconds"]
+    ):
+        raise ValueError("frozen iterations or target is outside calibration bounds")
+    if any(frozen[k] != v for k, v in cell.items() if k not in ("iterations", "target_seconds")):
+        raise ValueError("calibration changed the declared workload")
+    if (
+        frozen["profile"] != "int8-prefilter-search@1"
+        or frozen["pairs"] != 8
+        or frozen["target_aa_iqr"] > 0.02
+    ):
+        raise ValueError("eight-pair prefilter profile required")
+    return frozen
 
 
 def _workload(cell):
@@ -146,15 +149,19 @@ def _sizing(rows):
         raise ValueError("missing sizing attempts or unknown calibration phase")
     for phase in names:
         own = [row for row in rows if row["phase"] == phase]
-        if len(own) != 2 or [(r["pair"], r["position"], r["arm"]) for r in own] != [
-            (0, 0, "base"),
-            (0, 1, "candidate"),
-        ]:
-            raise ValueError("incomplete sizing pair")
-        if own[0]["output"] != own[1]["output"] or any(
-            number(r["seconds"], "sizing duration") <= 0 for r in own
-        ):
-            raise ValueError("sizing pair output or duration differs")
+        _sizing_pair(own)
+
+
+def _sizing_pair(own):
+    if len(own) != 2 or [(r["pair"], r["position"], r["arm"]) for r in own] != [
+        (0, 0, "base"),
+        (0, 1, "candidate"),
+    ]:
+        raise ValueError("incomplete sizing pair")
+    if own[0]["output"] != own[1]["output"] or any(
+        number(r["seconds"], "sizing duration") <= 0 for r in own
+    ):
+        raise ValueError("sizing pair output or duration differs")
 
 
 def _path_job(root, row, cell):
