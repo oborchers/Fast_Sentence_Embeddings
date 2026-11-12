@@ -83,6 +83,8 @@ def load_model(job, dtype):
         model_kwargs={"torch_dtype": dtype, "attn_implementation": "sdpa"},
     )
     model.max_seq_length = job["max_seq_length"]
+    if model[0].auto_model.config._attn_implementation != "sdpa":
+        raise ValueError("observed attention implementation differs from SDPA")
     if model.device.type != "cuda" or any(p.device.type != "cuda" for p in model.parameters()):
         raise RuntimeError("model left CUDA; CPU fallback is forbidden")
     if any(p.dtype != dtype for p in model.parameters() if p.is_floating_point()):
