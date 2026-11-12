@@ -27,7 +27,7 @@ from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
 from _development_system import LABEL, apply_affinity, observations
 from _harness.budget import check
-from _harness.pressure import interval
+from _harness.pressure import interval, snapshot
 from _harness.records import append
 
 
@@ -84,10 +84,13 @@ def _quiet(job, waiting):
 def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
     check_write_disk(job)
+    before["cpu_pressure"] = snapshot()
     seconds, output, repeated = repeat(operation, job["iterations"])
+    pressure_after = snapshot()
     job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
     after = observations(job["work"], excluded=(os.getppid(),))
+    after["cpu_pressure"] = pressure_after
     append(
         Path(job["receipt"]).with_suffix(".calls.jsonl"),
         {

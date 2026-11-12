@@ -7,8 +7,8 @@ import resource
 import time
 from pathlib import Path
 
-from _harness.pressure import interval
-from _harness.records import atomic
+from _harness.pressure import interval, report, snapshot
+from _harness.records import append, atomic
 from _harness.search import common_passes, sequence_digest
 from _measurement import child_record, telemetry
 from _speed_cells import configure
@@ -40,20 +40,35 @@ def block(store, pool, job, passes):
 
 
 def warmup(store, pool, job):
-    observations = []
-    started = time.perf_counter()
+    active_seconds, count, contended, unavailable = 0.0, 0, 0, 0
+    path = Path(job["receipt"]).with_suffix(".warmup.jsonl")
     while True:
-        before = telemetry()
+        before = {"cpu_pressure": snapshot()}
         seconds, results = block(store, pool, job, 1)
-        after = telemetry()
-        observations.append(
-            dict(
-                telemetry_before=before, telemetry_after=after, cpu_pressure=interval(before, after)
-            )
+        after = {"cpu_pressure": snapshot()}
+        row = dict(
+            phase="warmup",
+            seconds=seconds,
+            telemetry_before=before,
+            telemetry_after=after,
+            cpu_pressure=interval(before, after),
         )
+        append(path, row)
+        counts = report([row])
+        count += 1
+        contended += counts["contended_operations"]
+        unavailable += counts["unavailable_operations"]
+        active_seconds += seconds
         del results
-        if time.perf_counter() - started >= 2:
-            return seconds, observations
+        if active_seconds >= 2:
+            return seconds, dict(
+                operations=count,
+                contended_operations=contended,
+                unavailable_operations=unavailable,
+                policy="report_only",
+                observations_file=str(path),
+                active_seconds=active_seconds,
+            )
 
 
 def run(job):
@@ -97,7 +112,7 @@ def run(job):
         "identity_after": after_identity,
         "seconds": seconds,
         "warmup_last_pool_seconds": warm_seconds,
-        "warmup_observations": warm_pressure,
+        "warmup_cpu_pressure": warm_pressure,
         "calibrated_passes": common_passes([seconds]),
         "pool_passes": passes,
         "sequence_sha256": sequence_digest(before_identity["queries"], len(pool), passes, q),

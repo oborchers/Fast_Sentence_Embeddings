@@ -55,7 +55,9 @@ def paired(cell, records):
         raise ValueError("unexpected extra paired observations")
     result = {
         "factor": summary(factors),
-        "cpu_pressure": report(records),
+        "cpu_pressure": {
+            name: report([r for r in records if r["arm"] == name]) for name in ("base", "candidate")
+        },
         "seconds": {
             name: summary([r["seconds"] for r in records if r["arm"] == name])
             for name in ("base", "candidate")

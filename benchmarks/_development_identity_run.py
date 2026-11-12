@@ -20,7 +20,7 @@ from _development_process import checked, launch
 from _development_statistics import summary
 from _development_system import LABEL, observations
 from _harness.budget import check
-from _harness.pressure import interval
+from _harness.pressure import interval, report, snapshot
 from _harness.records import append, atomic
 
 
@@ -72,6 +72,7 @@ def run(args, cell, prepared, ledger):
         decision="functional_only" if args.functional else "descriptive_only",
         arm="candidate",
         seconds=costs,
+        cpu_pressure=record["measured_cpu_pressure"],
         seconds_per_gib=costs["median"] * 1024**3 / record["identity_bytes"],
         repetitions=len(record["seconds"]),
         warmup_calls=len(record["warmup_seconds"]),
@@ -170,6 +171,7 @@ def measure(job):
     calls = Path(job["receipt"]).with_suffix(".calls.jsonl")
     seconds, warmups, warms, expected = [], [], [], None
     before = _quiet(job, waiting)
+    measured_calls = []
     for number in range(job["warmup_calls"] + job["repetitions"]):
         check(job.get("wall_deadline"))
         phase = "warmup" if number < job["warmup_calls"] else "measured"
@@ -177,34 +179,39 @@ def measure(job):
         context = _file_source(corpus) if texts is None else _strings_source(texts)
         with context as (source, warm):
             call_before = observations(job["work"], excluded=())
+            call_before["cpu_pressure"] = snapshot()
             started = time.perf_counter()
             identity = identify(source, None)
             elapsed = time.perf_counter() - started
+            pressure_after = snapshot()
             call_after = observations(job["work"], excluded=())
+            call_after["cpu_pressure"] = pressure_after
         proof = _proof(identity)
         if expected is not None and proof != expected:
             raise ValueError("the source identity changed between calls")
         expected = proof
         (warmups if phase == "warmup" else seconds).append(elapsed)
         warms.append(warm)
-        append(
-            calls,
-            {
-                **LABEL,
-                "phase": phase,
-                "number": number,
-                "seconds": elapsed,
-                "warm": warm,
-                "telemetry_before": call_before,
-                "telemetry_after": call_after,
-                "cpu_pressure": interval(call_before, call_after),
-            },
-        )
+        call = {
+            **LABEL,
+            "phase": phase,
+            "number": number,
+            "seconds": elapsed,
+            "warm": warm,
+            "telemetry_before": call_before,
+            "telemetry_after": call_after,
+            "cpu_pressure": interval(call_before, call_after),
+        }
+        append(calls, call)
+        if phase == "measured":
+            measured_calls.append(call)
     if texts is not None and expected["rows"] != len(texts):
         raise ValueError("the identity counts a different number of rows than the list")
     after = observations(job["work"], excluded=())
     return {
         "cpu_pressure": interval(before, after),
+        "cpu_pressure_scope": "whole child including warmups and preparation",
+        "measured_cpu_pressure": report(measured_calls),
         "wait_seconds": waiting[0],
         "seconds": seconds,
         "warmup_seconds": warmups,

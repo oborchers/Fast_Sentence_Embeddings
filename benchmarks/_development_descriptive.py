@@ -6,6 +6,7 @@ from _development_budget import check_args
 from _development_calibrate import _active_seconds, _admit, _batch, _size
 from _development_pairs import arm, block
 from _development_statistics import summary
+from _harness.pressure import report
 from _harness.records import atomic
 
 
@@ -35,9 +36,9 @@ def describe(args, cell, prepared, ledger, owner, identities):
         if expected is not None and row["output"] != expected:
             raise ValueError("descriptive output changed between repetitions")
         expected = row["output"]
-        rows.append(row["seconds"])
+        rows.append(row)
         check_args(args)
-    costs = summary(rows)
+    costs = summary([r["seconds"] for r in rows])
     # Distance from one is meaningful for ratios only, never for absolute seconds.
     costs.pop("max_deviation")
     result = dict(
@@ -45,6 +46,7 @@ def describe(args, cell, prepared, ledger, owner, identities):
         decision="descriptive_only",
         arm="candidate",
         seconds=costs,
+        cpu_pressure=report(rows),
         repetitions=len(rows),
         iterations=row["operation_repetitions"],
         aa="not_run",

@@ -366,7 +366,9 @@ counters produce unavailable intervals. `cpu.stat` retains raw counters and
 interval deltas, including available throttling counters, without a new gate.
 
 Operation records cover measured calls, sizing and calibration. Warmups retain
-separate observations. Repeated local groups use the full group interval, with
+separate observations. Search warmup sums active search-block durations to two
+seconds and streams pressure observations outside the timer to a warmup JSONL
+file and the child log. Repeated local groups use the full group interval, with
 individual warmup and measured groups in the call log. Rust observations cover
 the child process lifetime, including model/input loading and output writing,
 because its inner timer runs inside the Rust executable.
@@ -374,7 +376,8 @@ because its inner timer runs inside the Rust executable.
 Distribution summaries report `noisy` when IQR exceeds 0.10 times the median.
 New IQR summaries use inclusive linear interpolation (a singleton has zero IQR).
 Search keeps its existing exclusive quartiles. Arm reports count contended and
-unavailable operations. Both `contended` and `noisy` are reporting labels only:
+unavailable operations separately for each arm. Descriptive identity reports
+aggregate only measured calls, excluding warmups and file preparation. Both `contended` and `noisy` are reporting labels only:
 they do not change admission, validity, decisions, retries or exit status.
 Existing A/A decision rules remain independent of these labels.
 
