@@ -46,7 +46,11 @@ def specification(args):
 
 
 def task_key(cell):
-    return (cell["benchmark"], cell["task"]) if cell["kind"] == "mteb" else ("", cell["id"])
+    return (
+        (cell["benchmark"], cell["task"])
+        if cell["kind"] in ("mteb", "rerank")
+        else ("", cell["id"])
+    )
 
 
 def budget_of(args, started_unix):
@@ -249,6 +253,14 @@ def attempt(cell, row, context):
     except Exception as error:
         row.update(status="failed", reason=repr(error))
         return f"task {cell['id']} failed"
+    finally:
+        if cell["kind"] == "rerank" and context.get("next_task") != task_key(cell):
+            from _quality.mteb import release
+            from _quality.suites import task_of
+
+            context.pop("rerank_raw", None)
+            context.pop("rerank_rankings", None)
+            release(task_of(cell["benchmark"], cell["task"]))
     return None
 
 
