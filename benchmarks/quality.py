@@ -249,17 +249,21 @@ def _local(parser, args):
     return local_run(args)
 
 
-def main():
-    parser = _parser()
-    args = parser.parse_args()
-    if args.gpu_task:
-        from _quality.gpu import child
-
-        return child(args.gpu_task)
+def _validate_modes(parser, args):
     if args.gpu_phase and (args.local_run or args.rehearse or not (args.run or args.describe)):
         parser.error("--gpu-phase requires --run or --describe, without local-run or rehearse")
     if args.gpu_phase and args.cells:
         parser.error("GPU quality phases use their complete declared cell selection")
+
+
+def main():
+    parser = _parser()
+    args = parser.parse_args()
+    _validate_modes(parser, args)
+    if args.gpu_task:
+        from _quality.gpu import child
+
+        return child(args.gpu_task)
     local_status = dispatch(args, quality=True)
     if local_status is not None:
         return local_status
@@ -273,6 +277,10 @@ def main():
         return 0
     if args.local_run:
         return _local(parser, args)
+    return _allocated(parser, args)
+
+
+def _allocated(parser, args):
     spec = contract(args.input)
     if spec.get("billing_profile") == "gpu_quality_billing":
         from _harness.budget import select_billing

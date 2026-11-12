@@ -45,13 +45,17 @@ def probe_verdicts(context, contract, expected_identity=None):
         raise ValueError("GPU probe lock or configuration changed")
     if receipt(results, origin) != evidence:
         raise ValueError("GPU probe seal differs from the allocation receipt")
+    expected = identity(context, contract) if expected_identity is None else expected_identity
+    return saved_verdicts(results, expected)
+
+
+def saved_verdicts(results, expected):
     try:
         saved = document(results / "gpu-verdicts.json")
     except (OSError, ValueError):
         return {}
     if not isinstance(saved, dict):
         return {}
-    expected = identity(context, contract) if expected_identity is None else expected_identity
     if saved.get("identity") != expected:
         raise ValueError("GPU probe model revisions, allocation, lock or cell controls differ")
     return saved.get("verdicts", {}) if isinstance(saved.get("verdicts"), dict) else {}
