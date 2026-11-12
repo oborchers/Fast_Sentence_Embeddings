@@ -55,6 +55,8 @@ def execution(cell, native):
     """What actually runs: the output dimension, the dtypes and the threads of the backend."""
     import numpy as np
 
+    wrapper = native if cell.get("mteb_loader") else None
+    native = st_of(native) if wrapper else native
     vector = np.asarray(encode_probe(cell, native))
     record = {
         "backend": cell["backend"],
@@ -67,6 +69,17 @@ def execution(cell, native):
         import torch
 
         parameters = list(native.parameters())
+        if wrapper:
+            if not parameters or any(p.dtype != torch.float32 for p in parameters):
+                raise ValueError("MTEB loader did not load float32 weights")
+            if type(list(native)[-1]).__name__ != "Normalize":
+                raise ValueError("Transformer reference must end in Normalize")
+            record.update(
+                registry_revision=wrapper.mteb_model_meta.revision,
+                wrapper_class=type(wrapper).__name__,
+                use_instructions=wrapper.mteb_model_meta.use_instructions,
+                max_seq_length=native.max_seq_length,
+            )
         record.update(
             sentence_embedding_dimension=native.get_sentence_embedding_dimension(),
             weight_dtype=str(parameters[0].dtype) if parameters else None,
@@ -95,7 +108,7 @@ def encode_probe(cell, native):
         return native.encode(texts, workers=1)
     if cell["backend"] == "model2vec":
         return native.encode(texts, use_multiprocessing=False)
-    return native.encode(texts, normalize_embeddings=True, convert_to_numpy=True)
+    return native.encode(texts, prompt="", normalize_embeddings=True, convert_to_numpy=True)
 
 
 def model2vec_pinned(model):
@@ -130,3 +143,8 @@ def model_files(cell):
         for p in sorted(folder.rglob("*"))
         if p.is_file() and not p.name.startswith(".")
     }
+
+
+def st_of(model):
+    """The inner native model of a registry wrapper or the historical adapter."""
+    return model.model if hasattr(model, "model") else model.native

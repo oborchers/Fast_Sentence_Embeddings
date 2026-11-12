@@ -81,7 +81,8 @@ class Ledger:
             "date_utc": datetime.now(UTC).isoformat(),
             "machine": environment["machine"],
             "duration_seconds": time.monotonic() - started,
-            "functional_only": self.contract.get("functional_only", False),
+            "functional_only": cell.get("functional_only", False)
+            or self.contract.get("functional_only", False),
             **result,
         }
         append(self.root / "cells.jsonl", row)
