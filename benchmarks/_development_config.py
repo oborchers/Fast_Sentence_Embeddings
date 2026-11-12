@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import re
 from pathlib import Path
 
@@ -410,6 +411,12 @@ def _phase_arguments(args):
 
 def _diagnose(args, quality):
     require_unix()
+    if (
+        not quality
+        and args.allocation_root is not None
+        and os.environ.get("MEASURE_REHEARSAL") == "1"
+    ):
+        args.functional = True
     _local_arguments(args, quality)
     if args.local_command:
         raise ValueError("a trailing command requires --local-heavy")

@@ -1172,5 +1172,10 @@
     "disk_usd_per_gb_month": 0,
     "month_hours": 720,
     "price_source": "SPEED_GPU_USD_PER_HOUR is required for allocation, setup and execution; one approved hourly price funds exactly one hour"
+  },
+  "prefilter_billing": {
+    "planning_minutes": 285,
+    "planning_balance_usd": 7.1,
+    "collection_reserve_seconds": 600
   }
 }
