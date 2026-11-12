@@ -184,6 +184,8 @@ def reference_check(job, texts, torch):
     return (
         model,
         normalized,
+        reference,
+        indices,
         {
             **check,
             "reference_memory": reference_memory,
