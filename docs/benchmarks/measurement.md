@@ -572,6 +572,16 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
 `benchmarks/config/allocation.json` (`allocation@1`, one section per entry) declares what one rented machine must be, which environments to install and the steps to run:
 
 - `machine_check`: what the machine must be. Fields: `cpu_model` (exact), `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_hard_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB for quality, six GiB for speed). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
+- GPU checks add `gpu_name` (exact string), `gpu_count` (exact positive integer),
+  `gpu_memory_bytes` (positive integer minimum per device) and
+  `cuda_driver_version` (minimum numeric driver version, such as `595.45.04`).
+  Driver components compare numerically; `595.45` equals `595.45.0`.
+  Only allocations declaring a GPU field query `nvidia-smi`, with a ten-second
+  timeout. The query records every device's name, UUID, memory and driver.
+  [NVIDIA's query interface](https://docs.nvidia.com/deploy/nvidia-smi/index.html)
+  reports `memory.total` in MiB, converted here to bytes. Missing tools, failed
+  queries and malformed or unavailable fields reject a declared GPU check.
+  CPU-only checks need no NVIDIA tool or driver.
 - `environments`: `base`, `candidate` and `reference` environments, each with its own lock and a product revision (`"pins"` for the revision of `pins.json`, a full commit, or none). The candidate's source is `fse-source`; any other role gets `fse-source-<name>`.
 - `steps`: ordered; each names an environment, a command with `{field}` placeholders (`{python}`, `{results}`, `{work}`, `{allocated_at}`, `{remaining_seconds}`, `{source}`, `{python_<environment>}` and `--param` values) and an `estimate_seconds`.
 
@@ -588,6 +598,31 @@ The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _har
 `speed.py --collect ALLOCATION_ROOT --archive DIR` verifies and archives the record and every step folder; a single result folder (published, local development or local quality) takes `--collect FOLDER --archive FILE.tar.gz` as before.
 
 The core holds no limit. The values live in the data of the allocation. Those of the published studies come from the 2.0 evidence (`sentence-speed-2026-11`, `environment.json`: `AMD EPYC 9575F 64-Core Processor`, 32 allowed CPUs, `memory.max` 128000000000), the kernel contract (`avx2`, `fma`, `f16c`) and the Linux plan (free disk at least 120 GB on pod 1, hard `nofile` at least 524288). Not evidenced yet, and marked as placeholders for the maintainer: `shm_bytes` (1 GiB, the rehearsal rule; the 2.0 archive does not record `/dev/shm`) and `cpu_quota_cpus` (at least 32; the 2.0 run did not record `cpu.max`).
+
+`benchmarks/config/allocation-gpu.json` declares one NVIDIA L40S with at least
+44 GiB (47244640256 bytes) of reported device memory. Its driver floor is
+`595.45.04`, the Linux value for CUDA 13.2 GA in
+[NVIDIA's CUDA Toolkit and Corresponding Driver Versions table](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html#cuda-driver).
+This uses the toolkit driver floor rather than the weaker CUDA 13.x minor
+compatibility floor. The rehearsal also requires this GPU, so a CPU-only
+container cannot establish CUDA readiness.
+
+Select this file with `MEASURE_ALLOCATION`, the `gpu` study and the
+`gpu_billing` profile (60 minutes with a 300-second collection reserve).
+Set `SPEED_GPU_USD_PER_HOUR` to the approved current compute price as a
+strictly positive, finite JSON number. There is no default or CPU-price
+fallback. Bootstrap, machine admission, setup and execution resolve the same
+value through the shared billing resolver. The allocation inherits the
+environment unchanged for both steps. Missing or invalid prices are refused
+before machine observation, setup or step execution; `--describe` needs no price.
+The `main` environment retains the pinned fse installation; `gpu` uses
+`speed-gpu.lock.txt` for CUDA 13.2. Both steps execute in `gpu`:
+`gpu-probe` runs `speed.py --run --study gpu --gpu-phase probe`, then
+`gpu-measure` runs the same entry with `--gpu-phase measure`.
+The latter requires a verified successful `gpu-probe` receipt and admission
+strictly before 1320 seconds from allocation start, including setup.
+The step estimates are 240 and 1620 seconds. A later quality step can be
+appended independently; this allocation currently declares only throughput.
 
 `python -m _harness.controls --out DIR` (from `benchmarks/`) runs the lifecycle controls without any environment: normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1, SIGTERM and budget end of an allocation. Dependency controls also cover success, failure, skipped and unsealed prerequisites, the exact deadline, foreign existing results, and mismatched evidence. Every rehearsal runs them too (below).
 
