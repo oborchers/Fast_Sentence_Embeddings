@@ -25,6 +25,7 @@ def select(root, cell_id):
         r.get("diagnostic_profile") or r["seconds"] <= 0 for r in rows
     ):
         raise ValueError("invalid or incomplete prefilter comparison")
+    _complete_pairs(cell, rows)
     factors = [(_ratio(cell, rows, n), n) for n in range(cell["pairs"])]
     summary([f for f, _ in factors])  # rejects nonfinite ratios before selecting a median
     median = statistics.median(f for f, _ in factors)
@@ -44,6 +45,14 @@ def select(root, cell_id):
         "rule": "declared prefilter candidate; comparison pair nearest median ratio",
         "open_evidence": [],
     }
+
+
+def _complete_pairs(cell, rows):
+    for number in range(cell["pairs"]):
+        expected = {(arm, position) for position, arm in enumerate(order(cell, number))}
+        actual = [(r["arm"], r["position"]) for r in rows if r["pair"] == number]
+        if len(actual) != len(expected) or set(actual) != expected:
+            raise ValueError("missing, duplicate or unknown prefilter comparison arm")
 
 
 def _cell(root, cell_id):
