@@ -28,6 +28,10 @@ def contract(path):
 
 
 def validate_cell(cell):
+    if cell.get("kind") == "transformer":
+        from _speed_transformer import validate
+
+        validate(cell)
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", cell["id"]):
         raise ValueError("cell identifier must be a safe file stem")
     for key in ("texts", "workers", "estimated_seconds"):
@@ -36,9 +40,20 @@ def validate_cell(cell):
     for key in ("truncate", "trust_remote_code", "mteb_loader", "functional_only"):
         if key in cell and not isinstance(cell[key], bool):
             raise ValueError(f"{key} must be true or false")
+    validate_input_hash(cell)
     validate_transformer(cell)
     if cell.get("model") and cell["model"] not in MODEL_PINS:
         raise ValueError(f"model is not pinned: {cell['model']}")
+
+
+def validate_digest(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ValueError("planned_input_sha256 must be a SHA256 hex string")
+
+
+def validate_input_hash(cell):
+    if "planned_input_sha256" in cell:
+        validate_digest(cell["planned_input_sha256"])
 
 
 def validate_prerequisites(cells):
@@ -51,6 +66,11 @@ def validate_prerequisites(cells):
 
 
 def validate_transformer(cell):
+    if cell.get("kind") == "transformer":
+        from _speed_transformer import validate
+
+        validate(cell)
+        return
     controls = ("device", "torch_dtype", "batch_size")
     if not cell.get("mteb_loader") and any(key in cell for key in controls):
         raise ValueError("device, torch_dtype and batch_size require mteb_loader")
