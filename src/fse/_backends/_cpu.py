@@ -62,7 +62,7 @@ _CAPABILITIES = Capabilities(
 # measurement of DR-168 on Apple M1 Pro); avx2 stays off until DR-288 decides it, and the
 # portable kernel is never a search path.
 _PREFILTER_VARIANT = {"neon": "neon-sdot", "avx2": "avx2"}
-_PREFILTER_ENABLED: frozenset[str] = frozenset({"neon-sdot"})
+_PREFILTER_ENABLED: frozenset[str] = frozenset({"neon-sdot", "avx2"})
 
 
 @dataclass(frozen=True, eq=False)
