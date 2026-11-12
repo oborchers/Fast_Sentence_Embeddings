@@ -9,7 +9,8 @@ from _development_budget import check_args
 from _development_heads_multi import configure as configure_heads
 from _development_lengths import mode_for as lengths_for
 from _development_locks import busy, lock_paths
-from _development_path_evidence import per_arm
+from _development_path_evidence import PathEvidenceError, per_arm
+from _development_path_evidence import validate as validate_path
 from _development_process import launch
 from _development_search import configure
 from _development_statistics import order, paired
@@ -94,7 +95,13 @@ def arm(
         sizing_only=job["sizing_only"],
         valid_for_comparison=not (job["sizing_only"] or job["descriptive_only"] or args.functional),
     )
-    append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
+    try:
+        validate_path(record, job, candidate=not control and name == "candidate")
+    except PathEvidenceError:
+        record["valid_for_comparison"] = False
+        raise
+    finally:
+        append(args.results / "operations.jsonl", {"cell_id": cell["id"], **record})
     return record
 
 
