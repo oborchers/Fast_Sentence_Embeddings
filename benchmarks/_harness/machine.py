@@ -23,6 +23,7 @@ SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
 GPU_FIELDS = ("gpu_name", "gpu_count", "gpu_memory_bytes", "cuda_driver_version")
 FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", *RANGES, *GPU_FIELDS)
+GPU_UUID = re.compile(r"GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
 def _version(value):
@@ -69,7 +70,7 @@ def _gpu_row(row):
         raise ValueError("GPU query needs name, memory, driver and UUID")
     name, memory, driver, uuid = (part.strip() for part in row)
     _version(driver)
-    if not name or not uuid.startswith("GPU-") or not memory.isascii() or not memory.isdecimal():
+    if not name or not GPU_UUID.fullmatch(uuid) or not memory.isascii() or not memory.isdecimal():
         raise ValueError("GPU query contains unavailable fields")
     if int(memory) <= 0:
         raise ValueError("GPU memory must be positive")
