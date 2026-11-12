@@ -1,0 +1,193 @@
+{
+  "speed": {
+    "format": "allocation@1",
+    "machine_check": {
+      "cpu_model": "AMD EPYC 9575F 64-Core Processor",
+      "required_flags": [
+        "avx2",
+        "fma",
+        "f16c"
+      ],
+      "affinity_cpus": {
+        "min": 32,
+        "max": 32
+      },
+      "cpu_quota_cpus": {
+        "min": 32
+      },
+      "memory_max_bytes": {
+        "min": 128000000000,
+        "max": 128000000000
+      },
+      "disk_free_bytes": {
+        "min": 120000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 6442450944
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288
+    },
+    "environments": [
+      {
+        "name": "main",
+        "role": "candidate",
+        "lock": "speed-main.lock.txt",
+        "revision": "pins"
+      },
+      {
+        "name": "base",
+        "role": "base",
+        "lock": "speed-base.lock.txt",
+        "revision": "3b4061441d834eb06f605e1b6cd60dd0d118ceba"
+      }
+    ],
+    "steps": [
+      {
+        "name": "speed-f32",
+        "environment": "main",
+        "estimate_seconds": 420,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "{mode}",
+          "--input",
+          "{source}/benchmarks/config/speed-prefilter-f32.json",
+          "--study",
+          "versions",
+          "--base-python",
+          "{python_base}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}"
+        ]
+      },
+      {
+        "name": "prefilter",
+        "environment": "main",
+        "estimate_seconds": 12840,
+        "requires": [
+          "speed-f32"
+        ],
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--diagnose",
+          "--development-input",
+          "{source}/benchmarks/config/int8-prefilter-search-x86.json",
+          "--base-python",
+          "{python_base}",
+          "--candidate-python",
+          "{python_main}",
+          "--allocation-root",
+          "{root}",
+          "--ignore-host-load",
+          "--worker-name",
+          "prefilter-x86",
+          "--wall-time-seconds",
+          "{remaining_seconds}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}"
+        ]
+      },
+      {
+        "name": "profile-cpu",
+        "environment": "main",
+        "estimate_seconds": 960,
+        "requires": [
+          "prefilter"
+        ],
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--allocation-profile",
+          "py-spy",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-prefilter-x86.json",
+          "--input",
+          "{input}",
+          "--study",
+          "search-prefilter",
+          "--allocated-at",
+          "{allocated_at}",
+          "--profile-cell",
+          "o2-d1024-q8",
+          "--profile-seconds",
+          "960",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}"
+        ]
+      },
+      {
+        "name": "profile-memory",
+        "environment": "main",
+        "estimate_seconds": 960,
+        "requires": [
+          "prefilter"
+        ],
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--allocation-profile",
+          "memray",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-prefilter-x86.json",
+          "--input",
+          "{input}",
+          "--study",
+          "search-prefilter",
+          "--allocated-at",
+          "{allocated_at}",
+          "--profile-cell",
+          "o2-d1024-q8",
+          "--profile-seconds",
+          "960",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}"
+        ]
+      },
+      {
+        "name": "decide",
+        "environment": "main",
+        "estimate_seconds": 60,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/speed.py",
+          "--decide",
+          "--allocation-root",
+          "{root}",
+          "--results",
+          "{results}"
+        ]
+      }
+    ],
+    "toolchains": []
+  }
+}
