@@ -37,16 +37,43 @@ def _environment(item):
     return {"revision": None, **item, "name": _safe_name("environment", item.get("name"))}
 
 
-def _step(item, environments):
-    unknown = set(item) - {"name", "environment", "command", "estimate_seconds"}
+def _positive_seconds(value):
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value) and value > 0
+    except OverflowError:
+        return False
+
+
+def _step(item, environments, earlier):
+    if not isinstance(item, dict):
+        raise ValueError("step must be an object")
+    unknown = set(item) - {
+        "name",
+        "environment",
+        "command",
+        "estimate_seconds",
+        "requires",
+        "requires_by_seconds",
+    }
     estimate = item.get("estimate_seconds")
     command = item.get("command")
     if unknown or item.get("environment") not in environments:
         raise ValueError(f"step needs name, command and a declared environment: {item}")
     if not isinstance(command, list) or not command or not all(isinstance(a, str) for a in command):
         raise ValueError("step command must be a nonempty list of strings")
-    if type(estimate) not in (int, float) or not math.isfinite(estimate) or estimate <= 0:
+    if not _positive_seconds(estimate):
         raise ValueError("positive finite estimate_seconds required for every step")
+    requires = item.get("requires", [])
+    if not isinstance(requires, list) or any(not isinstance(n, str) for n in requires):
+        raise ValueError("requires must be a list of earlier step names")
+    if len(set(requires)) != len(requires) or any(n not in earlier for n in requires):
+        raise ValueError("requires must name unique earlier steps")
+    if "requires_by_seconds" in item:
+        deadline = item["requires_by_seconds"]
+        if not requires or not _positive_seconds(deadline):
+            raise ValueError("requires_by_seconds needs prerequisites and a positive finite number")
     return {**item, "name": _safe_name("step", item.get("name"))}
 
 
@@ -58,7 +85,14 @@ def validate(spec):
     names = [e["name"] for e in environments]
     if not names or len(set(names)) != len(names):
         raise ValueError("nonempty unique environment names required")
-    steps = [_step(item, set(names)) for item in spec["steps"]]
+    if not isinstance(spec["steps"], list):
+        raise ValueError("steps must be an ordered list")
+    steps = []
+    earlier = set()
+    for item in spec["steps"]:
+        step = _step(item, set(names), earlier)
+        steps.append(step)
+        earlier.add(step["name"])
     step_names = [s["name"] for s in steps]
     if not steps or len(set(step_names)) != len(step_names):
         raise ValueError("nonempty unique step names required")
