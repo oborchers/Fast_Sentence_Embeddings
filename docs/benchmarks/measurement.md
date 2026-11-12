@@ -1468,7 +1468,7 @@ prove function only. No Linux comparison or speed claim follows from them.
 
 The sealed AVX2 decision checks float32 control rounds separately from quiet
 observations. Quiet operations must belong to the declared `quiet_cell`, use
-the `fse` label and candidate build, and match every duration in `quiet.json`
+the `fse` label and candidate build, and match every duration in `<results>/quiet.json`
 in round order. Both groups require production evidence. Only the paired
 control calls must reach two seconds. Missing, duplicate or foreign operations
 leave the decision `inconclusive`; the total operation count includes exactly
