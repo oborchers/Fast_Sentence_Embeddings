@@ -1732,3 +1732,136 @@ Named sample arrays use the documented
 loaded with pickle disabled. These references were checked on 2026-11-12.
 This prepares publication protocols. Local adapter probes are class correctness;
 no Linux comparison or publication result is produced by adding these cells.
+
+
+### CUDA transformer throughput (transformer@1)
+
+`speed.py --study gpu` extends the existing absolute `transformer@1` variant to
+CUDA. It has no fse arm, paired speedup or cross-machine factor. The CPU MiniLM
+cell remains unchanged. Model revisions come only from `config/pins.json`.
+The `all` study excludes GPU cells. Select the GPU study and its phase explicitly:
+
+```sh
+python benchmarks/speed.py --describe --study gpu --gpu-phase probe
+python benchmarks/speed.py --describe --study gpu --gpu-phase measure
+```
+
+`--gpu-phase` accepts only `probe` and `measure`, only with `--study gpu`.
+It is required for run, rehearsal and description, while setup and bootstrap
+do not execute a model phase. An explicit GPU allocation must execute both phases in the `gpu` environment,
+from `config/speed-gpu.lock.txt`. The default `config/allocation.json` remains
+a CPU allocation and cannot run this study. Supply the separate GPU allocation
+through `--allocation` for setup and execution, or `MEASURE_ALLOCATION` for
+bootstrap. That file must declare the `gpu` environment and ordered `gpu-probe`
+and `gpu-measure` steps, with the existing successful-step prerequisite and
+1,320-second admission deadline. The GPU machine/allocation definition is
+delivered separately from this adapter. The lock pins PyTorch 2.15.0+cu132,
+Sentence Transformers 6.2.0 and Transformers 5.22.1. Setup uses the official
+CUDA 13.2 wheel index for that lock. CPU environments keep their CPU index.
+The CUDA build changed from the original CUDA 12.8 plan because PyTorch 2.15.0
+has no cu128 wheel for CPython 3.13 on Linux x86_64.
+
+| Model | Weights and arithmetic | Maximum tokens | Batch | Dimensions | Prefix rows |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| all-MiniLM-L6-v2 | float16 | 256 | 512 | 384 | 500,000 |
+| bge-small-en-v1.5 | float16 | 512 | 512 | 384 | 500,000 |
+| all-mpnet-base-v2 | float16 | 384 | 512 | 768 | 200,000 |
+| Qwen3-Embedding-0.6B | bfloat16 | 512 | 128 | 1024 | 100,000 |
+
+Each input is a declared prefix of the same two-million-row `st` file, including
+its eight mandatory UNK paragraphs. The byte counts and SHA-256 digests in
+`speed.json` are checked before execution. CPU MiniLM's 32,768-row input is the
+start of the GPU MiniLM input, not an independently sampled corpus. Each prefix
+has its own digest. Input preparation never silently resizes a production cell.
+
+Frozen prefix identities (SHA-256):
+
+| Rows | UTF-8 bytes, including newlines | Digest |
+| ---: | ---: | :--- |
+| 32768 | 4476881 | `e78741796f2265790ddd020e86aba486e44f00a33e2600d64661e56078450a03` |
+| 100000 | 13619755 | `9ca33adf4aae2adb5d387b0be37f1faf21df89ca227b0f54d75372ddcf9369e5` |
+| 200000 | 27258333 | `cedd89096cc32cb58ac15d8ef41d9829b174ba93048ee2289bafa32686cd2bec` |
+| 500000 | 68156910 | `79eb559f9a760a385d06792314c7634bf80075e771005b984825457ce14b00d2` |
+
+The adapter requires exactly one CUDA device, named `NVIDIA L40S`, with at least
+44 GiB, and the locked CUDA 13.2 build. The allocation also checks the driver.
+There is no CPU fallback, precision fallback, batch reduction or retry.
+Models use the configured attention and an empty prompt (documents for Qwen3).
+MiniLM, bge-small and Qwen3 use `sdpa`. MPNet explicitly uses `eager` for both
+reference and measurement, with coordinator approval. Transformers 5.22.1
+`models/mpnet/modeling_mpnet.py:44` declares no SDPA support and its attention
+uses direct matmul at line 150. `modeling_utils.py:1664` rejects SDPA for that
+architecture. This is a frozen cell choice, never a runtime fallback.
+The adapter checks the loaded `config._attn_implementation` against that choice
+and records the observed implementation in every successful receipt.
+The final module in `<snapshot>/modules.json` determines normalization. Observed devices,
+weight dtypes and normalization are checked, rather than inferred from a request.
+
+Every child first loads a separate float32 reference on that GPU, with TF32 off
+for matmul and cuDNN. It checks 10,000 fixed sampled rows (seed 0) plus the eight
+mandatory UNK rows. Candidate and reference must have the declared shape,
+float32 output and finite values. Zero norms fail. Normalized outputs require
+absolute norm error at most `1e-3`. The minimum cosine must reach `0.999` for
+float16 or `0.995` for bfloat16. These are predeclared acceptance boundaries,
+not consequences of mantissa width. A failure never relaxes a boundary.
+
+Before measurement, both precisions encode a full production batch. The longest
+mandatory UNK paragraph is repeated until every row reaches the maximum token
+length. The token shape must equal `[batch_size, max_seq_length]`. Peak allocated
+and reserved GPU memory are reset and recorded separately for the reference and
+candidate. The float32 model is released before loading the candidate. Host
+memory admission separately includes text, model, output/cast and sample buffers.
+
+The probe also encodes 1,000 texts, with synchronization. It writes no throughput
+summary. Each completed model probe writes a `passed` or `failed` verdict and its
+reason into `<probe-results>/gpu-verdicts.json`. Accuracy and GPU out-of-memory failures reject
+that model, while allowing the other model probes to continue. A model rejection
+is a valid completed probe, including when every model fails. Missing CUDA,
+wrong GPU/build, package-lock or model-revision mismatches and infrastructure
+errors fail the step. A probe checking no models also fails.
+
+The measurement phase requires `--allocation-root` and reads the sealed
+`gpu-probe-results` from that allocation. It verifies the existing allocation
+step receipt, the manifest and DONE, the runner revision and sources, locks,
+model revisions and cell configuration. Only `passed` models are measured.
+A failed, missing or unreadable model verdict leaves its cell `not_started`
+with the probe reason. Missing or mismatched admission evidence rejects the
+measurement phase. The allocation's prerequisite deadline remains authoritative.
+
+Measurement has three fixed repetitions. Each child warms the same complete
+input with the same batch settings and releases that output before timing.
+`torch.cuda.synchronize()` brackets the timer. `encode(convert_to_numpy=True)`
+and any float32 output cast are inside the timer. The measured sample is checked
+against the float32 reference. A production call below two seconds is invalid
+and produces no throughput value. Otherwise the summary reports absolute median
+texts/s and IQR. No model is resized to rescue a short call.
+
+Receipts include the torch CUDA build, package versions, device UUID, driver,
+clocks, temperature, power, throttle reasons, GPU memory peaks, host RSS,
+precision reduction flags, lock/configuration hashes and allocation identity.
+The allocation's sealed prerequisite receipt binds all model revisions and
+configuration files to the same allocation and runner.
+
+The `gpu_billing` profile allows 60 minutes including setup, with a 300-second
+collection reserve. Before bootstrap, allocation begin/run, setup or either
+execution phase, the operator must supply `SPEED_GPU_USD_PER_HOUR` as the
+approved hourly quote, encoded as a positive finite JSON number. The variable
+must be inherited unchanged by every process. There is no default or CPU-price
+fallback. Booleans, strings, zero, negative values and nonfinite numbers fail
+before allocation work. The money ceiling is exactly one hour times that quote.
+The resolved hourly quote and balance are stored in the normal allocation,
+setup and measurement billing records. `--describe` permits inspection without
+a price, and omits the unresolved price and balance. Inspection is not spending
+approval. This ticket authorizes no paid run.
+
+Prior art: [SentenceTransformer options](https://www.sbert.net/docs/package_reference/sentence_transformer/model.html)
+define explicit device, weight dtype, attention and prompt controls.
+[PyTorch synchronization](https://docs.pytorch.org/docs/stable/generated/torch.cuda.synchronize.html)
+waits for queued CUDA work. The
+[official CUDA wheel index](https://download.pytorch.org/whl/cu132/torch/)
+provides the pinned build and wheel hashes. These controls avoid implicit device
+selection and asynchronous timing. The local probes support class correctness
+only. They check contracts, refusal, prefix identity and acceptance mechanics
+without claiming a real CUDA precision or memory result. Actual CUDA execution,
+production-batch fit and precision differences require the first paid GPU probe.
+No Linux comparison or speed measurement was run for this implementation.

@@ -48,7 +48,7 @@ def protocol(cell):
         "control": control,
         "paired": paired,
         "own_memory_plan": own_memory,
-        "needs_quiet": needs_quiet,
+        "needs_quiet": needs_quiet and cell.get("device") != "cuda",
     }
 
 
@@ -156,7 +156,7 @@ def select(cells, study, readme=None):
             if c["id"] in ("search-exact-int8", "search-prefilter-int8")
         ]
     elif study == "all":
-        cells = [c for c in cells if c["stage"] != "search-prefilter"]
+        cells = [c for c in cells if c["stage"] not in ("search-prefilter", "gpu")]
     else:
         cells = [c for c in cells if c["stage"] == study]
     return cells
@@ -179,3 +179,34 @@ def validate_head(cell):
         from _speed_heads_study import validate
 
         validate(cell)
+
+
+def study_contract(args, require_environment=True):
+    import _measurement as records
+    from _measurement_config import contract as load_contract
+    from _speed_versions import billing_contract
+
+    contract = billing_contract(
+        load_contract(args.input), args.study, allow_unpriced=not require_environment
+    )
+    headline = args.study == "headline"
+    contract["cells"] = select(contract["cells"], args.study, contract.get("readme"))
+    if not contract["cells"]:
+        raise ValueError("study has no matching cells")
+    if args.study == "gpu":
+        for cell in contract["cells"]:
+            cell["gpu_phase"] = args.gpu_phase
+    validate(contract["cells"])
+    if require_environment:
+        require(contract["cells"], args.base_python, args.rehearse)
+    if headline:
+        if args.workers is None:
+            raise ValueError("headline requires explicit --workers 16 or 32")
+        contract["format"] = "headline-study-v1"
+        for cell in contract["cells"]:
+            cell["workers"] = args.workers
+    if args.rehearse:
+        contract["rehearsal_limits"] = records.rehearsal_limits()
+        contract["functional_only"] = True
+        reduce_cells(contract)
+    return contract

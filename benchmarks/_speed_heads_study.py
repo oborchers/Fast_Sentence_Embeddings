@@ -85,7 +85,7 @@ def memory_plan(cell, model_bytes, limit, retained=0, *, work=None):
 
 
 def preflight(context, cell, limit):
-    from _speed_pipeline import model_bytes
+    from _speed_cells import model_bytes
 
     plan = memory_plan(
         cell,
@@ -170,7 +170,7 @@ def paired_factor(arms):
 
 
 def run(context, cell):
-    from _speed_pipeline import model_bytes
+    from _speed_cells import model_bytes
     from _speed_run import cleanup, prepare_input
 
     plan = memory_plan(

@@ -6,9 +6,9 @@ import _speed_cells as inputs
 from _harness.budget import select_billing
 
 
-def billing_contract(contract, study):
+def billing_contract(contract, study, *, allow_unpriced=False):
     """Use the same selected profile for setup and every step of an allocation."""
-    return select_billing(contract, study=study)
+    return select_billing(contract, study=study, allow_unpriced=allow_unpriced)
 
 
 def pair_rounds(cell):

@@ -8,6 +8,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
+from _harness import budget as budget_module
 from _harness import records as records_module
 from _harness.budget import Budget
 from _harness.records import atomic, sha256
@@ -35,7 +36,9 @@ def _install_environment(execute, uv, root, environment):
         "-r",
         CONFIG / environment["lock"],
         "--extra-index-url",
-        "https://download.pytorch.org/whl/cpu",
+        "https://download.pytorch.org/whl/cu132"
+        if environment["lock"] == "speed-gpu.lock.txt"
+        else "https://download.pytorch.org/whl/cpu",
         "--index-strategy=unsafe-best-match",
     )
     execute(uv, "pip", "check", "--python", destination / "bin/python")
@@ -144,6 +147,7 @@ def bootstrap(entry, revision):
         (CONFIG / "bootstrap.sh")
         .read_text()
         .replace("@RECORDS@", records)
+        .replace("@BUDGET@", Path(budget_module.__file__).read_text())
         .replace("@ENTRY@", entry)
         .replace("@REVISION@", revision)
     )

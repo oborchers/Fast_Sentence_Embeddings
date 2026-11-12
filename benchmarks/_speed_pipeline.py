@@ -279,10 +279,12 @@ def prepare_models(root, contract, reuse=None):
     return result
 
 
-def model_bytes(model):
-    if model["artifact"] is not None:
-        return Path(model["artifact"]).stat().st_size
-    return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))
+def measure_child(job):
+    if job.get("device") == "cuda":
+        from _speed_gpu import child
+
+        return child(job)
+    return cpu_child(job)
 
 
 def specialized_child(job):
@@ -305,7 +307,7 @@ def specialized_child(job):
     return None
 
 
-def measure_child(job):
+def cpu_child(job):
     specialized = specialized_child(job)
     if specialized is not None:
         return specialized(job)
