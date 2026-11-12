@@ -81,5 +81,94 @@
       "dimensions": 256,
       "planned_input_bytes": 2728056171
     }
+  ],
+  "quiet_cell": {
+    "id": "quiet",
+    "model": "minishlab/potion-base-8M",
+    "reference": null,
+    "workers": 1,
+    "texts": 300000,
+    "dimensions": 256,
+    "dtype": "float32",
+    "rounds": 1,
+    "kind": "encode"
+  },
+  "rules": {
+    "rounds": 3,
+    "minimum_fse_seconds": 2,
+    "warmup_calls": 1,
+    "measured_calls": 1,
+    "sample_rows": 10000,
+    "sample_seed": 0,
+    "rtol": 3e-05,
+    "atol": 3e-06,
+    "repeat_failed_cells": false,
+    "quiet_seconds": 180
+  },
+  "unknown_cases": [
+    {
+      "row": 68,
+      "source_position": 501002,
+      "unknown_tokens": 1,
+      "tokens": 174,
+      "is_first_failure_example": true,
+      "text_sha256": "30da9c0bf5f6a79cea46d383f9186533913ef3c059e5e27e08f5e3f31ff6318c"
+    },
+    {
+      "row": 205,
+      "source_position": 393732,
+      "unknown_tokens": 2,
+      "tokens": 257,
+      "is_first_failure_example": true,
+      "text_sha256": "b4b3ba4dac52d1ce4f16433e095e530452acb692ae114e4dfc709ca1c2b7f7f3"
+    },
+    {
+      "row": 248,
+      "source_position": 190647,
+      "unknown_tokens": 2,
+      "tokens": 51,
+      "is_first_failure_example": true,
+      "text_sha256": "35dfd54a27ac14c54421862c778c3412cf2f3afc4a00eb749c428e7e12c5e0f3"
+    },
+    {
+      "row": 551,
+      "source_position": 356849,
+      "unknown_tokens": 1,
+      "tokens": 123,
+      "is_first_failure_example": true,
+      "text_sha256": "75c6c4f3764a85ff631e44c092bbaa27bd076a7b61e68752aefa2b3c3fb01d6e"
+    },
+    {
+      "row": 664,
+      "source_position": 255235,
+      "unknown_tokens": 9,
+      "tokens": 422,
+      "is_first_failure_example": true,
+      "text_sha256": "d73134948a7f491ea898a83c5a1a09e6669e5b6690155dd1fa6d7272ac8c2f85"
+    },
+    {
+      "row": 1180,
+      "source_position": 152685,
+      "unknown_tokens": 1,
+      "tokens": 115,
+      "is_first_failure_example": true,
+      "text_sha256": "116da2f37111106d9c0f916703415b1ded6583b28382c802d46399f73b413fb7"
+    },
+    {
+      "row": 1951,
+      "source_position": 241616,
+      "unknown_tokens": 5,
+      "tokens": 77,
+      "is_first_failure_example": true,
+      "text_sha256": "fd4f58642b1646f7e01b120ab6cb14e72c6d24de82f194b821559e6ab8d3a159"
+    },
+    {
+      "row": 2168,
+      "source_position": 380271,
+      "unknown_tokens": 2,
+      "tokens": 124,
+      "is_first_failure_example": true,
+      "text_sha256": "4ac2df529fe5661edc5acd7bcb52c11bf215b19fbc18b7f69061767d16b93074"
+    }
   ]
 }
