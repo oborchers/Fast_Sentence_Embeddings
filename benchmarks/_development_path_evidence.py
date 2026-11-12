@@ -19,6 +19,40 @@ EVENT = "store.prefilter"
 FIELDS = ("queries", "k", "rows", "pairs", "fallback", "workers")
 
 
+class PathEvidenceError(ValueError):
+    """The executed build did not follow the required prefilter path."""
+
+
+def validate(row, job, *, candidate):
+    """Enforce the path of the executing build, including sizing and A/A controls."""
+    if not search_enabled(job):
+        return
+    evidence = row.get("path_evidence")
+    if not isinstance(evidence, dict):
+        raise PathEvidenceError("missing prefilter path evidence")
+    calls = max(1, min(job["iterations"], POOL // job["queries"]))
+    expected = {
+        "untimed": True,
+        "search_mode": job["search_mode"],
+        "prefilter_variant": "avx2" if candidate else None,
+        "calls": calls,
+        "entered": candidate,
+        "entered_calls": calls if candidate else 0,
+        "fallbacks": ["none"] if candidate else [],
+    }
+    if any(key not in evidence or evidence[key] != value for key, value in expected.items()):
+        raise PathEvidenceError(f"prefilter path differs from executing build contract: {expected}")
+    events = evidence.get("events")
+    indices = list(range(calls)) if candidate else []
+    if (
+        not isinstance(events, list)
+        or any(not isinstance(event, dict) for event in events)
+        or [event.get("call") for event in events] != indices
+        or any(event.get("fallback") != "none" for event in events)
+    ):
+        raise PathEvidenceError("prefilter events do not prove the required path for every call")
+
+
 class _Capture(logging.Handler):
     def __init__(self):
         super().__init__(logging.DEBUG)
