@@ -88,8 +88,10 @@ class Observer:
     def processing(self, original):
         @wraps(original)
         def observed(modality, inputs, *args, **kwargs):
-            features = original(modality, inputs, *args, **kwargs)
+            # ST's single-modality dispatch pops "text" before calling its
+            # tokenizer. Keep that actual list, not the consumed dictionary.
             texts = inputs.get("text", [])
+            features = original(modality, inputs, *args, **kwargs)
             # The first Transformer module also processes the bare prefix to
             # calculate its pooling length. Observe only actual encoded batches.
             if self.active and texts and texts != [self.prompt]:
