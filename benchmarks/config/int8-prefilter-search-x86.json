@@ -1,0 +1,55 @@
+{
+  "format": "local-development-v2",
+  "description": "AVX2 enabling study on one AMD EPYC 9575F allocation, class optimization, never publication evidence. Compare public VectorStore.search on 859,346 WikiText-103 training paragraphs in int8, 2 workers, k 10 and 8 queries per call. Two required cells: o1-d256-q8 and o2-d1024-q8. The 256 fixed STS-B test queries use PCG64 seed 0 and exclude store texts. Outputs must be bit-identical. Eight pairs in each A/A tuning, independent A/A validation, comparison and confirmation phase, approved by Oliver on 2026-11-10 instead of fifteen. One calibration tier only; no automatic retry or extension. cells@2 requires at least 10 percent saving in comparison and confirmation in both cells, alongside the existing noise, duration and execution-path checks. stop_early stops later cells after a measured rejection; stop_session_on_reject remains false. The study decision is provisional (final: false). Only the separate sealed allocation decide step can enable AVX2 after float32 correctness and both complete o2 candidate-child profiles. The allocation owns the 285-minute / 7.10 USD ceiling including setup and a 600-second collection reserve; --wall-time-seconds uses its remaining budget. No run is authorized by this file.",
+  "defaults": {
+    "profile": "int8-prefilter-search@1",
+    "base_doc_ids": "none",
+    "candidate_doc_ids": "none",
+    "filter_kind": "none",
+    "resident_cycles": 1,
+    "workers": 2,
+    "table_dtype": "float32",
+    "output_dtype": "int8",
+    "k": 10,
+    "pairs": 8,
+    "warmup_calls": 2,
+    "warmup_seconds": 12.0,
+    "target_seconds": 2.0,
+    "target_aa_iqr": 0.02,
+    "active_calibration_seconds": 3600.0,
+    "noise_multiplier": 3.0,
+    "minimum_saving": 0.02,
+    "confirmation_fraction": 0.5,
+    "decision_gate": true,
+    "max_calibration_steps": 1,
+    "stop_session_on_reject": false
+  },
+  "cells": [
+    {
+      "id": "o1-d256-q8",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-train",
+      "stage": "store-search",
+      "queries": 8,
+      "active_calibration_seconds": 4500.0
+    },
+    {
+      "id": "o2-d1024-q8",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext-train",
+      "stage": "store-search",
+      "queries": 8,
+      "active_calibration_seconds": 5400.0
+    }
+  ],
+  "decision": {
+    "rule": "cells@2",
+    "practical_saving": 0.1,
+    "main": [
+      "o1-d256-q8",
+      "o2-d1024-q8"
+    ],
+    "edge": {},
+    "stop_early": true
+  }
+}

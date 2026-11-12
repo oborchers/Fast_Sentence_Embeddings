@@ -1331,6 +1331,89 @@ Class optimization for the enabling decision of DR-278 (int8-Vorfilter in die ex
 - Budget and order: 8 h of wall time for all three cells together, set with `--wall-time-seconds 28800` (without it the tool takes 7200 s). The expected duration with groups of about 2.5 s (the first tier of the A/A search) is about 5.4 h (4.4 to 6.5 h, from the rehearsal of DR-278); a second tier (4 s) is planned at about 9.8 h, over the budget. The tool checks no total estimate: the first limit reached decides the status (`inconclusive_budget` by the wall budget, `inconclusive_noise` by the calibration cap), and stopping before the second tier is a manual rule. Never extend, never repeat. The timing controller takes its own lock role; the heavy lock is for builds and checks only.
 - Profiles outside the decision: samply on `o2-d1024-q8` (the threads `fse-search` run `fse_int8_pass`, `fse-rescore` the small rest) and memray on a fallback by budget (a store of identical rows), which must stay within the memory bounds of `store.md`, "Search".
 
+## x86 AVX2 enabling allocation
+
+`benchmarks/config/int8-prefilter-search-x86.json` is the class optimization
+study for DR-387 (x86-Studie des AVX2-Vorfilters mit acht Paaren anlegen).
+It selects only `o1-d256-q8` and `o2-d1024-q8`: 859,346 WikiText-103
+training paragraphs in int8, two workers, `k: 10`, eight queries per call.
+The 256 fixed STS-B test queries, seed 0, exclusions and bit checks follow
+`int8-prefilter-search@1` above. There is no `rows=` edge cell in this allocation.
+
+Oliver approved **eight instead of fifteen pairs** on 2026-11-10 for this
+allocation. The exception applies to A/A tuning, independent A/A validation,
+comparison and confirmation. It does not change the historical local file or
+the general v2 defaults. `max_calibration_steps: 1` forbids a second tier.
+Warmup remains at least twelve seconds, the group floor remains two seconds,
+and the A/A IQR target remains 0.02. Calibration caps remain 4,500 active
+seconds for o1 and 5,400 for o2. Do not retry or extend an exhausted run.
+
+The `cells@2` rule requires both cells to pass the noise and confirmation
+rules and save at least ten percent in both comparison and confirmation.
+`stop_early: true` stops later cells after a measured rejection.
+`stop_session_on_reject: false` lets the study rule own that stop.
+The study writes only a provisional decision (`final: false`). Base builds,
+including both A/A arms, must report variant `null` and no prefilter entry.
+Candidate sizing, comparison and confirmation must report `avx2`, enter the
+prefilter on every observed call and report fallback `none`.
+
+Select `allocation-prefilter-x86.json` with `MEASURE_ALLOCATION`,
+`MEASURE_INPUT` as `speed-prefilter-f32.json`, `MEASURE_STUDY=versions`
+and `MEASURE_BILLING_PROFILE=prefilter_billing`. For direct allocation commands,
+pass `--billing-profile prefilter_billing` to both `begin` and `run`.
+Bootstrap, setup and every step inherit this same billing profile.
+`speed.json` and the standalone float32 configuration declare a 285-minute,
+7.10 USD ceiling with a 600-second collection reserve, including provisioning,
+setup, warmups, load and lock waits. These are historical planning values,
+not spending approval. Confirm workload, resources and current cost before a paid run.
+The expected total is 145 / 209 / 272 minutes (low / middle / high estimate).
+Store encoding may overrun an admission boundary by an estimated eight to ten
+minutes. Active operations finish safely, then no further operation starts.
+
+| Step | Input and evidence | Prerequisite | Estimate |
+| :--- | :--- | :--- | ---: |
+| `speed-f32` | `speed-prefilter-f32.json`, only `version-encode-float32-16`, paired float32 bits | none | 420 s |
+| `prefilter` | `int8-prefilter-search-x86.json`, both required cells | `speed-f32` | 12,840 s |
+| `profile-cpu` | py-spy on the o2 comparison candidate child | `prefilter` | 960 s |
+| `profile-memory` | memray on the same representative configuration | `prefilter` | 960 s |
+| `decide` | verified evidence from all four steps and the allocation | none | 60 s |
+
+Each step writes `<step>-results` and uses `<step>-work` when it needs work
+storage. Prerequisites require a manifest-verified successful DONE and matching
+allocation, runner, locks, revisions and configuration receipts. No separate
+absolute prerequisite deadline is declared for this allocation. The common
+remaining budget controls admission. `prefilter` passes
+`--wall-time-seconds {remaining_seconds}`, `--allocation-root {root}` and
+`--ignore-host-load`. This bypasses only the host-load admission gate, while
+retaining telemetry and the shared heavy lock.
+
+Both profiles use `--study search-prefilter --profile-cell o2-d1024-q8
+--profile-seconds 960`. Their fixed origin is `prefilter-results`; they select
+the candidate comparison arm near the median paired factor. The 960-second
+limit includes rebuilding the d1024 store and proving coverage of the executing
+child and its `fse-search` threads. Profile timings are diagnostic only.
+
+The final step runs `speed.py --decide --allocation-root ROOT --results RESULTS`
+and writes `decide-results`. It deliberately has no `requires`, so failed or
+missing mandatory evidence can produce a sealed `inconclusive` decision.
+It reads `speed-f32-results`, `prefilter-results`, `profile-cpu-results`,
+`profile-memory-results` and `allocation-results`. No AVX2 enabling decision
+exists before that final seal. SIGTERM or exhausted allocation admission can
+leave this step `not_started`; that also supplies no enabling decision.
+
+**Freeze builds are still placeholders.** The allocation currently uses
+`main: pins` and base `3b4061441d834eb06f605e1b6cd60dd0d118ceba`, matching the
+existing version allocation. Before any paid start, replace both in a separate
+small pull request: B0 is master at the feature freeze, and K is B0 plus the
+single AVX2 enabling line on a pushed branch. Set base to B0 and the shared
+candidate pin to K. Review the runner revision independently. The current
+placeholders do not define a valid AVX2 comparison.
+
+Implementation validation uses class correctness only: configuration loading,
+rendered CLI parsing and refusal probes. No Linux comparison or speed
+measurement was run to create this study. The future optimization allocation
+requires its own approved machine and run window.
+
 ## Profiles as allocation steps
 
 Select `benchmarks/config/allocation-versions.json` with `MEASURE_ALLOCATION`,

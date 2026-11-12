@@ -1,0 +1,85 @@
+{
+  "format": "speed-study-v1",
+  "billing": {
+    "compute_usd_per_hour": 1.472,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "prefilter_billing": {
+    "planning_minutes": 285,
+    "planning_balance_usd": 7.1,
+    "collection_reserve_seconds": 600
+  },
+  "stages": [
+    {
+      "name": "setup",
+      "estimate_minutes": 8,
+      "budget_minutes": 15
+    },
+    {
+      "name": "quiet",
+      "estimate_minutes": 3,
+      "budget_minutes": 5
+    },
+    {
+      "name": "libraries",
+      "estimate_minutes": 90,
+      "budget_minutes": 110
+    },
+    {
+      "name": "bekko",
+      "estimate_minutes": 20,
+      "budget_minutes": 30
+    },
+    {
+      "name": "paragraphs",
+      "estimate_minutes": 20,
+      "budget_minutes": 30
+    },
+    {
+      "name": "heads",
+      "estimate_minutes": 15,
+      "budget_minutes": 25
+    },
+    {
+      "name": "versions",
+      "estimate_minutes": 45,
+      "budget_minutes": 60
+    },
+    {
+      "name": "search",
+      "estimate_minutes": 12
+    },
+    {
+      "name": "collection",
+      "estimate_minutes": 3,
+      "budget_minutes": 10
+    },
+    {
+      "name": "gpu",
+      "estimate_minutes": 27,
+      "budget_minutes": 55
+    }
+  ],
+  "cells": [
+    {
+      "id": "version-encode-float32-16",
+      "stage": "versions",
+      "kind": "dtype",
+      "model": "minishlab/potion-base-8M",
+      "reference": "fse-base",
+      "workers": 16,
+      "texts": 20000000,
+      "dtype": "float32",
+      "rounds": 5,
+      "estimated_seconds": 300,
+      "dimensions": 256,
+      "planned_input_bytes": 2728056171
+    }
+  ]
+}
