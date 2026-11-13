@@ -56,7 +56,11 @@ def observe(root=ROOT):
     )
     maximum, current = (text(memory / name) for name in names)
     # v1 uses a page-aligned LONG_MAX sentinel rather than the v2 string 'max'.
-    if version == "v1" and maximum is not None and int(maximum) >= sys.maxsize - (os.sysconf("SC_PAGE_SIZE") - 1):
+    if (
+        version == "v1"
+        and maximum is not None
+        and int(maximum) >= sys.maxsize - (os.sysconf("SC_PAGE_SIZE") - 1)
+    ):
         maximum = "max"
     raw = text(memory / "memory.stat")
     stat = dict(line.split() for line in raw.splitlines()) if raw is not None else {}
