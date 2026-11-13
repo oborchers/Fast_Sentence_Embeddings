@@ -2199,7 +2199,12 @@ DR-401 (MTEB-Qualitätszellen für mpnet und Qwen3 auf der GPU-Allokation anlege
 adds `quality-gpu.json` and the separate `allocation-gpu-quality.json` (entry
 `quality`). The throughput allocation and its `gpu_billing` remain unchanged.
 The quality allocation runs `gpu-probe` followed by `gpu-quality`, with
-`requires: [gpu-probe]`, in the same `gpu` environment. The CUDA lock now
+`requires: [gpu-probe]`, in the same `gpu` environment.
+`allocation-gpu-quality-rtx6000ada.json` (DR-414: GPU-Qualitätsmessung auf der
+RTX 6000 Ada als zweite Allokation zulassen) is identical except for
+`gpu_name` "NVIDIA RTX 6000 Ada Generation" and its own step references. It
+serves only quality, whose scores do not depend on GPU speed, when no L40S is
+available; `machine-check.json` records the device. Throughput stays on the L40S. The CUDA lock now
 includes the pinned quality packages. All 84 previous package versions remain
 unchanged, including torch 2.15.0+cu132, Sentence Transformers 6.2.0,
 Transformers 5.22.1, tokenizers 0.23.3 and NumPy 2.5.4.

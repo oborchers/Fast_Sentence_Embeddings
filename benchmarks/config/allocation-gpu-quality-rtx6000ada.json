@@ -1,0 +1,92 @@
+{
+  "quality": {
+    "format": "allocation@1",
+    "machine_check": {
+      "gpu_name": "NVIDIA RTX 6000 Ada Generation",
+      "gpu_count": 1,
+      "gpu_memory_bytes": 47244640256,
+      "cuda_driver_version": "595.45.04"
+    },
+    "rehearsal_machine_check": {
+      "cpu_quota_cpus": {
+        "max": 2
+      },
+      "memory_max_bytes": {
+        "max": 6442450944
+      },
+      "disk_free_bytes": {
+        "min": 1000000000
+      },
+      "shm_bytes": {
+        "min": 1073741824
+      },
+      "nofile_hard_min": 524288,
+      "gpu_name": "NVIDIA RTX 6000 Ada Generation",
+      "gpu_count": 1,
+      "gpu_memory_bytes": 47244640256,
+      "cuda_driver_version": "595.45.04"
+    },
+    "environments": [
+      {
+        "name": "gpu",
+        "role": "reference",
+        "lock": "speed-gpu.lock.txt",
+        "revision": null
+      }
+    ],
+    "steps": [
+      {
+        "name": "gpu-probe",
+        "environment": "gpu",
+        "estimate_seconds": 720,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/quality.py",
+          "--run",
+          "--gpu-phase",
+          "probe",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-gpu-quality-rtx6000ada.json"
+        ]
+      },
+      {
+        "name": "gpu-quality",
+        "environment": "gpu",
+        "estimate_seconds": 21700,
+        "command": [
+          "{python}",
+          "{source}/benchmarks/quality.py",
+          "--run",
+          "--gpu-phase",
+          "measure",
+          "--input",
+          "{input}",
+          "--results",
+          "{results}",
+          "--work",
+          "{work}",
+          "--allocated-at",
+          "{allocated_at}",
+          "--allocation-root",
+          "{root}",
+          "--allocation",
+          "{source}/benchmarks/config/allocation-gpu-quality-rtx6000ada.json"
+        ],
+        "requires": [
+          "gpu-probe"
+        ]
+      }
+    ],
+    "toolchains": []
+  }
+}
