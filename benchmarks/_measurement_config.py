@@ -66,12 +66,12 @@ def validate_prerequisites(cells):
 
 
 def validate_transformer(cell):
+    validate_sequence_length(cell)
     if cell.get("kind") == "transformer":
         from _speed_transformer import validate
 
         validate(cell)
         return
-    validate_sequence_length(cell)
     controls = ("device", "torch_dtype", "batch_size")
     if not cell.get("mteb_loader") and any(key in cell for key in controls):
         raise ValueError("device, torch_dtype and batch_size require mteb_loader")
