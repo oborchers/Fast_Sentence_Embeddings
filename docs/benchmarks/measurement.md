@@ -656,6 +656,10 @@ The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _har
 1. `begin` checks the machine before anything is installed. A deviation starts no step: every step folder and the allocation record are sealed with exit status 1 and the deviations as the reason, and the bootstrap stops.
    Before every paid CPU run, enable `host_quiet` in the selected allocation.
    Its observation time counts toward the existing allocation budget.
+   Admission requires the full observation window to fit before the collection
+   reserve. A monotonic work deadline also bounds waits and is checked before
+   and after each sample. Insufficient or exhausted work budget rejects and
+   seals the allocation before setup.
    After rejection, collect the sealed rejection record and immediately delete
    the machine. Request a new pod only within the agreed cost ceiling, with at
    most three allocation attempts total. Never extend the budget or weaken

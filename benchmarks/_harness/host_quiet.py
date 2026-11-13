@@ -26,8 +26,14 @@ def validate(config):
             raise ValueError(f"host_quiet {name} is outside its positive finite range")
 
 
-def _sample(proc, clock):
+def _check_deadline(deadline, clock):
+    if deadline is not None and clock() >= deadline:
+        raise ValueError("host quiet observation exhausted the allocation work budget")
+
+
+def _sample(proc, clock, deadline):
     """Read host PSI and load from one proc source, including synthetic probe sources."""
+    _check_deadline(deadline, clock)
     rows = [line.split() for line in (proc / "pressure/cpu").read_text().splitlines()]
     some = [row[1:] for row in rows if row and row[0] == "some"]
     if len(some) != 1:
@@ -40,10 +46,11 @@ def _sample(proc, clock):
     load = float((proc / "loadavg").read_text().split()[0])
     if not math.isfinite(load) or load < 0:
         raise ValueError("host one-minute load must be finite and nonnegative")
+    _check_deadline(deadline, clock)
     return {"monotonic": monotonic, "some_total_microseconds": total, "load1": load}
 
 
-def observe(config, *, proc=Path("/proc"), clock=time.monotonic, sleep=time.sleep):
+def observe(config, *, budget=None, proc=Path("/proc"), clock=time.monotonic, sleep=time.sleep):
     """Keep raw samples and fail closed on missing, malformed or reset observations."""
     validate(config)
     duration = config.get("duration_seconds", 180)
@@ -53,13 +60,19 @@ def observe(config, *, proc=Path("/proc"), clock=time.monotonic, sleep=time.slee
         "cpu_some_percent": None,
         "load1_max": None,
     }
+    if budget is not None and not budget.admit(duration):
+        record["unavailable_reason"] = "host quiet observation does not fit allocation work budget"
+        return record
+    deadline = None if budget is None else clock() + budget.remaining()
     try:
-        first = _sample(proc, clock)
+        first = _sample(proc, clock, deadline)
         record["samples"].append(first)
         last = first
         while last["monotonic"] - first["monotonic"] < duration:
-            sleep(min(1, duration - (last["monotonic"] - first["monotonic"])))
-            current = _sample(proc, clock)
+            _check_deadline(deadline, clock)
+            wait = min(1, duration - (last["monotonic"] - first["monotonic"]))
+            sleep(wait if deadline is None else min(wait, max(0, deadline - clock())))
+            current = _sample(proc, clock, deadline)
             record["samples"].append(current)
             if current["monotonic"] <= last["monotonic"]:
                 raise ValueError("host quiet observation clock did not advance")

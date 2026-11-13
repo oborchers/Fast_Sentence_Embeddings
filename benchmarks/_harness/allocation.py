@@ -48,7 +48,7 @@ class Allocation:
         """Create the record and check the machine; the check result, accepted or not."""
         self.record.mkdir(parents=True, exist_ok=False)
         expected = self.definition["rehearsal_machine_check" if rehearsal else "machine_check"]
-        checked = machine.check(expected, work)
+        checked = machine.check(expected, work, budget=self.budget)
         atomic(self.record / "machine-check.json", {"rehearsal": rehearsal, **checked})
         atomic(
             self.record / "allocation.json",

@@ -199,13 +199,13 @@ def deviations(observed, expected):
     return found + _gpu_deviations(observed, expected)
 
 
-def check(expected, work):
+def check(expected, work, *, budget=None):
     """The record of one check: accepted only without any deviation."""
     validate(expected)
     observed = observe(work, gpu=any(name in expected for name in GPU_FIELDS))
     found = deviations(observed, expected)
     if "host_quiet" in expected:
-        observed["host_quiet"] = host_quiet.observe(expected["host_quiet"])
+        observed["host_quiet"] = host_quiet.observe(expected["host_quiet"], budget=budget)
         found += host_quiet.deviations(observed["host_quiet"], expected["host_quiet"])
     return {
         "status": "rejected" if found else "accepted",
