@@ -66,11 +66,14 @@ def identity(args, spec):
     }
 
 
+QUALITY_GPUS = ("NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation")
+
+
 def environment():
     import torch
     from _speed_gpu import observation, require_cuda
 
-    require_cuda(torch)
+    require_cuda(torch, QUALITY_GPUS)
     for line in (CONFIG / "speed-gpu.lock.txt").read_text().splitlines():
         if "==" in line and not line.startswith((" ", "#")):
             name, pin = line.split()[0].split("==")

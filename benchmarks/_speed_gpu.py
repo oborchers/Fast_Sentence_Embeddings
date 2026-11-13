@@ -53,12 +53,13 @@ def validate(cell):
             raise ValueError(f"CUDA {key} must be an integer")
 
 
-def require_cuda(torch):
+def require_cuda(torch, names=("NVIDIA L40S",)):
+    """One supported device; quality also accepts the RTX 6000 Ada (DR-415)."""
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise RuntimeError("CUDA requires exactly one available GPU; CPU fallback is forbidden")
     device = torch.cuda.get_device_properties(0)
-    if device.name != "NVIDIA L40S" or device.total_memory < 47244640256:
-        raise RuntimeError("CUDA requires the declared NVIDIA L40S with at least 44 GiB")
+    if device.name not in names or device.total_memory < 47244640256:
+        raise RuntimeError("CUDA requires a declared GPU (" + ", ".join(names) + ") with 44 GiB")
     if torch.version.cuda != "13.2":
         raise RuntimeError("CUDA requires the locked torch CUDA 13.2 build")
 
