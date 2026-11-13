@@ -33,15 +33,38 @@ def _version(root):
     return "unknown"
 
 
+def _number(value, name, minimum=0, *, unlimited=False):
+    if value is None or (unlimited and value == "max"):
+        return value
+    if not value.isascii() or not value.isdecimal() or int(value) < minimum:
+        raise ValueError(f"{name} must be an integer of at least {minimum}")
+    return value
+
+
+def _cpu_values(quota, period, *, v1=False):
+    if v1 and quota is not None and quota.startswith("-"):
+        _number(quota[1:], "cpu quota magnitude", 1)
+        quota = "max"
+    _number(quota, "cpu quota", 1, unlimited=True)
+    _number(period, "cpu period", 1)
+    return [quota, period] if quota is not None and period is not None else None
+
+
 def _cpu(root, version):
     if version == "v2":
         value = text(root / "cpu.max")
-        return value.split() if value is not None else None
+        if value is None:
+            return None
+        fields = value.split()
+        if len(fields) != 2:
+            raise ValueError("cpu.max must contain quota and period")
+        return _cpu_values(*fields)
     for folder in ("cpu", "cpu,cpuacct", "cpuacct,cpu"):
         quota = text(root / folder / "cpu.cfs_quota_us")
         period = text(root / folder / "cpu.cfs_period_us")
-        if quota is not None and period is not None:
-            return ["max" if int(quota) < 0 else quota, period]
+        values = _cpu_values(quota, period, v1=True)
+        if values is not None:
+            return values
     return None
 
 
@@ -55,6 +78,8 @@ def observe(root=ROOT):
         else ("memory.max", "memory.current")
     )
     maximum, current = (text(memory / name) for name in names)
+    _number(maximum, names[0], 1, unlimited=version != "v1")
+    _number(current, names[1])
     # v1 uses a page-aligned LONG_MAX sentinel rather than the v2 string 'max'.
     if (
         version == "v1"
@@ -64,6 +89,8 @@ def observe(root=ROOT):
         maximum = "max"
     raw = text(memory / "memory.stat")
     stat = dict(line.split() for line in raw.splitlines()) if raw is not None else {}
+    for key, value in stat.items():
+        _number(value, "memory.stat." + key)
     sources = dict(zip(STAT_KEYS, STAT_KEYS, strict=True))
     if version == "v1":
         # total_* includes descendants, matching the hierarchical v2 counters.
