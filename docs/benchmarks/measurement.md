@@ -629,9 +629,14 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
   pressure percentage, maximum load and any unavailable reason for both accepted
   and rejected screens. Without the field, the existing check is unchanged.
   Rehearsal may omit it or declare looser limits in `rehearsal_machine_check`.
-  The paid CPU allocations `allocation-prefilter-x86.json` and
-  `allocation-readme.json` use 180 seconds, pressure below 2 percent and load
-  below 4. These initial limits are assumptions, not validated noise guarantees.
+  `load1_max` is optional. `allocation-prefilter-x86.json` uses 180 seconds,
+  pressure below 2 percent and load below 4. `allocation-readme.json` uses
+  180 seconds and pressure below 2 percent without a load limit (DR-417:
+  Messwerkzeug für die laufende Messkampagne reparieren): two Pod 1 hosts
+  (cpu5g, 32 of many cores) showed host-wide load1 of 18 to 60 while host and
+  cgroup CPU pressure stayed at 0, so load1 measured other tenants on other
+  cores rather than contention for the allocation. These limits are
+  assumptions, not validated noise guarantees.
   GPU allocations do not enable this screen.
   [Linux PSI documentation](https://www.kernel.org/doc/html/v6.6/accounting/psi.html)
   defines `some` as time with at least one stalled task and `total` in microseconds,
@@ -2204,7 +2209,9 @@ The quality allocation runs `gpu-probe` followed by `gpu-quality`, with
 RTX 6000 Ada als zweite Allokation zulassen) is identical except for
 `gpu_name` "NVIDIA RTX 6000 Ada Generation" and its own step references. It
 serves only quality, whose scores do not depend on GPU speed, when no L40S is
-available; `machine-check.json` records the device. Throughput stays on the L40S. The CUDA lock now
+available; `machine-check.json` records the device. `allocation-gpu-quality-a40.json`
+(DR-417) is the same for "NVIDIA A40" (48 GB, Ampere) as a third fallback when
+neither Ada GPU is available. Throughput stays on the L40S. The CUDA lock now
 includes the pinned quality packages. All 84 previous package versions remain
 unchanged, including torch 2.15.0+cu132, Sentence Transformers 6.2.0,
 Transformers 5.22.1, tokenizers 0.23.3 and NumPy 2.5.4.

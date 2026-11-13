@@ -28,8 +28,7 @@
       "nofile_hard_min": 524288,
       "host_quiet": {
         "duration_seconds": 180,
-        "cpu_some_percent_max": 2,
-        "load1_max": 4
+        "cpu_some_percent_max": 2
       }
     },
     "rehearsal_machine_check": {

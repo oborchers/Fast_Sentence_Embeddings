@@ -108,7 +108,7 @@ def identity(args, spec):
     }
 
 
-QUALITY_GPUS = ("NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation")
+QUALITY_GPUS = ("NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40")
 
 
 def environment():
