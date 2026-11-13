@@ -2291,7 +2291,7 @@ comparison was performed to implement this option (class correctness only).
 ### cgroup telemetry on v1 and v2 hosts
 
 The allocation machine check calls the same telemetry reader as the speed and
-quality entries, before bootstrap installs any packages. `machine-check.json`
+quality entries, before bootstrap sets up the benchmark environments. `machine-check.json`
 contains that snapshot, including `cgroup_version` (`v1`, `v2`, or `unknown`),
 `cgroup_missing_fields` and the complete telemetry `missing_fields` list.
 Missing files or counters produce JSON `null`, never a fabricated zero.
