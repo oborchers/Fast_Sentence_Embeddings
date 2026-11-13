@@ -27,6 +27,12 @@ MODELS = {
 class ModelCheckError(ValueError):
     """A checked model failed the fixed accuracy or production-batch contract."""
 
+    def __init__(self, message, *, norm_check=None):
+        if norm_check is not None:
+            message += ": " + json.dumps(norm_check, allow_nan=False)
+        super().__init__(message)
+        self.norm_check = norm_check
+
 
 def validate(cell):
     expected = MODELS.get(cell.get("model"))
@@ -116,7 +122,18 @@ def encode(model, texts, job):
     return output.astype(np.float32, copy=False)
 
 
-def check_vectors(vectors, count, job, normalized):
+def norm_tolerance(torch_dtype, dimensions):
+    """Bound denominator/division rounding and float32 norm reductions (see guide)."""
+    if torch_dtype == "float32":
+        return 1e-3
+    unit_roundoff = {"float16": 2**-11, "bfloat16": 2**-8}[torch_dtype]
+    reduction_error = dimensions * 2**-24 / (1 - dimensions * 2**-24)
+    rounding_ratio = (1 + unit_roundoff) / (1 - unit_roundoff)
+    reduction_ratio = (1 + reduction_error) / (1 - reduction_error)
+    return max(1e-3, rounding_ratio * reduction_ratio - 1)
+
+
+def check_vectors(vectors, count, job, normalized, *, torch_dtype=None):
     import numpy as np
 
     if vectors.shape != (count, job["dimensions"]) or vectors.dtype != np.float32:
@@ -124,22 +141,51 @@ def check_vectors(vectors, count, job, normalized):
     if not np.isfinite(vectors).all():
         raise ModelCheckError("nonfinite CUDA output")
     norms = np.linalg.norm(vectors, axis=1)
-    if np.any(norms == 0) or (normalized and np.any(np.abs(norms - 1) > 1e-3)):
-        raise ModelCheckError("CUDA output norm failed")
+    dtype = job["torch_dtype"] if torch_dtype is None else torch_dtype
+    tolerance = norm_tolerance(dtype, job["dimensions"])
+    check = {
+        "torch_dtype": dtype,
+        "rows": count,
+        "normalized": normalized,
+        "tolerance": tolerance,
+        "minimum": float(norms.min()),
+        "maximum": float(norms.max()),
+        "maximum_absolute_error": float(np.max(np.abs(norms - 1))),
+        "nonfinite_norms": int(np.count_nonzero(~np.isfinite(norms))),
+    }
+    check = {
+        key: None if isinstance(value, float) and not np.isfinite(value) else value
+        for key, value in check.items()
+    }
+    if (
+        check["nonfinite_norms"]
+        or np.any(norms == 0)
+        or (normalized and check["maximum_absolute_error"] > tolerance)
+    ):
+        raise ModelCheckError("CUDA output norm failed", norm_check=check)
+    return check
 
 
 def compare(reference, candidate, job, normalized):
     import numpy as np
 
-    check_vectors(reference, len(candidate), job, normalized)
-    check_vectors(candidate, len(reference), job, normalized)
+    reference_norms = check_vectors(
+        reference, len(candidate), job, normalized, torch_dtype="float32"
+    )
+    candidate_norms = check_vectors(candidate, len(reference), job, normalized)
     a, b = reference.astype(np.float64), candidate.astype(np.float64)
     cosine = np.sum(a * b, axis=1) / (np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1))
     minimum = float(cosine.min())
     boundary = 0.999 if job["torch_dtype"] == "float16" else 0.995
     if minimum < boundary:
         raise ModelCheckError("CUDA reference cosine below the declared acceptance boundary")
-    return {"minimum_cosine": minimum, "cosine_boundary": boundary, "rows": len(candidate)}
+    return {
+        "minimum_cosine": minimum,
+        "cosine_boundary": boundary,
+        "rows": len(candidate),
+        "reference_norms": reference_norms,
+        "candidate_norms": candidate_norms,
+    }
 
 
 def sample_indices(count):
@@ -175,7 +221,9 @@ def reference_check(job, texts, torch):
     model, normalized = load_model(job, torch.float32)
     batch = production_batch(model, texts, job)
     reference = encode(model, selected, job)
-    check_vectors(encode(model, batch, job), len(batch), job, normalized)
+    reference_batch_norms = check_vectors(
+        encode(model, batch, job), len(batch), job, normalized, torch_dtype="float32"
+    )
     torch.cuda.synchronize()
     reference_memory = observation(torch)
     del model
@@ -185,7 +233,7 @@ def reference_check(job, texts, torch):
     model, measured_normalized = load_model(job, getattr(torch, job["torch_dtype"]))
     if normalized != measured_normalized:
         raise ValueError("reference and measurement normalization differ")
-    check_vectors(encode(model, batch, job), len(batch), job, normalized)
+    candidate_batch_norms = check_vectors(encode(model, batch, job), len(batch), job, normalized)
     check = compare(reference, encode(model, selected, job), job, normalized)
     torch.cuda.synchronize()
     return (
@@ -197,6 +245,8 @@ def reference_check(job, texts, torch):
             **check,
             "reference_memory": reference_memory,
             "production_batch_shape": [job["batch_size"], job["max_seq_length"]],
+            "reference_batch_norms": reference_batch_norms,
+            "candidate_batch_norms": candidate_batch_norms,
         },
     )
 
@@ -240,8 +290,6 @@ def child(job):
     try:
         return execute(job, texts, torch, identity, before)
     except (ModelCheckError, torch.cuda.OutOfMemoryError) as error:
-        if job["gpu_phase"] != "probe":
-            raise
         atomic(
             Path(job["receipt"]),
             {
@@ -249,11 +297,14 @@ def child(job):
                 "identity": identity,
                 "gpu_verdict": "failed",
                 "reason": str(error),
+                "norm_check": error.norm_check if isinstance(error, ModelCheckError) else None,
                 "gpu": observation(torch),
-                "gpu_phase": "probe",
+                "gpu_phase": job["gpu_phase"],
                 "speed_evidence": False,
             },
         )
+        if job["gpu_phase"] != "probe":
+            raise
 
 
 def execute(job, texts, torch, identity, before):
@@ -263,7 +314,7 @@ def execute(job, texts, torch, identity, before):
     phase = job["gpu_phase"]
     selected = texts[:1000] if phase == "probe" else texts
     vectors, seconds, gpu = measure(model, selected, job, torch)
-    check_vectors(vectors, len(selected), job, normalized)
+    norms = check_vectors(vectors, len(selected), job, normalized)
     if phase == "measure":
         check.update(compare(reference, vectors[reference_indices], job, normalized))
     indices = json.loads(Path(job["sample_file"]).read_text())
@@ -285,6 +336,7 @@ def execute(job, texts, torch, identity, before):
             "versions": {d.metadata["Name"]: d.version for d in distributions()},
             "transformer_sample_checked": True,
             "gpu_reference_check": check,
+            "gpu_norm_check": norms,
             "gpu_phase": phase,
             "gpu_verdict": "passed",
             "gpu": gpu,
