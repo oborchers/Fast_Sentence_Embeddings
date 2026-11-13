@@ -15,6 +15,7 @@ import _speed_cells as inputs
 import _speed_pipeline as engines
 import _speed_protocol as protocols
 import _speed_write as writing
+from _harness import cgroup
 from _harness import records as durable
 from _harness.ledger import Ledger, watching
 from _harness.pressure import report
@@ -258,9 +259,7 @@ def summarize_pair(cell, observations, identity):
 
 
 def memory_preflight(context, contract):
-    maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
-    if maximum == "max":
-        raise ValueError("finite cgroup memory limit required")
+    maximum = cgroup.finite_memory_limit()
     target = contract["machine"]["ram_bytes"]
     declared = contract.get("functional_only") or target <= int(maximum)
     limit = (target, "declared") if declared else (int(maximum), "cgroup")
@@ -297,9 +296,7 @@ def memory_preflight(context, contract):
 def pair(context, cell):
     path, sample, identity = prepare_input(context, cell)
     model_bytes = inputs.model_bytes(context["models"][cell["model"]])
-    maximum = Path("/sys/fs/cgroup/memory.max").read_text().strip()
-    if maximum == "max":
-        raise ValueError("finite cgroup memory limit required")
+    maximum = cgroup.finite_memory_limit()
     kind = "functional" if cell.get("functional_only") else "production"
     budget = inputs.memory_plan(
         cell, identity["file_bytes"], model_bytes, (int(maximum), "cgroup"), kind

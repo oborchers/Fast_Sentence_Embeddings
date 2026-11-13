@@ -16,9 +16,9 @@ import subprocess
 import time
 from pathlib import Path
 
+from _harness import cgroup
 from _harness.pressure import snapshot
 
-CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
 GPU_FIELDS = ("gpu_name", "gpu_count", "gpu_memory_bytes", "cuda_driver_version")
@@ -90,23 +90,23 @@ def _cpuinfo():
     return model, sorted(flags.split(":", 1)[1].split()) if ":" in flags else []
 
 
-def _cgroup(name):
-    path = CGROUP / name
-    return path.read_text().split() if path.exists() else None
-
-
 def observe(work, *, gpu=False):
     """What the machine is now. None marks a value the machine does not offer."""
     if type(gpu) is not bool:
         raise ValueError("gpu must be a boolean")
     model, flags = _cpuinfo()
-    cpu_max, memory_max = _cgroup("cpu.max"), _cgroup("memory.max")
+    group = cgroup.observe()
+    cpu_max = group["cpu_max_raw"]
+    memory_max = group["memory.max"]
+    memory_max = [memory_max] if memory_max is not None else None
     quota = None if not cpu_max or cpu_max[0] == "max" else int(cpu_max[0]) / int(cpu_max[1])
     memory = None if not memory_max or memory_max[0] == "max" else int(memory_max[0])
     affinity = sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else None
     return {
         **(_gpu() if gpu else {}),
         "cpu_pressure": snapshot(),
+        "cgroup_version": group["cgroup_version"],
+        "cgroup_missing_fields": group["cgroup_missing_fields"],
         "cpu_model": model,
         "flags": flags,
         "affinity": affinity,
@@ -198,7 +198,10 @@ def deviations(observed, expected):
 
 def check(expected, work):
     """The record of one check: accepted only without any deviation."""
+    from _measurement import telemetry
+
     validate(expected)
+    initial = telemetry(work=work)
     observed = observe(work, gpu=any(name in expected for name in GPU_FIELDS))
     found = deviations(observed, expected)
     return {
@@ -206,5 +209,6 @@ def check(expected, work):
         "checked_at": time.time(),
         "expected": expected,
         "observed": observed,
+        "telemetry": initial,
         "deviations": found,
     }

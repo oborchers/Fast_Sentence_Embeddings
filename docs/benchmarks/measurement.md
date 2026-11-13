@@ -2252,3 +2252,47 @@ costs. Setup and allocation records store the resolved billing values and
 these fields in `contract`. Allocation profiles retain the shared allocation
 record. The override grants no spending approval. No paid run or Linux
 comparison was performed to implement this option (class correctness only).
+
+### cgroup telemetry on v1 and v2 hosts
+
+The allocation machine check calls the same telemetry reader as the speed and
+quality entries, before bootstrap installs any packages. `machine-check.json`
+contains that snapshot, including `cgroup_version` (`v1`, `v2`, or `unknown`),
+`cgroup_missing_fields` and the complete telemetry `missing_fields` list.
+Missing files or counters produce JSON `null`, never a fabricated zero.
+Malformed counters and unreadable existing files fail during this early check.
+
+The standard-library reader uses the container-visible `/sys/fs/cgroup` root.
+`cgroup.controllers` or `memory.max` identifies v2; the v1 memory controller's
+files identify v1. A root with neither interface is `unknown`. Probes may
+inject a different root into the private reader and `telemetry`; no production
+CLI or environment override changes the observation source.
+
+| Recorded field | v2 source | v1 source under `memory/` |
+| :--- | :--- | :--- |
+| `memory.max` | `memory.max` | `memory.limit_in_bytes` |
+| `memory.current` | `memory.current` | `memory.usage_in_bytes` |
+| `memory.stat.anon` | `anon` | `total_rss` |
+| `memory.stat.file` | `file` | `total_cache` |
+| `memory.stat.file_dirty` | `file_dirty` | `total_dirty` |
+| `memory.stat.file_writeback` | `file_writeback` | `total_writeback` |
+| `memory.stat.inactive_file` | `inactive_file` | `total_inactive_file` |
+
+`memory_stat_sources` records the selected keys. The v1 `total_*` counters
+include descendants, like v2 accounting. These are corresponding observations,
+not a guarantee of identical accounting: v1 usage is approximate, and its RSS
+counter is not an exact counterpart of all v2 anonymous memory accounting.
+The v1 page-aligned unlimited sentinel is normalized to `max`. Finite-memory
+admission still rejects missing or unlimited limits where a bounded limit is
+required. General resource planning can still use physical RAM or a declared
+limit when no finite cgroup limit exists.
+
+For CPU admission, v1 reads `cpu.cfs_quota_us` and `cpu.cfs_period_us` under
+`cpu/`, `cpu,cpuacct/` or `cpuacct,cpu/`; a negative quota becomes `max`.
+v2 reads `cpu.max`. The existing pressure reader observes host and cgroup
+pressure independently and records `unavailable` when unsupported. v1 has no
+`io.stat` equivalent with the same schema, so `cgroup_io` is explicitly `null`
+and listed as missing. Host `/proc/pressure/cpu` remains usable when present.
+
+Sources: Linux kernel [v1 memory controller documentation](https://docs.kernel.org/admin-guide/cgroup-v1/memory.html)
+and [v2 interface documentation](https://docs.kernel.org/admin-guide/cgroup-v2.html).
