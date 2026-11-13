@@ -25,7 +25,12 @@
       "shm_bytes": {
         "min": 1073741824
       },
-      "nofile_hard_min": 524288
+      "nofile_hard_min": 524288,
+      "host_quiet": {
+        "duration_seconds": 180,
+        "cpu_some_percent_max": 2,
+        "load1_max": 4
+      }
     },
     "rehearsal_machine_check": {
       "cpu_quota_cpus": {

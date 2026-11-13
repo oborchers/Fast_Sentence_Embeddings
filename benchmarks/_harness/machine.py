@@ -16,13 +16,14 @@ import subprocess
 import time
 from pathlib import Path
 
+from _harness import host_quiet
 from _harness.pressure import snapshot
 
 CGROUP = Path("/sys/fs/cgroup")
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
 GPU_FIELDS = ("gpu_name", "gpu_count", "gpu_memory_bytes", "cuda_driver_version")
-FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", *RANGES, *GPU_FIELDS)
+FIELDS = ("cpu_model", "required_flags", "nofile_hard_min", "host_quiet", *RANGES, *GPU_FIELDS)
 GPU_UUID = re.compile(r"GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
@@ -133,6 +134,8 @@ def validate(expected):
         if set(bounds) - {"min", "max"}:
             raise ValueError(f"{name} takes only min and max")
     _validate_gpu(expected)
+    if "host_quiet" in expected:
+        host_quiet.validate(expected["host_quiet"])
     return expected
 
 
@@ -196,11 +199,14 @@ def deviations(observed, expected):
     return found + _gpu_deviations(observed, expected)
 
 
-def check(expected, work):
+def check(expected, work, *, budget=None):
     """The record of one check: accepted only without any deviation."""
     validate(expected)
     observed = observe(work, gpu=any(name in expected for name in GPU_FIELDS))
     found = deviations(observed, expected)
+    if "host_quiet" in expected:
+        observed["host_quiet"] = host_quiet.observe(expected["host_quiet"], budget=budget)
+        found += host_quiet.deviations(observed["host_quiet"], expected["host_quiet"])
     return {
         "status": "rejected" if found else "accepted",
         "checked_at": time.time(),
