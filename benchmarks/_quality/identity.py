@@ -79,9 +79,9 @@ def execution(cell, native):
                 registry_revision=wrapper.mteb_model_meta.revision,
                 wrapper_class=type(wrapper).__name__,
                 use_instructions=wrapper.mteb_model_meta.use_instructions,
-                max_seq_length=native.max_seq_length,
             )
         record.update(
+            max_seq_length=native.max_seq_length,
             sentence_embedding_dimension=native.get_sentence_embedding_dimension(),
             weight_dtype=str(parameters[0].dtype) if parameters else None,
             device=str(native.device),

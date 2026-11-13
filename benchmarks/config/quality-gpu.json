@@ -60,13 +60,14 @@
       "mteb_loader": true,
       "device": "cuda",
       "torch_dtype": "float32",
-      "batch_size": 8,
+      "batch_size": 1,
       "workers": 1,
       "tasks": [
         "MTEB(eng, v2)",
         "NanoBEIR"
       ],
-      "estimated_seconds": 272
+      "estimated_seconds": 272,
+      "max_seq_length": 8192
     },
     {
       "id": "smoke-ref-qwen3-embedding-0-6b-cuda",
@@ -76,14 +77,15 @@
       "mteb_loader": true,
       "device": "cuda",
       "torch_dtype": "float32",
-      "batch_size": 8,
+      "batch_size": 1,
       "workers": 1,
       "tasks": [
         "MTEB(eng, v2)/STSBenchmark",
         "NanoBEIR/NanoQuoraRetrieval"
       ],
       "estimated_seconds": 180,
-      "functional_only": true
+      "functional_only": true,
+      "max_seq_length": 8192
     }
   ]
 }

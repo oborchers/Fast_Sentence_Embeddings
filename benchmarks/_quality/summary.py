@@ -37,6 +37,7 @@ def summarize(folder):
             "device",
             "torch_dtype",
             "batch_size",
+            "max_seq_length",
             "mteb_version",
             "machine_environment_sha256",
             "backend",

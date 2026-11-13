@@ -32,12 +32,13 @@ def select(spec, phase, *, unpriced=False, planning_minutes=None):
     spec["cells"] = [
         c for c in spec["cells"] if c.get("functional_only", False) == (phase == "probe")
     ]
-    if {c["model"] for c in spec["cells"]} != set(MODELS) or len(spec["cells"]) != 2:
-        raise ValueError("GPU quality requires exactly mpnet and Qwen3 in each phase")
+    models, measure_tasks = selection(spec, phase)
+    if {c["model"] for c in spec["cells"]} != set(models) or len(spec["cells"]) != len(models):
+        raise ValueError("GPU quality requires exactly its declared reference models")
     tasks = (
         ["MTEB(eng, v2)/STSBenchmark", "NanoBEIR/NanoQuoraRetrieval"]
         if phase == "probe"
-        else ["MTEB(eng, v2)", "NanoBEIR"]
+        else measure_tasks
     )
     for cell in spec["cells"]:
         if type(cell.get("estimated_seconds")) not in (int, float):
@@ -54,6 +55,41 @@ def select(spec, phase, *, unpriced=False, planning_minutes=None):
         ):
             raise ValueError("GPU quality requires the float32 CUDA MTEB loader in one process")
     return spec
+
+
+def selection(spec, phase):
+    name = spec.get("gpu_quality_selection", "full")
+    if name not in ("full", "qwen3-long"):
+        raise ValueError("unknown GPU quality selection")
+    if name == "qwen3-long":
+        if any(c.get("max_seq_length") != 8192 for c in spec["cells"] if c["model"] == MODELS[1]):
+            raise ValueError("Qwen3 long-document retry requires max_seq_length 8192")
+        tasks = retry_tasks(spec) if phase == "measure" else []
+        return (MODELS if phase == "probe" else (MODELS[1],)), tasks
+    return MODELS, ["MTEB(eng, v2)", "NanoBEIR"]
+
+
+def retry_tasks(spec):
+    cells = spec["cells"]
+    if len(cells) != 1:
+        raise ValueError("Qwen3 retry requires exactly one measurement cell")
+    tasks = cells[0].get("tasks")
+    if (
+        not isinstance(tasks, list)
+        or not tasks
+        or any(
+            not isinstance(t, str)
+            or not t.startswith(("MTEB(eng, v2)/", "NanoBEIR/"))
+            or not t.split("/", 1)[1]
+            for t in tasks
+        )
+    ):
+        raise ValueError("Qwen3 retry requires an ordered list of explicit benchmark/task names")
+    if len(tasks) != len(set(tasks)):
+        raise ValueError("Qwen3 retry tasks must be unique")
+    if not {"MTEB(eng, v2)/TRECCOVID", "MTEB(eng, v2)/Touche2020Retrieval.v3"} <= set(tasks):
+        raise ValueError("Qwen3 retry must include both failed long-document tasks")
+    return tasks
 
 
 def identity(args, spec):

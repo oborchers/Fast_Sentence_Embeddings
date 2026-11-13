@@ -71,6 +71,12 @@ def validate_transformer(cell):
 
         validate(cell)
         return
+    if "max_seq_length" in cell:
+        length = cell["max_seq_length"]
+        if isinstance(length, bool) or not isinstance(length, int) or length <= 0:
+            raise ValueError("max_seq_length must be a positive integer")
+        if cell.get("backend") != "st" or cell.get("fit"):
+            raise ValueError("max_seq_length requires st without a fitted artifact")
     controls = ("device", "torch_dtype", "batch_size")
     if not cell.get("mteb_loader") and any(key in cell for key in controls):
         raise ValueError("device, torch_dtype and batch_size require mteb_loader")

@@ -41,6 +41,7 @@ SETUP = (
     "device",
     "torch_dtype",
     "batch_size",
+    "max_seq_length",
 )
 
 
@@ -254,6 +255,7 @@ CONFIGURED = (
     "device",
     "torch_dtype",
     "batch_size",
+    "max_seq_length",
     "publishable",
     "class",
     "machine_environment_sha256",

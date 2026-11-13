@@ -23,7 +23,10 @@ def loader(cell, context):
     fit = context["fits"].get(cell.get("fit"))
     key = json.dumps(
         {
-            **{k: cell.get(k) for k in ("mteb_loader", "device", "torch_dtype", "batch_size")},
+            **{
+                k: cell.get(k)
+                for k in ("mteb_loader", "device", "torch_dtype", "batch_size", "max_seq_length")
+            },
             "model": cell["model"],
             "backend": backend,
             "fit": fit,
@@ -98,6 +101,7 @@ def st_model(cell):
             cell["model"],
             revision=MODEL_PINS[cell["model"]],
             device=cell["device"],
+            **({"max_seq_length": cell["max_seq_length"]} if "max_seq_length" in cell else {}),
             # MTEB also serializes this into experiment_kwargs. A torch.dtype
             # object is refused by its metadata serializer; ST accepts the name.
             model_kwargs={"dtype": cell["torch_dtype"]},
@@ -109,9 +113,12 @@ def st_model(cell):
         return model
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(
+    model = SentenceTransformer(
         source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
     )
+    if "max_seq_length" in cell:
+        model.max_seq_length = cell["max_seq_length"]
+    return model
 
 
 def remote(cell):
