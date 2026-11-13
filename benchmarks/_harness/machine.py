@@ -18,6 +18,7 @@ from pathlib import Path
 
 from _harness import cgroup
 from _harness.pressure import snapshot
+from _harness.telemetry import telemetry
 
 SHM = Path("/dev") / "shm"
 RANGES = ("affinity_cpus", "cpu_quota_cpus", "memory_max_bytes", "disk_free_bytes", "shm_bytes")
@@ -198,8 +199,6 @@ def deviations(observed, expected):
 
 def check(expected, work):
     """The record of one check: accepted only without any deviation."""
-    from _measurement import telemetry
-
     validate(expected)
     initial = telemetry(work=work)
     observed = observe(work, gpu=any(name in expected for name in GPU_FIELDS))

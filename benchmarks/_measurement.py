@@ -6,15 +6,13 @@ import hashlib
 import math
 import os
 import platform
-import shutil
 import statistics
 import sys
-import time
 from pathlib import Path
 
-from _harness import cgroup
-from _harness.pressure import noise, snapshot
+from _harness.pressure import noise
 from _harness.records import append, atomic, sha256
+from _harness.telemetry import telemetry
 from _measurement_config import CONFIG
 
 
@@ -49,34 +47,6 @@ def package_identity(name):
         "path": module.__file__,
         "sha256": digest.hexdigest(),
     }
-
-
-def telemetry(root=cgroup.ROOT, proc=Path("/proc"), work=None):
-    work = work if work is not None else Path(os.getenv("MEASURE_WORK", "."))
-    disk = shutil.disk_usage(work if work.exists() else Path.cwd())
-    result = {
-        "unix": time.time(),
-        "monotonic": time.monotonic(),
-        "load": os.getloadavg(),
-        "cpu_pressure": snapshot(proc),
-        **cgroup.observe(root),
-        "disk": disk._asdict(),
-    }
-    meminfo = cgroup.text(proc / "meminfo")
-    result["meminfo"] = (
-        [
-            line
-            for line in meminfo.splitlines()
-            if line.startswith(("Dirty:", "Writeback:", "MemAvailable:"))
-        ]
-        if meminfo is not None
-        else None
-    )
-    result["process_io"] = cgroup.text(proc / "self/io")
-    result["missing_fields"] = result["cgroup_missing_fields"] + [
-        key for key in ("meminfo", "process_io") if result[key] is None
-    ]
-    return result
 
 
 def rehearsal_limits():
