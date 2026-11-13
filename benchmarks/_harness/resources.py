@@ -16,23 +16,18 @@ import shutil
 import subprocess
 import sys
 from contextlib import suppress
-from pathlib import Path
+
+from _harness import cgroup
 
 GIB = 1024**3
 SAFETY = 0.85  # the share of the limit a plan may use
 KINDS = ("production", "functional")
-CGROUP_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
 
 
 def _cgroup():
-    """The smallest numeric limit of the cgroup files (``max`` and missing files do not limit)."""
-    found = []
-    for name in CGROUP_FILES:
-        with suppress(OSError):
-            value = Path(name).read_text().strip()
-            if value.isdecimal() and int(value) > 0:
-                found.append(int(value))
-    return min(found, default=None)
+    """The visible controller's finite memory limit; missing/unlimited does not limit."""
+    value = cgroup.observe()["memory.max"]
+    return int(value) if value is not None and value != "max" and int(value) > 0 else None
 
 
 def _physical():
