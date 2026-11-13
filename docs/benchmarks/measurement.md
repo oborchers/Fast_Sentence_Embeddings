@@ -2049,8 +2049,48 @@ weight dtypes and normalization are checked, rather than inferred from a request
 Every child first loads a separate float32 reference on that GPU, with TF32 off
 for matmul and cuDNN. It checks 10,000 fixed sampled rows (seed 0) plus the eight
 mandatory UNK rows. Candidate and reference must have the declared shape,
-float32 output and finite values. Zero norms fail. Normalized outputs require
-absolute norm error at most `1e-3`. The minimum cosine must reach `0.999` for
+float32 output and finite values. Zero and nonfinite norms fail. Normalized float32
+references retain an absolute norm error of at most `1e-3`, independently of the
+candidate dtype. Low-precision candidates use the following derived norm limits:
+
+| Arithmetic dtype | Dimensions | Maximum absolute norm error |
+| :--- | ---: | ---: |
+| float32 (reference) | 384, 768, 1024 | 0.001 |
+| float16 | 384 | 0.0010228627602313356 |
+| float16 | 768 | 0.0010686901459826537 |
+| bfloat16 | 1024 | 0.007966180001484302 |
+
+Here `u = eps / 2` is the unit roundoff for rounding to nearest: `2^-11` for
+float16 and `2^-8` for bfloat16. In particular, bfloat16's `eps` is `2^-7`,
+not `2^-8`. Normalization divides by a norm rounded to the arithmetic dtype,
+then rounds each quotient. Those two roundings bound the norm ratio by
+`(1 + u) / (1 - u)`, without multiplying componentwise relative error by the
+dimension. CUDA accumulates float16 and bfloat16 norms in float32. To allow
+for this reduction and the float32 validation norm, use the conservative factor
+`(1 + g) / (1 - g)`, where `g = d * 2^-24 / (1 - d * 2^-24)` and `d` is
+the vector dimension. The tolerance is
+`max(1e-3, (1 + u) / (1 - u) * (1 + g) / (1 - g) - 1)`.
+This rounding model assumes normal arithmetic without overflow or underflow;
+zero and nonfinite norms are rejected separately. It accepts rounding from
+normalization, while norms 0.98 and 1.02 still fail for every configured dtype.
+Non-normalized models retain the finite, nonzero norm check without a unit-norm
+requirement. Shape, output dtype and cosine checks remain strict.
+
+Sources, checked 2026-11-13: [PyTorch floating-point type information](https://docs.pytorch.org/docs/2.15/type_info.html)
+defines `eps`; [PyTorch normalization](https://docs.pytorch.org/docs/2.15/generated/torch.nn.functional.normalize.html)
+defines the division; the [CUDA norm kernel](https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ReduceNormKernel.cu)
+selects float32 accumulation for both low-precision dtypes.
+[Higham's rounding model](https://nhigham.com/wp-content/uploads/2021/04/high21m.pdf)
+gives the reduction bound `g`. These sources motivate a rounding allowance,
+not a change to the independently declared cosine boundaries.
+
+Successful receipts retain minimum norm, maximum norm, maximum absolute norm
+error, applied tolerance and arithmetic dtype for the full probe/measurement
+output (`gpu_norm_check`), both reference samples and both production batches
+(`gpu_reference_check`). A norm rejection retains the same statistics in
+`norm_check` in the failed probe receipt.
+
+The minimum cosine must reach `0.999` for
 float16 or `0.995` for bfloat16. These are predeclared acceptance boundaries,
 not consequences of mantissa width. A failure never relaxes a boundary.
 
