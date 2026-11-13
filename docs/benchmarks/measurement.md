@@ -2454,3 +2454,13 @@ existing eight-hour default. A separately approved invocation can override
 it with `--planning-minutes`; this does not grant spending approval.
 The seven tasks are ordered with shorter tasks first, as directed by the
 coordinator. The per-cell admission estimate is not a runtime guarantee.
+
+A local ARM macOS CPU probe (ST 6.2.0, torch 2.15.0, float32) encoded the same
+eight mixed-length texts with batch sizes 1 and 8. The minimum cosine was 1.0
+at float32 reporting precision. Maximum absolute component differences were
+`4.4330954551696777e-7` for unprompted documents and
+`3.03611159324646e-7` with a query instruction. This small functional check
+supports the padding explanation; it does not prove identical GPU scores.
+The same probe confirmed both ST loading paths apply the limit, a long input
+is truncated to 8192 tokens, and both allocation definitions expand the retry
+into four prompt-smoke cells and seven measurement cells.
