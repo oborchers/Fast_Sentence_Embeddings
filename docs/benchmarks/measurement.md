@@ -614,6 +614,30 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
 `benchmarks/config/allocation.json` (`allocation@1`, one section per entry) declares what one rented machine must be, which environments to install and the steps to run:
 
 - `machine_check`: what the machine must be. Fields: `cpu_model` (exact), `required_flags`, `affinity_cpus`, `cpu_quota_cpus` (`cpu.max`), `memory_max_bytes` (`memory.max`), `disk_free_bytes`, `shm_bytes` and `nofile_hard_min`; ranges take `min` and `max`. `rehearsal_machine_check` is the same for the pinned rehearsal image (at most two CPU quota units and four GiB for quality, six GiB for speed). An unlimited quota or memory satisfies a minimum and violates a maximum; a declared value the machine does not show is a deviation.
+- Optional `host_quiet` screens the host before installation. It requires
+  `cpu_some_percent_max` (positive, at most 100) and `load1_max` (positive).
+  Optional `duration_seconds` defaults to 180. All three accept only finite
+  numbers, never booleans, strings or null. Unknown fields are refused.
+  The screening reads `/proc/pressure/cpu` and `/proc/loadavg` initially and
+  every second, including the end of the window. CPU pressure is
+  `100 * delta(some.total) / (elapsed_monotonic_seconds * 1000000)` across
+  the actual window, not a kernel `avg10`, `avg60` or `avg300` value.
+  Load is the maximum observed one-minute load, without CPU-count normalization.
+  Both values must be strictly below their limits. Missing or malformed files,
+  decreasing counters and invalid intervals reject the machine.
+  `machine-check.json` records raw samples, elapsed duration, counter delta,
+  pressure percentage, maximum load and any unavailable reason for both accepted
+  and rejected screens. Without the field, the existing check is unchanged.
+  Rehearsal may omit it or declare looser limits in `rehearsal_machine_check`.
+  The paid CPU allocations `allocation-prefilter-x86.json` and
+  `allocation-readme.json` use 180 seconds, pressure below 2 percent and load
+  below 4. These initial limits are assumptions, not validated noise guarantees.
+  GPU allocations do not enable this screen.
+  [Linux PSI documentation](https://www.kernel.org/doc/html/v6.6/accounting/psi.html)
+  defines `some` as time with at least one stalled task and `total` in microseconds,
+  suitable for custom observation windows.
+  [pyperf's system guidance](https://pyperf.readthedocs.io/en/stable/system.html)
+  also recommends reducing background load before benchmarking.
 - GPU checks add `gpu_name` (exact string), `gpu_count` (exact positive integer),
   `gpu_memory_bytes` (positive integer minimum per device) and
   `cuda_driver_version` (minimum numeric driver version, such as `595.45.04`).
@@ -630,6 +654,17 @@ The bootstrap starts SSH before setup, claims one persistent start marker and pr
 The bootstrap runs, in this order: clone, `begin`, setup, `run` (`python -m _harness.allocation`, from `benchmarks/`).
 
 1. `begin` checks the machine before anything is installed. A deviation starts no step: every step folder and the allocation record are sealed with exit status 1 and the deviations as the reason, and the bootstrap stops.
+   Before every paid CPU run, enable `host_quiet` in the selected allocation.
+   Its observation time counts toward the existing allocation budget.
+   Admission requires the full observation window to fit before the collection
+   reserve. A monotonic work deadline also bounds waits and is checked before
+   and after each sample. Insufficient or exhausted work budget rejects and
+   seals the allocation before setup.
+   After rejection, collect the sealed rejection record and immediately delete
+   the machine. Request a new pod only within the agreed cost ceiling, with at
+   most three allocation attempts total. Never extend the budget or weaken
+   limits automatically. A quiet start cannot guarantee a quiet run, so retain
+   the existing operation telemetry and noise analysis.
 2. `run` takes each step in order. Before every step the shared budget (`Budget`, counted from `--allocated-at`, the smaller of planned minutes and planned balance, with the collection reserve) must admit its estimate. A step that does not fit, or that follows a stop signal, is sealed as `not_started`.
 3. Each step has its own result folder `<step>-results`, its own `DONE`, its own PID (`<step>-logs/measurement.pid`) and its own restart guard (`step-state/<step>`, claimed once; a second start is refused with status 77). The bootstrap keeps its allocation-level guard beside it.
 4. A failed step does not hide an independent next step, and the allocation ends with status 1. A step may declare `requires`, a list of unique earlier step names. Unknown, repeated, forward and self references are refused. Dependent steps start only after every prerequisite finished with process exit 0 and a verified manifest and `DONE` with exit 0. A skipped, failed or unsealed prerequisite leaves the dependent step `not_started` with a reason. SIGTERM goes to the running step and stops every later step.
