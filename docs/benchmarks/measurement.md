@@ -2056,9 +2056,9 @@ candidate dtype. Low-precision candidates use the following derived norm limits:
 | Arithmetic dtype | Dimensions | Maximum absolute norm error |
 | :--- | ---: | ---: |
 | float32 (reference) | 384, 768, 1024 | 0.001 |
-| float16 | 384 | 0.0010228627602313356 |
-| float16 | 768 | 0.0010686901459826537 |
-| bfloat16 | 1024 | 0.007966180001484302 |
+| float16 | 384 | approximately 0.001022863 |
+| float16 | 768 | approximately 0.001068690 |
+| bfloat16 | 1024 | approximately 0.007966180 |
 
 Here `u = eps / 2` is the unit roundoff for rounding to nearest: `2^-11` for
 float16 and `2^-8` for bfloat16. In particular, bfloat16's `eps` is `2^-7`,
@@ -2088,7 +2088,9 @@ Successful receipts retain minimum norm, maximum norm, maximum absolute norm
 error, applied tolerance and arithmetic dtype for the full probe/measurement
 output (`gpu_norm_check`), both reference samples and both production batches
 (`gpu_reference_check`). A norm rejection retains the same statistics in
-`norm_check` in the failed probe receipt.
+`norm_check` in the failed child receipt. Nonfinite statistics use JSON `null`,
+with `nonfinite_norms` counting affected rows. Measurement failures still raise;
+their exception text also preserves the statistics in the collected child log.
 
 The minimum cosine must reach `0.999` for
 float16 or `0.995` for bfloat16. These are predeclared acceptance boundaries,

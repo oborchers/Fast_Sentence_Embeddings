@@ -28,6 +28,8 @@ class ModelCheckError(ValueError):
     """A checked model failed the fixed accuracy or production-batch contract."""
 
     def __init__(self, message, *, norm_check=None):
+        if norm_check is not None:
+            message += ": " + json.dumps(norm_check, allow_nan=False)
         super().__init__(message)
         self.norm_check = norm_check
 
@@ -149,9 +151,14 @@ def check_vectors(vectors, count, job, normalized, *, torch_dtype=None):
         "minimum": float(norms.min()),
         "maximum": float(norms.max()),
         "maximum_absolute_error": float(np.max(np.abs(norms - 1))),
+        "nonfinite_norms": int(np.count_nonzero(~np.isfinite(norms))),
+    }
+    check = {
+        key: None if isinstance(value, float) and not np.isfinite(value) else value
+        for key, value in check.items()
     }
     if (
-        not np.isfinite(norms).all()
+        check["nonfinite_norms"]
         or np.any(norms == 0)
         or (normalized and check["maximum_absolute_error"] > tolerance)
     ):
@@ -283,8 +290,6 @@ def child(job):
     try:
         return execute(job, texts, torch, identity, before)
     except (ModelCheckError, torch.cuda.OutOfMemoryError) as error:
-        if job["gpu_phase"] != "probe":
-            raise
         atomic(
             Path(job["receipt"]),
             {
@@ -294,10 +299,12 @@ def child(job):
                 "reason": str(error),
                 "norm_check": error.norm_check if isinstance(error, ModelCheckError) else None,
                 "gpu": observation(torch),
-                "gpu_phase": "probe",
+                "gpu_phase": job["gpu_phase"],
                 "speed_evidence": False,
             },
         )
+        if job["gpu_phase"] != "probe":
+            raise
 
 
 def execute(job, texts, torch, identity, before):
