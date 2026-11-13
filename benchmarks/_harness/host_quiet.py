@@ -13,8 +13,8 @@ def validate(config):
     """Validate original inputs before observing or converting anything."""
     if not isinstance(config, dict) or set(config) - FIELDS:
         raise ValueError("host_quiet must be an object with only " + ", ".join(sorted(FIELDS)))
-    if not {"cpu_some_percent_max", "load1_max"}.issubset(config):
-        raise ValueError("host_quiet requires cpu_some_percent_max and load1_max")
+    if "cpu_some_percent_max" not in config:
+        raise ValueError("host_quiet requires cpu_some_percent_max")
     for name, value in {"duration_seconds": 180, **config}.items():
         if type(value) not in (int, float):
             raise ValueError(f"host_quiet {name} must be a positive finite number")
@@ -100,6 +100,8 @@ def deviations(observed, config):
         return ["host_quiet: unavailable: " + observed["unavailable_reason"]]
     found = []
     for name in ("cpu_some_percent", "load1"):
+        if name + "_max" not in config:  # host-wide load1 is optional (DR-417)
+            continue
         field = name if name == "cpu_some_percent" else "load1_max"
         limit = config[name + "_max"]
         if observed[field] >= limit:
