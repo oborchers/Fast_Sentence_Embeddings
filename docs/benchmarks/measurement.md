@@ -2211,12 +2211,13 @@ Transformers 5.22.1, tokenizers 0.23.3 and NumPy 2.5.4.
 
 The two full reference cells evaluate all-mpnet-base-v2 and
 Qwen3-Embedding-0.6B through the existing MTEB registry loader, on CUDA with
-float32 weights, batch sizes 32 and 8, and one process. Their model revisions,
-normalization, native context limits, instructions and task filters match the
-CPU reference cells. There is no truncation to the throughput study's 512-token
-Qwen input. The tasks remain the full 40 computed tasks of `MTEB(eng, v2)` and
+float32 weights, batch sizes 32 and 1, and one process. Their model revisions,
+normalization, instructions and task filters match the CPU reference cells.
+Qwen uses the explicit 8192-token quality cap described below; the original
+GPU contract and CPU reference used batch 8 and the model's native limit.
+There is no truncation to the throughput study's 512-token Qwen input. The tasks remain the full 40 computed tasks of `MTEB(eng, v2)` and
 13 NanoBEIR tasks per model. MindSmallReranking stays excluded. There is no
-sampling, batch reduction, CPU fallback, retry or automatic budget extension.
+sampling, automatic batch reduction, CPU fallback, automatic retry or automatic budget extension.
 The smoke phase evaluates the complete STSBenchmark and NanoQuoraRetrieval
 tasks for each model, including the existing independent prompt assertions.
 
@@ -2385,9 +2386,11 @@ and [v2 interface documentation](https://docs.kernel.org/admin-guide/cgroup-v2.h
 instructions and special tokens, and uses **batch size 1** for both smoke and
 measurement cells. Weights remain float32; the attention implementation is
 unchanged. The optional positive integer `max_seq_length` applies to the `st`
-quality backend. The registry loader receives it before model construction;
+quality backend. The registry loader applies it to the inner native model before encoding;
 the historical ST adapter applies it before encoding. Model reuse and summaries
-separate configured limits. The execution record also stores the effective limit.
+separate configured limits. The execution record also stores the effective limit. JSON `null` denotes an
+unlimited or unspecified native context. Unsupported cell kinds and models
+reject the override.
 Omitting the field keeps the model's default.
 
 Prior art: the [official Qwen MTEB launcher](https://github.com/QwenLM/Qwen3-Embedding/blob/main/evaluation/run_mteb.sh)
@@ -2422,7 +2425,10 @@ GPU retry receipts. No paid run is authorized by this configuration.
 models' existing prompt smoke tasks, then measures only Qwen3 on explicit task
 names. Both failed retrieval tasks are mandatory. Use it with either existing
 GPU quality allocation by setting
-`MEASURE_INPUT=benchmarks/config/quality-gpu-qwen3-long.json`.
+`MEASURE_INPUT="${MEASURE_ROOT}/measurement-source/benchmarks/config/quality-gpu-qwen3-long.json"`.
+Set `MEASURE_ROOT` to the allocation's absolute root before expanding this
+assignment. Bootstrap clones the requested runner into `measurement-source`; it
+does not resolve a supplied relative input path against that checkout.
 A retry must include every previously valid task whose actual prompted input
 exceeds 8192 tokens. Audit the pinned tokenizer without truncation, including
 special tokens, on the cached pinned datasets before deciding which old scores

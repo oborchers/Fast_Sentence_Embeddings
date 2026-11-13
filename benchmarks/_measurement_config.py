@@ -99,5 +99,5 @@ def validate_sequence_length(cell):
     length = cell["max_seq_length"]
     if isinstance(length, bool) or not isinstance(length, int) or length <= 0:
         raise ValueError("max_seq_length must be a positive integer")
-    if cell.get("backend") != "st" or cell.get("fit"):
-        raise ValueError("max_seq_length requires st without a fitted artifact")
+    if cell.get("kind") != "mteb" or cell.get("backend") != "st" or cell.get("fit"):
+        raise ValueError("max_seq_length requires an st MTEB cell without a fitted artifact")

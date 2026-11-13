@@ -101,11 +101,11 @@ def st_model(cell):
             cell["model"],
             revision=MODEL_PINS[cell["model"]],
             device=cell["device"],
-            **({"max_seq_length": cell["max_seq_length"]} if "max_seq_length" in cell else {}),
             # MTEB also serializes this into experiment_kwargs. A torch.dtype
             # object is refused by its metadata serializer; ST accepts the name.
             model_kwargs={"dtype": cell["torch_dtype"]},
         )
+        limit_model(cell, st_of(model))
         if cell["device"] == "cuda":
             from _quality.checks import cuda_model
 
@@ -116,9 +116,20 @@ def st_model(cell):
     model = SentenceTransformer(
         source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
     )
-    if "max_seq_length" in cell:
-        model.max_seq_length = cell["max_seq_length"]
+    limit_model(cell, model)
     return model
+
+
+def limit_model(cell, native):
+    """Registry wrappers have different constructor APIs; set the native limit before encoding."""
+    if "max_seq_length" not in cell:
+        return
+    try:
+        native.max_seq_length = cell["max_seq_length"]
+    except AttributeError as error:
+        raise ValueError("ST model does not support max_seq_length") from error
+    if native.max_seq_length != cell["max_seq_length"]:
+        raise ValueError("ST model did not apply max_seq_length")
 
 
 def remote(cell):

@@ -62,8 +62,14 @@ def selection(spec, phase):
     if name not in ("full", "qwen3-long"):
         raise ValueError("unknown GPU quality selection")
     if name == "qwen3-long":
-        if any(c.get("max_seq_length") != 8192 for c in spec["cells"] if c["model"] == MODELS[1]):
-            raise ValueError("Qwen3 long-document retry requires max_seq_length 8192")
+        if any(
+            c.get("max_seq_length") != 8192 or c.get("batch_size") != 1
+            for c in spec["cells"]
+            if c["model"] == MODELS[1]
+        ):
+            raise ValueError(
+                "Qwen3 long-document retry requires max_seq_length 8192 and batch_size 1"
+            )
         tasks = retry_tasks(spec) if phase == "measure" else []
         return (MODELS if phase == "probe" else (MODELS[1],)), tasks
     return MODELS, ["MTEB(eng, v2)", "NanoBEIR"]
