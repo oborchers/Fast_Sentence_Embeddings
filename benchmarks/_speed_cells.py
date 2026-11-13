@@ -8,7 +8,7 @@ import re
 import shutil
 from pathlib import Path
 
-from _harness import resources
+from _harness import cgroup, resources
 from _harness.records import atomic, sha256
 
 
@@ -234,8 +234,10 @@ def stream_budget(work, cell, source):
     required = int(input_bytes * 1.2 + cell["texts"] * 264 + 5 * 1024**3)
     if shutil.disk_usage(work).free < required:
         raise OSError("not enough free disk for headline input and one output")
-    limit = Path("/sys/fs/cgroup/memory.max").read_text().strip()
-    if not cell.get("functional_only") and (limit == "max" or int(limit) * 0.85 < 20 * 1024**3):
+    limit = cgroup.observe()["memory.max"]
+    if not cell.get("functional_only") and (
+        limit in (None, "max") or int(limit) * 0.85 < 20 * 1024**3
+    ):
         raise MemoryError("headline needs a bounded memory allowance of at least 26 GB")
 
 

@@ -6,14 +6,13 @@ import hashlib
 import math
 import os
 import platform
-import shutil
 import statistics
 import sys
-import time
 from pathlib import Path
 
-from _harness.pressure import noise, snapshot
+from _harness.pressure import noise
 from _harness.records import append, atomic, sha256
+from _harness.telemetry import telemetry
 from _measurement_config import CONFIG
 
 
@@ -50,36 +49,6 @@ def package_identity(name):
     }
 
 
-def telemetry():
-    root = Path("/sys/fs/cgroup")
-    work = Path(os.getenv("MEASURE_WORK", "."))
-    disk = shutil.disk_usage(work if work.exists() else Path.cwd())
-    result = {
-        "unix": time.time(),
-        "monotonic": time.monotonic(),
-        "load": os.getloadavg(),
-        "cpu_pressure": snapshot(),
-        "disk": disk._asdict(),
-    }
-    for name in ("memory.max", "memory.current"):
-        p = root / name
-        result[name] = p.read_text().strip() if p.exists() else None
-    stat = dict(line.split() for line in (root / "memory.stat").read_text().splitlines())
-    result["memory.stat"] = {
-        key: int(stat[key])
-        for key in ("anon", "file", "file_dirty", "file_writeback", "inactive_file")
-    }
-    result["meminfo"] = [
-        line
-        for line in Path("/proc/meminfo").read_text().splitlines()
-        if line.startswith(("Dirty:", "Writeback:", "MemAvailable:"))
-    ]
-    result["process_io"] = Path("/proc/self/io").read_text()
-    io = root / "io.stat"
-    result["cgroup_io"] = io.read_text() if io.exists() else None
-    return result
-
-
 def rehearsal_limits():
     """The rehearsal machine rules of config/allocation.json (the same check an allocation
     runs before it starts a step); the observed limits of the container."""
@@ -101,6 +70,7 @@ def rehearsal_limits():
 
 
 def write_environment(args, contract):
+    observed = telemetry()
     atomic(
         args.results / "environment.json",
         {
@@ -112,7 +82,7 @@ def write_environment(args, contract):
             },
             "platform": platform.platform(),
             "python": sys.version,
-            "telemetry": telemetry(),
+            "telemetry": observed,
             "affinity": sorted(os.sched_getaffinity(0)),
             "machine": {
                 "cpu": next(
@@ -121,7 +91,8 @@ def write_environment(args, contract):
                     if line.startswith("model name")
                 ),
                 "affinity": sorted(os.sched_getaffinity(0)),
-                "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
+                "memory_max": observed["memory.max"],
+                "cgroup_version": observed["cgroup_version"],
                 "allocation_id": os.getenv("SPEED_ALLOCATION_ID"),
                 "allocated_at_unix": float(
                     os.getenv("SPEED_MACHINE_ALLOCATED_AT", args.allocated_at)
