@@ -68,10 +68,7 @@ def _cpu(root, version):
     return None
 
 
-def observe(root=ROOT):
-    """Keep existing v2 field names, with version and source keys for their interpretation."""
-    version = _version(root)
-    memory = root / "memory" if version == "v1" else root
+def _memory_limits(memory, version):
     names = (
         ("memory.limit_in_bytes", "memory.usage_in_bytes")
         if version == "v1"
@@ -87,6 +84,10 @@ def observe(root=ROOT):
         and int(maximum) >= sys.maxsize - (os.sysconf("SC_PAGE_SIZE") - 1)
     ):
         maximum = "max"
+    return maximum, current
+
+
+def _memory_stat(memory, version):
     raw = text(memory / "memory.stat")
     stat = dict(line.split() for line in raw.splitlines()) if raw is not None else {}
     for key, value in stat.items():
@@ -96,6 +97,23 @@ def observe(root=ROOT):
         # total_* includes descendants, matching the hierarchical v2 counters.
         sources = {key: "total_" + source for key, source in zip(STAT_KEYS, V1_KEYS, strict=True)}
     values = {key: int(stat[source]) if source in stat else None for key, source in sources.items()}
+    return values, sources
+
+
+def _missing(result):
+    missing = [key for key, value in result.items() if value is None]
+    missing += [
+        "memory.stat." + key for key, value in result["memory.stat"].items() if value is None
+    ]
+    return missing
+
+
+def observe(root=ROOT):
+    """Keep existing v2 field names, with version and source keys for their interpretation."""
+    version = _version(root)
+    memory = root / "memory" if version == "v1" else root
+    maximum, current = _memory_limits(memory, version)
+    values, sources = _memory_stat(memory, version)
     result = {
         "cgroup_version": version,
         "memory.max": maximum,
@@ -105,10 +123,7 @@ def observe(root=ROOT):
         "cpu_max_raw": _cpu(root, version),
         "cgroup_io": text(root / "io.stat") if version == "v2" else None,
     }
-    result["cgroup_missing_fields"] = [key for key, value in result.items() if value is None]
-    result["cgroup_missing_fields"] += [
-        "memory.stat." + key for key, value in values.items() if value is None
-    ]
+    result["cgroup_missing_fields"] = _missing(result)
     return result
 
 
