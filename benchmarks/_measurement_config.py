@@ -66,6 +66,7 @@ def validate_prerequisites(cells):
 
 
 def validate_transformer(cell):
+    validate_sequence_length(cell)
     if cell.get("kind") == "transformer":
         from _speed_transformer import validate
 
@@ -90,3 +91,13 @@ def validate_transformer_values(cell):
         size = cell["batch_size"]
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             raise ValueError("batch_size must be a positive integer")
+
+
+def validate_sequence_length(cell):
+    if "max_seq_length" not in cell:
+        return
+    length = cell["max_seq_length"]
+    if isinstance(length, bool) or not isinstance(length, int) or length <= 0:
+        raise ValueError("max_seq_length must be a positive integer")
+    if cell.get("kind") != "mteb" or cell.get("backend") != "st" or cell.get("fit"):
+        raise ValueError("max_seq_length requires an st MTEB cell without a fitted artifact")

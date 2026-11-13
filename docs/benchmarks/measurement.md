@@ -2211,12 +2211,13 @@ Transformers 5.22.1, tokenizers 0.23.3 and NumPy 2.5.4.
 
 The two full reference cells evaluate all-mpnet-base-v2 and
 Qwen3-Embedding-0.6B through the existing MTEB registry loader, on CUDA with
-float32 weights, batch sizes 32 and 8, and one process. Their model revisions,
-normalization, native context limits, instructions and task filters match the
-CPU reference cells. There is no truncation to the throughput study's 512-token
-Qwen input. The tasks remain the full 40 computed tasks of `MTEB(eng, v2)` and
+float32 weights, batch sizes 32 and 1, and one process. Their model revisions,
+normalization, instructions and task filters match the CPU reference cells.
+Qwen uses the explicit 8192-token quality cap described below; the original
+GPU contract and CPU reference used batch 8 and the model's native limit.
+There is no truncation to the throughput study's 512-token Qwen input. The tasks remain the full 40 computed tasks of `MTEB(eng, v2)` and
 13 NanoBEIR tasks per model. MindSmallReranking stays excluded. There is no
-sampling, batch reduction, CPU fallback, retry or automatic budget extension.
+sampling, automatic batch reduction, CPU fallback, automatic retry or automatic budget extension.
 The smoke phase evaluates the complete STSBenchmark and NanoQuoraRetrieval
 tasks for each model, including the existing independent prompt assertions.
 
@@ -2378,3 +2379,94 @@ and listed as missing. Host `/proc/pressure/cpu` remains usable when present.
 
 Sources: Linux kernel [v1 memory controller documentation](https://docs.kernel.org/admin-guide/cgroup-v1/memory.html)
 and [v2 interface documentation](https://docs.kernel.org/admin-guide/cgroup-v2.html).
+
+### Qwen3 long-document GPU quality
+
+`quality-gpu.json` caps Qwen3-Embedding-0.6B at **8192 tokens**, including
+instructions and special tokens, and uses **batch size 1** for both smoke and
+measurement cells. Weights remain float32; the attention implementation is
+unchanged. The optional positive integer `max_seq_length` applies to the `st`
+quality backend. The registry loader applies it to the inner native model before encoding;
+the historical ST adapter applies it before encoding. Model reuse and summaries
+separate configured limits. The execution record also stores the effective limit. JSON `null` denotes an
+unlimited or unspecified native context. Unsupported cell kinds and models
+reject the override.
+Omitting the field keeps the model's default.
+
+Prior art: the [official Qwen MTEB launcher](https://github.com/QwenLM/Qwen3-Embedding/blob/main/evaluation/run_mteb.sh)
+sets `max_length` to 8192. Its fp16/Flash Attention settings are not adopted here.
+The [model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)
+advertises a 32k context; this is capacity, not the published evaluation limit.
+The pinned MTEB 2.26.25 Qwen loader leaves the limit unset, and the model config
+has 32768 positions. Historical GPU receipts observed 32768 with ST 6.2.0,
+float32 and batch 8. TRECCOVID and Touche2020Retrieval.v3 each failed requesting
+32 GiB on an RTX 6000 Ada with 47.37 GiB total memory. The receipt has no stack
+trace, so the exact allocating operator is unknown.
+
+A batch changes padding and execution shape, not which real tokens attend to
+each other: attention masks exclude padding. Floating-point kernels can still
+produce slightly different vectors for different batch shapes. Historical
+results used batch 8; new Qwen runs use batch 1. This is not a claim of bit
+identity across batch sizes or of exact reproduction of Qwen's published scores.
+
+For 48 GB planning, use batch 1 even if a fused attention kernel is available.
+At length 8192 and 16 attention heads, a full float32 attention tensor occupies
+`1 * 16 * 8192**2 * 4 = 4 GiB`, compared with 32 GiB at batch 8.
+Allow three such tensors (12 GiB), 2.22 GiB for 595,776,512 float32 parameters,
+1.75 GiB for all 28 layers' optional key/value caches, 0.25 GiB for a float32
+causal mask, and 4 GiB for remaining activations and buffers. A 32 GiB planning
+envelope includes over 11 GiB additional workspace/allocator headroom and fits
+below 85% of the smaller allocation profile's 44 GiB minimum. This is a
+conservative resource plan, not a measured GPU peak or a proof of every kernel's
+workspace requirement. Confirm peak allocated/reserved memory in the authorized
+GPU retry receipts. No paid run is authorized by this configuration.
+
+`quality-gpu-qwen3-long.json` is a targeted retry selection. It retains both
+models' existing prompt smoke tasks, then measures only Qwen3 on explicit task
+names. Both failed retrieval tasks are mandatory. Use it with either existing
+GPU quality allocation by setting
+`MEASURE_INPUT="${MEASURE_ROOT}/measurement-source/benchmarks/config/quality-gpu-qwen3-long.json"`.
+Set `MEASURE_ROOT` to the allocation's absolute root before expanding this
+assignment. Bootstrap clones the requested runner into `measurement-source`; it
+does not resolve a supplied relative input path against that checkout.
+A retry must include every previously valid task whose actual prompted input
+exceeds 8192 tokens. Audit the pinned tokenizer without truncation, including
+special tokens, on the cached pinned datasets before deciding which old scores
+can be retained. Never rewrite the original receipts or present mixed limits
+as one uniformly configured run. The retry file lists affected tasks separately
+from the original full study.
+
+The 13 November 2026 offline audit used the pinned Qwen tokenizer
+`b22da495047858cce924d27d76261e96be6febc0`, MTEB 2.26.25 task loading,
+receipt filters and observed prompts, with special tokens and no truncation.
+Of 51 valid historical Qwen tasks, five need recomputation:
+
+| Task | Maximum tokens | Historical batch-8 evaluation seconds |
+| :--- | ---: | ---: |
+| CQADupstackGamingRetrieval | 15409 | 394.77 |
+| CQADupstackUnixRetrieval | 16797 | 1376.12 |
+| ClimateFEVERHardNegatives | 8217 | 885.19 |
+| FEVERHardNegatives | 10050 | 1858.68 |
+| STS22.v2 | 11678 | 37.07 |
+
+The other 46 have no input above 8192; their real token sequences remain
+unchanged at the new limit. Their original batch-8 provenance remains intact.
+The five completed tasks took 4551.85 seconds in total. Scaling that work by
+eight for batch 1 gives a conservative planning scenario of 10.12 hours,
+not a measured GPU slowdown. The two failed tasks have no completed Qwen
+runtime. Truncation reduces their work, and batch throughput is not linear,
+so the complete retry duration remains uncertain. The retry retains the
+existing eight-hour default. A separately approved invocation can override
+it with `--planning-minutes`; this does not grant spending approval.
+The seven tasks are ordered with shorter tasks first, as directed by the
+coordinator. The per-cell admission estimate is not a runtime guarantee.
+
+A local ARM macOS CPU probe (ST 6.2.0, torch 2.15.0, float32) encoded the same
+eight mixed-length texts with batch sizes 1 and 8. The minimum cosine was 1.0
+at float32 reporting precision. Maximum absolute component differences were
+`4.4330954551696777e-7` for unprompted documents and
+`3.03611159324646e-7` with a query instruction. This small functional check
+supports the padding explanation; it does not prove identical GPU scores.
+The same probe confirmed both ST loading paths apply the limit, a long input
+is truncated to 8192 tokens, and both allocation definitions expand the retry
+into four prompt-smoke cells and seven measurement cells.

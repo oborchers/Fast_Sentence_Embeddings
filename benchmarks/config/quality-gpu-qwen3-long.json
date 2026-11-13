@@ -1,0 +1,81 @@
+{
+  "format": "quality-study-v1",
+  "billing": {
+    "compute_usd_per_hour": 1.472,
+    "disk_usd_per_gb_month": 0.1,
+    "month_hours": 720,
+    "planning_balance_usd": 3.48,
+    "planning_minutes": 140,
+    "kill_running_cells": false,
+    "setup_stage_clock_env": "SPEED_SETUP_STARTED_AT",
+    "allocation_clock": "--allocated-at includes machine provisioning and bootstrap"
+  },
+  "billing_profile": "gpu_quality_billing",
+  "gpu_quality_billing": {
+    "planning_minutes": 480,
+    "collection_reserve_seconds": 600,
+    "disk_usd_per_gb_month": 0,
+    "month_hours": 720,
+    "price_source": "SPEED_GPU_USD_PER_HOUR; eight-hour default; money ceiling is live hourly price times effective planning hours, not spending approval"
+  },
+  "cells": [
+    {
+      "id": "smoke-ref-all-mpnet-base-v2-cuda",
+      "kind": "mteb",
+      "model": "sentence-transformers/all-mpnet-base-v2",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cuda",
+      "torch_dtype": "float32",
+      "batch_size": 32,
+      "workers": 1,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 180,
+      "functional_only": true
+    },
+    {
+      "id": "ref-qwen3-embedding-0-6b-cuda",
+      "kind": "mteb",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cuda",
+      "torch_dtype": "float32",
+      "batch_size": 1,
+      "workers": 1,
+      "tasks": [
+        "MTEB(eng, v2)/STS22.v2",
+        "MTEB(eng, v2)/CQADupstackGamingRetrieval",
+        "MTEB(eng, v2)/ClimateFEVERHardNegatives",
+        "MTEB(eng, v2)/TRECCOVID",
+        "MTEB(eng, v2)/Touche2020Retrieval.v3",
+        "MTEB(eng, v2)/CQADupstackUnixRetrieval",
+        "MTEB(eng, v2)/FEVERHardNegatives"
+      ],
+      "estimated_seconds": 1800,
+      "max_seq_length": 8192
+    },
+    {
+      "id": "smoke-ref-qwen3-embedding-0-6b-cuda",
+      "kind": "mteb",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "backend": "st",
+      "mteb_loader": true,
+      "device": "cuda",
+      "torch_dtype": "float32",
+      "batch_size": 1,
+      "workers": 1,
+      "tasks": [
+        "MTEB(eng, v2)/STSBenchmark",
+        "NanoBEIR/NanoQuoraRetrieval"
+      ],
+      "estimated_seconds": 180,
+      "functional_only": true,
+      "max_seq_length": 8192
+    }
+  ],
+  "gpu_quality_selection": "qwen3-long"
+}

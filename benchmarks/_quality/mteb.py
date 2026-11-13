@@ -23,7 +23,10 @@ def loader(cell, context):
     fit = context["fits"].get(cell.get("fit"))
     key = json.dumps(
         {
-            **{k: cell.get(k) for k in ("mteb_loader", "device", "torch_dtype", "batch_size")},
+            **{
+                k: cell.get(k)
+                for k in ("mteb_loader", "device", "torch_dtype", "batch_size", "max_seq_length")
+            },
             "model": cell["model"],
             "backend": backend,
             "fit": fit,
@@ -102,6 +105,7 @@ def st_model(cell):
             # object is refused by its metadata serializer; ST accepts the name.
             model_kwargs={"dtype": cell["torch_dtype"]},
         )
+        limit_model(cell, st_of(model))
         if cell["device"] == "cuda":
             from _quality.checks import cuda_model
 
@@ -109,9 +113,23 @@ def st_model(cell):
         return model
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(
+    model = SentenceTransformer(
         source(cell), revision=MODEL_PINS[cell["model"]], device="cpu", **remote(cell)
     )
+    limit_model(cell, model)
+    return model
+
+
+def limit_model(cell, native):
+    """Registry wrappers have different constructor APIs; set the native limit before encoding."""
+    if "max_seq_length" not in cell:
+        return
+    try:
+        native.max_seq_length = cell["max_seq_length"]
+    except AttributeError as error:
+        raise ValueError("ST model does not support max_seq_length") from error
+    if native.max_seq_length != cell["max_seq_length"]:
+        raise ValueError("ST model did not apply max_seq_length")
 
 
 def remote(cell):

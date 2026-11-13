@@ -5,6 +5,7 @@ except the training relation, which is per task."""
 
 from __future__ import annotations
 
+import math
 import sys
 
 from _harness.records import sha256
@@ -79,9 +80,9 @@ def execution(cell, native):
                 registry_revision=wrapper.mteb_model_meta.revision,
                 wrapper_class=type(wrapper).__name__,
                 use_instructions=wrapper.mteb_model_meta.use_instructions,
-                max_seq_length=native.max_seq_length,
             )
         record.update(
+            max_seq_length=sequence_length(native),
             sentence_embedding_dimension=native.get_sentence_embedding_dimension(),
             weight_dtype=str(parameters[0].dtype) if parameters else None,
             device=str(native.device),
@@ -160,3 +161,9 @@ def model_files(cell):
 def st_of(model):
     """The inner native model of a registry wrapper or the historical adapter."""
     return model.model if hasattr(model, "model") else model.native
+
+
+def sequence_length(native):
+    """JSON null denotes an unlimited or unspecified native context."""
+    length = native.max_seq_length
+    return length if length is not None and math.isfinite(length) else None
