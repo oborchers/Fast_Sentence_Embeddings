@@ -32,7 +32,8 @@ def resolve(spec, job, root):
     row = single(
         r
         for r in read_rows(root, "operations.jsonl")
-        if (r["cell_id"], r["round"], r["label"]) == (job["id"], job["round"], job["label"])
+        # search rows carry no arm label and the search input row no cell (DR-417)
+        if r["cell_id"] == job["id"] and (r["round"], r["label"]) == (job["round"], job["label"])
     )
     if (
         row["input_sha256"] != job["input_sha256"]
@@ -43,7 +44,7 @@ def resolve(spec, job, root):
     if row["model"] != job["model"]:
         raise ValueError("origin speed model differs")
     verify_artifact(job)
-    single(r for r in read_rows(root, "inputs.jsonl") if r["cell_id"] == job["id"])
+    single(r for r in read_rows(root, "inputs.jsonl") if r.get("cell_id") == job["id"])
     return row
 
 
@@ -83,7 +84,7 @@ def rebuild(spec, origin, job, run_child):
     row = single(
         r
         for r in read_rows(Path(spec["source_results"]), "inputs.jsonl")
-        if r["cell_id"] == job["id"]
+        if r.get("cell_id") == job["id"]
     )
     request = {
         "kind": "profile-input",
@@ -117,7 +118,7 @@ def verify_rebuilt(spec, job):
     expected = single(
         r
         for r in read_rows(Path(spec["source_results"]), "inputs.jsonl")
-        if r["cell_id"] == job["id"]
+        if r.get("cell_id") == job["id"]
     )
     if sha256(Path(job["input_file"])) != job["input_sha256"]:
         raise ValueError("rebuilt speed input changed")
