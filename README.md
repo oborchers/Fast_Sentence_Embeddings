@@ -39,54 +39,67 @@ Bring a trained linear classifier to label text in the same application.
 Each row compares the same model, input and float32 output in both libraries.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/library-speed-dark.png">
-<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/library-speed-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/library-speed-dark.png">
+<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="docs/assets/readme/library-speed-light.png">
 </picture>
 
-AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. WikiText sentences, about 26 words each. Each bar is a paired comparison: 2 million sentences with one worker; 18 million with 16 workers for POTION-8M, 5 million for static-retrieval-mrl-en-v1.
+AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), 14 November 2026. WikiText sentences, about 26 words each. Each bar is a paired comparison: 2.5 million sentences with one worker for POTION-8M, 2 million for static-retrieval-mrl-en-v1; 20 million with 16 workers for POTION-8M, 10 million for static-retrieval-mrl-en-v1.
 
 #### One worker
 
 | Library | Model (dimensions) | fse, texts/s | Library, texts/s | Speedup |
 |---|---|---:|---:|---:|
-| FastEmbed | POTION-8M (256) | 684,332 | 29,285 | 23.69× |
-| Model2Vec | POTION-8M (256) | 701,927 | 33,065 | 21.36× |
-| sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 217,338 | 18,554 | 11.81× |
-| model2vec-rs | POTION-8M (256) | 625,842 | 413,173 | 1.50× |
+| FastEmbed | POTION-8M (256) | 670,526 | 26,180 | 25.58× |
+| Model2Vec | POTION-8M (256) | 670,426 | 29,672 | 22.60× |
+| sentence-transformers | bekko-static-embedding-v1 (1024) | 254,598 | 16,865 | 15.10× |
+| sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 199,278 | 16,868 | 11.82× |
+| model2vec-rs | POTION-8M (256) | 666,904 | 437,786 | 1.52× |
 
-AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. 2 million sentences per pair, about 26 words each.
+AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), 14 November 2026. 2.5 million sentences per POTION-8M pair; 2 million per Sentence Transformers pair, about 26 words each.
 
 #### 16 workers
 
 | Library | Model (dimensions) | fse, texts/s | Library, texts/s | Speedup |
 |---|---|---:|---:|---:|
-| Model2Vec | POTION-8M (256) | 6,603,476 | 52,772 | 125.78× |
-| FastEmbed | POTION-8M (256) | 6,513,573 | 290,270 | 22.31× |
-| sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 2,064,693 | 225,927 | 9.14× |
-| model2vec-rs | POTION-8M (256) | 6,505,489 | 2,775,350 | 2.38× |
+| Model2Vec | POTION-8M (256) | 6,932,525 | 63,230 | 109.98× |
+| FastEmbed | POTION-8M (256) | 6,912,861 | 284,540 | 24.34× |
+| sentence-transformers | bekko-static-embedding-v1 (1024) | 2,893,536 | 231,822 | 12.48× |
+| sentence-transformers | static-retrieval-mrl-en-v1 (1024) | 2,252,066 | 246,911 | 9.12× |
+| model2vec-rs | POTION-8M (256) | 6,988,893 | 2,578,779 | 2.71× |
 
-AMD EPYC 9575F, 32 vCPU, RunPod, 2 November 2026. 18 million sentences per POTION-8M pair; 5 million for the static-retrieval pair, about 26 words each.
+AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), 14 November 2026. 20 million sentences per POTION-8M pair; 10 million for static-retrieval-mrl-en-v1 and 8 million for bekko-static-embedding-v1, about 26 words each.
 
-Model2Vec uses its default thread path on 16 allowed CPUs, using about four CPUs. Sentence Transformers uses batch size 32 with one worker. With 16 workers, it uses the recommended CPU process pool and batch size 1024.
+Model2Vec uses its default thread path on 16 allowed CPUs. Sentence Transformers uses batch size 32 with one worker. With 16 workers, it uses the recommended CPU process pool and batch size 1024.
 
-The Sentence Transformers model has 1024 dimensions, four times POTION-8M's 256. fse computes and writes four times as many numbers per sentence, so its absolute throughput is lower. The speedup compares both libraries on that same 1024-dimensional model.
+The Sentence Transformers models have 1024 dimensions, four times POTION-8M's 256. fse computes and writes four times as many numbers per sentence, so its absolute throughput is lower. The speedup compares both libraries on that same 1024-dimensional model.
 
 ### Performance on longer texts
 
 Encode longer texts with one or 16 workers:
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/dtype-speed-dark.png">
-<img alt="fse throughput for float32, float16 and int8 model tables, with one and 16 workers, on a shared scale." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/00877326d8dd37a9e469f2af3439fcd530ac065e/media/readme/dtype-speed-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/dtype-speed-dark.png">
+<img alt="fse throughput for float32, float16 and int8 model tables, with one and 16 workers, on a shared scale." src="docs/assets/readme/dtype-speed-light.png">
 </picture>
 
 | Model precision | 1 worker, texts/s | 16 workers, texts/s |
 |---|---:|---:|
-| float32 | 139,422 | 1,265,123 |
-| float16 | 153,886 | 1,359,540 |
-| int8 | 163,779 | 1,379,949 |
+| float32 | 183,165 | 1,815,554 |
+| float16 | 203,443 | 1,941,625 |
+| int8 | 209,605 | 1,973,700 |
 
-AMD EPYC 9965, 32 logical CPUs, RunPod, POTION-8M, 1 to 2 November 2026. 4.62 million WikiText-103 passages, average 119.1 words, float32 output.
+AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), POTION-8M, 14 November 2026. WikiText-103 passages, average 119.0 words, float32 output: 600,000 passages with one worker, 5 million with 16 workers.
+
+### Large runs
+
+| Task | Texts | Median time | fse, texts/s |
+|---|---:|---:|---:|
+| Embed and write to disk | 100 million | 15.29 s | 6,538,517 |
+| Embed and write to disk | 1 billion | 217.38 s | 4,600,136 |
+| Predict labels with a linear head | 100 million | 5.84 s | 17,132,557 |
+| Predict probabilities with a linear head | 100 million | 5.71 s | 17,521,793 |
+
+AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU, local NVMe), 16 workers, 14 November 2026. WikiText sentences, 28.7 tokens on average. Embedding uses POTION-8M with a float32 table and int8 output. Prediction uses the toxicity head [fse/bekko-civil-comments-toxicity-classifier](https://huggingface.co/fse/bekko-civil-comments-toxicity-classifier) (labels `toxicity` and `insult`). Median of three runs each. The headline at the top comes from a separate measurement on another machine and is not combined with these rows.
 
 ## Get started
 

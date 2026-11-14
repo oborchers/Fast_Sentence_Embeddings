@@ -1,8 +1,31 @@
 {
-  "format": "readme-speed-v1",
-  "machine": "AMD EPYC 9575F",
+  "format": "readme-speed-v2",
+  "note": "v2 names a machine per section. comparisons and dtypes keep the v1 fields the chart generator reads.",
+  "machines": {
+    "m8a": {
+      "instance": "m8a.8xlarge",
+      "cpu": "AMD EPYC 9R45",
+      "allocated_cpus": 32,
+      "smt": false,
+      "memory_bytes": 128000000000,
+      "provider": "AWS eu-west-1",
+      "storage": "gp3 EBS",
+      "date": "2026-11-14"
+    },
+    "m8id": {
+      "instance": "m8id.8xlarge",
+      "cpu": "Intel(R) Xeon(R) 6975P-C",
+      "allocated_cpus": 32,
+      "smt": true,
+      "memory_bytes": 128000000000,
+      "provider": "AWS eu-west-1",
+      "storage": "local NVMe instance store",
+      "date": "2026-11-14"
+    }
+  },
+  "machine": "AMD EPYC 9R45",
   "allocated_vcpu": 32,
-  "date": "2026-11-02",
+  "date": "2026-11-14",
   "comparisons": [
     {
       "cell": "libraries-model2vec-1",
@@ -10,13 +33,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 1,
-      "texts": 2000000,
-      "input_sha256": "c38451062df0d7c2d7c188f764e59d93a41c43c4e4d6026012a7898271020829",
-      "mean_words": 25.5534065,
-      "fse_texts_per_second": 701927.4258529387,
-      "library_texts_per_second": 33064.86916526891,
-      "paired_speedup_median": 21.356243524404803,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 2500000,
+      "input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e",
+      "mean_words": 25.5603192,
+      "fse_texts_per_second": 670426.1281997848,
+      "library_texts_per_second": 29671.840818511326,
+      "paired_speedup_median": 22.595872525195393,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-rust-1",
@@ -24,13 +47,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 1,
-      "texts": 2000000,
-      "input_sha256": "c38451062df0d7c2d7c188f764e59d93a41c43c4e4d6026012a7898271020829",
-      "mean_words": 25.5534065,
-      "fse_texts_per_second": 625841.9097301047,
-      "library_texts_per_second": 413173.4018451629,
-      "paired_speedup_median": 1.500028467533994,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 2500000,
+      "input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e",
+      "mean_words": 25.5603192,
+      "fse_texts_per_second": 666903.9051931683,
+      "library_texts_per_second": 437785.54036527674,
+      "paired_speedup_median": 1.5233575431402355,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-fastembed-1",
@@ -38,13 +61,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 1,
-      "texts": 2000000,
-      "input_sha256": "c38451062df0d7c2d7c188f764e59d93a41c43c4e4d6026012a7898271020829",
-      "mean_words": 25.5534065,
-      "fse_texts_per_second": 684331.5880490395,
-      "library_texts_per_second": 29284.83576435569,
-      "paired_speedup_median": 23.690666745224387,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 2500000,
+      "input_sha256": "b37670ab565c659d0c22bc73ee4e35cbefdf087da0d68b61918de6a3c962ac0e",
+      "mean_words": 25.5603192,
+      "fse_texts_per_second": 670526.0961482633,
+      "library_texts_per_second": 26180.34392333908,
+      "paired_speedup_median": 25.576434373827478,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-st-1",
@@ -55,10 +78,10 @@
       "texts": 2000000,
       "input_sha256": "fa525410db83d7405759ba34b06288d769286ab6730e5ac4e19167e84cba5024",
       "mean_words": 25.5538945,
-      "fse_texts_per_second": 217338.32609770537,
-      "library_texts_per_second": 18554.22305935796,
-      "paired_speedup_median": 11.813207259640574,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "fse_texts_per_second": 199277.66934414752,
+      "library_texts_per_second": 16867.983463298722,
+      "paired_speedup_median": 11.816756198878805,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-model2vec-16",
@@ -66,13 +89,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 16,
-      "texts": 18000000,
-      "input_sha256": "8be43bb34add002be65da26a48812e6589b971038b7d3bd16b80515d6bdafc3a",
-      "mean_words": 25.57488777777778,
-      "fse_texts_per_second": 6603476.316672911,
-      "library_texts_per_second": 52771.78828589905,
-      "paired_speedup_median": 125.78057242456696,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 20000000,
+      "input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6",
+      "mean_words": 25.57520755,
+      "fse_texts_per_second": 6932525.365619476,
+      "library_texts_per_second": 63230.21286686746,
+      "paired_speedup_median": 109.98236194726279,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-rust-16",
@@ -80,13 +103,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 16,
-      "texts": 18000000,
-      "input_sha256": "8be43bb34add002be65da26a48812e6589b971038b7d3bd16b80515d6bdafc3a",
-      "mean_words": 25.57488777777778,
-      "fse_texts_per_second": 6505489.377311379,
-      "library_texts_per_second": 2775349.868305994,
-      "paired_speedup_median": 2.381570562285002,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 20000000,
+      "input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6",
+      "mean_words": 25.57520755,
+      "fse_texts_per_second": 6988892.900561246,
+      "library_texts_per_second": 2578779.167332703,
+      "paired_speedup_median": 2.7101556384101073,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-fastembed-16",
@@ -94,13 +117,13 @@
       "model": "minishlab/potion-base-8M",
       "dimensions": 256,
       "workers": 16,
-      "texts": 18000000,
-      "input_sha256": "8be43bb34add002be65da26a48812e6589b971038b7d3bd16b80515d6bdafc3a",
-      "mean_words": 25.57488777777778,
-      "fse_texts_per_second": 6513573.068734372,
-      "library_texts_per_second": 290270.1011869609,
-      "paired_speedup_median": 22.30873670812574,
-      "manifest_sha256": "a409cf374700b7dfd8729ce16939dfaefc24b106b1fd9fe8ddc3aaf5369a5a16"
+      "texts": 20000000,
+      "input_sha256": "16a11230cc72f5a68c1d474d996ccd98ca88c0aca15cf7ee9078d056b0eb6be6",
+      "mean_words": 25.57520755,
+      "fse_texts_per_second": 6912861.101462584,
+      "library_texts_per_second": 284539.8419275567,
+      "paired_speedup_median": 24.339783501783785,
+      "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
     },
     {
       "cell": "libraries-st-16",
@@ -108,70 +131,216 @@
       "model": "sentence-transformers/static-retrieval-mrl-en-v1",
       "dimensions": 1024,
       "workers": 16,
-      "texts": 5000000,
-      "input_sha256": "64bd628b0b456c9a8529a4b358232a3caa3e77e18150f02b9587a3559bcfbce0",
-      "mean_words": 25.562851,
-      "fse_texts_per_second": 2064692.8355940296,
-      "library_texts_per_second": 225926.71795539957,
-      "paired_speedup_median": 9.140730817586723,
-      "manifest_sha256": "f2f9bf4300cd4ba4b8f8c41f280c772e03bcb3c712027e73e6c69ba0b0cd1e3a"
+      "texts": 10000000,
+      "input_sha256": "1bd11e132c8ec642f5ba9019c7a01d862e6460b89d46f6ca0400742caf98070e",
+      "mean_words": 25.5731588,
+      "fse_texts_per_second": 2252065.520513754,
+      "library_texts_per_second": 246911.07180111844,
+      "paired_speedup_median": 9.115713940245419,
+      "manifest_sha256": "c2f49679e7430d28a81cc1b934e1e32c2b0669a5abca67760631823f0fc4fa6d"
     }
   ],
-  "evidence": {
-    "commit": "608cf02a9557ef8bade83ae6c0c2fadd5b8d5012",
-    "archive_url": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/608cf02a9557ef8bade83ae6c0c2fadd5b8d5012/archives/sentence-speed-2026-11.tar.gz",
-    "archive_sha256": "443e7ff798d38b41d14e3952128d8080b2d698e6005991b147c34a69ea88f1c7",
-    "member": "audit/library-summary.json",
-    "member_sha256": "f7ad4f548cb77ec671035564f905afe205d22251b7f6057f5a3250b4b02b780c"
+  "bekko": {
+    "machine": "m8a",
+    "comparisons": [
+      {
+        "cell": "bekko-st-1",
+        "library": "sentence-transformers",
+        "model": "hotchpotch/bekko-static-embedding-v1",
+        "dimensions": 1024,
+        "workers": 1,
+        "texts": 2000000,
+        "input_sha256": "fa525410db83d7405759ba34b06288d769286ab6730e5ac4e19167e84cba5024",
+        "mean_words": 25.5538945,
+        "fse_texts_per_second": 254598.07218086105,
+        "library_texts_per_second": 16865.121903409246,
+        "paired_speedup_median": 15.096129968049304,
+        "manifest_sha256": "229b073c0e4711b26ecfc0474074933f0a761526c62edf011845c58accd619a0"
+      },
+      {
+        "cell": "bekko-st-16",
+        "library": "sentence-transformers",
+        "model": "hotchpotch/bekko-static-embedding-v1",
+        "dimensions": 1024,
+        "workers": 16,
+        "texts": 8000000,
+        "input_sha256": "5a673189202a6901a6eb70a96a375c20225d97cb42c5adcd62da2d11ceb4a724",
+        "mean_words": 25.569383875,
+        "fse_texts_per_second": 2893536.388577548,
+        "library_texts_per_second": 231821.66419818017,
+        "paired_speedup_median": 12.4817341752146,
+        "manifest_sha256": "c2f49679e7430d28a81cc1b934e1e32c2b0669a5abca67760631823f0fc4fa6d"
+      }
+    ]
   },
   "dtypes": {
     "model": "minishlab/potion-base-8M",
     "dimensions": 256,
-    "machine": "AMD EPYC 9965",
-    "date": "2026-11-01/02",
-    "texts": 4620000,
-    "mean_words": 119.0559961038961,
-    "input_sha256": "bec2f6d5e127889fce0b29e6123915f083431ac0cd4b7fe3a4f24e43758a7c92",
+    "machine": "AMD EPYC 9R45",
+    "date": "2026-11-14",
     "output_dtype": "float32",
-    "source": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/6cb13ed72321d1207fc106f6c0e7154935164017/benchmarks/baseline/speed-2026-11.json",
-    "archive": "https://github.com/oborchers/Fast_Sentence_Embeddings/blob/f97e32edbc0f9daa538b56b54f3187d8d3c177d8/archives/speed-run-2026-11.tar.gz",
+    "note": "1 worker uses 600,000 passages, 16 workers 5 million; same WikiText-103 passage stream",
     "cells": [
       {
-        "cell": "dtypes-02",
+        "cell": "dtype-paragraph-float32-1",
         "dtype": "float32",
         "workers": 1,
-        "texts_per_second": 139422.08980621607
+        "texts": 600000,
+        "input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9",
+        "mean_words": 119.05352333333333,
+        "texts_per_second": 183165.40539181867,
+        "control_ratio": 1.0035655011392783
       },
       {
-        "cell": "dtypes-03",
+        "cell": "dtype-paragraph-float16-1",
         "dtype": "float16",
         "workers": 1,
-        "texts_per_second": 153885.97940419446
+        "texts": 600000,
+        "input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9",
+        "mean_words": 119.05352333333333,
+        "texts_per_second": 203442.59427623553,
+        "control_ratio": 0.9998398815253289
       },
       {
-        "cell": "dtypes-04",
+        "cell": "dtype-paragraph-int8-1",
         "dtype": "int8",
         "workers": 1,
-        "texts_per_second": 163778.99199846495
+        "texts": 600000,
+        "input_sha256": "19f2bf8194a4933606a1b30a03053a4888be35960c5211f1d209a374cab563f9",
+        "mean_words": 119.05352333333333,
+        "texts_per_second": 209604.79763691,
+        "control_ratio": 0.9967790711961625
       },
       {
-        "cell": "dtypes-05",
+        "cell": "dtype-paragraph-float32-16",
         "dtype": "float32",
         "workers": 16,
-        "texts_per_second": 1265122.7509406214
+        "texts": 5000000,
+        "input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05",
+        "mean_words": 119.0433956,
+        "texts_per_second": 1815553.7381260323,
+        "control_ratio": 0.99980912083707
       },
       {
-        "cell": "dtypes-06",
+        "cell": "dtype-paragraph-float16-16",
         "dtype": "float16",
         "workers": 16,
-        "texts_per_second": 1359539.632905677
+        "texts": 5000000,
+        "input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05",
+        "mean_words": 119.0433956,
+        "texts_per_second": 1941625.1561770255,
+        "control_ratio": 0.9982862303809905
       },
       {
-        "cell": "dtypes-07",
+        "cell": "dtype-paragraph-int8-16",
         "dtype": "int8",
         "workers": 16,
-        "texts_per_second": 1379948.7492253433
+        "texts": 5000000,
+        "input_sha256": "6d7aee48083421e3ab60f35f99e0580f7083467678658604109a3e7839ae6f05",
+        "mean_words": 119.0433956,
+        "texts_per_second": 1973699.9422142217,
+        "control_ratio": 0.9996186097239573
       }
     ]
+  },
+  "headline": {
+    "machine": "m8id",
+    "durability": "none",
+    "cells": [
+      {
+        "cell": "headline-100m",
+        "kind": "encode and write",
+        "texts": 100000000,
+        "workers": 16,
+        "model": "minishlab/potion-base-8M",
+        "table_dtype": "float32",
+        "output": "int8",
+        "input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef",
+        "mean_words": 25.57447294,
+        "mean_tokens": 28.73384302,
+        "seconds_median": 15.293987490000063,
+        "seconds_min": 15.210910887999944,
+        "seconds_max": 15.30351816700005,
+        "seconds_iqr": 0.046303639500052896,
+        "texts_per_second": 6538517.183003109,
+        "manifest_sha256": "657102c3b2d50c22f8680d6848ad94608f29ba128e3c00406070c289b606bc48"
+      },
+      {
+        "cell": "headline-1b",
+        "kind": "encode and write",
+        "texts": 1000000000,
+        "workers": 16,
+        "model": "minishlab/potion-base-8M",
+        "table_dtype": "float32",
+        "output": "int8",
+        "input_sha256": "8b00be8ea93a08628da5a57bbb35b69577f9d31fd17828a8fe46fea6a8e1b612",
+        "mean_words": 25.574046283,
+        "mean_tokens": 28.733890246,
+        "seconds_median": 217.38487936899992,
+        "seconds_min": 216.79108883499975,
+        "seconds_max": 218.76348409699995,
+        "seconds_iqr": 0.9861976310000955,
+        "texts_per_second": 4600135.956570145,
+        "manifest_sha256": "657102c3b2d50c22f8680d6848ad94608f29ba128e3c00406070c289b606bc48"
+      }
+    ]
+  },
+  "predict": {
+    "machine": "m8id",
+    "head": {
+      "repo": "fse/bekko-civil-comments-toxicity-classifier",
+      "revision": "2400389fa61db6fd2ec7c7d8f7561d3b0ec53c0c",
+      "labels": [
+        "toxicity",
+        "insult"
+      ]
+    },
+    "cells": [
+      {
+        "cell": "headline-100m-predict",
+        "kind": "predict labels",
+        "texts": 100000000,
+        "workers": 16,
+        "model": "minishlab/potion-base-8M",
+        "table_dtype": null,
+        "output": "labels",
+        "input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef",
+        "mean_words": 25.57447294,
+        "mean_tokens": 28.73384302,
+        "seconds_median": 5.836840379999558,
+        "seconds_min": 5.836616149000292,
+        "seconds_max": 5.880607150999822,
+        "seconds_iqr": 0.021995500999764772,
+        "texts_per_second": 17132556.912582144,
+        "manifest_sha256": "e2a10358b61f0c48cac5a1cd27c59def2f5cb71dbb13dc0f92e80be0e9779d02"
+      },
+      {
+        "cell": "headline-100m-predict-proba",
+        "kind": "predict probabilities",
+        "texts": 100000000,
+        "workers": 16,
+        "model": "minishlab/potion-base-8M",
+        "table_dtype": null,
+        "output": "probabilities",
+        "input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef",
+        "mean_words": 25.57447294,
+        "mean_tokens": 28.73384302,
+        "seconds_median": 5.707178603999637,
+        "seconds_min": 5.704797313999734,
+        "seconds_max": 5.7491745849993094,
+        "seconds_iqr": 0.02218863549978778,
+        "texts_per_second": 17521792.629710097,
+        "manifest_sha256": "e2a10358b61f0c48cac5a1cd27c59def2f5cb71dbb13dc0f92e80be0e9779d02"
+      }
+    ]
+  },
+  "profiles": {
+    "libraries-cpu": "py-spy, valid",
+    "libraries-memory": "memray, valid",
+    "heads-sinks-cpu": "failed, no README row",
+    "heads-sinks-memory": "failed, no README row"
+  },
+  "excluded": {
+    "heads-sinks-16": "fse call below two seconds at the fixed 10 million protocol; no README row in 2.1"
   }
 }

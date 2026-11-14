@@ -70,7 +70,7 @@ def speed_panel(theme, data):
         '<g font-family="Geist, Arial, sans-serif">',
         text(40, 48, "Same model. More texts per second.", 30, weight=700),
     ]
-    for workers, left, maximum in ((1, 40, 25), (16, 595, 130)):
+    for workers, left, maximum in ((1, 40, 30), (16, 595, 120)):
         width = 465
         parts += [
             text(left, 98, f"{workers} worker" + ("s" if workers != 1 else ""), 24, weight=700)
@@ -125,7 +125,7 @@ def speed_panel(theme, data):
 def dtype_panel(theme, data):
     global colors
     colors = {k: v["value"] for k, v in brand[theme].items()}
-    left, width, maximum = 210, 700, 1_500_000
+    left, width, maximum = 210, 700, 2_000_000
     parts = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="540" '
         'viewBox="0 0 1100 540" role="img" aria-labelledby="title desc">',
@@ -161,7 +161,7 @@ def dtype_panel(theme, data):
                 text(left + bar_width + 12, bar_y + 19, f"{value:,.0f}", 20, weight=700),
             ]
     parts += [f'<path d="M{left} 465 H{left + width}" stroke="{colors["border"]}"/>']
-    for value in (0, 500_000, 1_000_000, 1_500_000):
+    for value in (0, 500_000, 1_000_000, 1_500_000, 2_000_000):
         parts += [
             text(
                 left + width * value / maximum,
