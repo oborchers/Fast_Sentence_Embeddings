@@ -27,23 +27,44 @@ def validate(cell):
     pair_rounds(cell)
 
 
-def memory_plan(cell, model_bytes, limit, retained_source_bytes=0):
-    """Conservative peak including all file-backed pages; stores never overlap."""
+DIRTY_RATIO = 0.20  # vm.dirty_ratio default: share of available memory that may be dirty
+DISK_RESERVE = 5 * resources.GIB
+
+
+def memory_plan(cell, model_bytes, limit, retained_source_bytes=0, work=None):
+    """Hard (anonymous and dirty-bounded) peak; clean file pages are recorded, not counted.
+
+    The input file and the shards written with durability none are file-backed. Clean pages
+    are reclaimed by the kernel under memory.max (the process is slowed, not killed), so they
+    are listed as ``reclaimable_bytes``. Dirty pages are not reclaimable until written back;
+    the kernel throttles writers at ``vm.dirty_ratio`` of the available memory, so one store
+    counts only up to that ceiling. The disk must hold the input and one store (stores never
+    overlap) plus a reserve."""
     validate(cell)
     n, d, w = cell["texts"], cell["dimensions"], cell["workers"]
-    return resources.assess(
-        {
-            "controller_libraries_reserve": 8 * resources.GIB,
-            "retained_corpus": retained_source_bytes,
-            "preparation_positions_and_temporaries": n * 8 * 4,
-            "input_page_cache": cell.get("planned_input_bytes", n * 140),
-            "one_store_pages": n * (d + 8),
-            "model_copies": model_bytes * (w + 1),
-            "worker_buffers": w * 256 * 1024**2,
-            "sample_buffers": min(n, 10000) * (d + 4) * 4,
-        },
+    input_bytes = cell.get("planned_input_bytes", n * 140)
+    store_bytes = n * (d + 8)
+    hard = {
+        "controller_libraries_reserve": 8 * resources.GIB,
+        "retained_corpus": retained_source_bytes,
+        "preparation_positions_and_temporaries": n * 8 * 4,
+        "dirty_store_pages_ceiling": min(store_bytes, int(limit[0] * DIRTY_RATIO)),
+        "model_copies": model_bytes * (w + 1),
+        "worker_buffers": w * 256 * 1024**2,
+        "sample_buffers": min(n, 10000) * (d + 4) * 4,
+    }
+    plan = resources.assess(
+        hard,
         limit=limit,
+        work=work,
+        disk=None if work is None else input_bytes + store_bytes + DISK_RESERVE,
+        reclaimable_bytes={
+            "input_page_cache": input_bytes,
+            "store_pages_after_writeback": store_bytes,
+        },
+        hard_components=sorted(hard),
     )
+    return plan
 
 
 def compare_samples(rows):

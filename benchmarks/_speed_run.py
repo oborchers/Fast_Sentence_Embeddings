@@ -281,7 +281,13 @@ def memory_preflight(context, contract):
         if cell["kind"] == "write":
             from _speed_write_pair import memory_plan
 
-            plan = memory_plan(production, model_bytes, limit, context["production_source_bytes"])
+            plan = memory_plan(
+                production,
+                model_bytes,
+                limit,
+                context["production_source_bytes"],
+                None if contract.get("functional_only") else context["work"],
+            )
         else:
             plan = preflight_plan(cell, production, model_bytes, limit)
         rows.append(dict(cell_id=cell["id"], **plan))
