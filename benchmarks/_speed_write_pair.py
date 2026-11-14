@@ -27,8 +27,54 @@ def validate(cell):
     pair_rounds(cell)
 
 
-DIRTY_RATIO = 0.20  # vm.dirty_ratio default: share of available memory that may be dirty
+DEFAULT_DIRTY_RATIO = 0.20  # vm.dirty_ratio default: share of available memory that may be dirty
 DISK_RESERVE = 5 * resources.GIB
+
+
+def _sysctl(name):
+    try:
+        return int(Path("/proc/sys/vm", name).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _filesystem(work):
+    """The filesystem type of the longest mount point that holds ``work``, or None."""
+    best = (-1, None)
+    try:
+        resolved = str(Path(work).resolve())
+        for line in Path("/proc/mounts").read_text().splitlines():
+            _, mount, kind, *_ = line.split()
+            mount = mount.replace("\\040", " ")
+            if (resolved == mount or resolved.startswith(mount.rstrip("/") + "/")) and len(
+                mount
+            ) > best[0]:
+                best = (len(mount), kind)
+    except OSError:
+        return None
+    return best[1]
+
+
+def dirty_ceiling(limit_bytes, store_bytes, work):
+    """Bytes of one store that may be dirty at once, with the settings it was read from.
+
+    The kernel throttles writers at ``vm.dirty_bytes`` or ``vm.dirty_ratio`` of the available
+    memory, per cgroup under cgroup v2 writeback. tmpfs pages never become clean disk pages, so
+    on tmpfs, or when the settings or the filesystem cannot be read, the whole store counts."""
+    fs, dirty_bytes, ratio = (
+        _filesystem(work) if work else None,
+        _sysctl("dirty_bytes"),
+        _sysctl("dirty_ratio"),
+    )
+    seen = dict(filesystem=fs, vm_dirty_bytes=dirty_bytes, vm_dirty_ratio=ratio)
+    if work is None:
+        return min(store_bytes, int(limit_bytes * DEFAULT_DIRTY_RATIO)), dict(
+            seen, source="default"
+        )
+    if fs is None or fs in ("tmpfs", "ramfs") or (not dirty_bytes and ratio is None):
+        return store_bytes, dict(seen, source="whole store: writeback not verifiable")
+    ceiling = dirty_bytes if dirty_bytes else int(limit_bytes * ratio / 100)
+    return min(store_bytes, ceiling), dict(seen, source="kernel settings")
 
 
 def memory_plan(cell, model_bytes, limit, retained_source_bytes=0, work=None):
@@ -44,11 +90,12 @@ def memory_plan(cell, model_bytes, limit, retained_source_bytes=0, work=None):
     n, d, w = cell["texts"], cell["dimensions"], cell["workers"]
     input_bytes = cell.get("planned_input_bytes", n * 140)
     store_bytes = n * (d + 8)
+    dirty, dirty_source = dirty_ceiling(limit[0], store_bytes, work)
     hard = {
         "controller_libraries_reserve": 8 * resources.GIB,
         "retained_corpus": retained_source_bytes,
         "preparation_positions_and_temporaries": n * 8 * 4,
-        "dirty_store_pages_ceiling": min(store_bytes, int(limit[0] * DIRTY_RATIO)),
+        "dirty_store_pages_ceiling": dirty,
         "model_copies": model_bytes * (w + 1),
         "worker_buffers": w * 256 * 1024**2,
         "sample_buffers": min(n, 10000) * (d + 4) * 4,
@@ -63,6 +110,7 @@ def memory_plan(cell, model_bytes, limit, retained_source_bytes=0, work=None):
             "store_pages_after_writeback": store_bytes,
         },
         hard_components=sorted(hard),
+        dirty_ceiling_source=dirty_source,
     )
     return plan
 
