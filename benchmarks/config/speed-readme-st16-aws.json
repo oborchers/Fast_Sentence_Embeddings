@@ -1045,13 +1045,15 @@
     "overrides": {
       "libraries-st-16": {
         "texts": 10000000,
-        "planned_input_bytes": 1363839338,
+        "planned_input_bytes": 1363844148,
+        "planned_input_sha256": "1bd11e132c8ec642f5ba9019c7a01d862e6460b89d46f6ca0400742caf98070e",
         "estimated_seconds": 1500
       },
       "bekko-st-16": {
-        "texts": 10000000,
-        "planned_input_bytes": 1363839338,
-        "estimated_seconds": 1500
+        "texts": 8000000,
+        "planned_input_bytes": 1090964650,
+        "planned_input_sha256": "5a673189202a6901a6eb70a96a375c20225d97cb42c5adcd62da2d11ceb4a724",
+        "estimated_seconds": 1200
       }
     }
   },
