@@ -706,6 +706,15 @@ strictly before 1320 seconds from allocation start, including setup.
 The step estimates are 240 and 1620 seconds. A later quality step can be
 appended independently; this allocation currently declares only throughput.
 
+### AWS EC2 for README speed numbers
+
+RunPod `cpu5g` gave no stable machine: the same type and code differed by 22 to 65 percent in throughput seven hours apart, and one allocation returned a Threadripper instead of the declared EPYC (DR-417, 14 November 2026). From 2.1, README speed numbers are measured on one fixed EC2 type with dedicated physical cores: `m8a.8xlarge` (32 cores, one thread per core, 128 GiB) in `eu-west-1`.
+
+- `benchmarks/config/allocation-readme-aws.json` is `allocation-readme.json` with the EC2 `cpu_model` and its own path in the profile steps. The `cpu_model` string comes from `/proc/cpuinfo` of the rehearsal instance, because the machine check compares it exactly.
+- `aws_readme_billing` in `speed.json` carries the EC2 price (2.17 USD per hour, 330 minutes, 12.10 USD). Select it with `MEASURE_STUDY=readme` and `MEASURE_BILLING_PROFILE=aws_readme_billing`; `billing` and `readme_billing` stay as the 2.0 evidence recorded them.
+- `benchmarks/config/aws/user-data.sh` installs Docker on Amazon Linux 2023 and runs the pinned image with `--cpus=32 --cpuset-cpus=0-31 --memory=128000000000 --shm-size=8g --ulimit nofile=1048576:1048576`, so `cpu.max`, `memory.max`, `/dev/shm` and `nofile` read as the allocation declares. The rehearsal mode uses 2 CPUs and 6 GiB, matching `rehearsal_machine_check`. The bootstrap is fetched by commit URL and checked by SHA-256, because user data holds at most 16 KB. SSH into the measurement container uses port 2222.
+- The root volume (200 GB, deleted on termination) holds Docker and the allocation root. After collection the instance is terminated and no volume remains.
+
 `python -m _harness.controls --out DIR` (from `benchmarks/`) runs the lifecycle controls without any environment: normal, SIGTERM, budget end, rejected machine check, step 2 after a failed step 1, SIGTERM and budget end of an allocation. Dependency controls also cover success, failure, skipped and unsealed prerequisites, the exact deadline, foreign existing results, and mismatched evidence. Every rehearsal runs them too (below).
 
 ## Rehearse before allocation
