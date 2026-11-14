@@ -27,7 +27,7 @@ else
 fi
 
 docker run -d --name fse-measure "${limits[@]}" \
-  --shm-size=8g --ulimit nofile=1048576:1048576 -p 2222:22 \
+  --shm-size=64g --ulimit nofile=1048576:1048576 -p 2222:22 \
   -e MEASURE_ALLOCATED_AT="__ALLOCATED_AT__" \
   -e MEASURE_ALLOCATION="/measurement-source/benchmarks/config/__ALLOCATION__" \
   -e MEASURE_STUDY="__STUDY__" \
