@@ -2,7 +2,7 @@
   "speed": {
     "format": "allocation@1",
     "machine_check": {
-      "cpu_model": "UNCONFIRMED: set from the m8a.8xlarge rehearsal",
+      "cpu_model": "AMD EPYC 9R45",
       "required_flags": [
         "avx2",
         "fma",
