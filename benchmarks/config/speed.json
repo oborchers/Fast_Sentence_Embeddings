@@ -1029,6 +1029,24 @@
     "planning_balance_usd": 7.35,
     "collection_reserve_seconds": 600
   },
+  "aws_readme_billing": {
+    "compute_usd_per_hour": 2.17,
+    "planning_minutes": 330,
+    "planning_balance_usd": 12.1,
+    "collection_reserve_seconds": 600
+  },
+  "aws_headline_billing": {
+    "compute_usd_per_hour": 2.17,
+    "planning_minutes": 75,
+    "planning_balance_usd": 2.75,
+    "collection_reserve_seconds": 600
+  },
+  "aws_headline_nvme_billing": {
+    "compute_usd_per_hour": 2.33,
+    "planning_minutes": 75,
+    "planning_balance_usd": 2.95,
+    "collection_reserve_seconds": 600
+  },
   "readme": {
     "cell_ids": [
       "libraries-model2vec-1",
