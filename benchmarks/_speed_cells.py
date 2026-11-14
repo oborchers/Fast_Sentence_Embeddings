@@ -272,3 +272,14 @@ def model_bytes(model):
     if model["artifact"] is not None:
         return Path(model["artifact"]).stat().st_size
     return sum(p.stat().st_size for p in Path(model["snapshot"]).rglob("*.safetensors"))
+
+
+def snapshot_only(snapshot, revision):
+    """A pinned repository kept as its snapshot, with no encoder artifact."""
+    return {
+        "snapshot": snapshot,
+        "revision": revision,
+        "artifact": None,
+        "artifacts": {},
+        "artifact_sha256": {},
+    }
