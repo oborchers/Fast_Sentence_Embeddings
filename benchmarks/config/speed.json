@@ -224,7 +224,7 @@
           "insult"
         ]
       },
-      "warmup_texts": 20000000,
+      "warmup_texts": 50000000,
       "estimated_seconds": 900,
       "planned_input_bytes": 13639687281,
       "planned_input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef"
@@ -252,7 +252,7 @@
           "insult"
         ]
       },
-      "warmup_texts": 20000000,
+      "warmup_texts": 50000000,
       "estimated_seconds": 900,
       "planned_input_bytes": 13639687281,
       "planned_input_sha256": "2765496afe36095473776599284b29462fb1798744b3b25abbc06e005fa167ef"
