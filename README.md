@@ -39,8 +39,8 @@ Bring a trained linear classifier to label text in the same application.
 Each row compares the same model, input and float32 output in both libraries.
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/library-speed-dark.png">
-<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="docs/assets/readme/library-speed-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1b3d0c22fc7097fc539116dfe7e47ae6675d6e51/docs/assets/readme/library-speed-dark.png">
+<img alt="fse speedups against Model2Vec, model2vec-rs, FastEmbed and sentence-transformers, with one and 16 workers." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1b3d0c22fc7097fc539116dfe7e47ae6675d6e51/docs/assets/readme/library-speed-light.png">
 </picture>
 
 AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), 14 November 2026. WikiText sentences, about 26 words each. Each bar is a paired comparison: 2.5 million sentences with one worker for POTION-8M, 2 million for static-retrieval-mrl-en-v1; 20 million with 16 workers for POTION-8M, 10 million for static-retrieval-mrl-en-v1.
@@ -78,8 +78,8 @@ The Sentence Transformers models have 1024 dimensions, four times POTION-8M's 25
 Encode longer texts with one or 16 workers:
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/dtype-speed-dark.png">
-<img alt="fse throughput for float32, float16 and int8 model tables, with one and 16 workers, on a shared scale." src="docs/assets/readme/dtype-speed-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1b3d0c22fc7097fc539116dfe7e47ae6675d6e51/docs/assets/readme/dtype-speed-dark.png">
+<img alt="fse throughput for float32, float16 and int8 model tables, with one and 16 workers, on a shared scale." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/1b3d0c22fc7097fc539116dfe7e47ae6675d6e51/docs/assets/readme/dtype-speed-light.png">
 </picture>
 
 | Model precision | 1 worker, texts/s | 16 workers, texts/s |
