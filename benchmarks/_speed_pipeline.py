@@ -18,7 +18,7 @@ from _harness.pressure import interval
 from _harness.records import atomic, sha256
 from _measurement import child_record, package_identity, telemetry
 from _measurement_config import PINS
-from _speed_cells import configure
+from _speed_cells import configure, snapshot_only
 from _speed_heads import check_kind, fse_head, model2vec_head, sample_indices
 from _speed_write import headline_child
 
@@ -246,7 +246,9 @@ def prepare_models(root, contract, reuse=None):
     used_cells = [*contract["cells"]]
     if any(protocols.protocol(c)["needs_quiet"] for c in contract["cells"]):
         used_cells.append(contract["quiet_cell"])
-    needed = {c["model"] for c in used_cells}
+    # A published head carries its own folded table and tokenizer: its snapshot is not converted.
+    heads = {c["head"]["repo"] for c in used_cells if c.get("head", {}).get("kind") == "artifact"}
+    needed = {c["model"] for c in used_cells} | heads
     for repo, revision in contract["models"].items():
         if repo not in needed:
             continue
@@ -258,24 +260,17 @@ def prepare_models(root, contract, reuse=None):
             allow_patterns=["*.json", "*.safetensors", "*/*.json", "*/*.safetensors"],
         )
         uses = [c for c in used_cells if c["model"] == repo]
-        if uses and all(c["kind"] == "transformer" for c in uses):
-            result[repo] = {
-                "snapshot": snapshot,
-                "revision": revision,
-                "artifact": None,
-                "artifacts": {},
-                "artifact_sha256": {},
-            }
+        if (repo in heads and not uses) or (uses and all(c["kind"] == "transformer" for c in uses)):
+            result[repo] = snapshot_only(snapshot, revision)
             continue
         encoder = load_encoder(root, contract, repo, snapshot)
         artifacts = save_artifacts(root, contract, repo, encoder)
-        result[repo] = {
-            "snapshot": snapshot,
-            "artifact": artifacts["float32"],
-            "artifacts": artifacts,
-            "artifact_sha256": {dtype: sha256(Path(path)) for dtype, path in artifacts.items()},
-            "revision": revision,
-        }
+        result[repo] = dict(
+            snapshot_only(snapshot, revision),
+            artifact=artifacts["float32"],
+            artifacts=artifacts,
+            artifact_sha256={dtype: sha256(Path(path)) for dtype, path in artifacts.items()},
+        )
     return result
 
 
