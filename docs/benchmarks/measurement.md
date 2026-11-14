@@ -980,7 +980,7 @@ Writing cells record first native-file read through ShardSink close. They use a 
 
 The classification headlines `headline-100m-predict` (labels) and
 `headline-100m-predict-proba` (probabilities) use the same seeded WikiText sentence
-file as `headline-100m`, POTION-8M, and the configured ordered head labels. The default labels are `toxicity` and `insult`. Their timer
+file bytes as `headline-100m` (POTION-8M text and truncation) and classify them with the pinned Bekko toxicity head and its ordered labels (placeholder heads only in functional probes). The default labels are `toxicity` and `insult`. Their timer
 covers one `Classifier.predict(Path)` or `predict_proba(Path)` call, from native
 file opening through the complete output in memory. Labels are a boolean matrix
 (200 MB for 100 million rows and two labels), probabilities a float32 matrix (800 MB). There is

@@ -51,8 +51,10 @@ def validate_artifact(head):
         raise ValueError("artifact head repo must be namespace/name")
     if not re.fullmatch(r"[0-9a-f]{40}", head["revision"]):
         raise ValueError("artifact head revision must be a full commit hash")
-    if not re.fullmatch(r"[\w][\w.-]*\.safetensors", head["filename"]):
-        raise ValueError("artifact head filename must be a plain .safetensors file name")
+    if head["filename"] != "model.safetensors":
+        raise ValueError(
+            "artifact head filename must be model.safetensors, the file a folder loads"
+        )
     if not re.fullmatch(r"[0-9a-f]{64}", head["sha256"]):
         raise ValueError("artifact head sha256 must be a SHA256 hex string")
     if MODEL_PINS.get(head["repo"]) != head["revision"]:
