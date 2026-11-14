@@ -17,20 +17,29 @@
 <a href="https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/oborchers/Fast_Sentence_Embeddings.svg?style=flat"></a>
 </p>
 
-<p align="center"><strong>Compute more than 7 million text embeddings per second.</strong></p>
+<p align="center"><strong>Embed more than 7 million sentences per second.</strong><br>
+<strong>Classify more than 17 million sentences per second.</strong><br>
+<strong>Embed 1 billion sentences in under 4 minutes.</strong></p>
 
 Fast Sentence Embeddings turns text into vectors for search, clustering and classification.
 It runs ready-made static models on your CPU. No GPU needed.
 Use your Model2Vec model, a supported static Sentence Transformers model, or existing word vectors.
-Bring a trained linear classifier to label text in the same application.
+fse also runs linear models on those vectors. Bring a classifier or regressor trained in scikit-learn, and fse returns labels, probabilities or scores directly from text, in the same application.
+Several heads share one encoding pass, and a classifier can be folded into the word vectors for a smaller model.
 
 ![An engine turns pages of text into lists of numbers.](https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/233b6d3c0aaee459792938317895790a8bdd862b/media/readme-engine.jpg)
 
-[^headline] 100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.
+[^headline] Embed: 100 million WikiText sentences (28.7 tokens on average) embedded and written to disk in 13.46 seconds. Float32 model table, int8 output, 16 workers, AMD EPYC 9575F (32 vCPU), RunPod, 2 November 2026.
 
-[How we measured](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a77a732043ec89a40dd52fe97d7a48b5de034179/docs/benchmarks/readme-evidence.md)
+[^classify] Classify: 100 million WikiText sentences labeled in 5.84 seconds with the toxicity head [fse/bekko-civil-comments-toxicity-classifier](https://huggingface.co/fse/bekko-civil-comments-toxicity-classifier). 16 workers, AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU), 14 November 2026.
+
+[^billion] One billion: 1 billion WikiText sentences embedded and written as int8 to local NVMe in 217.38 seconds. POTION-8M with a float32 table, 16 workers, AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU), 14 November 2026.
+
+How we measured: [Embed (fse 2.0)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a77a732043ec89a40dd52fe97d7a48b5de034179/docs/benchmarks/readme-evidence.md), [Classify and one billion (fse 2.1)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/benchmarks/readme-evidence.md#large-runs-m8id8xlarge)
 
 [^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
+[^classify]: Median of three runs. The labels are `toxicity` and `insult`. Predicting probabilities took 5.71 seconds.
+[^billion]: Median of three runs on a separate machine from the embed figure. The rates are not combined.
 
 ## Speed first
 
@@ -104,7 +113,7 @@ AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU, local NVMe), 16 workers, 14 Novem
 ## Get started
 
 ```sh
-pip install "fse>=2.0"
+pip install "fse>=2.1"
 ```
 
 Moving an existing application? Read the [migration guide from fse 1.x](docs/migrating-from-1x.md) before upgrading.
@@ -179,6 +188,11 @@ Compare quality and size below, then check the model on your own data.
 | [`fse/word2vec-google-news-300-sif10`](https://huggingface.co/fse/word2vec-google-news-300-sif10) | 49.26 | 3.41 GiB |
 
 [^quality]: MTEB(eng, v2), measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. Classic-model scores use the historical benchmark recipe. SIF-10 scores use a WikiText-103 fit, whereas the linked Hub SIF-10 models use wordfreq weights and a FineWeb fit. See each Hub card for that version's own results. Sizes refer to float32 fse files. [Quality results and file sizes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/21ebf1f7839cc2db91594d59a6de9c443657a0b6/docs/benchmarks/readme-quality.json).
+
+For multilingual retrieval with 1024 dimensions, fse also loads [`hotchpotch/bekko-static-embedding-v1`](https://huggingface.co/hotchpotch/bekko-static-embedding-v1) (MIT license).
+Its table holds 200,000 tokens with 1024 values each and is stored as float16, a 390.6 MiB file; fse keeps the float16 table.
+It is not in the quality table above, because it was not measured with the same benchmark run.
+The library comparison under [Speed first](#speed-first) includes it.
 
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
@@ -292,9 +306,6 @@ Load the saved model with `Classifier.load("router.safetensors")` and predict wi
 The [classification recipe](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/02-linear-heads.ipynb) compares this with Model2Vec's own classifier, TF-IDF and fastText.
 
 ### Several heads in one pass
-
-The examples from here to the end of this section need fse 2.1. Until 2.1 is released, install fse from master: `pip install "git+https://github.com/oborchers/Fast_Sentence_Embeddings.git"`.
-`Classifier.from_sklearn` and `Classifier.load` above also work with fse 2.0.
 
 `fse.Heads` groups named heads from the same encoder. Each head keeps its own labels and file.
 The group tokenizes each text once. This tiny training set only demonstrates the API.
@@ -480,6 +491,6 @@ Returning one array from an input of unknown length still collects and joins par
 - [Contributing](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CONTRIBUTING.md): AI-assisted contributions are welcome with reproducible checks and evidence.
 - [Changelog](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/CHANGELOG.md) and [security policy](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/SECURITY.md).
 
-fse 2.0 uses the [MIT License](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE).
+fse 2.0 and later use the [MIT License](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/LICENSE).
 The 1.x releases remain GPL-3.0. Model and dataset licenses apply separately.
 Built by [Dr. Oliver Borchers](https://www.drborchers.com).
