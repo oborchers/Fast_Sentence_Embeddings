@@ -1,7 +1,8 @@
 """Single-call native-file classification headlines, with owned input and memory plans.
 
-The placeholder is functional evidence only. Publication is refused until a pinned real
-head is configured and its loader is implemented. No model is trained by this module.
+The placeholder is functional evidence only. Publication needs a pinned real head of kind
+artifact, loaded offline from its pinned snapshot and checked against its SHA-256. No model is
+trained by this module.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import gc
 import hashlib
 import json
 import os
+import re
 import resource
 import time
 from pathlib import Path
@@ -19,9 +21,11 @@ from _harness import resources
 from _harness.pressure import interval, report
 from _harness.records import append, atomic, document, sha256, sync_directory
 from _measurement import package_identity, spread, telemetry
+from _measurement_config import MODEL_PINS
 from _speed_write import headline_tokens
 
 PROFILE = "toxicity-placeholder@1"
+ARTIFACT_KEYS = ("kind", "repo", "revision", "filename", "sha256", "labels")
 
 
 def _validate_labels(labels):
@@ -34,6 +38,29 @@ def _validate_labels(labels):
         raise ValueError("head labels must be 1 to 16 unique nonempty strings")
 
 
+def validate_artifact(head):
+    """Check the pinned real head in its original form before anything is downloaded."""
+    if set(head) != set(ARTIFACT_KEYS):
+        raise ValueError(
+            "artifact head requires exactly kind, repo, revision, filename, sha256, labels"
+        )
+    for key in ("repo", "revision", "filename", "sha256"):
+        if not isinstance(head[key], str):
+            raise ValueError(f"artifact head {key} must be a string")
+    if not re.fullmatch(r"[0-9A-Za-z][\w.-]*/[0-9A-Za-z][\w.-]*", head["repo"]):
+        raise ValueError("artifact head repo must be namespace/name")
+    if not re.fullmatch(r"[0-9a-f]{40}", head["revision"]):
+        raise ValueError("artifact head revision must be a full commit hash")
+    if head["filename"] != "model.safetensors":
+        raise ValueError(
+            "artifact head filename must be model.safetensors, the file a folder loads"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", head["sha256"]):
+        raise ValueError("artifact head sha256 must be a SHA256 hex string")
+    if MODEL_PINS.get(head["repo"]) != head["revision"]:
+        raise ValueError("artifact head repo and revision must match pins.json")
+
+
 def validate(cell):
     head = cell["head"]
     if cell["output"] not in ("labels", "proba"):
@@ -44,11 +71,36 @@ def validate(cell):
     if head["kind"] == "placeholder" and (head["profile"] != PROFILE or head["seed"] != 17):
         raise ValueError("placeholder requires toxicity-placeholder@1 and seed 17")
     if head["kind"] == "artifact":
-        if not all(head.get(key) for key in ("repo", "revision", "filename", "sha256")):
-            raise ValueError("artifact head requires repo, revision, filename and sha256")
-        raise ValueError("pinned real-head loading is not implemented yet")
+        validate_artifact(head)
     if cell["rounds"] != 3 or cell["warmup_texts"] <= 0:
         raise ValueError("predict requires three rounds and positive warmup_texts")
+
+
+def artifact_classifier(job):
+    """The pinned real head, loaded offline from its snapshot and checked against the cell."""
+    from fse import Classifier
+
+    head = job["head"]
+    snapshot = Path(job["head_snapshot"])
+    if snapshot.name != head["revision"]:
+        raise ValueError("head snapshot is not the pinned revision")
+    weights = snapshot / head["filename"]
+    if sha256(weights) != head["sha256"]:
+        raise ValueError("head file differs from the pinned SHA-256")
+    labels = tuple(head["labels"])
+    model = Classifier.from_pretrained(snapshot, mmap=True)
+    if model.path() != "standalone" or tuple(model.classes_) != labels:
+        raise ValueError("headline head must be the standalone folded head with ordered labels")
+    provenance = dict(
+        head,
+        link=model.link,
+        normalized=model.normalized,
+        path=model.path(),
+        thresholds=dict(model.thresholds),
+        fingerprint=model.fingerprint,
+        note="Pinned published toxicity classifier; no training",
+    )
+    return model, provenance
 
 
 def classifier(job):
@@ -57,6 +109,8 @@ def classifier(job):
     from fse import Classifier, Encoder
 
     validate(job)
+    if job["head"]["kind"] == "artifact":
+        return artifact_classifier(job)
     if not job.get("functional_only"):
         raise ValueError("placeholder heads are only allowed in functional probes")
     encoder = Encoder.from_pretrained(job["artifact"], normalize=False, mmap=True)
@@ -121,10 +175,18 @@ def memory_plan(
     )
 
 
+def head_bytes(context, cell):
+    """Bytes the child maps: the pinned head file, or the encoder artifact for a placeholder."""
+    head = cell["head"]
+    if head["kind"] == "artifact":
+        return (Path(context["models"][head["repo"]]["snapshot"]) / head["filename"]).stat().st_size
+    return Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+
+
 def admit_plans(context, cell, sizes=None):
     """Record production and actual plans before input, then again with known file sizes."""
     ledger, work = context["ledger"], context["work"]
-    model_bytes = Path(context["models"][cell["model"]]["artifact"]).stat().st_size
+    model_bytes = head_bytes(context, cell)
     production = dict(
         cell,
         texts=cell.get("production_texts", cell["texts"]),
@@ -210,8 +272,12 @@ def input_match(context, cell, identity):
 
 def rounds(context, cell, path, identity, warm_identity, launch):
     rows, ledger = [], context["ledger"]
+    head = cell["head"]
     job = dict(
         cell,
+        head_snapshot=(
+            context["models"][head["repo"]]["snapshot"] if head["kind"] == "artifact" else None
+        ),
         sample_texts_file=str(path.with_suffix(".sample-texts.json")),
         sample_texts_sha256=sha256(path.with_suffix(".sample-texts.json")),
         warmup_file=str(path.with_suffix(".warmup.txt")),

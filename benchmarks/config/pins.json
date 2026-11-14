@@ -37,6 +37,7 @@
     "amgix/static-retrieval-multilingual-69m-v1": "f777a93cd958b280b6c7fad5aaac3cd59d676822",
     "RikkaBotan/stable-static-embedding-fast-retrieval-mrl-en-v2": "928b418b2741b7f7b1b557a53845ac88ad5054c4",
     "hotchpotch/bekko-static-embedding-v1": "c18167b8f244c1bc6de21ce9b710bac8a29c4615",
+    "fse/bekko-civil-comments-toxicity-classifier": "2400389fa61db6fd2ec7c7d8f7561d3b0ec53c0c",
     "fse/paranmt-300": "a08e15771891207a22f840a3091a00a1657d888b",
     "fse/glove-wiki-gigaword-300": "4e5ad402664236b85be45a0d107b95259ba8a909",
     "fse/word2vec-google-news-300": "4274c2efa75c99a64e3f83eabfc5b34d1acabe70",

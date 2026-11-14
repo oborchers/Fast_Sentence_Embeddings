@@ -994,7 +994,7 @@ Writing cells record first native-file read through ShardSink close. They use a 
 
 The classification headlines `headline-100m-predict` (labels) and
 `headline-100m-predict-proba` (probabilities) use the same seeded WikiText sentence
-file as `headline-100m`, POTION-8M, and the configured ordered head labels. The default labels are `toxicity` and `insult`. Their timer
+file bytes as `headline-100m` (POTION-8M text and truncation) and classify them with the pinned Bekko toxicity head and its ordered labels (placeholder heads only in functional probes). The default labels are `toxicity` and `insult`. Their timer
 covers one `Classifier.predict(Path)` or `predict_proba(Path)` call, from native
 file opening through the complete output in memory. Labels are a boolean matrix
 (200 MB for 100 million rows and two labels), probabilities a float32 matrix (800 MB). There is
@@ -1018,11 +1018,21 @@ removed on success, rejection, and preparation failure.
 `head` declares the head's kind and ordered labels (1 to 16 unique nonempty strings). The label count controls weights, output shapes, checks, and memory planning. `toxicity-placeholder@1` is
 an untrained multilabel head (PCG64 seed 17, float32 weights and bias, raw means,
 folded path, cutoffs 0.5). Receipts record its parameter hashes and fingerprint.
-It is allowed only with `--rehearse`, never as publication evidence. A future
-real-head configuration must pin `repo`, `revision`, `filename`, and `sha256`;
-this PR deliberately refuses that kind until its loader is implemented. No Hub
-head is downloaded here. The publication cells therefore remain `not_started`
-outside rehearsal until the real toxicity head is integrated.
+It is allowed only with `--rehearse`, never as publication evidence.
+
+The two headline cells use the real head of kind `artifact`: the Hub repository
+`fse/bekko-civil-comments-toxicity-classifier` at the revision pinned in `pins.json`
+(`2400389fa61db6fd2ec7c7d8f7561d3b0ec53c0c`), file `model.safetensors`, labels `toxicity` and
+`insult` in this order. The cell pins `repo`, `revision`, `filename` and `sha256`; `validate`
+checks the types and values of these fields and that repo and revision equal the pin. Setup keeps
+the head repository as a snapshot and builds no encoder artifact from it, because the head is a
+standalone folded table with its own tokenizer. The child loads it offline with
+`Classifier.from_pretrained(snapshot, mmap=True)`, checks the SHA-256 of the file, the loaded path
+(`standalone`, the folded table) and the ordered labels, and records repo, revision, fingerprint
+and the thresholds of the head in its receipt. The cell field `model` stays POTION-8M: it fixes
+the input text of the headline, which must equal `headline-100m` byte for byte. The memory plan
+counts the bytes of the head file. The sample check against cpu and numpy bits is unchanged. Only
+this kind makes a result publishable.
 
 `--rehearse --study headline --workers 16` reduces each headline to 20,000 rows
 and two workers, exercises both classification outputs, and labels every result

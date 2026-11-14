@@ -214,9 +214,11 @@
       "dimensions": 256,
       "output": "labels",
       "head": {
-        "kind": "placeholder",
-        "profile": "toxicity-placeholder@1",
-        "seed": 17,
+        "kind": "artifact",
+        "repo": "fse/bekko-civil-comments-toxicity-classifier",
+        "revision": "2400389fa61db6fd2ec7c7d8f7561d3b0ec53c0c",
+        "filename": "model.safetensors",
+        "sha256": "fc622127f06899ad93e69271f1c168daafa8a73eb33249a12cbeb4bea74fb8c3",
         "labels": [
           "toxicity",
           "insult"
@@ -240,9 +242,11 @@
       "dimensions": 256,
       "output": "proba",
       "head": {
-        "kind": "placeholder",
-        "profile": "toxicity-placeholder@1",
-        "seed": 17,
+        "kind": "artifact",
+        "repo": "fse/bekko-civil-comments-toxicity-classifier",
+        "revision": "2400389fa61db6fd2ec7c7d8f7561d3b0ec53c0c",
+        "filename": "model.safetensors",
+        "sha256": "fc622127f06899ad93e69271f1c168daafa8a73eb33249a12cbeb4bea74fb8c3",
         "labels": [
           "toxicity",
           "insult"
