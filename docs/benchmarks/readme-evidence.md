@@ -119,7 +119,7 @@ Those model versions have separate results on their cards. File size is not proc
 
 ## Example verification
 
-Run the displayed Python examples unchanged with the documented dependencies and real models. Each README section is one run in its own working directory; the examples of "Linear heads" build on each other and share one directory and one interpreter. Examples that need fse 2.1 run against the checked-out master until 2.1 is released.
+Run the displayed Python examples unchanged with the documented dependencies and real models. Each README section is one run in its own working directory; the examples of "Linear heads" build on each other and share one directory and one interpreter. The examples run against fse 2.1, installed with `pip install "fse>=2.1"`.
 Check output shape and dtype, the saved int8 table, classifier labels and save/reload behavior.
 For folding, check `classifier.normalized is False`; a saved classifier must also load without scikit-learn.
 These are documentation checks, not additional library unit tests or speed benchmarks.
