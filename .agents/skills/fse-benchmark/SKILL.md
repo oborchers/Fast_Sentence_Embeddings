@@ -245,9 +245,12 @@ Inspect `git diff --stat` and file sizes before push. Files above 10 MB need coo
 Report accepted, invalid, failed and missing cells separately, with source identities and limitations.
 Do not edit README, model cards or historical values as a side effect of running a study.
 
-## Conditional: rented machines, including RunPod
+## Conditional: rented machines
 
 Use this section only when a rented machine is available and its lifecycle is authorized.
+From 2.1, README speed numbers (class publication) come from AWS EC2 `m8a.8xlarge` in `eu-west-1` with dedicated cores, run as the guide's section "AWS EC2 for README speed numbers" describes: `allocation-readme-aws.json`, `aws_readme_billing`, `benchmarks/config/aws/user-data.sh`.
+RunPod CPU pods are not used for publication: the same `cpu5g` type differed by 22 to 65 percent between allocations and once returned another processor (DR-417).
+On EC2, tag every instance with `max-hours` at launch, reach it through Session Manager (no inbound port), and terminate it with its volume after collection.
 Agree on compute, disk, setup, warmup, slow-arm and collection costs before starting.
 Checked-in billing values are historical examples, not current quotes or spending approval.
 CPU flavor and region do not guarantee a processor model. Inspect CPU, affinity and cgroup limits at startup.
