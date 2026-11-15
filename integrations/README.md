@@ -2,7 +2,7 @@
 
 The packages live in this repository under `integrations/`. Each package has
 independent build metadata, tests, MIT license and documentation. fse core gains
-no framework dependency. Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for publication after fse 2.1.0.
+no framework dependency. Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for publication; fse 2.1.0, which it requires, was published on 2026-11-15.
 Publication and framework listing submissions require separate maintainer approval.
 This work can merge before publication.
 
@@ -16,7 +16,7 @@ This work can merge before publication.
 
 Follow each package README from its directory. Use a separate environment per
 framework. The local fse version override satisfies `fse>=2.1.0` while testing
-unreleased source. It changes neither published metadata nor git tags.
+unreleased core source against an adapter. It changes neither published metadata nor git tags.
 
 Root `make check` checks core and the `integrations` guardrail path. It does not
 install frameworks. `.github/workflows/integrations.yml` selects affected packages
@@ -67,15 +67,15 @@ checked 2026-11-01.
 ## Version 0.2.0 preparation
 
 Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
-requires `fse>=2.1.0,<3`. Until fse 2.1.0 is published, test this source against
-the local checkout with the documented version override. An unconstrained
+requires `fse>=2.1.0,<3`. fse 2.1.0 was published on 2026-11-15. An unconstrained
 resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
 while requesting adapter 0.2.0 produces a dependency conflict.
 
-Release fse 2.1.0 first. Before any adapter 0.2.0 tag, test all three adapters
-against `fse==2.1.0` installed from PyPI, then permanently pin that version in
-the minimum CI job. Only then publish each adapter with separate maintainer
-approval. Package changelogs are handwritten, independent of root towncrier.
+On 2026-11-15 all three adapters passed their offline tests, build checks and
+real-model examples against `fse==2.1.0` installed from PyPI. The minimum CI job
+now installs that version from PyPI. The latest job keeps testing the fse
+checkout, so core changes still reach every adapter. Publish each adapter only
+with separate maintainer approval. Package changelogs are handwritten, independent of root towncrier.
 
 Configuration validation belongs to each adapter. Invalid types raise
 `TypeError`; invalid values raise `ValueError`. Invalid `workers` always raise
