@@ -8,7 +8,13 @@ fse core. This package has its own CI environment and release workflow.
 
 ## Use
 
-After an fse 2.1 build and this package are installed:
+Install the package from PyPI. It installs fse 2.1 or newer within fse 2 and the framework package.
+
+```sh
+pip install langchain-fse
+```
+
+Then load a model and make vectors:
 
 ```python
 from langchain_fse import FseEmbeddings

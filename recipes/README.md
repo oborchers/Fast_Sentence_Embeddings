@@ -33,7 +33,7 @@ The first recipe includes a large-data speed demonstration, which needs addition
 
 ## Run a recipe
 
-Use standard Python 3.13 on macOS or Linux, with Git, Make, a C/C++ compiler, and [uv](https://docs.astral.sh/uv/).
+Use standard Python 3.13 on macOS or Linux (the pinned `recipes/requirements.txt` needs Python 3.12 or newer, so it does not install on Python 3.11), with Git, Make, a C/C++ compiler, and [uv](https://docs.astral.sh/uv/).
 Free-threaded Python builds are unsupported.
 ### From a source checkout
 
@@ -67,7 +67,7 @@ the repository ZIP for that release tag from the
 Open a recipe in Jupyter or VS Code and select `.venv/bin/python` as the kernel.
 Run cells from top to bottom, with `recipes/` as the working directory so the helpers can be imported.
 Use `uv run --no-sync` for commands after installation, because syncing removes the optional recipe packages.
-For command-line execution:
+For command-line execution, run this from the repository root. `jupyter execute` starts the notebook in its own folder, so the helpers import:
 
 ```sh
 recipe_tmp=$(mktemp -d)
@@ -78,7 +78,7 @@ IPYTHONDIR="$recipe_tmp/ipython" JUPYTER_RUNTIME_DIR="$recipe_tmp/runtime" \
 
 Replace the filename to run another recipe.
 Recipe 06 also shows the published `langchain-fse`, `llama-index-embeddings-fse`, and `fse-haystack` packages.
-fse 2.0.0 and version 0.1.0 of all three adapters are available on PyPI.
+fse 2.1.0 and version 0.2.0 of all three adapters are available on PyPI.
 Install the adapters separately with the commands in the notebook.
 The existing DSPy, BERTopic, txtai, Chroma, LanceDB, Qdrant, and Polars sections remain independent of those packages.
 These recipes run locally, outside CI, and their dependencies stay separate from fse core.

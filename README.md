@@ -116,7 +116,7 @@ AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU, local NVMe), 16 workers, 14 Novem
 pip install "fse>=2.1"
 ```
 
-Moving an existing application? Read the [migration guide from fse 1.x](docs/migrating-from-1x.md) before upgrading.
+Moving an existing application? Read the [migration guide from fse 1.x](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/migrating-from-1x.md) before upgrading.
 
 Python 3.11 to 3.15. Wheels target Linux (x86_64 and aarch64, glibc or musl),
 macOS (Apple Silicon, arm64) and Windows (x86_64).
@@ -245,7 +245,7 @@ Start with the job you want to do:
 | fse behind Kafka | [Write vectors for a stream and continue at the right record after a crash.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/09-fse-behind-kafka.ipynb) |
 | External indexes | [Put FAISS, USearch, or hnswlib on your vectors, then let fse give the hits exact scores.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/10-external-ann-indexes.ipynb) |
 | Rerank candidates | [Let fse find 100 candidates, then let a local cross-encoder of your choice put the best ones on top.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/11-reranker-candidates.ipynb) |
-| Filter large text collections | [Store scores with document IDs and change filters without running the encoder again.](recipes/13-filter-texts.ipynb) |
+| Filter large text collections | [Store scores with document IDs and change filters without running the encoder again.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/13-filter-texts.ipynb) |
 | FastAPI search | [Answer many searches at once from one store, then from three stores on a shared drive.](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/12-fastapi-search.ipynb) |
 
 The [recipe index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/README.md) has setup instructions and recorded results.
@@ -366,7 +366,7 @@ scores.close()
 ```
 
 Save all scores for unrestricted later thresholds. If you discard rows, softer thresholds cannot recover them from that subset.
-The [filtering tutorial](recipes/13-filter-texts.ipynb) checks this with seven labels on a small Civil Comments sample.
+The [filtering tutorial](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/recipes/13-filter-texts.ipynb) checks this with seven labels on a small Civil Comments sample.
 Its counts demonstrate the workflow, not moderation quality.
 
 ### Write vectors and scores in one run
@@ -400,7 +400,7 @@ imported.save("imported-classifier.safetensors")
 ```
 
 For an exported local folder or a Hub repository, use `Classifier.from_pretrained(path_or_repo, revision=commit)`.
-See the [head formats](docs/architecture/formats.md) for supported links and import limits.
+See the [head formats](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/architecture/formats.md) for supported links and import limits.
 
 ### Why folding works
 
