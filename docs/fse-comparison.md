@@ -2,6 +2,10 @@
 
 This guide records the measurement contract and evidence behind the README. The final library comparison has seven accepted pairs from the sentence collection and one accepted ST process-pool follow-up. The two writing configurations form a separate study. Quality and historical accuracy are unchanged.
 
+## fse 2.1
+
+The speed tables of the README for fse 2.1 come from AWS m8a.8xlarge and m8id.8xlarge (14 November 2026), and the comparison with transformer models from the quality runs and one NVIDIA L40S (15 November 2026). Machines, inputs, cells and archives are in [readme-evidence.md](benchmarks/readme-evidence.md), the numbers in the [README](../README.md#speed-first). The embed headline of the README still comes from the 2.0 measurement described below. The rest of this guide is the record of the 2.0 measurement.
+
 ## Sources and cohorts
 
 | Study | Compact source | Cohort |
