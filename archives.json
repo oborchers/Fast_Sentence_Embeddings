@@ -84,8 +84,18 @@
       "raw_bytes": 560859,
       "member_manifest": "aws-headline-predict-2026-11-14/member-manifest.json",
       "release": "2.1"
+    },
+    {
+      "path": "archives/gpu-speed-2026-11-15.tar.gz",
+      "bytes": 372919,
+      "sha256": "92b7eee84507a17d457ab1024fcc0e18522136011406dd4aa1fec3314148718e",
+      "members": 40,
+      "raw_bytes": 995354,
+      "member_manifest": "gpu-speed-2026-11-15/member-manifest.json",
+      "release": "2.1"
     }
   ],
   "latest_speed_source_pins": "6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9",
-  "evidence_2_1": "fse 2.1 README speed studies on AWS EC2, 14 November 2026: collected results without sampled output vectors (.npz), each with a member manifest of SHA256 hashes."
+  "evidence_2_1": "fse 2.1 README speed studies on AWS EC2, 14 November 2026: collected results without sampled output vectors (.npz), each with a member manifest of SHA256 hashes.",
+  "gpu_2_1": "GPU throughput of the transformer reference models, RunPod NVIDIA L40S, 15 November 2026 (DR-424): collected results, no output vectors, with a member manifest of SHA256 hashes."
 }
