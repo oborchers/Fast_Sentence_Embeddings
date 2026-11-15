@@ -94,17 +94,17 @@ The prediction rows come from a second allocation on the same instance with a wa
 
 ## Evidence archives for 2.1
 
-The collected results are kept as compact archives without the sampled output vectors (`.npz`). Each archive contains a member manifest with the SHA256 of every file.
+The collected results are kept as compact archives on the separate `benchmark-evidence-2.1` branch, commit `2a5b38f124fc49ce47fd91cf84ec07bb856a6333`. They leave out the sampled output vectors (`.npz`) and contain no model weights. Each archive contains a member manifest with the SHA256 of every file; the [archive index](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives.json) records sizes, hashes and member counts.
 
 | Archive | Bytes | SHA256 |
 |---|---:|---|
-| `aws-readme-2026-11-14.tar.gz` | 2,732,863 | `bf9fba1009d5e13a6915a61584c53cc718a219b4127c8cd91746d2766bf97925` |
-| `aws-readme-profiles-2026-11-14.tar.gz` | 8,184,576 | `1e7f26664f50e718eba3cc0adb7848a8b60184f46476f04518a853db727acee6` |
-| `aws-st16-rerun-2026-11-14.tar.gz` | 335,390 | `c11a393f9f6d8ece44f045f012871f2b30ffb206aa75311cebecbf34193836f7` |
-| `aws-headline-2026-11-14.tar.gz` | 879,426 | `e629d3557ab9ff2aac5e9c7056b6182926fb045c611b793edb895358afbb2808` |
-| `aws-headline-predict-2026-11-14.tar.gz` | 205,303 | `c4ea4520ace22d384f5a8e6776dcb4c8291b80bbd5f2ee05037bab1ce3c6da48` |
+| [`aws-readme-2026-11-14.tar.gz`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives/aws-readme-2026-11-14.tar.gz) | 2,732,863 | `bf9fba1009d5e13a6915a61584c53cc718a219b4127c8cd91746d2766bf97925` |
+| [`aws-readme-profiles-2026-11-14.tar.gz`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives/aws-readme-profiles-2026-11-14.tar.gz) | 8,184,576 | `1e7f26664f50e718eba3cc0adb7848a8b60184f46476f04518a853db727acee6` |
+| [`aws-st16-rerun-2026-11-14.tar.gz`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives/aws-st16-rerun-2026-11-14.tar.gz) | 335,390 | `c11a393f9f6d8ece44f045f012871f2b30ffb206aa75311cebecbf34193836f7` |
+| [`aws-headline-2026-11-14.tar.gz`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives/aws-headline-2026-11-14.tar.gz) | 879,426 | `e629d3557ab9ff2aac5e9c7056b6182926fb045c611b793edb895358afbb2808` |
+| [`aws-headline-predict-2026-11-14.tar.gz`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/2a5b38f124fc49ce47fd91cf84ec07bb856a6333/archives/aws-headline-predict-2026-11-14.tar.gz) | 205,303 | `c4ea4520ace22d384f5a8e6776dcb4c8291b80bbd5f2ee05037bab1ce3c6da48` |
 
-They are not yet published on an evidence branch.
+The archive SHA256 values were checked after downloading each file from this commit.
 
 ## Quality and file size
 
