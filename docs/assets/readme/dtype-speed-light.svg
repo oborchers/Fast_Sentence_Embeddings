@@ -10,24 +10,25 @@
 <rect x="420" y="102" width="18" height="18" rx="3" fill="#2D6A4F"/>
 <text x="448" y="118" font-size="18" fill="#1E1B18" font-weight="400" text-anchor="start">16 workers</text>
 <text x="40" y="193" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="start">float32</text>
-<rect x="210" y="150" width="65.064" height="24" rx="3" fill="#4F463E"/>
-<text x="287.0636419095675" y="169" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">139,422</text>
-<rect x="210" y="186" width="590.391" height="24" rx="3" fill="#2D6A4F"/>
-<text x="812.3906171056233" y="205" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,265,123</text>
+<rect x="210" y="150" width="64.108" height="24" rx="3" fill="#4F463E"/>
+<text x="286.10789188713653" y="169" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">183,165</text>
+<rect x="210" y="186" width="635.444" height="24" rx="3" fill="#2D6A4F"/>
+<text x="857.4438083441113" y="205" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,815,554</text>
 <text x="40" y="303" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="start">float16</text>
-<rect x="210" y="260" width="71.813" height="24" rx="3" fill="#4F463E"/>
-<text x="293.81345705529077" y="279" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">153,886</text>
-<rect x="210" y="296" width="634.452" height="24" rx="3" fill="#2D6A4F"/>
-<text x="856.4518286893159" y="315" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,359,540</text>
+<rect x="210" y="260" width="71.205" height="24" rx="3" fill="#4F463E"/>
+<text x="293.20490799668244" y="279" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">203,443</text>
+<rect x="210" y="296" width="679.569" height="24" rx="3" fill="#2D6A4F"/>
+<text x="901.5688046619589" y="315" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,941,625</text>
 <text x="40" y="413" font-size="23" fill="#1E1B18" font-weight="700" text-anchor="start">int8</text>
-<rect x="210" y="370" width="76.430" height="24" rx="3" fill="#4F463E"/>
-<text x="298.4301962659503" y="389" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">163,779</text>
-<rect x="210" y="406" width="643.976" height="24" rx="3" fill="#2D6A4F"/>
-<text x="865.9760829718268" y="425" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,379,949</text>
+<rect x="210" y="370" width="73.362" height="24" rx="3" fill="#4F463E"/>
+<text x="295.3616791729185" y="389" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">209,605</text>
+<rect x="210" y="406" width="690.795" height="24" rx="3" fill="#2D6A4F"/>
+<text x="912.7949797749776" y="425" font-size="20" fill="#1E1B18" font-weight="700" text-anchor="start">1,973,700</text>
 <path d="M210 465 H910" stroke="#E0D9CF"/>
 <text x="210.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">0</text>
-<text x="443.33333333333337" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">500,000</text>
-<text x="676.6666666666667" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">1,000,000</text>
-<text x="910.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">1,500,000</text>
+<text x="385.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">500,000</text>
+<text x="560.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">1,000,000</text>
+<text x="735.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">1,500,000</text>
+<text x="910.0" y="488" font-size="16" fill="#4F463E" font-weight="400" text-anchor="middle">2,000,000</text>
 <text x="40" y="526" font-size="17" fill="#4F463E" font-weight="400" text-anchor="start">Texts per second. All bars use the same linear scale, starting at zero.</text>
 </g></svg>
