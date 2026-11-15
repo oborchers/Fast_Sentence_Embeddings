@@ -255,8 +255,8 @@ These are worked examples you can adapt, not hosted services.
 ## Several machines, one network drive
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/shared-drive-dark.png">
-<img alt="Three machines each write their own store to a network drive. A fourth machine reads the three stores as one view and opens the view again to see new shards." src="docs/assets/readme/shared-drive-light.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/95d93b754235b3df1bde22615dc983234249862c/docs/assets/readme/shared-drive-dark.png">
+<img alt="Three machines each write their own store to a network drive. A fourth machine reads the three stores as one view and opens the view again to see new shards." src="https://raw.githubusercontent.com/oborchers/Fast_Sentence_Embeddings/95d93b754235b3df1bde22615dc983234249862c/docs/assets/readme/shared-drive-light.png">
 </picture>
 
 Give each writing machine its own store. Two writers in one store race for the name of the next shard.

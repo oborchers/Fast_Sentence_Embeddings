@@ -32,4 +32,4 @@ Export its light and dark SVGs to PNG with `rsvg-convert` too.
 
 `shared-drive` shows three machines that write one store each to a network drive and a fourth that reads a view.
 It contains no data. Export its light and dark SVGs to PNG with `rsvg-convert` too.
-README links `shared-drive-light.png` and `shared-drive-dark.png` by relative path.
+README links `shared-drive-light.png` and `shared-drive-dark.png` through raw URLs pinned to commit 95d93b75, because the README is also the PyPI page.
