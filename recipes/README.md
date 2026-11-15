@@ -67,7 +67,7 @@ the repository ZIP for that release tag from the
 Open a recipe in Jupyter or VS Code and select `.venv/bin/python` as the kernel.
 Run cells from top to bottom, with `recipes/` as the working directory so the helpers can be imported.
 Use `uv run --no-sync` for commands after installation, because syncing removes the optional recipe packages.
-For command-line execution:
+For command-line execution, run this from the repository root. `jupyter execute` starts the notebook in its own folder, so the helpers import:
 
 ```sh
 recipe_tmp=$(mktemp -d)
