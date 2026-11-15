@@ -224,9 +224,11 @@ musllinux because its current release has no wheel for that interpreter.
 On every platform, gensim tests skip on Python 3.14 and newer. The wheel logs show
 the test summary for each interpreter, and artifacts retain the built filenames.
 
-The minimum-dependency job uses numpy 1.26.4. Its Arrow producer tests skip because
-pyarrow 26 requires numpy 2. This is a coverage gap in that job, not in the latest
-or wheel jobs, which exercise the Arrow producers with numpy 2.
+The minimum-dependency job uses numpy 1.26.4 with pyarrow 25.0.1, which supports
+numpy 1.21.2 and newer (pyarrow 26 requires numpy 2). Its Arrow and Parquet producers stay
+active: the job first runs `tests/test_text_ids.py::test_arrow_chunk_offsets_and_nulls` and
+`tests/test_encoder_doc_ids.py::test_parquet_recipe` by name, then the whole suite. The
+latest and wheel jobs exercise the Arrow producers with numpy 2.
 
 # Tests
 
