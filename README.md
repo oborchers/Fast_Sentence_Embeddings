@@ -175,6 +175,7 @@ Compare quality and size below, then check the model on your own data.
 
 | Model (Hub ID) | Quality[^quality] | Float32 file size |
 |---|---:|---:|
+| [`hotchpotch/bekko-static-embedding-v1`](https://huggingface.co/hotchpotch/bekko-static-embedding-v1)[^bekko] | 56.83 | 390.6 MiB (float16) |
 | [`minishlab/potion-base-32M`](https://huggingface.co/minishlab/potion-base-32M) | 55.26 | 124.1 MiB |
 | [`minishlab/potion-retrieval-32M`](https://huggingface.co/minishlab/potion-retrieval-32M) | 54.51 | 124.1 MiB |
 | [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) | 53.95 | 29.2 MiB |
@@ -189,10 +190,26 @@ Compare quality and size below, then check the model on your own data.
 
 [^quality]: MTEB(eng, v2), measured on 1 November 2026 with MTEB 2.26.25. Scores are the unweighted mean over 40 of 41 English tasks, multiplied by 100. MIND was not computed. Classic-model scores use the historical benchmark recipe. SIF-10 scores use a WikiText-103 fit, whereas the linked Hub SIF-10 models use wordfreq weights and a FineWeb fit. See each Hub card for that version's own results. Sizes refer to float32 fse files. [Quality results and file sizes](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/21ebf1f7839cc2db91594d59a6de9c443657a0b6/docs/benchmarks/readme-quality.json).
 
-For multilingual retrieval with 1024 dimensions, fse also loads [`hotchpotch/bekko-static-embedding-v1`](https://huggingface.co/hotchpotch/bekko-static-embedding-v1) (MIT license).
-Its table holds 200,000 tokens with 1024 values each and is stored as float16, a 390.6 MiB file; fse keeps the float16 table.
-It is not in the quality table above, because it was not measured with the same benchmark run.
-The library comparison under [Speed first](#speed-first) includes it.
+[^bekko]: bekko-static-embedding-v1 is a multilingual model with 1024 dimensions (MIT license). Its score was measured on 7 November 2026 with MTEB 2.26.25 on the same 40 tasks, on a Mac like the other quality scores in this table. Its table holds 200,000 tokens with 1024 values each and is stored as float16; fse keeps the float16 table, so the size is that of the float16 file. The library comparison under [Speed first](#speed-first) includes it.
+
+### fse compared with transformer models
+
+Static models trade quality for speed. The table puts numbers on that trade.
+Quality is the mean over the 39 English tasks that every row completed. Throughput is measured on different hardware: fse on 32 CPU cores, the transformers on one GPU.
+
+| Model | Runs on | Quality, 39 tasks[^transformer-quality] | Sentences/s[^transformer-speed] |
+|---|---|---:|---:|
+| [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) | GPU, Sentence Transformers | 71.36 | 1,194 |
+| [`sentence-transformers/all-mpnet-base-v2`](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) | GPU, Sentence Transformers | 61.72 | 4,515 |
+| [`hotchpotch/bekko-static-embedding-v1`](https://huggingface.co/hotchpotch/bekko-static-embedding-v1) | CPU, fse | 56.91 | 2,893,536 |
+| [`minishlab/potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) | CPU, fse | 54.21 | 6,932,525 |
+| [`sentence-transformers/static-retrieval-mrl-en-v1`](https://huggingface.co/sentence-transformers/static-retrieval-mrl-en-v1) | CPU, fse | 51.87 | 2,252,066 |
+
+On the GPU, [`all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) reached 6,282 sentences/s and [`bge-small-en-v1.5`](https://huggingface.co/BAAI/bge-small-en-v1.5) 5,611. Their quality was not measured, so they have no row.
+
+[^transformer-quality]: MTEB(eng, v2) with MTEB 2.26.25, unweighted mean of the main scores over 39 tasks, multiplied by 100. MIND is missing for every row, and Touche2020-v3 for Qwen3-Embedding-0.6B (GPU out of memory), so both are left out for all rows. That is why the static scores differ slightly from the 40-task table above. The transformers ran on an NVIDIA RTX 6000 Ada Generation in float32 on 13 November 2026. Qwen3-Embedding-0.6B's TRECCOVID score comes from a rerun on an NVIDIA A40 with an 8192-token limit. The static models ran on a Mac. [Scores per task](docs/benchmarks/readme-transformers.json).
+
+[^transformer-speed]: WikiText-103 sentences, about 26 words each. Transformers: one NVIDIA L40S, RunPod, 13 November 2026, Sentence Transformers `encode` with tokenization inside the timer, float16 (Qwen3-Embedding-0.6B bfloat16), batch 512 (Qwen3-Embedding-0.6B 128), median of three runs. fse: AWS m8a.8xlarge (AMD EPYC 9R45, 32 vCPU), 16 workers, normalized float32 output, 14 November 2026, from the 16-worker table under [Speed first](#speed-first). The two sides run on different hardware, so the table shows their rates side by side and computes no speedup.
 
 Start with float32. Try float16 or int8 when memory matters, then check quality again.
 
