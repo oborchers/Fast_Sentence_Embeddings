@@ -184,8 +184,10 @@ class ScoreStore(MemberReaders):
         multilabel output keeps shape ``(n, k)``, including k = 1. What a
         head can give follows from what it stored (see ``fse._scores._predict``); anything
         else raises before a row is read. ``thresholds`` maps multilabel head names to
-        new cutoffs (a partial mapping keeps the stored cutoffs of the labels it does not
-        name; None resets to 0.5); no model, encoder or tokenizer is loaded. Raises
+        new cutoffs; the default None keeps the stored cutoffs of every head. For one head,
+        a partial mapping keeps the stored cutoffs of the labels it does not name, a scalar
+        or vector replaces all, and None (``{"head": None}``) resets all to 0.5. No model,
+        encoder or tokenizer is loaded. Raises
         ``RuntimeError`` for the next block after ``close``, also before the first."""
         shards = self._snapshot()
         name = self._backend if backend is None else backend
