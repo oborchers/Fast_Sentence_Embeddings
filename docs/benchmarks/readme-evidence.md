@@ -117,6 +117,30 @@ It pins the compact quality source and archived source records through their SHA
 Historical SIF-10 benchmark scores use the WikiText-103 fit. Linked Hub SIF-10 models use wordfreq weights and a FineWeb fit.
 Those model versions have separate results on their cards. File size is not process memory.
 
+The bekko-static-embedding-v1 row (revision `c18167b8f244c1bc6de21ce9b710bac8a29c4615`, 1024 dimensions, float16 table) comes from the local quality run of 7 November 2026 (`eval-bekko-1024`, MTEB 2.26.25, the same 40 tasks, all 106 cells valid). Its cells file has SHA256 `be6e581f551589394a654b96485abe3fb381c50bd66633cb5dbac2839deba4f1`.
+The other quality scores in the table were also computed on a Mac (Apple silicon), as their source records state. Quality scores are not speed numbers; the Linux rule for published speed does not apply to them.
+The displayed size of bekko is its float16 file, because fse keeps the float16 table.
+
+## Transformer comparison
+
+[readme-transformers.json](readme-transformers.json) holds every score and rate of the table "fse compared with transformer models", with the score of each task.
+
+Quality uses MTEB(eng, v2) with MTEB 2.26.25. A mean is only comparable over the same tasks, so every row is averaged over the 39 tasks that all rows completed:
+MindSmallReranking is missing for every row (memory limit, see above), and Touche2020Retrieval.v3 is missing for Qwen3-Embedding-0.6B (CUDA out of memory on the first run; the rerun reached its work deadline).
+For the static rows these 39-task means differ from the 40-task means of the quality table by at most 0.26 points.
+
+- all-mpnet-base-v2 and Qwen3-Embedding-0.6B ran with Sentence Transformers on an NVIDIA RTX 6000 Ada Generation in float32, batch 32 and batch 8, on 13 November 2026. Cells file SHA256 `ef01700b037fa96387adbe1ade5ddfc930abcc01c06ed979510bdbb210484de3`.
+- Qwen3-Embedding-0.6B's TRECCOVID failed there with CUDA out of memory. Its score comes from the rerun on an NVIDIA A40 with an 8192-token limit and batch 1. Cells file SHA256 `fbea66850b58953486874bdb47faa1199c81a5b8cc98e4c28674602e0ddf9cd2`. That rerun also scored three other tasks with the limit; the table keeps their first-run scores without a limit. Oliver approved mixing the two runs on 14 November 2026.
+- all-MiniLM-L6-v2 and bge-small-en-v1.5 have no quality run. They appear only with their GPU rate.
+
+GPU throughput comes from one RunPod Secure allocation (pod `fse-gpu-speed3`) with an NVIDIA L40S and 16 vCPU (host AMD EPYC 9374F) on 15 November 2026, cells file SHA256 `28624b93ea31cf9b3ab2b0cfc0620a702d57fc433cc5d26b698ff2a2639aa057`.
+The collected results without output vectors are the [GPU speed archive](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/49442796451730b48d67cca74f72b36f18a66014/archives/gpu-speed-2026-11-15.tar.gz) on `benchmark-evidence-2.1`, SHA256 `92b7eee84507a17d457ab1024fcc0e18522136011406dd4aa1fec3314148718e`.
+Each model encoded sampled and shuffled WikiText-103 sentences (about 25.6 words each: 500,000 for MiniLM and bge-small, 200,000 for mpnet, 100,000 for Qwen3) with Sentence Transformers `encode(convert_to_numpy=True)` in one process with eight CPU threads for tokenization (`cpu_threads` 8, DR-424).
+Tokenization and the float32 output cast are inside the timer, `torch.cuda.synchronize()` brackets it, and each of three repetitions follows a full warmup. The rate is the median texts/s; every call lasted at least two seconds.
+An earlier run on 13 November 2026 pinned the process to one CPU core, so tokenization limited the small models. Its rates are not shown.
+The fse rates are the 16-worker rows of the library comparison on AWS m8a.8xlarge (see above).
+CPU and GPU rates come from different hardware, so no speedup is derived from them.
+
 ## Example verification
 
 Run the displayed Python examples unchanged with the documented dependencies and real models. Each README section is one run in its own working directory; the examples of "Linear heads" build on each other and share one directory and one interpreter. The examples run against fse 2.1, installed with `pip install "fse>=2.1"`.
