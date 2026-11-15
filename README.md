@@ -35,7 +35,7 @@ Several heads share one encoding pass, and a classifier can be folded into the w
 
 [^billion] One billion: 1 billion WikiText sentences embedded and written as int8 to local NVMe in 217.38 seconds. POTION-8M with a float32 table, 16 workers, AWS m8id.8xlarge (Intel Xeon 6975P-C, 32 vCPU), 14 November 2026.
 
-How we measured: [Embed (fse 2.0)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a77a732043ec89a40dd52fe97d7a48b5de034179/docs/benchmarks/readme-evidence.md), [Classify and one billion (fse 2.1)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/docs/benchmarks/readme-evidence.md#large-runs-m8id8xlarge)
+How we measured: [Embed (fse 2.0)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/a77a732043ec89a40dd52fe97d7a48b5de034179/docs/benchmarks/readme-evidence.md), [Classify and one billion (fse 2.1)](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/05c9c1dcc004ed125b53f156f0837dfb17f73d1d/docs/benchmarks/readme-evidence.md#large-runs-m8id8xlarge)
 
 [^headline]: Median of three runs. On the same machine, 32 workers took 16.75 seconds, so we use 16 workers here.
 [^classify]: Median of three runs. The labels are `toxicity` and `insult`. Predicting probabilities took 5.71 seconds.
