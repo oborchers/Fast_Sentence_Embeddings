@@ -359,10 +359,11 @@
     }
   ],
   "gpu_throughput": {
-    "machine": "NVIDIA L40S, host AMD EPYC 9354, RunPod, 13 November 2026",
-    "source": "gpu-speed-02, gpu-measure-results/cells.jsonl",
-    "source_cells_sha256": "2e2f2ececb24064712fe4bb0a442ace1e0946a1d2e8e912b6a991390fce5e764",
-    "protocol": "Sentence Transformers encode(convert_to_numpy=True) in one process, tokenization and the float32 output cast inside the timer, torch.cuda.synchronize around the timer, three repetitions after a full warmup; median texts/s",
+    "machine": "NVIDIA L40S, 16 vCPU (host AMD EPYC 9374F), RunPod Secure pod fse-gpu-speed3, 15 November 2026",
+    "source": "gpu-speed-03, gpu-measure-results/cells.jsonl (DR-424)",
+    "source_cells_sha256": "28624b93ea31cf9b3ab2b0cfc0620a702d57fc433cc5d26b698ff2a2639aa057",
+    "evidence_archive": "benchmark-evidence-2.1 commit 49442796451730b48d67cca74f72b36f18a66014, archives/gpu-speed-2026-11-15.tar.gz, SHA256 92b7eee84507a17d457ab1024fcc0e18522136011406dd4aa1fec3314148718e",
+    "protocol": "Sentence Transformers encode(convert_to_numpy=True) in one process with eight CPU threads for tokenization (cpu_threads 8), tokenization and the float32 output cast inside the timer, torch.cuda.synchronize around the timer, three repetitions after a full warmup; median texts/s",
     "input": "sampled and shuffled WikiText-103 sentences, about 25.6 words each",
     "rows": [
       {
@@ -371,7 +372,7 @@
         "torch_dtype": "float16",
         "batch_size": 512,
         "max_seq_length": 256,
-        "texts_per_second_median": 6282.318838692978,
+        "texts_per_second_median": 13925.38894487907,
         "quality": "not measured"
       },
       {
@@ -380,7 +381,7 @@
         "torch_dtype": "float16",
         "batch_size": 512,
         "max_seq_length": 512,
-        "texts_per_second_median": 5610.858479525423,
+        "texts_per_second_median": 11696.000998251151,
         "quality": "not measured"
       },
       {
@@ -389,7 +390,7 @@
         "torch_dtype": "float16",
         "batch_size": 512,
         "max_seq_length": 384,
-        "texts_per_second_median": 4515.067977642598
+        "texts_per_second_median": 6684.816715922556
       },
       {
         "model": "Qwen/Qwen3-Embedding-0.6B",
@@ -397,7 +398,7 @@
         "torch_dtype": "bfloat16",
         "batch_size": 128,
         "max_seq_length": 512,
-        "texts_per_second_median": 1193.9601703176065
+        "texts_per_second_median": 1351.4415504524686
       }
     ]
   },

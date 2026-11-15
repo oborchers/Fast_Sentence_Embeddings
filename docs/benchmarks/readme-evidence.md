@@ -133,9 +133,11 @@ For the static rows these 39-task means differ from the 40-task means of the qua
 - Qwen3-Embedding-0.6B's TRECCOVID failed there with CUDA out of memory. Its score comes from the rerun on an NVIDIA A40 with an 8192-token limit and batch 1. Cells file SHA256 `fbea66850b58953486874bdb47faa1199c81a5b8cc98e4c28674602e0ddf9cd2`. That rerun also scored three other tasks with the limit; the table keeps their first-run scores without a limit. Oliver approved mixing the two runs on 14 November 2026.
 - all-MiniLM-L6-v2 and bge-small-en-v1.5 have no quality run. They appear only with their GPU rate.
 
-GPU throughput comes from one RunPod allocation with an NVIDIA L40S (host AMD EPYC 9354) on 13 November 2026, cells file SHA256 `2e2f2ececb24064712fe4bb0a442ace1e0946a1d2e8e912b6a991390fce5e764`.
-Each model encoded sampled and shuffled WikiText-103 sentences (about 25.6 words each: 500,000 for MiniLM and bge-small, 200,000 for mpnet, 100,000 for Qwen3) with Sentence Transformers `encode(convert_to_numpy=True)` in one process.
+GPU throughput comes from one RunPod Secure allocation (pod `fse-gpu-speed3`) with an NVIDIA L40S and 16 vCPU (host AMD EPYC 9374F) on 15 November 2026, cells file SHA256 `28624b93ea31cf9b3ab2b0cfc0620a702d57fc433cc5d26b698ff2a2639aa057`.
+The collected results without output vectors are the [GPU speed archive](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/49442796451730b48d67cca74f72b36f18a66014/archives/gpu-speed-2026-11-15.tar.gz) on `benchmark-evidence-2.1`, SHA256 `92b7eee84507a17d457ab1024fcc0e18522136011406dd4aa1fec3314148718e`.
+Each model encoded sampled and shuffled WikiText-103 sentences (about 25.6 words each: 500,000 for MiniLM and bge-small, 200,000 for mpnet, 100,000 for Qwen3) with Sentence Transformers `encode(convert_to_numpy=True)` in one process with eight CPU threads for tokenization (`cpu_threads` 8, DR-424).
 Tokenization and the float32 output cast are inside the timer, `torch.cuda.synchronize()` brackets it, and each of three repetitions follows a full warmup. The rate is the median texts/s; every call lasted at least two seconds.
+An earlier run on 13 November 2026 pinned the process to one CPU core, so tokenization limited the small models. Its rates are not shown.
 The fse rates are the 16-worker rows of the library comparison on AWS m8a.8xlarge (see above).
 CPU and GPU rates come from different hardware, so no speedup is derived from them.
 
