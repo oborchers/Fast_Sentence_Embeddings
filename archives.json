@@ -39,7 +39,53 @@
       "sha256": "9c81b21dcd56b393e50292c188b9aa656a7ff4716cd569df6e7e6d4a6c6acad0",
       "members": 55,
       "raw_bytes": 600382
+    },
+    {
+      "path": "archives/aws-readme-2026-11-14.tar.gz",
+      "bytes": 2732863,
+      "sha256": "bf9fba1009d5e13a6915a61584c53cc718a219b4127c8cd91746d2766bf97925",
+      "members": 618,
+      "raw_bytes": 11899398,
+      "member_manifest": "aws-readme-2026-11-14/member-manifest.json",
+      "release": "2.1"
+    },
+    {
+      "path": "archives/aws-readme-profiles-2026-11-14.tar.gz",
+      "bytes": 8184576,
+      "sha256": "1e7f26664f50e718eba3cc0adb7848a8b60184f46476f04518a853db727acee6",
+      "members": 126,
+      "raw_bytes": 10616929,
+      "member_manifest": "aws-readme-profiles-2026-11-14/member-manifest.json",
+      "release": "2.1"
+    },
+    {
+      "path": "archives/aws-st16-rerun-2026-11-14.tar.gz",
+      "bytes": 335390,
+      "sha256": "c11a393f9f6d8ece44f045f012871f2b30ffb206aa75311cebecbf34193836f7",
+      "members": 280,
+      "raw_bytes": 2918315,
+      "member_manifest": "aws-st16-rerun-2026-11-14/member-manifest.json",
+      "release": "2.1"
+    },
+    {
+      "path": "archives/aws-headline-2026-11-14.tar.gz",
+      "bytes": 879426,
+      "sha256": "e629d3557ab9ff2aac5e9c7056b6182926fb045c611b793edb895358afbb2808",
+      "members": 33,
+      "raw_bytes": 2474846,
+      "member_manifest": "aws-headline-2026-11-14/member-manifest.json",
+      "release": "2.1"
+    },
+    {
+      "path": "archives/aws-headline-predict-2026-11-14.tar.gz",
+      "bytes": 205303,
+      "sha256": "c4ea4520ace22d384f5a8e6776dcb4c8291b80bbd5f2ee05037bab1ce3c6da48",
+      "members": 29,
+      "raw_bytes": 560859,
+      "member_manifest": "aws-headline-predict-2026-11-14/member-manifest.json",
+      "release": "2.1"
     }
   ],
-  "latest_speed_source_pins": "6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9"
+  "latest_speed_source_pins": "6c9fc1a5fd5f42d4b1af0e0756ef9123d493aad9",
+  "evidence_2_1": "fse 2.1 README speed studies on AWS EC2, 14 November 2026: collected results without sampled output vectors (.npz), each with a member manifest of SHA256 hashes."
 }
