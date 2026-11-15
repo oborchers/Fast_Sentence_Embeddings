@@ -46,6 +46,9 @@ def validate(cell):
         raise ValueError("CUDA attention and stage must match the fixed model contract")
     if cell.get("workers") != 1 or type(cell.get("workers")) is not int:
         raise ValueError("CUDA requires one process on one device")
+    threads = cell.get("cpu_threads")
+    if type(threads) is not int or not 1 <= threads <= 64:
+        raise ValueError("CUDA cpu_threads must be an integer from 1 to 64")
     if cell.get("gpu_phase", "measure") not in ("probe", "measure"):
         raise ValueError("gpu_phase must be probe or measure")
     for key in ("max_seq_length", "batch_size", "dimensions"):
@@ -278,8 +281,10 @@ def child(job):
             name, pinned = line.split()[0].split("==")
             if version(name) != pinned:
                 raise ValueError("installed GPU package revision differs from the lock: " + name)
-    configure(job["workers"])
-    torch.set_num_threads(1)
+    # One process on one device; tokenization and the host side of encode use cpu_threads
+    # (Sentence Transformers tokenizes each batch with the fast tokenizer, in parallel).
+    configure(job["cpu_threads"])
+    torch.set_num_threads(job["cpu_threads"])
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     torch.cuda.reset_peak_memory_stats()
@@ -360,6 +365,7 @@ def execute(job, texts, torch, identity, before):
             "telemetry_after": telemetry(),
             "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
             "workers": 1,
+            "cpu_threads": job["cpu_threads"],
             "worker_path": "cuda-single-process",
         },
     )

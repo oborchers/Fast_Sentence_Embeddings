@@ -2101,6 +2101,7 @@ Frozen prefix identities (SHA-256):
 The adapter requires exactly one CUDA device, named `NVIDIA L40S`, with at least
 44 GiB, and the locked CUDA 13.2 build. The allocation also checks the driver.
 There is no CPU fallback, precision fallback, batch reduction or retry.
+The cell runs one process on the device with `cpu_threads` (8) host threads: CPU affinity, Rayon and the parallel fast tokenizer, which Sentence Transformers calls for each batch inside the timed `encode`. Until 15 November 2026 the process was pinned to one core, and tokenization bounded the small models (DR-424); the receipt records `cpu_threads`.
 Models use the configured attention and an empty prompt (documents for Qwen3).
 MiniLM, bge-small and Qwen3 use `sdpa`. MPNet explicitly uses `eager` for both
 reference and measurement, with coordinator approval. Transformers 5.22.1
