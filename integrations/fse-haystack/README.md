@@ -1,6 +1,6 @@
 # fse-haystack
 
-Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for fse 2.1 and requires separate maintainer approval before publication.
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 was published on 2026-11-15 and requires fse 2.1.0 or newer within fse 2.
 This package lives in `integrations/fse-haystack/` in the fse repository.
 
 This package depends on fse, NumPy and `haystack-ai`. Framework dependencies never enter
@@ -46,7 +46,7 @@ for a later listing. No listing is submitted in this preparation.
 The supported framework minimum for version 0.2.0 is `haystack-ai==3.4.1`, the tested lower bound
 release checked on 2026-11-01 from [PyPI](https://pypi.org/project/haystack-ai/3.4.1/).
 This is our tested minimum and makes no compatibility claim for older framework releases.
-The runtime dependency allows later versions. Recheck compatibility before publication.
+The runtime dependency allows later versions. Recheck compatibility before the next publication.
 
 The implementation follows the [official integration guide](https://docs.haystack.deepset.ai/docs/custom-components).
 
@@ -117,9 +117,9 @@ using Codex. Validation uses offline vector parity, framework API tests and the
 real-model retrieval example. The maintainer remains responsible for review and maintenance.
 Publication and framework listing submissions require a separate maintainer decision.
 
-## Version 0.2.0 preparation
+## Version 0.2.0
 
-Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 was published on 2026-11-15 and
 requires `fse>=2.1.0,<3`. fse 2.1.0 was published on 2026-11-15. An unconstrained
 resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
 while requesting adapter 0.2.0 produces a dependency conflict.

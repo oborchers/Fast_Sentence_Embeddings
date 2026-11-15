@@ -2,9 +2,8 @@
 
 The packages live in this repository under `integrations/`. Each package has
 independent build metadata, tests, MIT license and documentation. fse core gains
-no framework dependency. Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is prepared for publication; fse 2.1.0, which it requires, was published on 2026-11-15.
+no framework dependency. Version 0.1.0 was published on 2026-11-02. Version 0.2.0 was published on 2026-11-15 and requires fse 2.1.0, published the same day.
 Publication and framework listing submissions require separate maintainer approval.
-This work can merge before publication.
 
 | Package | Interface | Runtime dependencies |
 |---|---|---|
@@ -64,9 +63,9 @@ Sources: [PyPI pending publishers](https://docs.pypi.org/trusted-publishers/crea
 and [GitHub environment protections](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
 checked 2026-11-01.
 
-## Version 0.2.0 preparation
+## Version 0.2.0
 
-Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
+Version 0.1.0 was published on 2026-11-02. Version 0.2.0 was published on 2026-11-15 and
 requires `fse>=2.1.0,<3`. fse 2.1.0 was published on 2026-11-15. An unconstrained
 resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
 while requesting adapter 0.2.0 produces a dependency conflict.
