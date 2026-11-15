@@ -95,7 +95,9 @@ The version override labels the development checkout for dependency resolution.
 It does not create a tag, release or published package.
 
 The declared requirement is `fse>=2.1.0`. The version override tests the local
-unreleased checkout without weakening the published dependency.
+fse checkout, including unreleased core changes, without weakening the published
+dependency. To test against the released core instead, install `fse==2.1.0`
+in place of `-e '../..'`.
 The network test downloads `minishlab/potion-base-8M`. Offline tests build a tiny
 local encoder with `Encoder.from_arrays` and compare vectors with fse directly.
 Tests disable Python network sockets by default and enable them for the marked
@@ -103,8 +105,8 @@ network test. No model upload or paid service is needed.
 
 ## CI and release
 
-The isolated CI job tests Python 3.11 with the minimum framework and Python 3.13
-with the latest framework. Network tests and the real-model retrieval example
+The isolated CI job tests Python 3.11 with the minimum framework and `fse==2.1.0`
+from PyPI, and Python 3.13 with the latest framework and the fse checkout. Network tests and the real-model retrieval example
 run only when requested locally. See [release setup](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/master/integrations/README.md#release-setup)
 for the package tag, approval environment and pending PyPI publisher.
 
@@ -118,15 +120,15 @@ Publication and framework listing submissions require a separate maintainer deci
 ## Version 0.2.0 preparation
 
 Version 0.1.0 was published on 2026-11-02. Version 0.2.0 is unreleased and
-requires `fse>=2.1.0,<3`. Until fse 2.1.0 is published, test this source against
-the local checkout with the documented version override. An unconstrained
+requires `fse>=2.1.0,<3`. fse 2.1.0 was published on 2026-11-15. An unconstrained
 resolver may upgrade fse to 2.1 and select adapter 0.2.0. Pinning fse to 2.0.x
 while requesting adapter 0.2.0 produces a dependency conflict.
 
-Release fse 2.1.0 first. Before any adapter 0.2.0 tag, test all three adapters
-against `fse==2.1.0` installed from PyPI, then permanently pin that version in
-the minimum CI job. Only then publish each adapter with separate maintainer
-approval. Package changelogs are handwritten, independent of root towncrier.
+On 2026-11-15 all three adapters passed their offline tests, build checks and
+real-model examples against `fse==2.1.0` installed from PyPI. The minimum CI job
+now installs that version from PyPI. The latest job keeps testing the fse
+checkout, so core changes still reach every adapter. Publish each adapter only
+with separate maintainer approval. Package changelogs are handwritten, independent of root towncrier.
 
 Configuration validation belongs to each adapter. Invalid types raise
 `TypeError`; invalid values raise `ValueError`. Invalid `workers` always raise
