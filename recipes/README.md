@@ -26,6 +26,7 @@ A vector is a list of numbers that represents a text.
 | | [**Rerank candidates**](11-reranker-candidates.ipynb). Let fse find 100 candidates, then let a local cross-encoder of your choice put the best ones on top. | 10 min |
 | | [**Filter large text collections**](13-filter-texts.ipynb). Store scores with document IDs and change thresholds without running the encoder again. | 15 min |
 | | [**FastAPI search**](12-fastapi-search.ipynb). Answer many searches at once from one store, then from three stores on a shared drive. | 15 min |
+| | [**Near-duplicate removal with SemHash**](14-semhash-dedup.ipynb). Find texts that say the same thing, keep one of each, and use fse as the encoder. | 10 min |
 
 *Estimates for reading, excluding installation, downloads, and execution.
 The first recipe includes a large-data speed demonstration, which needs additional disk space and execution time.
@@ -89,6 +90,7 @@ fastText 0.9.3 builds from source, which requires the C++ compiler.
 Those examples use articles from the published AG News test split.
 The SIF recipe also uses GloVe and the repository's STS Benchmark files.
 The classification recipe uses SST-5 and a fixed sample of AG News.
+The SemHash recipe deduplicates the same AG News test articles with SemHash 0.5.0 and POTION-base-8M.
 The filtering recipe trains a small seven-label demonstration head on a pinned Civil Comments training sample.
 It filters separate validation rows and prints only counts and IDs, without reporting moderation quality.
 The folding recipe uses the same AG News fit/test rows to compare one raw-mean linear head before and after folding.
