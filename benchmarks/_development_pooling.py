@@ -67,6 +67,7 @@ def prepare(model, batch, job):
 
 
 def evidence(pool, batch, backend, layout):
+    """Observed arrays and ISA; capacity is derived for the default 16 KiB kernel only."""
     import numpy as np
 
     from fse._container._hash import checksum
@@ -74,6 +75,8 @@ def evidence(pool, batch, backend, layout):
 
     vectors = pool.vectors
     rows = len(np.unique(batch.tokens[batch.tokens != OOV_TOKEN]))
+    capacity = 16384 // int(vectors.strides[0])
+    tiled = backend.isa == "neon" and pool.dtype == "float32" and capacity >= 4
     return dict(
         layout=layout,
         isa=backend.isa,
@@ -81,7 +84,7 @@ def evidence(pool, batch, backend, layout):
         table_rows=len(vectors),
         table_bytes=int(vectors.nbytes),
         row_bytes=int(vectors.strides[0]),
-        tile_capacity=min(64, 16384 // int(vectors.strides[0])),
+        default_neon_tile_capacity=min(64, capacity) if tiled else None,
         table_alignment_mod128=int(vectors.ctypes.data % 128),
         weights_alignment_mod128=int(pool.weights.ctypes.data % 128),
         distinct_accessed_rows=rows,
