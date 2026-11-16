@@ -23,7 +23,20 @@ FSE_INLINE int fse_wp_ascii_refill(fse_wp_ascii_scan *s, const uint8_t *p,
                                   int64_t n, uint8_t *q) {
     int64_t k = n - s->pos;
     if (k == 0) return 0;
-    if (k > 8) k = 8;
+    if (k >= 8) {
+        uint64_t x;
+        memcpy(&x, p + s->pos, 8);
+        uint64_t bracket = x ^ (FSE_WP_ONES * '[');
+        uint64_t bad = fse_wp_unprintable8(x) |
+                       ((bracket - FSE_WP_ONES) & ~bracket & FSE_WP_HIGH);
+        if (bad) return -1;
+        s->low = fse_wp_lower8(x);
+        s->other = fse_wp_not_alnum8(s->low);
+        s->available = 8;
+        memcpy(q + s->pos, &s->low, 8);
+        return 1;
+    }
+    /* Only the final partial block needs bounded, variable-size copies. */
     uint64_t x = 0;
     memcpy(&x, p + s->pos, (size_t)k);
     uint64_t bracket = x ^ (FSE_WP_ONES * '[');
