@@ -46,13 +46,17 @@ def operation(model, texts, job):
     from _development_encode import output_identity
 
     check(job.get("wall_deadline"))
+    if job.get("runtime_phased_memory", False):
+        from _development_runtime_memory import check_limits
+
+        check_limits(model)
     dtype = job["output_dtype"]
-    codes = np.empty((len(texts), model.output_dim), dtype=dtype)
-    scales = np.empty(len(texts), dtype=np.float32) if dtype == "int8" else None
     check(job.get("wall_deadline"))
     reference = model.encode(texts, workers=job["workers"], dtype=dtype)
     expected = output_identity(reference)
     del reference
+    codes = np.empty((len(texts), model.output_dim), dtype=dtype)
+    scales = np.empty(len(texts), dtype=np.float32) if dtype == "int8" else None
     mode = job.get("lengths", "none")
     options = keywords(mode)
     reports = []

@@ -116,7 +116,7 @@ def _call(operation, job, phase, number, waiting):
     proof = output_proof(job, output)
     del output
     gc.collect()
-    return seconds, proof, including_open, before, after
+    return seconds, proof, including_open, before, after, repeated
 
 
 def _head_spec(job):
@@ -139,6 +139,7 @@ def measure(job):
     factories = {
         "tokenizer": lambda: tokenizer(model, texts, job),
         "pooling": lambda: pooling(model, job),
+        "encode-allocate": lambda: encode_operation(model, texts, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),
         "encode-calls": lambda: encode_operation(model, texts, job),
@@ -158,6 +159,9 @@ def measure(job):
     with context as operation:
         check(job.get("wall_deadline"))
         result = _measured(operation, job, waiting, policy, resource)
+        runtime_evidence = getattr(operation, "evidence", None)
+        if runtime_evidence is not None:
+            result["runtime_evidence"] = _runtime_evidence(runtime_evidence, result["output"])
         evidence = path_evidence(operation, job)  # one untimed call after the measurement
         return result if evidence is None else {**result, "path_evidence": evidence}
 
@@ -165,13 +169,15 @@ def measure(job):
 def _measured(operation, job, waiting, policy, resource):
     warmups, warm_seconds, expected = [], 0.0, None
     while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
-        seconds, proof, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
+        seconds, proof, _, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
         if expected is not None and proof != expected:
             raise ValueError("warmup output changed")
         expected = proof
         warmups.append(seconds)
         warm_seconds += seconds
-    seconds, proof, including_open, before, after = _call(operation, job, "measured", 0, waiting)
+    seconds, proof, including_open, before, after, repeated = _call(
+        operation, job, "measured", 0, waiting
+    )
     if proof != expected:
         raise ValueError("measured output differs from warmup")
     if job["stage"] == "encode-sink":
@@ -179,6 +185,8 @@ def _measured(operation, job, waiting, policy, resource):
     return {
         "wait_seconds": waiting[0],
         "seconds": seconds,
+        "process_cpu_seconds": repeated["process_cpu_seconds"],
+        "mean_cores": repeated["mean_cores"],
         "timer_contract": "repeated-prepared-input@1",
         "operation_repetitions": job["iterations"],
         "processed_texts": job["texts"] * job["iterations"],
@@ -209,3 +217,20 @@ def _measured(operation, job, waiting, policy, resource):
         **search_metrics(job, seconds),
         **prefilter_metrics(job),
     }
+
+
+def _runtime_evidence(observe, expected):
+    # A failed diagnostic must never erase a completed, verified timing arm.
+    try:
+        evidence = observe()
+        expected_iteration = expected.get("one_iteration", expected)
+        if evidence is not None and evidence.get("output") != expected_iteration:
+            evidence.update(valid=False, reason="diagnostic output differs from measured output")
+        return evidence
+    except Exception as error:
+        return {
+            "valid": False,
+            "diagnostic_profile": True,
+            "valid_for_comparison": False,
+            "reason": f"diagnostic: {type(error).__name__}: {error}",
+        }
