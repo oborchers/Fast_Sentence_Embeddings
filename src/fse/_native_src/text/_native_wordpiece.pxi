@@ -304,8 +304,7 @@ cdef inline Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, 
     table, and after a miss every piece is the longest token the trie reads from the root
     or from the node of the prefix, at a code-point boundary: the result of the greedy
     loop, without a lookup per shorter candidate."""
-    cdef Py_ssize_t chars = 0, k, count = 0
-    cdef int64_t start = 0, end = 0, node = 0
+    cdef Py_ssize_t chars = 0, k
     cdef uint32_t index
     if n > st.max_input_chars:
         for k in range(n):
@@ -317,6 +316,15 @@ cdef inline Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, 
     if index != NOT_FOUND:
         ids[0] = index
         return 1
+    return _wp_trie_tail(st, w, n, ids)
+
+
+cdef inline Py_ssize_t _wp_trie_tail(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                    uINT_t *ids) noexcept nogil:
+    """Greedy pieces after the word length check and a whole-word miss."""
+    cdef Py_ssize_t count = 0
+    cdef int64_t start = 0, end = 0, node = 0
+    cdef uint32_t index
     while start < n:
         index = fse_trie_longest(&st.trie, node, w, start, n, &end) if node >= 0 else FSE_TRIE_NONE
         if index == FSE_TRIE_NONE:
@@ -339,21 +347,16 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
                           uINT_t *ids, Py_ssize_t *count, Py_ssize_t *bad) noexcept nogil:
     """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once the token cut
     is reached after a whole word."""
+    if not st.generic:
+        return _wp_piece_fused(st, p, n, ws, ids, count, bad, st.max_tokens)
     cdef unsigned char *q = <unsigned char *>ws.norm.data
-    cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
-                      else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
+    cdef int64_t m = fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data)
     cdef int64_t pos = 0, start, end
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
-    if st.generic:
-        while fse_wp_next_word(q, m, &pos, &start, &end):
-            count[0] += _wp_word(st, q + start, end - start, ids + count[0])
-            if st.max_tokens and count[0] >= st.max_tokens:
-                return WP_FULL
-        return WP_GO_ON
-    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
+    while fse_wp_next_word(q, m, &pos, &start, &end):
+        count[0] += _wp_word(st, q + start, end - start, ids + count[0])
         if st.max_tokens and count[0] >= st.max_tokens:
             return WP_FULL
     return WP_GO_ON

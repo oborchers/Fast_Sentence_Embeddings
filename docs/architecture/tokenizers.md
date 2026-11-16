@@ -89,6 +89,18 @@ Input as for `fse_words@1`. Per sentence:
 5. **WordPiece** per word. A word of more than `max_input_chars_per_word` code points is `unk_id`. Otherwise the word is split from the left: the longest prefix of the rest that is a token (a piece after the first with `continuing_subword_prefix` in front), shortened one code point at a time, is the next id; if no prefix is a token at some point, the whole word is one `unk_id`.
 6. **Token cut and unknown tokens.** With `fse.max_tokens`, keep the first `max_tokens` ids of the whole sequence of steps 2 to 5 (added tokens and `unk_id` count). Every word is split whole before the cut, so a word whose split fails after the cut is one `unk_id` (vocabulary `[UNK]`, `a`, text `ab`, one token: `[UNK]`, not `a`). Then `fse.unknown=drop` removes every `unk_id`.
 
+**Native ASCII path.** Below the unchanged added-token split, the plain and length-report
+paths share one scanner. It lowercases printable ASCII in blocks of up to eight bytes,
+finds word boundaries and collects keys of up to sixteen bytes directly from those blocks.
+The vocabulary probe uses the same hash and exact key comparison. Longer words use the
+unchanged hash over the normalized buffer once their length is known, because that length
+seeds the first nonlinear hash mix. The word length limit still precedes the lookup.
+A non-printable byte, non-ASCII byte or `[` replays the whole raw piece through the
+existing normalizer and word scanner, discarding provisional IDs. The normalized buffer
+is rewritten in full, so removed controls and combining marks cannot split an open word.
+A token stop still validates the remaining raw piece. The private generic path remains
+the independent implementation of the rules above.
+
 **What the tokenizer reports (on request).** The length rule of steps 1 and 6 cuts without a word; `lengths=`, `count_truncated=` and `on_truncation=` of the methods that tokenize text make it visible (`fse.LengthReport`, [runtime.md](runtime.md), "Length reports"). A native workspace made with `watch` records, per sentence and without changing a single id or offset (the encoding is bit for bit that of a workspace without it):
 
 - `char_truncated`: the sentence has more than `max_chars` code points (a fact about the rule, also if only white space follows).

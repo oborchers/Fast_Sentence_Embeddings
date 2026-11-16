@@ -44,58 +44,21 @@ cdef inline Py_ssize_t _wp_word_w(WordPieceState st, const unsigned char *w, Py_
     return count
 
 
-cdef inline Py_ssize_t _wp_word_trie_w(WordPieceState st, const unsigned char *w, Py_ssize_t n,
-                                     uINT_t *ids) noexcept nogil:
-    """_wp_word by the trie: the code points are counted only when the word has more bytes
-    than the limit (n bytes are at most n code points); the whole word is one lookup of the
-    table, and after a miss every piece is the longest token the trie reads from the root
-    or from the node of the prefix, at a code-point boundary: the result of the greedy
-    loop, without a lookup per shorter candidate."""
-    cdef Py_ssize_t chars = 0, k, count = 0
-    cdef int64_t start = 0, end = 0, node = 0
-    cdef uint32_t index
-    if n > st.max_input_chars:
-        for k in range(n):
-            chars += (w[k] & 0xC0) != 0x80
-        if chars > st.max_input_chars:
-            ids[0] = st.unk_id
-            return 1
-    index = _vocab_lookup(&st.table.view, w, n, True)
-    if index != NOT_FOUND:
-        ids[0] = index
-        return 1
-    while start < n:
-        index = fse_trie_longest(&st.trie, node, w, start, n, &end) if node >= 0 else FSE_TRIE_NONE
-        if index == FSE_TRIE_NONE:
-            ids[0] = st.unk_id
-            return 1
-        ids[count] = index
-        count += 1
-        start = end
-        node = st.cont_root
-    return count
-
-
 cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ssize_t n, Workspace ws,
                           uINT_t *ids, Py_ssize_t *count, Py_ssize_t *bad,
                           Py_ssize_t stop_at) noexcept nogil:
     """Steps 3 to 5 for the piece p[0:n] between added tokens; WP_FULL once ``stop_at`` ids
     (0: no limit) are reached after a whole word."""
+    if not st.generic:
+        return _wp_piece_fused(st, p, n, ws, ids, count, bad, stop_at)
     cdef unsigned char *q = <unsigned char *>ws.norm.data
-    cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
-                      else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
+    cdef int64_t m = fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data)
     cdef int64_t pos = 0, start, end
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
-    if st.generic:
-        while fse_wp_next_word(q, m, &pos, &start, &end):
-            count[0] += _wp_word_w(st, q + start, end - start, ids + count[0])
-            if stop_at and count[0] >= stop_at:
-                return WP_FULL
-        return WP_GO_ON
-    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word_trie_w(st, q + start, end - start, ids + count[0])
+    while fse_wp_next_word(q, m, &pos, &start, &end):
+        count[0] += _wp_word_w(st, q + start, end - start, ids + count[0])
         if stop_at and count[0] >= stop_at:
             return WP_FULL
     return WP_GO_ON

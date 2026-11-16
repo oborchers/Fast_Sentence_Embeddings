@@ -96,6 +96,14 @@ cdef inline uINT_t _vocab_lookup(
     """Vocabulary index of the n bytes at p, or NOT_FOUND; padded as for _hash_word."""
     cdef np.uint64_t key[2]
     cdef np.uint64_t h = _hash_word(p, n, key, padded)
+    return _vocab_lookup_hashed(v, p, n, h, key)
+
+
+cdef inline uINT_t _vocab_lookup_hashed(
+    const VocabView *v, const unsigned char *p, Py_ssize_t n,
+    np.uint64_t h, const np.uint64_t *key,
+) noexcept nogil:
+    """The unchanged exact-byte probe with an already computed hash and short key."""
     cdef np.uint64_t j = h & v.mask
     cdef const VocabSlot *slot
     while True:
