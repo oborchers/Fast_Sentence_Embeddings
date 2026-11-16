@@ -3,7 +3,7 @@
 The complete [integration recipe](06-integrations.ipynb) executed on 16 November 2026
 with Python 3.13.16 on an Apple M1 Pro running macOS 27.0.1.
 It used fse 2.1.0 and version 0.2.0 of `langchain-fse`, `llama-index-embeddings-fse` and `fse-haystack`,
-all installed from PyPI (DR-434: raise the outdated version statements and adapter pins in integration recipe 06 to 2.1.0 and 0.2.0).
+all installed from PyPI (DR-434: Veraltete Versionsangaben und Adapter-Pins im Integrationsrezept 06 auf 2.1.0 und 0.2.0 heben).
 It used the real POTION-base-8M model and 100 AG News articles.
 Model and dataset revisions are pinned in [_helpers.py](_helpers.py).
 The claim class is correctness. No speed measurement was made.
