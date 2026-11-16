@@ -12,6 +12,7 @@ def repeat(operation, iterations):
     restart = getattr(operation, "restart", None)
     if restart is not None:
         restart()  # a group of calls starts at the same place of a rotating input
+    cpu_started = time.process_time()
     started = time.perf_counter()
     for _ in range(iterations):
         # Release the previous tokenizer batch before allocating another one.
@@ -23,6 +24,7 @@ def repeat(operation, iterations):
             read_seconds += output["seconds"]
             open_seconds += output["including_open_seconds"]
     elapsed = time.perf_counter() - started
+    cpu_seconds = time.process_time() - cpu_started
     if isinstance(output, dict):
         output["first_index"] = first_index
     return (
@@ -30,6 +32,8 @@ def repeat(operation, iterations):
         output,
         {
             "timer_contract": CONTRACT,
+            "process_cpu_seconds": cpu_seconds,
+            "mean_cores": cpu_seconds / elapsed,
             "operation_repetitions": iterations,
             "sink_read_to_close_seconds_sum": read_seconds if first_index is not None else None,
             "sink_including_open_seconds_sum": open_seconds if first_index is not None else None,

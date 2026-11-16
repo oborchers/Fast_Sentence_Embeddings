@@ -5,6 +5,7 @@ from __future__ import annotations
 from _development_budget import check_args
 from _development_calibrate import _active_seconds, _admit, _batch, _size
 from _development_pairs import arm, block
+from _development_runtime_summary import screen as runtime_screen
 from _development_statistics import summary
 from _harness.pressure import report
 from _harness.records import atomic
@@ -41,11 +42,14 @@ def describe(args, cell, prepared, ledger, owner, identities):
     costs = summary([r["seconds"] for r in rows])
     # Distance from one is meaningful for ratios only, never for absolute seconds.
     costs.pop("max_deviation")
+    cores = _cores(rows)
+    cores.pop("max_deviation")
     result = dict(
         status="valid",
         decision="descriptive_only",
         arm="candidate",
         seconds=costs,
+        mean_cores=cores,
         cpu_pressure=report(rows),
         repetitions=len(rows),
         iterations=row["operation_repetitions"],
@@ -53,6 +57,9 @@ def describe(args, cell, prepared, ledger, owner, identities):
         confirmation="not_run",
         valid_for_comparison=False,
     )
+    result["runtime_screen"] = runtime_screen(cell, rows, args.results)
+    if result["runtime_screen"] is not None and not result["runtime_screen"]["valid"]:
+        result["screen_status"] = "invalid"
     if args.functional:
         result["decision"] = "functional_only"
     atomic(args.results / (cell["id"] + "-descriptive.json"), result)
@@ -94,3 +101,13 @@ def regression_screen(args, cell, prepared, ledger, owner, identities):
         result.update(status="valid", decision="functional_only")
     atomic(args.results / (cell["id"] + "-regression-screen.json"), result)
     return result
+
+
+def _cores(rows):
+    values = [row.get("mean_cores") for row in rows]
+    if any(value is None for value in values):
+        raise ValueError(
+            "descriptive CPU summary requires mean_cores in every receipt; "
+            "older or reused receipts lack this metadata, run a fresh study"
+        )
+    return summary(values)

@@ -8,8 +8,14 @@ import shutil
 import time
 from pathlib import Path
 
+VERIFY_BLOCK_BYTES = 64 << 20
+
 
 def operation(model, texts, job):
+    if job["stage"] == "encode-allocate":
+        from _development_runtime import Allocating
+
+        return Allocating(model, texts, job)
     if job["stage"] == "encode-memory" and job.get("chunk_bytes") is not None:
         from _development_chunks import operation as chunk_operation
 
@@ -86,12 +92,22 @@ def output_identity(value):
     arrays = _arrays(value)
     result = {}
     for name, array in arrays.items():
-        if not np.isfinite(array).all():
+        if not _finite(array, np):
             raise ValueError("nonfinite measured output")
         result[name] = dict(
             shape=list(array.shape), dtype=array.dtype.str, checksum=checksum(array)
         )
     return result
+
+
+def _finite(array, np):
+    # Keep verification memory bounded independently of the complete output size.
+    if array.ndim == 0:
+        return bool(np.isfinite(array))
+    rows = max(1, VERIFY_BLOCK_BYTES // max(1, array[:1].nbytes))
+    return all(
+        np.isfinite(array[first : first + rows]).all() for first in range(0, len(array), rows)
+    )
 
 
 def _arrays(value):

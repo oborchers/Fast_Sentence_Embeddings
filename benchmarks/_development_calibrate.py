@@ -10,6 +10,7 @@ from _development_budget import check_args
 from _development_pairs import arm, block, job_for
 from _development_process import launch
 from _development_resources import admission
+from _development_runtime_screen import fixed_size
 from _development_search import enabled as search_cost
 from _development_system import LABEL
 from _harness.records import append, atomic, document
@@ -48,7 +49,7 @@ def _size(args, cell, prepared, ledger, owner, target, step, remaining):
         if rows[0]["output"] != rows[1]["output"]:
             raise ValueError("complete calibration outputs differ between builds")
         fastest = min(row["seconds"] for row in rows)
-        if fastest >= target * 1.25 or args.functional:
+        if fixed_size(cell, rows, args.functional) or fastest >= target * 1.25 or args.functional:
             return count, batch, iterations
         iterations = max(iterations + 1, math.ceil(iterations * target * 1.25 / fastest))
         attempt += 1

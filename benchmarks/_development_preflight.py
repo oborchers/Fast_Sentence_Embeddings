@@ -11,6 +11,7 @@ from _development_ids import mode_for
 from _development_lengths import mode_for as lengths_for
 from _development_pairs import job_for
 from _development_process import checked, launch
+from _development_runtime_screen import configure as configure_runtime
 from _development_search import configure
 from _harness.budget import check
 from _harness.records import append, document
@@ -30,6 +31,7 @@ def preflight(args, cell, prepared, ledger, owner):
         job = job_for(cell, prepared, 1, tag, owner)
         configure(job, cell, name, False)
         configure_heads(job, cell, name, False)
+        configure_runtime(job, cell, name, False)
         from _development_pooling import configure as configure_pooling
 
         configure_pooling(job, cell, name, False)

@@ -120,6 +120,13 @@ These sources motivate proportional effort, not the numeric planning suggestions
 
 ## Local Unix development
 
+The local `encode-allocate` stage calls `encode(..., sink=None)` with a fresh
+output per iteration. `encode-memory` retains its reused public Sink target.
+Optional `runtime_timeline` records a separate untimed diagnostic call. Failed
+diagnostics preserve completed timings and raw events. Local runtime study
+contracts live in `benchmarks/config/runtime-scaling-local.json`; their local
+results and decision rules belong to the study pull request.
+
 The explicit `--diagnose` mode compares installed builds on macOS, Linux and other
 Unix systems. Windows is rejected. Every local result is labelled `publishable: false`,
 including Linux results. Local speed results are development indications, never README
