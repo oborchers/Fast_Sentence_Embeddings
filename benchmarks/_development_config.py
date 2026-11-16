@@ -23,6 +23,7 @@ STAGES = (
     "encode-memory",
     "encode-allocate",
     "encode-sink",
+    "encode-calls",
     "store-search",
     "store-open",
     "source-identity",
@@ -62,6 +63,7 @@ DEFAULTS = {
     "resident_cycles": 1,
     "iterations": 1,
     "workers": 1,
+    "call_texts": 1,
     "table_dtype": "float32",
     "output_dtype": "float32",
     "order": "alternating",
@@ -89,6 +91,8 @@ DEFAULTS = {
     "practical_saving": None,
     "stop_session_on_reject": False,
     "scope": "main",
+    "base_pooling_layout": "original",
+    "candidate_pooling_layout": "original",
     "store_sizes": [65_536, 859_346],
     "queries_per_set": 256,
     "k_values": [1, 10, 100],
@@ -134,6 +138,7 @@ def validate_cell(raw, defaults):
         raise ValueError("max_per_doc must be null or 1")
     for name in (
         "workers",
+        "call_texts",
         "pairs",
         "warmup_calls",
         "max_calibration_steps",
@@ -169,6 +174,9 @@ def validate_cell(raw, defaults):
 
     validate(cell)
     validate_lengths(cell)
+    from _development_pooling import validate as validate_pooling
+
+    validate_pooling(cell)
     from _development_search import validate as validate_search
 
     validate_search(cell)
@@ -199,6 +207,7 @@ def _inputs(cell, identity):
     elif cell["model"] not in MODEL_PINS or cell["corpus"] not in (
         "stsb",
         "wikitext",
+        "wikitext-256-words",
         "wikitext-train",
         "agnews",
         *CORPORA,
@@ -233,6 +242,8 @@ def _bounds(cell):
             "decision gates require noise_multiplier >= 3, minimum_saving >= 0.02 "
             "and confirmation_fraction >= 0.5; use decision_gate=false for weaker descriptive cells"
         )
+    if cell["stage"] == "encode-calls" and cell["workers"] != 1:
+        raise ValueError("small encode calls require one worker")
     if cell["stage"] in ("tokenizer", "pooling") and cell["workers"] != 1:
         raise ValueError("isolated tokenizer and pooling calls require one worker")
     if cell["pairs"] < 3 or cell["minimum_seconds"] < 2:

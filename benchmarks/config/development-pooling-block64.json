@@ -1,0 +1,24 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen): isolated accumulator-width screens, with recorded final group counts. See pooling-block64-diagnostic.patch for the external candidate build. Preliminary evidence only.",
+  "cells": [
+    {
+      "id": "potion-8m-stsb-pooling-block64-screen",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 44,
+      "decision_gate": false
+    },
+    {
+      "id": "potion-8m-chunks256-pooling-block64-screen",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 43,
+      "decision_gate": false
+    }
+  ]
+}

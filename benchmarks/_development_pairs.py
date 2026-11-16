@@ -74,6 +74,9 @@ def arm(
     job["lengths"] = lengths_for(cell, candidate=not control and name == "candidate")
     configure(job, cell, name, control)
     configure_heads(job, cell, name, control)
+    from _development_pooling import configure as configure_pooling
+
+    configure_pooling(job, cell, name, control)
     job["cpu_affinity"] = args.cpu_affinity
     job["functional_only"] = args.functional
     job["descriptive_only"] = phase == "descriptive"

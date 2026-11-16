@@ -30,6 +30,9 @@ def preflight(args, cell, prepared, ledger, owner):
         job = job_for(cell, prepared, 1, tag, owner)
         configure(job, cell, name, False)
         configure_heads(job, cell, name, False)
+        from _development_pooling import configure as configure_pooling
+
+        configure_pooling(job, cell, name, False)
         job.update(
             action="probe",
             iterations=1,
@@ -140,7 +143,10 @@ def _pool(model, texts, job, expected_batch):
     got = pooling(model, small_job)()
     backend = NumpyBackend()
     expected = np.empty_like(got)
-    backend.rows(expected_batch, backend.prepare(model._spec.pool_input(), ()), expected)
+    from _development_pooling import prepare
+
+    pool, expected_batch = prepare(model, expected_batch, small_job)
+    backend.rows(expected_batch, backend.prepare(pool, ()), expected)
     return _equal(got, expected)
 
 

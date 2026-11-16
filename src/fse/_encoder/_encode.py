@@ -40,7 +40,7 @@ from fse._validation import (
 from . import _batches, _positions, _resume
 from ._batches import EncodedBatch, check_sink, flush, run_into
 from ._doc_ids import check_id_mode
-from ._sources import opened
+from ._sources import collection, opened
 
 
 class _Encoding:
@@ -247,10 +247,12 @@ class _Encoding:
         else:
             dtype = _codes.check_dtype("float32" if dtype is None else dtype)
             pipeline = me._pipeline(backend)
-            with opened(texts, me.tokenizer) as source:
-                result = pipeline.infer(
-                    source, workers=threads, dtype=dtype, lengths=settings, collector=collector
-                )
+            source = collection(texts, me.tokenizer)  # a list or tuple: no file to close
+            if source is None:
+                with opened(texts, me.tokenizer) as source:
+                    result = _infer(pipeline, source, threads, dtype, settings, collector)
+            else:
+                result = _infer(pipeline, source, threads, dtype, settings, collector)
         return result if collector is None else (result, collector.report())
 
     @overload
@@ -408,3 +410,9 @@ def _collector(
     if settings is None:
         return None
     return settings.collector(first_row, rule_of(encoder._spec.tokenizer))
+
+
+def _infer(pipeline: Any, source: Any, workers: Any, dtype: str, lengths: Any, collector: Any):
+    return pipeline.infer(
+        source, workers=workers, dtype=dtype, lengths=lengths, collector=collector
+    )

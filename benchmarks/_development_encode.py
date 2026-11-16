@@ -18,6 +18,10 @@ def operation(model, texts, job):
         from _development_memory import operation as memory_operation
 
         return memory_operation(model, texts, job)
+    if job["stage"] == "encode-calls":
+        from _development_calls import operation as calls_operation
+
+        return calls_operation(model, texts, job)
     from _development_ids import document_profile, values
 
     from fse import ShardSink
@@ -92,6 +96,10 @@ def output_identity(value):
 
 def _arrays(value):
     """The named arrays whose bytes identify an output."""
+    if isinstance(value, list):  # the results of small calls, joined outside the timer
+        import numpy as np
+
+        return {"vectors": np.concatenate(value)}
     if hasattr(value, "outputs"):
         arrays = {f"head:{name}": array for name, array in value.outputs.items()}
         return {**arrays, **({} if value.vectors is None else {"vectors": value.vectors})}

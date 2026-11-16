@@ -71,7 +71,7 @@ def admission(cell, prepared, count, work, requested_limit, kind):
         "utf8_and_offsets": int(count * (mean_bytes * 2 + 16)),
         "tokenizer_output": int(count * (mean_bytes * 4 + 16)),
         "output_and_copies": output * 2
-        if cell["stage"] in ("pooling", "encode-memory", "encode-allocate")
+        if cell["stage"] in ("pooling", "encode-memory", "encode-allocate", "encode-calls")
         else min(output, 64 * 1024**2),
         "workers": cell["workers"] * 64 * 1024**2,
     }
