@@ -27,11 +27,16 @@ def _same(texts, threads):
 
 
 @pytest.mark.parametrize("threads", [1, 4])
-@pytest.mark.parametrize("stage", range(1, 6))
-def test_each_failed_allocation_releases_resources_and_next_call_works(faults, threads, stage):
+@pytest.mark.parametrize(
+    ("stage", "message"),
+    [(1, "offsets"), (2, "parts"), (3, "sizing threads"), (4, "bytes"), (5, "writing threads")],
+)
+def test_each_failed_allocation_releases_resources_and_next_call_works(
+    faults, threads, stage, message
+):
     texts = ["abc é 日 𝄞"] * (4096 * threads)
     faults(fail_stage=stage)
-    with pytest.raises(MemoryError):
+    with pytest.raises(MemoryError, match=message):
         _native.join_strings(texts, threads)
     assert _native._test_join_resources() == 0
     faults()
