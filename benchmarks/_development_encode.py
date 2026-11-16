@@ -10,6 +10,10 @@ from pathlib import Path
 
 
 def operation(model, texts, job):
+    if job["stage"] == "encode-allocate":
+        from _development_runtime import Allocating
+
+        return Allocating(model, texts, job)
     if job["stage"] == "encode-memory":
         from _development_memory import operation as memory_operation
 

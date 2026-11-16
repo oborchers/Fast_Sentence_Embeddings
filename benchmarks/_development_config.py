@@ -21,6 +21,7 @@ STAGES = (
     "tokenizer",
     "pooling",
     "encode-memory",
+    "encode-allocate",
     "encode-sink",
     "store-search",
     "store-open",
@@ -38,6 +39,8 @@ STAGES = (
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
     "model": None,
+    "runtime_variant": "baseline",
+    "runtime_timeline": False,
     "source_bytes": 1024**3,
     "source_rows": 1_000_000,
     "probe_bytes": 10 * 1024**2,
@@ -183,6 +186,9 @@ def validate_cell(raw, defaults):
     from _development_functional import validate as validate_functional
 
     validate_functional(cell)
+    from _development_runtime import validate as validate_runtime
+
+    validate_runtime(cell)
     return cell
 
 

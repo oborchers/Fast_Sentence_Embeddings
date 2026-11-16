@@ -139,6 +139,7 @@ def measure(job):
     factories = {
         "tokenizer": lambda: tokenizer(model, texts, job),
         "pooling": lambda: pooling(model, job),
+        "encode-allocate": lambda: encode_operation(model, texts, job),
         "encode-memory": lambda: encode_operation(model, texts, job),
         "encode-sink": lambda: encode_operation(model, texts, job),
         "head-folded": lambda: head_operation(model, texts, job),
@@ -157,6 +158,13 @@ def measure(job):
     with context as operation:
         check(job.get("wall_deadline"))
         result = _measured(operation, job, waiting, policy, resource)
+        runtime_evidence = getattr(operation, "evidence", None)
+        if runtime_evidence is not None:
+            result["runtime_evidence"] = runtime_evidence()
+            if result["runtime_evidence"] is not None and (
+                result["runtime_evidence"]["output"] != result["output"]
+            ):
+                raise ValueError("runtime diagnostic output differs from measured output")
         evidence = path_evidence(operation, job)  # one untimed call after the measurement
         return result if evidence is None else {**result, "path_evidence": evidence}
 

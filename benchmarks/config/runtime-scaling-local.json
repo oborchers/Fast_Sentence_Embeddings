@@ -1,0 +1,190 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-442 (Wartezeiten der Laufzeit bei acht Workern messen). Local M1 descriptive profiles and preliminary one-factor screens. No keep decision and no publication evidence.",
+  "defaults": {
+    "workers": 8,
+    "table_dtype": "float32",
+    "output_dtype": "float32",
+    "decision_gate": false,
+    "iterations": 1,
+    "warmup_calls": 1
+  },
+  "cells": [
+    {
+      "id": "wikitext-baseline",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "baseline",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-joined",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "joined",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-gc-off",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "gc-off",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-window-4x",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "window-4x",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-chunk-4m",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "chunk-4m",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-chunk-256k",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "chunk-256k",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-inline-off",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_variant": "inline-off",
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-workers-10",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-allocate",
+      "resident_cycles": 128,
+      "workers": 10,
+      "runtime_timeline": true
+    },
+    {
+      "id": "wikitext-reused-target",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-memory",
+      "resident_cycles": 128,
+      "workers": 8,
+      "runtime_timeline": false
+    },
+    {
+      "id": "stsb-baseline",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "baseline",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-joined",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "joined",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-gc-off",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "gc-off",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-window-4x",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "window-4x",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-chunk-4m",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "chunk-4m",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-chunk-256k",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "chunk-256k",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-inline-off",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_variant": "inline-off",
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-workers-10",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-allocate",
+      "resident_cycles": 512,
+      "workers": 10,
+      "runtime_timeline": true
+    },
+    {
+      "id": "stsb-reused-target",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory",
+      "resident_cycles": 512,
+      "workers": 8,
+      "runtime_timeline": false
+    }
+  ]
+}
