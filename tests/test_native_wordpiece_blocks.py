@@ -34,13 +34,24 @@ def boundary_cases() -> list[str]:
         "a" * 64 + " b",
         "a" * 63 + "!",
         "a" * 65,
-        "a" * 63 + "σb",
+        "a" * 63 + "\u03c3b",
         "a" * 62 + "€b",
         "!" * 63 + " " + "!!",
         "!" * 62 + "  " + "!a\u2014",
     ]
     for n in (*range(61, 67), *range(125, 131), 191, 192, 193, 255, 256, 257):
-        for ch in ("!", " ", "σ", "€", "😀", "\u00a0", "\u3000", "\u00a1", "\u2014", "\U00010100"):
+        for ch in (
+            "!",
+            " ",
+            "\u03c3",
+            "€",
+            "😀",
+            "\u00a0",
+            "\u3000",
+            "\u00a1",
+            "\u2014",
+            "\U00010100",
+        ):
             cases += ["a" * n + ch + "b", "!" * n + "a" + ch, ch + "a" * n]
     return cases
 
@@ -48,8 +59,9 @@ def boundary_cases() -> list[str]:
 def fuzz_texts(seed: int, count: int = 4000) -> list[str]:
     rng = random.Random(seed)
     # Every class at every available UTF-8 width. Unicode has no four-byte whitespace.
-    alphabet = list("abZ09  ![~") + [
-        "σ",
+    alphabet = [
+        *"abZ09  ![~",
+        "\u03c3",
         "€",
         "😀",
         "\u00a0",
