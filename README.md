@@ -5,7 +5,7 @@
 </picture>
 </p>
 
-<h2 align="center"><strong>The fastest inference engine for static embeddings on the planet*</strong></h2>
+<h2 align="center"><strong>The fastest embedding and classification library on the planet*</strong></h2>
 <p align="center"><sub>* That's our goal, at least.</sub></p>
 
 <p align="center">
