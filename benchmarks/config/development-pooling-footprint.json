@@ -1,0 +1,24 @@
+{
+  "format": "local-development-v2",
+  "description": "Synthetic locality controls for DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen). Preliminary regression screens only.",
+  "cells": [
+    {
+      "id": "potion-8m-stsb-footprint",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "base_pooling_layout": "footprint-wide",
+      "candidate_pooling_layout": "footprint-compact",
+      "decision_gate": false
+    },
+    {
+      "id": "potion-8m-chunks256-footprint",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling",
+      "base_pooling_layout": "footprint-wide",
+      "candidate_pooling_layout": "footprint-compact",
+      "decision_gate": false
+    }
+  ]
+}

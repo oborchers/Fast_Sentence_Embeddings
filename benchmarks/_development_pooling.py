@@ -1,0 +1,82 @@
+"""Controlled pooling layouts for local working-set attribution, outside every timer."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+LAYOUTS = ("original", "footprint-wide", "footprint-compact")
+
+
+def validate(cell):
+    for name in ("base_pooling_layout", "candidate_pooling_layout"):
+        if cell[name] not in LAYOUTS:
+            raise ValueError("unknown pooling layout")
+        if cell[name] != "original" and (
+            cell["stage"] != "pooling" or cell["table_dtype"] != "float32"
+        ):
+            raise ValueError("footprint layouts require float32 pooling")
+
+
+def configure(job, cell, name, control):
+    arm = "base" if control or name == "base" else "candidate"
+    job["pooling_layout"] = cell[f"{arm}_pooling_layout"]
+
+
+def prepare(model, batch, job):
+    """Repeat the same numeric rows in a wide table, or remap to its compact source.
+
+    Both arms contribute identical values and weights in identical order. Dimension,
+    row stride, tile capacity, output size and prefetch instruction count stay fixed.
+    This is a synthetic locality control, not the unchanged model's workload.
+    """
+    import numpy as np
+
+    from fse._contract import OOV_TOKEN
+
+    pool = model._spec.pool_input()
+    layout = job.get("pooling_layout", "original")
+    if layout == "original":
+        return pool, batch
+    if pool.dtype != "float32" or pool.fasttext or job["stage"] != "pooling":
+        raise ValueError("footprint control requires float32 pooling without FastText")
+    rows = len(pool.vectors)
+    compact_rows = max(1, rows // 4)
+    source = np.arange(rows, dtype=np.uint32) % compact_rows
+    valid = batch.tokens != OOV_TOKEN
+    tokens = batch.tokens.copy()
+    if layout == "footprint-wide":
+        vectors = np.ascontiguousarray(pool.vectors[source])
+        weights = np.ascontiguousarray(pool.weights[source])
+    elif layout == "footprint-compact":
+        vectors = np.array(pool.vectors[:compact_rows], copy=True, order="C")
+        weights = np.array(pool.weights[:compact_rows], copy=True, order="C")
+        tokens[valid] %= compact_rows
+    else:
+        raise ValueError("unknown pooling layout")
+    return replace(pool, vectors=vectors, weights=weights), replace(batch, tokens=tokens)
+
+
+def evidence(pool, batch, backend, layout):
+    import numpy as np
+
+    from fse._container._hash import checksum
+    from fse._contract import OOV_TOKEN
+
+    vectors = pool.vectors
+    rows = len(np.unique(batch.tokens[batch.tokens != OOV_TOKEN]))
+    return dict(
+        layout=layout,
+        isa=backend.isa,
+        dimension=pool.dim,
+        table_rows=len(vectors),
+        table_bytes=int(vectors.nbytes),
+        row_bytes=int(vectors.strides[0]),
+        tile_capacity=min(64, 16384 // int(vectors.strides[0])),
+        table_alignment_mod128=int(vectors.ctypes.data % 128),
+        distinct_accessed_rows=rows,
+        accessed_row_bytes=rows * int(vectors.strides[0]),
+        weights_all_one=bool(np.all(pool.weights == np.float32(1))),
+        vectors_xxh3=checksum(vectors),
+        weights_xxh3=checksum(pool.weights),
+        tokens_xxh3=checksum(batch.tokens),
+    )
