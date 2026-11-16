@@ -328,6 +328,19 @@ and Spearman additionally compare exact little-endian float64 bits on each split
 The first difference stops further cells. Scores are confirmation data, not new
 published benchmark values. Quality and stage-specific correctness precede speed.
 
+For an explicitly approved Linux fixed-input study, `single_operation: true` freezes
+`iterations: 1` and a single two-second calibration tier (`target_seconds`,
+`minimum_seconds` and `max_target_seconds` all two, `max_calibration_steps` one).
+It supports ordinary `encode-memory` and `text-join`, records `operation_seconds`
+for every sizing, warmup and measured operation, and rejects any production operation
+below two seconds without regrouping or resizing. Full independent A/A tuning and
+validation, fifteen pairs, warmups totaling twelve seconds, comparison and confirmation
+still apply. Noisy controls remain inconclusive rather than increasing repetitions.
+The ordinary eight-worker float32 `encode-memory` adapter can use
+`runtime_phased_memory: true` without `runtime_paired`; this changes only admission,
+never substitutes an allocating runtime arm or enables a diagnostic patch.
+Functional probes bypass duration validity and supply no timing evidence.
+
 `FSE_BENCH_LOCK` and `FSE_HEAVY_LOCK` configure shared mkdir locks across worktrees.
 Defaults share a user-specific temporary directory. Each acquisition checks the peer
 before and after mkdir. Never take over an existing owner, even if its PID disappeared.

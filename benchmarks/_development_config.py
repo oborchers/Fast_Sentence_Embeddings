@@ -69,6 +69,7 @@ DEFAULTS = {
     "k": 10,
     "resident_cycles": 1,
     "iterations": 1,
+    "single_operation": False,
     "workers": 1,
     "call_texts": 1,
     "table_dtype": "float32",

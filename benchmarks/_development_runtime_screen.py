@@ -4,6 +4,7 @@ from __future__ import annotations
 
 
 def validate(cell):
+    _single_operation(cell)
     if type(cell.get("runtime_phased_memory", False)) is not bool:
         raise ValueError("runtime_phased_memory must be boolean")
     if type(cell.get("runtime_paired", False)) is not bool:
@@ -26,11 +27,40 @@ def validate(cell):
 def _memory_profile(cell):
     if not cell.get("runtime_phased_memory", False):
         return
-    if not cell.get("runtime_paired", False):
-        raise ValueError("runtime_phased_memory requires the paired runtime study")
+    if not cell.get("runtime_paired", False) and not (
+        cell["stage"] == "encode-memory"
+        and cell.get("single_operation", False)
+        and cell["runtime_variant"] == "baseline"
+        and not cell["runtime_timeline"]
+        and cell["workers"] == 8
+        and cell["table_dtype"] == cell["output_dtype"] == "float32"
+        and cell["chunk_bytes"] is None
+        and cell["base_doc_ids"] == cell["candidate_doc_ids"] == "none"
+    ):
+        raise ValueError("phased memory requires a runtime screen or ordinary single encode")
     if cell["profile"] != "standard@1" or cell["candidate_lengths"] != "none":
         raise ValueError(
             "phased runtime memory requires the standard profile without length reports"
+        )
+
+
+def _single_operation(cell):
+    if type(cell.get("single_operation", False)) is not bool:
+        raise ValueError("single_operation must be boolean")
+    if not cell.get("single_operation", False):
+        return
+    if (
+        cell["stage"] not in ("encode-memory", "text-join")
+        or cell["iterations"] != 1
+        or cell["max_calibration_steps"] != 1
+        or cell["minimum_seconds"] != 2
+        or cell["target_seconds"] != 2
+        or cell["max_target_seconds"] != 2
+        or cell["runtime_paired"]
+    ):
+        raise ValueError(
+            "single_operation requires ordinary encode-memory or text-join, one iteration, "
+            "one frozen two-second calibration tier and no runtime-paired substitution"
         )
 
 
@@ -69,7 +99,7 @@ def compare(cell, rows):
 
 
 def fixed_size(cell, rows, functional):
-    if not cell.get("runtime_paired", False):
+    if not (cell.get("runtime_paired", False) or cell.get("single_operation", False)):
         return False
     if not functional and any(row["seconds_per_iteration"] < 2 for row in rows):
         raise ValueError(

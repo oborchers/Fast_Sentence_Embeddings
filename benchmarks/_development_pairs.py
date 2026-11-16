@@ -184,6 +184,12 @@ def _validate(row, name, identities, control, cell, functional):
     expected = identities[0] if control or name == "base" else identities[1]
     if row["identity"] != expected:
         raise ValueError("build identity differs from the full quality gate")
+    if not functional and cell.get("single_operation", False):
+        durations = row.get("operation_seconds", [])
+        if row["operation_repetitions"] != 1 or len(durations) != 1 or durations[0] < 2:
+            raise ValueError(
+                "fixed single-operation duration proof is missing or below two seconds"
+            )
     if not functional and cell.get("runtime_paired", False) and row["seconds_per_iteration"] < 2:
         raise ValueError("runtime screen requires each individual encode call to last two seconds")
     if not functional and row["seconds"] < max(cell["minimum_seconds"], cell["target_seconds"]):
