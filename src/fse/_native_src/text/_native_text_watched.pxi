@@ -92,6 +92,8 @@ cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ss
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
+    if m == 0:
+        return WP_GO_ON
     if st.generic:
         while fse_wp_next_word(q, m, &pos, &start, &end):
             count[0] += _wp_word_w(st, q + start, end - start, ids + count[0])
