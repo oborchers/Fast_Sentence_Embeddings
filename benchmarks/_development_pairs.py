@@ -16,12 +16,13 @@ from _development_runtime_screen import configure as configure_runtime
 from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
+from _development_wordpiece import model_key
 from _harness.records import append
 from _quality.prefilter_inputs import corpus_names
 
 
 def job_for(cell, prepared, count, tag, owner, batch=None):
-    model = prepared["models"][cell["model"]]
+    model = prepared["models"][model_key(cell)]
     return {
         **cell,
         "action": "measure",

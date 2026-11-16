@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from _development_system import machine, source_identity
+from _development_wordpiece import model_key
 from _harness.decide import evaluate_study as evaluate
 from _harness.records import document, exit_code, read_rows, sha256
 
@@ -15,7 +16,7 @@ def context(cell, prepared, identities):
     here = Path(__file__).parent
     return {
         "cell": cell,
-        "models": prepared["models"][cell["model"]],
+        "models": prepared["models"][model_key(cell)],
         "corpus": prepared["corpora"][cell["corpus"]],
         "identities": identities,
         "machine": machine(),

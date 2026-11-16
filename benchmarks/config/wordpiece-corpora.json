@@ -1,0 +1,10 @@
+{
+  "massive": {
+    "repo": "mteb/amazon_massive_intent",
+    "revision": "d189f0ff91cc89665ddc5185f7267979c0314718",
+    "languages": ["de", "fr", "ru"],
+    "split": "test",
+    "rows_per_language": 2974,
+    "preprocessing": "original text column, languages in declared order, no sampling"
+  }
+}

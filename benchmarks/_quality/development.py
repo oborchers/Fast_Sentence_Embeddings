@@ -15,6 +15,7 @@ from _development_process import checked, launch
 from _development_records import record_result, session
 from _development_resources import admission
 from _development_system import LABEL
+from _development_wordpiece import model_key
 from _harness.budget import WallBudgetExpiredError
 from _harness.records import append
 
@@ -96,7 +97,7 @@ def plans(args, cells, prepared, kind):
 
 
 def quality_gate(args, cell, prepared, ledger, tag):
-    model = prepared["models"][cell["model"]]
+    model = prepared["models"][model_key(cell)]
     corpus = prepared["corpora"][cell["corpus"]]
     plan = admission(
         {**cell, "stage": "encode-memory"},
@@ -171,6 +172,7 @@ def run(args):
             cell[name]
             for name in (
                 "model",
+                "token_limit",
                 "corpus",
                 "table_dtype",
                 "workers",

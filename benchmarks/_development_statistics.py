@@ -111,6 +111,8 @@ def decide(cell, aa, main, confirmation):
     if aa["output"] != main["output"] or main["output"] != confirmation["output"]:
         raise ValueError("complete output differs between A/A, comparison and confirmation")
     threshold = max(cell["noise_multiplier"] * aa["factor"]["iqr"], cell["minimum_saving"])
+    if cell["profile"] == "standard@1":
+        threshold = max(threshold, cell["practical_saving"] or 0)
     primary = main["time_saving"] >= threshold
     confirmed = (
         confirmation["time_saving"] > 0

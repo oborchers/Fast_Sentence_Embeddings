@@ -11,6 +11,7 @@ from _development_identity import STAGE, prepare_cases, verify
 from _development_locks import coordinated
 from _development_process import checked, interpreter, launch
 from _development_system import LABEL
+from _development_wordpiece import model_key, save_models
 from _harness.budget import check
 from _harness.records import append, atomic, document, sha256
 from _measurement_config import MODEL_PINS, PINS
@@ -63,7 +64,7 @@ def _verify(receipt, cells, deadline=None):
         if cell["stage"] == STAGE:
             verify(receipt["corpora"][cell["corpus"]])
             continue
-        model = receipt["models"][cell["model"]]
+        model = receipt["models"][model_key(cell)]
         if model["revision"] != MODEL_PINS[cell["model"]]:
             raise ValueError("prepared model pin differs")
         for record in model["artifacts"].values():
@@ -254,23 +255,9 @@ def _models(cells, work, cache, deadline=None):
             if repo.startswith("minishlab/")
             else Encoder.from_pretrained(str(snapshot), normalize=True, truncate=False)
         )
-        artifacts = {}
-        for dtype in ("float32", "float16", "int8"):
-            check(deadline)
-            path = work / (repo.replace("/", "--") + "-" + dtype + ".safetensors")
-            current = model if dtype == "float32" else model.quantize(dtype)
-            current.save(path)
-            artifacts[dtype] = dict(
-                path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
-            )
         loaded[repo] = model
-        pool = model._spec.pool_input()
-        result[repo] = dict(
-            revision=revision,
-            artifacts=artifacts,
-            dimensions=model.output_dim,
-            file_import_alignment_mod128=int(pool.vectors.ctypes.data % 128),
-        )
+        for key, record in save_models(model, repo, cells, work, deadline).items():
+            result[key] = dict(revision=revision, **record)
     return result, loaded
 
 
@@ -355,6 +342,11 @@ def _word_chunks(work, cache, loaded, deadline):
 
 
 def _corpus(name, work, cache, loaded, deadline):
+    from _development_wordpiece import CORPORA as WORDPIECE_CORPORA
+    from _development_wordpiece import corpus as wordpiece_corpus
+
+    if name in WORDPIECE_CORPORA:
+        return wordpiece_corpus(name, work, cache, deadline, _snapshot, _stsb, _wikitext)
     if name == "wikitext-256-words":
         return _word_chunks(work, cache, loaded, deadline)
     if name == "wikitext-train":

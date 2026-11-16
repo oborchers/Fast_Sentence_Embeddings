@@ -1,0 +1,40 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-449 (Vorzerlegung von WordPiece blockweise über Bitmasken der Zeichenklassen ausführen). Preliminary screen only, both scanner arms separately against base. Five pairs per block. Shared total budget 120 minutes including preparation, locks and profiles, USD 0. Never decides keep. No retry or extension.",
+  "defaults": {
+    "pairs": 5
+  },
+  "cells": [
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": true,
+      "practical_saving": 0.08
+    },
+    {
+      "id": "potion-8m-short-limit-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-long-docs",
+      "stage": "tokenizer",
+      "token_limit": 16,
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-added-pieces-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb-added-pieces",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    }
+  ]
+}

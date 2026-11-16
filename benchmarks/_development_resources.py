@@ -7,6 +7,7 @@ from pathlib import Path
 
 from _development_ids import document_profile
 from _development_system import LABEL
+from _development_wordpiece import model_key
 from _harness import resources
 
 
@@ -31,7 +32,7 @@ def _group_components(cell, prepared, count, output, components):
     the probabilities of every head in both live results, and with vectors the full means."""
     if cell["stage"] not in ("head-group-folded", "head-group-mixed", "head-group-score-sink"):
         return
-    table = prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]]
+    table = prepared["models"][model_key(cell)]["artifacts"][cell["table_dtype"]]
     components["head_table_reserve"] = Path(table["path"]).stat().st_size * cell["heads"]
     components["head_probabilities_and_copies"] = count * 4 * 4 * 2 * cell["heads"]
     components["output_and_copies"] = output * 2 if cell["return_vectors"] else 0
@@ -59,7 +60,7 @@ def _score_sink_disk(cell, count, dim):
 
 def admission(cell, prepared, count, work, requested_limit, kind):
     corpus = prepared["corpora"][cell["corpus"]]
-    model = prepared["models"][cell["model"]]
+    model = prepared["models"][model_key(cell)]
     limit = resources.require_limit(requested_limit)
     mean_bytes = corpus["timing_utf8_bytes"] / corpus["texts"]
     dim = model["dimensions"]
@@ -82,7 +83,7 @@ def admission(cell, prepared, count, work, requested_limit, kind):
     ):
         # Four probabilities per row, two live public results plus bounded workspaces.
         # Folded mode retains its prepared word table; vectors mode holds full means.
-        table = prepared["models"][cell["model"]]["artifacts"][cell["table_dtype"]]
+        table = prepared["models"][model_key(cell)]["artifacts"][cell["table_dtype"]]
         components["head_table_reserve"] = Path(table["path"]).stat().st_size
         components["head_probabilities_and_copies"] = count * 4 * 4 * 2
         components["output_and_copies"] = output * 2 if cell["stage"] == "head-with-vectors" else 0

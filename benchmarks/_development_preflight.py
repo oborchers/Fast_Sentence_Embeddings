@@ -13,6 +13,7 @@ from _development_pairs import job_for
 from _development_process import checked, launch
 from _development_runtime_screen import configure as configure_runtime
 from _development_search import configure
+from _development_wordpiece import model_key
 from _harness.budget import check
 from _harness.records import append, document
 
@@ -42,7 +43,7 @@ def preflight(args, cell, prepared, ledger, owner):
             lengths=lengths_for(cell, candidate=name == "candidate"),
         )
         row = launch(args, job, python, tag)
-        model = prepared["models"][cell["model"]]
+        model = prepared["models"][model_key(cell)]
         if (
             row["encoder_fingerprint"] != model["artifacts"][cell["table_dtype"]]["fingerprint"]
             or row["dimensions"] != model["dimensions"]

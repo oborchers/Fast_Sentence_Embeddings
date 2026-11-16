@@ -42,8 +42,17 @@ def validate(cell):
 
     validate_scores(cell)
     if not enabled(cell):
-        if cell["heads"] != 1 or cell["return_vectors"] or cell["practical_saving"] is not None:
-            raise ValueError("heads, return_vectors and practical_saving are for the head groups")
+        if cell["heads"] != 1 or cell["return_vectors"]:
+            raise ValueError("heads and return_vectors are for the head groups")
+        saving = cell["practical_saving"]
+        if saving is not None and (
+            cell["profile"] != "standard@1"
+            or type(saving) not in (int, float)
+            or not 0 < saving < 1
+        ):
+            raise ValueError(
+                "practical_saving requires standard@1 and a fraction between zero and one"
+            )
         return
     if cell["base_heads_mode"] not in MODES or cell["candidate_heads_mode"] not in MODES:
         raise ValueError("heads modes are separate or one-pass")

@@ -172,6 +172,7 @@ def _measured(args, cell, prepared, ledger):
         cell[name]
         for name in (
             "model",
+            "token_limit",
             "corpus",
             "table_dtype",
             "workers",

@@ -40,6 +40,7 @@ STAGES = (
 HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
     "model": None,
+    "token_limit": None,
     "runtime_variant": "baseline",
     "runtime_baseline": None,
     "runtime_timeline": False,
@@ -126,6 +127,9 @@ def validate_cell(raw, defaults):
         r"[a-zA-Z0-9][a-zA-Z0-9_-]*", cell["id"]
     ):
         raise ValueError("development cell id must be a safe file stem")
+    from _development_wordpiece import validate as validate_wordpiece
+
+    validate_wordpiece(cell)
     _inputs(cell, identity)
     if cell["stage"] not in STAGES or cell["order"] not in ("alternating", "abba"):
         raise ValueError("unknown development stage or pair order")
@@ -211,6 +215,8 @@ def validate_cell(raw, defaults):
 
 
 def _inputs(cell, identity):
+    from _development_wordpiece import CORPORA as WORDPIECE_CORPORA
+
     if identity:
         validate_identity(cell)
     elif cell["model"] not in MODEL_PINS or cell["corpus"] not in (
@@ -220,6 +226,7 @@ def _inputs(cell, identity):
         "wikitext-train",
         "agnews",
         *CORPORA,
+        *WORDPIECE_CORPORA,
     ):
         raise ValueError("development cell requires a pinned model and a known corpus")
 
