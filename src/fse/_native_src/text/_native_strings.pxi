@@ -7,7 +7,6 @@
 cdef unsigned _string_second_starts = 0
 cdef int _string_fail_stage = 0
 cdef int _string_mismatch = 0
-cdef int _string_acquired = 0, _string_released = 0
 
 cdef enum:
     _MISMATCH = -4
@@ -103,7 +102,7 @@ cdef void _write_strings(void *arg, int index) noexcept nogil:
 
 
 cdef object _join_strings_direct(texts, int threads):
-    global _string_acquired, _string_released, fse_test_failed_starts
+    global fse_test_failed_starts
     global fse_test_fail_bookkeeping
     cdef PyObject *outer = <PyObject *>texts
     cdef Py_ssize_t n, size, total = 0
@@ -113,7 +112,6 @@ cdef object _join_strings_direct(texts, int threads):
     cdef np.int64_t[::1] offsets
     cdef char *out
     starts = data = None
-    _string_acquired = _string_released = 0
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
@@ -126,7 +124,6 @@ cdef object _join_strings_direct(texts, int threads):
         if _string_fail_stage == 1:
             raise MemoryError("could not allocate the offsets of the strings")
         starts = np.empty(n + 1, dtype=np.int64)
-        _string_acquired |= 1
         offsets = starts
         # Both operations above may run Python. Fix bounds only after both complete.
         if _items(outer) != n:
@@ -135,10 +132,9 @@ cdef object _join_strings_direct(texts, int threads):
         if n_parts > PY_SSIZE_T_MAX // <Py_ssize_t>sizeof(_StringPart):
             raise MemoryError("the parts of the strings would exceed the address space")
         if _string_fail_stage != 2:
-            parts = <_StringPart *>calloc(n_parts, sizeof(_StringPart))
+            parts = <_StringPart *>fse_join_calloc(n_parts, sizeof(_StringPart))
         if parts == NULL:
             raise MemoryError("could not allocate the parts of the strings")
-        _string_acquired |= 2
         size = n // n_parts
         for p in range(n_parts):
             parts[p].outer = outer
@@ -148,8 +144,6 @@ cdef object _join_strings_direct(texts, int threads):
         fse_test_fail_bookkeeping = _string_fail_stage == 3
         if fse_parallel(n_parts, _size_strings, parts) < 0:
             raise MemoryError("could not start the sizing threads for the strings")
-        _string_acquired |= 4
-        _string_released |= 4  # fse_parallel joins and frees all its bookkeeping
         for p in range(n_parts):
             status = min(status, parts[p].status)
         if status == _NO_MEMORY:
@@ -164,7 +158,6 @@ cdef object _join_strings_direct(texts, int threads):
         if _string_fail_stage == 4:
             raise MemoryError("could not allocate the bytes of the strings")
         data = PyBytes_FromStringAndSize(NULL, total)
-        _string_acquired |= 8
         out = PyBytes_AS_STRING(data)
         for p in range(n_parts):
             parts[p].out = out
@@ -179,8 +172,6 @@ cdef object _join_strings_direct(texts, int threads):
         fse_test_fail_bookkeeping = _string_fail_stage == 5
         if fse_parallel(n_parts, _write_strings, parts) < 0:
             raise MemoryError("could not start the writing threads for the strings")
-        _string_acquired |= 16
-        _string_released |= 16
         for p in range(n_parts):
             if parts[p].status == _MISMATCH:
                 raise AssertionError("the string size changed between join passes")
@@ -191,12 +182,11 @@ cdef object _join_strings_direct(texts, int threads):
         # are the only owners. Release the view before its array, and always free parts.
         offsets = None
         starts = data = None
-        free(parts)
-        _string_released |= _string_acquired & (1 | 2 | 8)
+        fse_join_free(parts)
         fse_test_failed_starts = first_starts
         fse_test_fail_bookkeeping = 0
 
 
 def _test_join_resources():
-    """Test-only acquired/released masks: offsets, parts, size bookkeeping, bytes, write bookkeeping."""
-    return _string_acquired, _string_released
+    """Actual live native part/bookkeeping allocations. Python objects use weakref/tracemalloc tests."""
+    return fse_test_join_live

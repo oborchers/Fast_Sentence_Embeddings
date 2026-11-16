@@ -1,4 +1,4 @@
-/* Native threads for a parallel loop the calling thread waits for (_native_lists.pxi).
+/* Native threads for a parallel loop the calling thread waits for (_native_lists.pxi and _native_strings.pxi).
  *
  * fse_parallel(n, fn, arg) runs fn(arg, 0) to fn(arg, n - 1), part 0 in the calling
  * thread and the others in threads of their own, and returns when all have ended. A
@@ -15,7 +15,26 @@ typedef void (*fse_part)(void *arg, int part);
 
 /* For the tests: bit i set makes the start of the thread of part i fail. */
 static unsigned fse_test_failed_starts = 0;
+/* Test-only failure before bookkeeping allocation; no part runs on failure. */
 static int fse_test_fail_bookkeeping = 0;
+
+/* Actual live native allocations for join parts and parallel bookkeeping. Only
+ * the calling thread allocates/frees these while holding the GIL. Never reset
+ * this counter between calls: a missed free must remain visible to the tests. */
+static size_t fse_test_join_live = 0;
+
+static void *fse_join_calloc(size_t n, size_t size) {
+    void *p = calloc(n, size);
+    if (p) fse_test_join_live++;
+    return p;
+}
+
+static void fse_join_free(void *p) {
+    if (p) {
+        free(p);
+        fse_test_join_live--;
+    }
+}
 
 typedef struct {
     fse_part fn;
@@ -71,13 +90,13 @@ static int fse_parallel(int n, fse_part fn, void *arg) {
         if (n == 1) fn(arg, 0);
         return 0;
     }
-    threads = (fse_thread *)calloc((size_t)n, sizeof(fse_thread));
-    tasks = (fse_task *)calloc((size_t)n, sizeof(fse_task));
-    started = (char *)calloc((size_t)n, 1);
+    threads = (fse_thread *)fse_join_calloc((size_t)n, sizeof(fse_thread));
+    tasks = (fse_task *)fse_join_calloc((size_t)n, sizeof(fse_task));
+    started = (char *)fse_join_calloc((size_t)n, 1);
     if (!threads || !tasks || !started) {
-        free(threads);
-        free(tasks);
-        free(started);
+        fse_join_free(threads);
+        fse_join_free(tasks);
+        fse_join_free(started);
         return -1;
     }
     for (i = 1; i < n; i++) {
@@ -94,9 +113,9 @@ static int fse_parallel(int n, fse_part fn, void *arg) {
         else
             fn(arg, i);
     }
-    free(threads);
-    free(tasks);
-    free(started);
+    fse_join_free(threads);
+    fse_join_free(tasks);
+    fse_join_free(started);
     return 0;
 }
 

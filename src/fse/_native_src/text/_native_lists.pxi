@@ -46,6 +46,9 @@ cdef extern from "_native_threads.h":
     ctypedef void (*fse_part)(void *arg, int part) noexcept nogil
     int fse_parallel(int n, fse_part fn, void *arg) nogil
     unsigned fse_test_failed_starts
+    size_t fse_test_join_live
+    void *fse_join_calloc(size_t n, size_t size) noexcept nogil
+    void fse_join_free(void *p) noexcept nogil
     int fse_test_fail_bookkeeping
 
 
@@ -246,8 +249,13 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n, str what):
         parts[p].offsets = &offsets[0]
         parts[p].base = at
         at += parts[p].text.size
-    if fse_parallel(n_parts, _assemble_part, parts) < 0:
-        raise MemoryError(f"could not start the assembly threads for the {what}")
+    global fse_test_fail_bookkeeping
+    fse_test_fail_bookkeeping = _string_fail_stage == 6
+    try:
+        if fse_parallel(n_parts, _assemble_part, parts) < 0:
+            raise MemoryError(f"could not start the assembly threads for the {what}")
+    finally:
+        fse_test_fail_bookkeeping = 0
     return data, starts
 
 
@@ -291,7 +299,7 @@ cdef object _join_parts(sentences, int threads):
         return None
     n = _items(outer)
     n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
-    parts = <_Part *>calloc(n_parts, sizeof(_Part))
+    parts = <_Part *>fse_join_calloc(n_parts, sizeof(_Part))
     if parts == NULL:
         raise MemoryError(f"could not allocate the parts of the {what}")
     try:
@@ -316,14 +324,17 @@ cdef object _join_parts(sentences, int threads):
             _test_freed_buffers += (parts[p].text.data != NULL) + (parts[p].ends.data != NULL)
             free(parts[p].text.data)
             free(parts[p].ends.data)
-        free(parts)
+        fse_join_free(parts)
 
 
 def _test_join_faults(unsigned failed_starts=0, Py_ssize_t growth_limit=PY_SSIZE_T_MAX,
                       unsigned second_failed_starts=0, int fail_stage=0, int mismatch=0):
     """Test-only controls: starts for each pass, token growth, string allocation stage
-    (1 offsets, 2 parts, 3 sizing bookkeeping, 4 bytes, 5 writing bookkeeping), and a
-    signed error in the first row's reserved span. Reset all controls with no arguments."""
+    (1 offsets, 2 parts, 3 sizing bookkeeping, 4 bytes, 5 writing bookkeeping;
+    6 fails token-list assembly bookkeeping), and a signed error in the first row's
+    reserved span. Token buffers start at 4,096 bytes and double: a growth_limit of
+    2**k * 4096 permits k + 1 growths, while 0 fails every growth. Reset all controls
+    with no arguments. Returns only the previous (failed_starts, growth_limit)."""
     global fse_test_failed_starts, _test_growth_limit, _string_second_starts
     global _string_fail_stage, _string_mismatch
     previous = (fse_test_failed_starts, _test_growth_limit)
