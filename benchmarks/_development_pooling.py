@@ -22,6 +22,16 @@ def configure(job, cell, name, control):
     job["pooling_layout"] = cell[f"{arm}_pooling_layout"]
 
 
+def _aligned_copy(values):
+    import numpy as np
+
+    storage = np.empty(values.nbytes + 127, dtype=np.uint8)
+    offset = -storage.ctypes.data % 128
+    result = np.ndarray(values.shape, dtype=values.dtype, buffer=storage, offset=offset)
+    result[...] = values
+    return result
+
+
 def prepare(model, batch, job):
     """Repeat the same numeric rows in a wide table, or remap to its compact source.
 
@@ -45,11 +55,11 @@ def prepare(model, batch, job):
     valid = batch.tokens != OOV_TOKEN
     tokens = batch.tokens.copy()
     if layout == "footprint-wide":
-        vectors = np.ascontiguousarray(pool.vectors[source])
-        weights = np.ascontiguousarray(pool.weights[source])
+        vectors = _aligned_copy(pool.vectors[source])
+        weights = _aligned_copy(pool.weights[source])
     elif layout == "footprint-compact":
-        vectors = np.array(pool.vectors[:compact_rows], copy=True, order="C")
-        weights = np.array(pool.weights[:compact_rows], copy=True, order="C")
+        vectors = _aligned_copy(pool.vectors[:compact_rows])
+        weights = _aligned_copy(pool.weights[:compact_rows])
         tokens[valid] %= compact_rows
     else:
         raise ValueError("unknown pooling layout")
@@ -73,6 +83,7 @@ def evidence(pool, batch, backend, layout):
         row_bytes=int(vectors.strides[0]),
         tile_capacity=min(64, 16384 // int(vectors.strides[0])),
         table_alignment_mod128=int(vectors.ctypes.data % 128),
+        weights_alignment_mod128=int(pool.weights.ctypes.data % 128),
         distinct_accessed_rows=rows,
         accessed_row_bytes=rows * int(vectors.strides[0]),
         weights_all_one=bool(np.all(pool.weights == np.float32(1))),
