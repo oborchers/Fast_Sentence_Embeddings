@@ -73,7 +73,9 @@ def _caught(k_max, mistake, region=None, layout="neon"):
 @pytest.mark.parametrize("k_max", [1, 13, 64])
 def test_the_model_is_the_reference(k_max, layout):
     for index in range(len(CASES)):
-        assert_bits_equal(model_pool(CASES[index], k_max, layout=layout), expected(index), CASES[index].name)
+        assert_bits_equal(
+            model_pool(CASES[index], k_max, layout=layout), expected(index), CASES[index].name
+        )
 
 
 @pytest.mark.parametrize("mistake", BUILDER_MISTAKES)
