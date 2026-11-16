@@ -88,7 +88,9 @@ def pooling(model, job):
         backend.rows(batch, prepared, output)
         return output
 
-    operation.pooling_evidence = evidence(pool, batch, backend, job.get("pooling_layout", "original"))
+    operation.pooling_evidence = evidence(
+        pool, batch, backend, job.get("pooling_layout", "original")
+    )
     return operation
 
 

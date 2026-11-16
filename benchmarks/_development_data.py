@@ -264,7 +264,13 @@ def _models(cells, work, cache, deadline=None):
                 path=str(path), sha256=sha256(path), fingerprint=current.fingerprint
             )
         loaded[repo] = model
-        result[repo] = dict(revision=revision, artifacts=artifacts, dimensions=model.output_dim)
+        pool = model._spec.pool_input()
+        result[repo] = dict(
+            revision=revision,
+            artifacts=artifacts,
+            dimensions=model.output_dim,
+            file_import_alignment_mod128=int(pool.vectors.ctypes.data % 128),
+        )
     return result, loaded
 
 
