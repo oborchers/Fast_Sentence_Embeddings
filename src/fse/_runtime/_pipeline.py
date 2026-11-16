@@ -30,6 +30,9 @@ from fse._backends import PoolInput, get_backend
 from fse._contract import Batch, Step
 from fse._text import (
     MAX_CHUNK_ROWS,
+    Chunk,
+    StringSource,
+    TokenListSource,
     Vocabulary,
     check_chunk_bytes,
     make_lookup,
@@ -46,12 +49,13 @@ from ._sinks import (
     Rows,
     Sink,
     Stored,
+    new_rows,
     sink_dtype,
     split_target,
     wants_inverse_norms,
 )
 from ._spec import EncodeSpec
-from ._tasks import Plan, Task, plan
+from ._tasks import INLINE_MAX_BYTES, Plan, Task, plan
 
 # The finished rows of one task take at most this many bytes, whatever the bytes of its
 # sentences (an empty sentence takes none). Smaller tasks cost throughput: a task has a
@@ -143,17 +147,24 @@ class Pipeline:
             inverse = wants_inverse_norms(sink)
         else:
             dtype = _codes.check_dtype(dtype)
-        tasks, window, stop = self.plan_tasks(
-            source,
-            workers,
-            chunk_bytes,
+        row_bytes = (
             self._row_bytes(dtype, inverse)
             + getattr(sink, "extra_row_bytes", 0)
-            + (0 if lengths is None else lengths.row_bytes),
-            base,
-            pool=pool,
+            + (0 if lengths is None else lengths.row_bytes)
         )
-        self._planned(source, tasks, workers, window, dtype, sink)
+        if (
+            sink is None
+            and chunk_bytes is None
+            and lengths is None
+            and collector is None
+            and base == 0
+            and self._single_task(source, self._window(workers, row_bytes)[1])
+        ):
+            return self._infer_single(source, workers, dtype, start)
+        tasks, window, stop = self.plan_tasks(
+            source, workers, chunk_bytes, row_bytes, base, pool=pool
+        )
+        self._planned(source, tasks.rows, tasks.inline, workers, window, dtype, sink)
         own: ArrayRows | GrowingRows | None = None
         tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
@@ -194,21 +205,56 @@ class Pipeline:
         self._done(done[0], done[1], time.perf_counter() - start)
         return None if own is None else own.result()
 
-    def _planned(self, source, tasks: Plan, workers, window, dtype, sink) -> None:
+    def _window(self, workers: int, row_bytes: int) -> tuple[int, int]:
+        """The window (tasks in flight) and the rows of a task for rows of ``row_bytes``
+        each: the rows of the window stay within WINDOW_BYTES (see ``plan_tasks``)."""
+        window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))
+        return window, max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))
+
+    def _single_task(self, source: object, task_rows: int) -> bool:
+        """Whether the plan of ``source`` is one task of all its rows, run inline: a source
+        of exactly the standard type, whose buffer the native join verified, of at least one
+        and at most ``task_rows`` sentences in at most INLINE_MAX_BYTES, which this tokenizer
+        takes (anything else keeps ``plan``, with its errors, in its order)."""
+        kind = type(source)
+        if kind is not StringSource and kind is not TokenListSource:
+            return False
+        if kind is TokenListSource and self.spec.tokenizer.name != "external":
+            return False
+        src = cast(StringSource, source)
+        return src._verified and 0 < len(src) <= task_rows and src.nbytes <= INLINE_MAX_BYTES
+
+    def _infer_single(self, source: object, workers: int, dtype: str, start: float):
+        """``infer`` of a small source in the calling thread: the one task ``plan`` makes for
+        it (all rows, in one chunk), run as the executor would run it inline, without the
+        plan, the executor, the target checks of ``ArrayRows`` and the commit."""
+        src = cast(StringSource, source)
+        n = len(src)
+        window, _ = self._window(workers, self._row_bytes(dtype))
+        self._planned(src, n, True, workers, window, dtype, None)
+        rows = new_rows(n, self.output_dim, dtype)
+        codes, scales = rows if isinstance(rows, tuple) else (rows, None)
+        self._work(WorkerLocal(), Task(src, Chunk(0, n, 0, n)), (codes, scales, None), 0)
+        self._done(n, 1, time.perf_counter() - start)
+        return rows
+
+    def _planned(self, source, rows, inline, workers, window, dtype, sink) -> None:
         """The record of the plan of a run (the calling thread, before any task runs)."""
+        if not _log.enabled("runtime.plan"):
+            return
         _log.emit(
             "runtime.plan",
             "fse runtime: %s rows of a %s on %d workers%s, %s backend, %s",
-            "unknown" if tasks.rows is None else tasks.rows,
+            "unknown" if rows is None else rows,
             type(source).__name__,
             workers,
-            " (inline)" if tasks.inline else "",
+            " (inline)" if inline else "",
             self.backend.name,
             dtype,
             source=type(source).__name__,
-            rows=tasks.rows,
+            rows=rows,
             workers=workers,
-            inline=tasks.inline,
+            inline=inline,
             backend=self.backend.name,
             dtype=dtype,
             sink=None if sink is None else type(sink).__name__,
@@ -217,6 +263,8 @@ class Pipeline:
 
     def _done(self, rows: int, tasks: int, seconds: float) -> None:
         """The summary record of a finished run."""
+        if not _log.enabled("runtime.done"):
+            return
         _log.emit(
             "runtime.done",
             "fse runtime: %d rows in %d tasks in %.3f s",
@@ -243,8 +291,7 @@ class Pipeline:
         WINDOW_BYTES: with many workers a task holds fewer rows, and with rows wider than
         the budget allows the window is smaller (at least one task of one row, however
         wide)."""
-        window = max(1, min(2 * workers, WINDOW_BYTES // row_bytes))
-        task_rows = max(1, min(self.task_rows, WINDOW_BYTES // (window * row_bytes)))
+        window, task_rows = self._window(workers, row_bytes)
         stop = threading.Event()
 
         def run_ranges(fn, ranges):
