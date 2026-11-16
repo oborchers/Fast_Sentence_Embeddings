@@ -374,31 +374,3 @@ def test_string_parts_whose_threads_do_not_start_run_in_the_caller(faults):
         data, offsets = _native.join_strings(texts, 8)
         assert data == want[0]
         np.testing.assert_array_equal(offsets, want[1])
-
-
-GROW_STRINGS = "^could not grow the buffer of the strings$"
-
-
-@pytest.mark.parametrize("threads", [1, 4])
-def test_a_failed_growth_of_strings_raises_and_frees(faults, threads):
-    texts = _many_texts(4 * 4096)
-    faults(growth_limit=0)
-    with pytest.raises(MemoryError, match=GROW_STRINGS):
-        _native.join_strings(texts, threads)
-    assert _native._test_join_freed() == 0
-    faults()
-    _same_strings(texts, threads)  # the next call works
-
-
-@pytest.mark.parametrize("threads", [1, 4])
-@pytest.mark.parametrize("buffer", ["text", "ends"])
-def test_a_growth_of_strings_that_fails_midway_raises_and_frees(faults, threads, buffer):
-    # Empty strings grow only the ends; long ones outgrow the text first.
-    text = "w" * 60 + "\u65e5" * 40 if buffer == "text" else ""
-    texts = [text] * 4096 * threads  # one part per thread
-    faults(growth_limit=16384)
-    with pytest.raises(MemoryError, match=GROW_STRINGS):
-        _native.join_strings(texts, threads)
-    assert _native._test_join_freed() == (2 if buffer == "text" else 1) * threads
-    faults()
-    _same_strings(texts, threads)

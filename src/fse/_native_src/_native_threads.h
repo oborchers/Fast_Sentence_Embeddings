@@ -15,6 +15,7 @@ typedef void (*fse_part)(void *arg, int part);
 
 /* For the tests: bit i set makes the start of the thread of part i fail. */
 static unsigned fse_test_failed_starts = 0;
+static int fse_test_fail_bookkeeping = 0;
 
 typedef struct {
     fse_part fn;
@@ -65,6 +66,7 @@ static int fse_parallel(int n, fse_part fn, void *arg) {
     fse_task *tasks;
     char *started;
     int i;
+    if (fse_test_fail_bookkeeping) return -1;
     if (n <= 1) {
         if (n == 1) fn(arg, 0);
         return 0;

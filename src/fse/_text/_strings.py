@@ -4,8 +4,8 @@
 # Copyright (C) Oliver Borchers
 # SPDX-License-Identifier: MIT
 
-"""Sentences as str and as token lists in memory, joined into one UTF-8 buffer by one
-native pass (``_native_lists.pxi``) or, for the inputs it does not read, in Python."""
+"""Sentences as str and as token lists in memory, joined into one UTF-8 buffer by
+native parallel passes (``_native_lists.pxi``, ``_native_strings.pxi``) or, for the inputs it does not read, in Python."""
 
 from __future__ import annotations
 
