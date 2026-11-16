@@ -134,7 +134,7 @@ def test_collection_leaves_everything_else_to_opened(tmp_path):
         ([["a"]], "fse_words@1", "lists of tokens are for the external tokenizer"),
         (["a", ["b"]], "fse_words@1", "row 1 is a list, but row 0 is a str"),
         ([["a"], "b"], "external", "row 1 is a str, but row 0 is a list"),
-        ([1], "fse_words@1", "row 0 is a int"),
+        ([1], "fse_words@1", "string 0 is a int, not a str"),
     ],
 )
 def test_collection_raises_what_opened_raises(texts, tokenizer, error):
