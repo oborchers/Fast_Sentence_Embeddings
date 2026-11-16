@@ -75,6 +75,7 @@ def evidence(pool, batch, backend, layout):
 
     vectors = pool.vectors
     rows = len(np.unique(batch.tokens[batch.tokens != OOV_TOKEN]))
+    # Mirrors FSE_TILE_BYTES, FSE_TILE_MAX and FSE_TILE_MIN in _native_kernel_tiles.h.
     capacity = 16384 // int(vectors.strides[0])
     tiled = backend.isa == "neon" and pool.dtype == "float32" and capacity >= 4
     return dict(

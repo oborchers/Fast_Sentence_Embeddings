@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "Synthetic locality controls for DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen). Preliminary regression screens only.",
+  "description": "Synthetic locality controls for DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen). Query group count is recorded; chunk count is an unrun sizing seed. Preliminary regression screens only.",
   "cells": [
     {
       "id": "potion-8m-stsb-footprint",
@@ -9,7 +9,9 @@
       "stage": "pooling",
       "base_pooling_layout": "footprint-wide",
       "candidate_pooling_layout": "footprint-compact",
-      "decision_gate": false
+      "decision_gate": false,
+      "resident_cycles": 32,
+      "iterations": 46
     },
     {
       "id": "potion-8m-chunks256-footprint",
@@ -18,7 +20,9 @@
       "stage": "pooling",
       "base_pooling_layout": "footprint-wide",
       "candidate_pooling_layout": "footprint-compact",
-      "decision_gate": false
+      "decision_gate": false,
+      "resident_cycles": 32,
+      "iterations": 1
     }
   ]
 }
