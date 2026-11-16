@@ -45,40 +45,75 @@ def _workers(rows, duration):
     }
 
 
-def _stalls(rows, workers):
-    """Observed full-window stalls only when later work is done and a worker is idle.
+class _Stalls:
+    def __init__(self, workers):
+        self.workers, self.active = workers, 0
+        self.snapshot = self.previous = self.published_at = None
+        self.intervals, self.wake_delays = [], []
 
-    A fill snapshot remains an estimate until the next caller state event. Work
-    boundaries split intervals so all-busy time is never counted as idle capacity.
-    """
-    active, snapshot, previous, intervals = 0, None, None, []
-    state_events = ("fill", "commit-start", "commit-end", "place-refused")
+    def _idle(self):
+        state = self.snapshot
+        return state is not None and (
+            state["pending"] >= state["window"] > 0
+            and state["oldest_done"] == 0
+            and state["done_later"] > 0
+            and self.active < self.workers
+        )
+
+    def step(self, row):
+        now, event = row["wall_ns"], row["event"]
+        if self.previous is not None and self._idle():
+            self.intervals.append((self.previous, now))
+        if event == "work-start":
+            self.active += 1
+        elif event == "work-end":
+            self.active -= 1
+        self._publication(row)
+        if event in ("fill", "commit-start", "commit-end", "place-refused"):
+            if self.published_at is not None:
+                self.wake_delays.append(now - self.published_at)
+                self.published_at = None
+            self.snapshot = row if event == "fill" else None
+        self.previous = now
+
+    def _publication(self, row):
+        if row["event"] != "publish" or self.snapshot is None:
+            return
+        if row["sequence"] == self.snapshot["oldest_future"]:
+            self.published_at = row["wall_ns"]
+            self.snapshot = None
+
+    def result(self):
+        merged = []
+        for start, end in self.intervals:
+            if merged and merged[-1][1] == start:
+                merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        return {
+            "observed_stall_intervals": len(merged),
+            "observed_stall_seconds": _seconds(sum(b - a for a, b in merged)),
+            "oldest_publication_to_caller_seconds": _seconds(sum(self.wake_delays)),
+            "stall_scope": "snapshot estimate ending at oldest publication; own pool only",
+        }
+
+
+def _stalls(rows, workers):
+    state = _Stalls(workers)
     for row in rows:
-        if previous is not None and snapshot is not None:
-            full = snapshot["pending"] >= snapshot["window"] > 0
-            blocked = snapshot["oldest_done"] == 0 and snapshot["done_later"] > 0
-            if full and blocked and active < workers:
-                intervals.append((previous, row["wall_ns"]))
-        if row["event"] == "work-start":
-            active += 1
-        elif row["event"] == "work-end":
-            active -= 1
-        if row["event"] in state_events:
-            snapshot = row if row["event"] == "fill" else None
-        previous = row["wall_ns"]
-    # Adjacent intervals describe the same observed stall.
-    merged = []
-    for start, end in intervals:
-        if merged and merged[-1][1] == start:
-            merged[-1] = (merged[-1][0], end)
-        else:
-            merged.append((start, end))
+        state.step(row)
     return {
-        "observed_stall_intervals": len(merged),
-        "observed_stall_seconds": _seconds(sum(end - start for start, end in merged)),
+        **state.result(),
         "pool_place_refusals": sum(row["event"] == "place-refused" for row in rows),
-        "stall_scope": "snapshot estimate, not a causal attribution; own pool only",
     }
+
+
+def _gc_by_thread(rows):
+    result = {}
+    for first, last in _spans(rows, "gc-start", "gc-end"):
+        key = str(first["thread"])
+        result[key] = result.get(key, 0.0) + _seconds(last["wall_ns"] - first["wall_ns"])
+    return result
 
 
 def summarize(record, workers):
@@ -104,6 +139,7 @@ def summarize(record, workers):
         "caller_wait_seconds": sum(
             _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "wait-start", "wait-end")
         ),
+        "gc_wall_seconds_by_thread": _gc_by_thread(rows),
         "gc_wall_seconds": sum(
             _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "gc-start", "gc-end")
         ),
@@ -113,3 +149,34 @@ def summarize(record, workers):
         "windows": sorted({row["window"] for row in rows if row["window"] >= 0}),
         **_stalls(rows, workers),
     }
+
+
+def screen(cell, rows, root):
+    """Keep absolute timings, but reject a window contrast whose tasks changed."""
+    evidence = [row.get("runtime_evidence") for row in rows]
+    if not cell.get("runtime_timeline", False):
+        return None
+    if any(not item or not item.get("valid") for item in evidence):
+        return {"valid": False, "reason": "incomplete diagnostic evidence"}
+    tasks = [
+        {key: item["summary"][key] for key in ("task_rows", "task_bytes")} for item in evidence
+    ]
+    result = {"valid": True, "tasks": tasks}
+    if cell["runtime_variant"] != "window-4x":
+        return result
+    return _window_screen(cell, root, result, tasks)
+
+
+def _window_screen(cell, root, result, tasks):
+    from _harness.records import document
+
+    baseline = root / (cell["runtime_baseline"] + "-descriptive.json")
+    if not baseline.is_file():
+        return {**result, "valid": False, "reason": "baseline task evidence missing"}
+    reference = document(baseline).get("runtime_screen")
+    if not reference or not reference.get("valid"):
+        return {**result, "valid": False, "reason": "baseline diagnostic invalid"}
+    expected = reference["tasks"][0]
+    if any(task != expected for task in [*reference["tasks"], *tasks]):
+        return {**result, "valid": False, "reason": "window variant changed task rows or bytes"}
+    return {**result, "baseline": cell["runtime_baseline"], "task_equality": True}

@@ -160,11 +160,7 @@ def measure(job):
         result = _measured(operation, job, waiting, policy, resource)
         runtime_evidence = getattr(operation, "evidence", None)
         if runtime_evidence is not None:
-            result["runtime_evidence"] = runtime_evidence()
-            if result["runtime_evidence"] is not None and (
-                result["runtime_evidence"]["output"] != result["output"]
-            ):
-                raise ValueError("runtime diagnostic output differs from measured output")
+            result["runtime_evidence"] = _runtime_evidence(runtime_evidence, result["output"])
         evidence = path_evidence(operation, job)  # one untimed call after the measurement
         return result if evidence is None else {**result, "path_evidence": evidence}
 
@@ -218,3 +214,19 @@ def _measured(operation, job, waiting, policy, resource):
         **search_metrics(job, seconds),
         **prefilter_metrics(job),
     }
+
+
+def _runtime_evidence(observe, expected):
+    # A failed diagnostic must never erase a completed, verified timing arm.
+    try:
+        evidence = observe()
+        if evidence is not None and evidence.get("output") != expected:
+            evidence.update(valid=False, reason="diagnostic output differs from measured output")
+        return evidence
+    except Exception as error:
+        return {
+            "valid": False,
+            "diagnostic_profile": True,
+            "valid_for_comparison": False,
+            "reason": f"diagnostic: {type(error).__name__}: {error}",
+        }

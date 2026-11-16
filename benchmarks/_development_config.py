@@ -40,6 +40,7 @@ HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
     "model": None,
     "runtime_variant": "baseline",
+    "runtime_baseline": None,
     "runtime_timeline": False,
     "source_bytes": 1024**3,
     "source_rows": 1_000_000,

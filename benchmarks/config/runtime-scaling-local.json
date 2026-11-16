@@ -48,7 +48,8 @@
       "resident_cycles": 128,
       "workers": 8,
       "runtime_variant": "window-4x",
-      "runtime_timeline": true
+      "runtime_timeline": true,
+      "runtime_baseline": "wikitext-baseline"
     },
     {
       "id": "wikitext-chunk-4m",
@@ -136,7 +137,8 @@
       "resident_cycles": 512,
       "workers": 8,
       "runtime_variant": "window-4x",
-      "runtime_timeline": true
+      "runtime_timeline": true,
+      "runtime_baseline": "stsb-baseline"
     },
     {
       "id": "stsb-chunk-4m",
