@@ -118,6 +118,15 @@ def split_target(target: Stored, dtype: str, inverse: bool) -> tuple[ndarray, An
     return codes, scales, norms
 
 
+def new_rows(n_rows: int, dim: int, dtype: str) -> Stored:
+    """Uninitialized rows of a checked ``dtype``: float32 or float16 rows, or int8
+    ``QuantizedRows`` (codes and scales)."""
+    codes = np.empty((n_rows, dim), dtype=_codes.STORAGE_TYPES[dtype])
+    if dtype == "int8":
+        return QuantizedRows(codes, np.empty(n_rows, dtype=np.float32))
+    return codes
+
+
 class _Rows:
     def __init__(self, dim: int, start: int, dtype: str = "float32"):
         self.dim = dim
@@ -127,10 +136,7 @@ class _Rows:
         self._row_bytes += 4 if self.dtype == "int8" else 0
 
     def _new(self, n_rows: int) -> Stored:
-        codes = np.empty((n_rows, self.dim), dtype=_codes.STORAGE_TYPES[self.dtype])
-        if self.dtype == "int8":
-            return QuantizedRows(codes, np.empty(n_rows, dtype=np.float32))
-        return codes
+        return new_rows(n_rows, self.dim, self.dtype)
 
     def _check_commit(self, first_row: int, rows: Stored) -> int:
         """The number of rows of a commit, checked: in order, of the dtype and dimension."""

@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fse._encoder._sources import opened
+from fse._encoder._sources import collection, opened
 from fse._stream import StreamSource
 from fse._text import StringSource, TokenListSource
 from fse._text_file import FileSource
@@ -92,3 +92,54 @@ def test_the_native_join_encodes_like_the_python_path(monkeypatch, dtype, kind):
     name = "join_token_lists" if kind == "tokens" else "join_strings"
     monkeypatch.setattr(_native, name, lambda *_: None)  # every list to the Python path
     assert _bits(native) == _bits(encoder.encode(sentences, dtype=dtype, workers=4))
+
+
+def test_collection_is_the_source_opened_makes_for_a_list_or_tuple():
+    cases = [
+        (["a b", "c"], "fse_words@1", StringSource),
+        (("a b",), "fse_words@1", StringSource),
+        ([], "fse_words@1", StringSource),
+        ([["a", "b"], ["c"]], "external", TokenListSource),
+        (([("a", "b")]), "external", TokenListSource),
+    ]
+    for texts, tokenizer, kind in cases:
+        source = collection(texts, tokenizer)
+        assert type(source) is kind
+        with opened(texts, tokenizer) as same:
+            assert type(same) is kind
+            assert bytes(source._data) == bytes(same._data)
+
+
+def test_collection_leaves_everything_else_to_opened(tmp_path):
+    class Rows(list):
+        pass
+
+    path = tmp_path / "lines.txt"
+    path.write_text("a\n")
+    for texts in (
+        Rows(["a"]),
+        np.array(["a"]),
+        iter(["a"]),
+        "a",
+        {"a"},
+        Path(path),
+        StringSource(["a"]),
+    ):
+        assert collection(texts, "fse_words@1") is None
+
+
+@pytest.mark.parametrize(
+    ("texts", "tokenizer", "error"),
+    [
+        ([["a"]], "fse_words@1", "lists of tokens are for the external tokenizer"),
+        (["a", ["b"]], "fse_words@1", "row 1 is a list, but row 0 is a str"),
+        ([["a"], "b"], "external", "row 1 is a str, but row 0 is a list"),
+        ([1], "fse_words@1", "string 0 is a int, not a str"),
+    ],
+)
+def test_collection_raises_what_opened_raises(texts, tokenizer, error):
+    with pytest.raises(TypeError, match=error) as direct:
+        collection(texts, tokenizer)
+    with pytest.raises(TypeError, match=error) as through, opened(texts, tokenizer):
+        pass
+    assert str(direct.value) == str(through.value)
