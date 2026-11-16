@@ -6,20 +6,32 @@ from __future__ import annotations
 def validate(cell):
     if type(cell.get("runtime_phased_memory", False)) is not bool:
         raise ValueError("runtime_phased_memory must be boolean")
-    if cell.get("runtime_phased_memory", False) and not cell.get("runtime_paired", False):
-        raise ValueError("runtime_phased_memory requires the paired runtime study")
     if type(cell.get("runtime_paired", False)) is not bool:
         raise ValueError("runtime_paired must be boolean")
+    _memory_profile(cell)
     if not cell.get("runtime_paired", False):
         return
     if cell["stage"] not in ("encode-allocate", "encode-memory") or cell["workers"] != 8:
         raise ValueError("paired runtime screens require encode and eight workers")
+    if cell["iterations"] != 1:
+        raise ValueError("paired runtime screens require one complete encode per observation")
     if (
         cell["decision_gate"]
         or cell["table_dtype"] != "float32"
         or cell["output_dtype"] != "float32"
     ):
         raise ValueError("paired runtime screens require float32 without an optimization gate")
+
+
+def _memory_profile(cell):
+    if not cell.get("runtime_phased_memory", False):
+        return
+    if not cell.get("runtime_paired", False):
+        raise ValueError("runtime_phased_memory requires the paired runtime study")
+    if cell["profile"] != "standard@1" or cell["candidate_lengths"] != "none":
+        raise ValueError(
+            "phased runtime memory requires the standard profile without length reports"
+        )
 
 
 def configure(job, cell, name, control):
@@ -31,7 +43,7 @@ def compare(cell, rows):
     if not cell.get("runtime_paired", False):
         return None
     if cell.get("runtime_timeline", False) and any(
-        not row.get("runtime_evidence", {}).get("valid", False) for row in rows
+        not (row.get("runtime_evidence") or {}).get("valid", False) for row in rows
     ):
         return {"valid": False, "reason": "paired runtime diagnostic incomplete"}
     if cell["runtime_variant"] != "window-4x":

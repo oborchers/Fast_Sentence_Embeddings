@@ -23,6 +23,7 @@ def check_limits(model):
         raise ValueError("runtime memory plan requires the pinned 256-dimensional normalized mean")
     if (
         _pipeline.TASK_ROW_BYTES > 1 << 24
+        or _pipeline.WINDOW_BYTES > 1 << 29
         or _scan._CHUNK_MAX_BYTES > 4 << 20
         or VERIFY_BLOCK_BYTES > 64 << 20
     ):
