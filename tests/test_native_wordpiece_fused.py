@@ -145,7 +145,7 @@ def test_register_keys_hit_the_table_without_a_trie():
 @pytest.mark.parametrize("watch", [0, 1, 2])
 @pytest.mark.parametrize("chunk_bytes", [1, 7])
 def test_fused_arrow_and_small_chunks(watch, chunk_bytes):
-    import pyarrow as pa
+    pa = pytest.importorskip("pyarrow")
 
     from fse._text import ArrowSource, StringSource
 
