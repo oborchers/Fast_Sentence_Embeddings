@@ -41,6 +41,13 @@ def _lookups(word_limit, max_tokens, max_chars, drop):
     ]
 
 
+def _report(ws):
+    if not ws.watch:
+        return None
+    sums, rows = ws.take_lengths()
+    return sums, None if rows is None else tuple(None if r is None else r.tobytes() for r in rows)
+
+
 def _run(lookup, encoded, ws):
     offsets = np.array([0, *np.cumsum([len(t) for t in encoded])], np.int64)
     data = np.frombuffer(b"".join(encoded), np.uint8)
@@ -48,10 +55,7 @@ def _run(lookup, encoded, ws):
         batch = lookup.encode(data, offsets, 0, len(encoded), 0, ws)
     except (UnicodeDecodeError, TruncationError) as error:
         return type(error), str(error), getattr(error, "start", None)
-    report = ws.take_lengths() if ws.watch else None
-    if report is not None and report[1] is not None:
-        report = report[0], tuple(None if r is None else r.tobytes() for r in report[1])
-    return batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, report
+    return batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, _report(ws)
 
 
 def _texts():
@@ -150,18 +154,17 @@ def test_fused_arrow_and_small_chunks(watch, chunk_bytes):
     signatures = []
     for lookup in (fast, generic):
         for source in (StringSource(texts), ArrowSource(pa.array(texts))):
-            ws = _native.Workspace(watch=watch, store_rows=bool(watch))
-            rows = []
-            for chunk in source.scan(chunk_bytes=chunk_bytes).chunks:
-                batch = source.encode(chunk, lookup, ws)
-                report = ws.take_lengths() if watch else None
-                if report is not None:
-                    report = report[0], tuple(None if r is None else r.tobytes() for r in report[1])
-                rows.append(
-                    (batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, report)
-                )
-            signatures.append(rows)
+            signatures.append(_chunked_rows(source, lookup, watch, chunk_bytes))
     assert signatures[0] == signatures[1] == signatures[2] == signatures[3]
+
+
+def _chunked_rows(source, lookup, watch, chunk_bytes):
+    ws = _native.Workspace(watch=watch, store_rows=bool(watch))
+    rows = []
+    for chunk in source.scan(chunk_bytes=chunk_bytes).chunks:
+        batch = source.encode(chunk, lookup, ws)
+        rows.append((batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, _report(ws)))
+    return rows
 
 
 @pytest.mark.parametrize("watch", [1, 2])
