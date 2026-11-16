@@ -195,6 +195,10 @@ def _late_action(job):
         from _quality.binary2_child import count_job as binary_2_job
 
         return binary_2_job(job)
+    if action == "wordpiece-audit":
+        from _development_wordpiece_audit import audit
+
+        return audit(job)
     if action == "pooling-input":
         from _development_stages import prepare_batch
 

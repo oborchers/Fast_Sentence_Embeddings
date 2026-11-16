@@ -45,6 +45,7 @@ DEFAULTS = {
     "runtime_timeline": False,
     "runtime_paired": False,
     "runtime_phased_memory": False,
+    "chunk_bytes": None,
     "source_bytes": 1024**3,
     "source_rows": 1_000_000,
     "probe_bytes": 10 * 1024**2,
@@ -179,6 +180,9 @@ def validate_cell(raw, defaults):
     from _development_pooling import validate as validate_pooling
 
     validate_pooling(cell)
+    from _development_chunks import validate as validate_chunks
+
+    validate_chunks(cell)
     from _development_search import validate as validate_search
 
     validate_search(cell)

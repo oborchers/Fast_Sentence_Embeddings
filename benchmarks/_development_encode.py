@@ -16,6 +16,10 @@ def operation(model, texts, job):
         from _development_runtime import Allocating
 
         return Allocating(model, texts, job)
+    if job["stage"] == "encode-memory" and job.get("chunk_bytes") is not None:
+        from _development_chunks import operation as chunk_operation
+
+        return chunk_operation(model, texts, job)
     if job["stage"] == "encode-memory":
         from _development_memory import operation as memory_operation
 

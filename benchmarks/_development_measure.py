@@ -203,6 +203,7 @@ def _measured(operation, job, waiting, policy, resource):
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
         "pooling_evidence": getattr(operation, "pooling_evidence", None),
+        "chunk_evidence": getattr(operation, "chunk_evidence", None),
         "profile": job["profile"],
         "head_spec": _head_spec(job),
         "heads_mode": job.get("heads_mode"),
