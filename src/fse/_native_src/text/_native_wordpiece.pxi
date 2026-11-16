@@ -23,9 +23,6 @@ cdef extern from "_native_wordpiece.h":
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
     int64_t fse_wp_char_cut_ascii(const unsigned char *p, int64_t n, int64_t max_chars) nogil
 
-include "_native_wordpiece_blocks.pxi"
-
-
 cdef extern from "_native_wordpiece_trie.h":
     ctypedef struct fse_trie:  # base, check and value are only read in C
         int64_t size, calls, live, fail_at
