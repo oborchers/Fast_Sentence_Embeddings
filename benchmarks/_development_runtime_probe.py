@@ -19,11 +19,42 @@ from _harness.records import atomic
 
 # Fixed storage allocated before encode. Overflow invalidates the diagnostic.
 CAPACITY = 400_000
-FIELDS = ("event", "wall_ns", "thread_cpu_ns", "thread", "sequence", "rows", "bytes",
-          "pending", "done_later", "oldest_done", "window", "unfinished")
-EVENTS = ("call-start", "call-end", "join-start", "join-end", "submit", "work-start",
-          "work-end", "publish", "fill", "commit-start", "commit-end", "wait-start",
-          "wait-end", "place-refused", "native-start", "native-end", "plan-start", "plan-end", "gc-start", "gc-end")
+FIELDS = (
+    "event",
+    "wall_ns",
+    "thread_cpu_ns",
+    "thread",
+    "sequence",
+    "rows",
+    "bytes",
+    "pending",
+    "done_later",
+    "oldest_done",
+    "window",
+    "unfinished",
+)
+EVENTS = (
+    "call-start",
+    "call-end",
+    "join-start",
+    "join-end",
+    "submit",
+    "work-start",
+    "work-end",
+    "publish",
+    "fill",
+    "commit-start",
+    "commit-end",
+    "wait-start",
+    "wait-end",
+    "place-refused",
+    "native-start",
+    "native-end",
+    "plan-start",
+    "plan-end",
+    "gc-start",
+    "gc-end",
+)
 
 
 class Timeline:
@@ -51,8 +82,20 @@ class Timeline:
             done = sum(f.done() for _, _, f in items[1:])
             oldest = int(items[0][2].done()) if items else -1
             unfinished = run._unfinished()
-        values = (EVENTS.index(event), wall, cpu, thread, sequence, rows, size,
-                  pending, done, oldest, window, unfinished)
+        values = (
+            EVENTS.index(event),
+            wall,
+            cpu,
+            thread,
+            sequence,
+            rows,
+            size,
+            pending,
+            done,
+            oldest,
+            window,
+            unfinished,
+        )
         with self.lock:
             if self.used == CAPACITY:
                 self.overflow = True
@@ -70,6 +113,7 @@ class Timeline:
                 return original(*args, **kwargs)
             finally:
                 self.mark(end)
+
         return wrapped
 
     def executor(self, stack):
@@ -115,8 +159,14 @@ class Timeline:
                 self.mark("place-refused", run=run)
             return result
 
-        for name, fn in (("_work", working), ("_fill", filling), ("_commit_oldest", committing),
-                         ("execute", executing), ("_finished", publishing), ("_place", placing)):
+        for name, fn in (
+            ("_work", working),
+            ("_fill", filling),
+            ("_commit_oldest", committing),
+            ("execute", executing),
+            ("_finished", publishing),
+            ("_place", placing),
+        ):
             stack.enter_context(patch.object(cls, name, fn))
 
     def install(self, stack):
@@ -136,7 +186,9 @@ class Timeline:
             (_pipeline.Pipeline, "plan_tasks", "plan-start", "plan-end"),
             (CpuBackend, "text_rows", "native-start", "native-end"),
         ):
-            stack.enter_context(patch.object(cls, name, self.around(getattr(cls, name), start, end)))
+            stack.enter_context(
+                patch.object(cls, name, self.around(getattr(cls, name), start, end))
+            )
         submit = _pool.Pool._submit
 
         def submitting(pool, fn, *args, **kwargs):
@@ -149,16 +201,23 @@ class Timeline:
 
     def export(self):
         return {
-            "format": "runtime-timeline@1", "fields": FIELDS, "events": EVENTS,
-            "threads": self.threads, "overflow": self.overflow,
-            "records": [list(self.data[i * len(FIELDS):(i + 1) * len(FIELDS)])
-                        for i in range(self.used)],
-            "diagnostic_profile": True, "valid_for_comparison": False,
-            "limits": ["Python boundary probes perturb scheduling",
-                       "native boundaries include checks and GIL-held work",
-                       "publication marker follows Future.set_result",
-                       "state snapshots are observations, not continuous causal proof",
-                       "wall minus thread CPU includes scheduling and all blocking"],
+            "format": "runtime-timeline@1",
+            "fields": FIELDS,
+            "events": EVENTS,
+            "threads": self.threads,
+            "overflow": self.overflow,
+            "records": [
+                list(self.data[i * len(FIELDS) : (i + 1) * len(FIELDS)]) for i in range(self.used)
+            ],
+            "diagnostic_profile": True,
+            "valid_for_comparison": False,
+            "limits": [
+                "Python boundary probes perturb scheduling",
+                "native boundaries include checks and GIL-held work",
+                "publication marker follows Future.set_result",
+                "state snapshots are observations, not continuous causal proof",
+                "wall minus thread CPU includes scheduling and all blocking",
+            ],
         }
 
 
@@ -181,9 +240,22 @@ def observe(operation, job):
     summary = summarize(record, job["workers"])
     summary["process_cpu_seconds"] = cpu_ns / 1_000_000_000
     path = Path(job["receipt"]).with_suffix(".timeline.json")
-    atomic(path, {**record, "summary": summary, "output": proof,
-                  "variant": operation.variant, "workers": job["workers"]})
+    atomic(
+        path,
+        {
+            **record,
+            "summary": summary,
+            "output": proof,
+            "variant": operation.variant,
+            "workers": job["workers"],
+        },
+    )
     if timeline.overflow:
         raise ValueError("runtime timeline capacity exhausted; diagnostic invalid")
-    return {"timeline": str(path), "output": proof, "summary": summary,
-            "diagnostic_profile": True, "valid_for_comparison": False}
+    return {
+        "timeline": str(path),
+        "output": proof,
+        "summary": summary,
+        "diagnostic_profile": True,
+        "valid_for_comparison": False,
+    }

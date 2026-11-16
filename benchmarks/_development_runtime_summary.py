@@ -34,11 +34,13 @@ def _workers(rows, duration):
         state["wall_ns"] += last["wall_ns"] - first["wall_ns"]
         state["cpu_ns"] += last["thread_cpu_ns"] - first["thread_cpu_ns"]
     return {
-        thread: {"tasks": state["tasks"],
-                 "work_wall_seconds": _seconds(state["wall_ns"]),
-                 "work_thread_cpu_seconds": _seconds(state["cpu_ns"]),
-                 "work_wall_fraction": state["wall_ns"] / duration,
-                 "work_cpu_fraction": state["cpu_ns"] / duration}
+        thread: {
+            "tasks": state["tasks"],
+            "work_wall_seconds": _seconds(state["wall_ns"]),
+            "work_thread_cpu_seconds": _seconds(state["cpu_ns"]),
+            "work_wall_fraction": state["wall_ns"] / duration,
+            "work_cpu_fraction": state["cpu_ns"] / duration,
+        }
         for thread, state in threads.items()
     }
 
@@ -71,10 +73,12 @@ def _stalls(rows, workers):
             merged[-1] = (merged[-1][0], end)
         else:
             merged.append((start, end))
-    return {"observed_stall_intervals": len(merged),
-            "observed_stall_seconds": _seconds(sum(end - start for start, end in merged)),
-            "pool_place_refusals": sum(row["event"] == "place-refused" for row in rows),
-            "stall_scope": "snapshot estimate, not a causal attribution; own pool only"}
+    return {
+        "observed_stall_intervals": len(merged),
+        "observed_stall_seconds": _seconds(sum(end - start for start, end in merged)),
+        "pool_place_refusals": sum(row["event"] == "place-refused" for row in rows),
+        "stall_scope": "snapshot estimate, not a causal attribution; own pool only",
+    }
 
 
 def summarize(record, workers):
@@ -91,14 +95,18 @@ def summarize(record, workers):
         "call_wall_seconds": _seconds(duration),
         "before_first_submit_seconds": _seconds(submits[0]["wall_ns"] - first) if submits else None,
         "last_wave_tail_seconds": _seconds(last - min(row["wall_ns"] for row in starts[-workers:]))
-        if starts else None,
+        if starts
+        else None,
         "worker_activity": _workers(rows, duration),
-        "join_wall_seconds": sum(_seconds(b["wall_ns"] - a["wall_ns"])
-                                 for a, b in _spans(rows, "join-start", "join-end")),
-        "caller_wait_seconds": sum(_seconds(b["wall_ns"] - a["wall_ns"])
-                                   for a, b in _spans(rows, "wait-start", "wait-end")),
-        "gc_wall_seconds": sum(_seconds(b["wall_ns"] - a["wall_ns"])
-                               for a, b in _spans(rows, "gc-start", "gc-end")),
+        "join_wall_seconds": sum(
+            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "join-start", "join-end")
+        ),
+        "caller_wait_seconds": sum(
+            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "wait-start", "wait-end")
+        ),
+        "gc_wall_seconds": sum(
+            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "gc-start", "gc-end")
+        ),
         "gc_collections": sum(row["event"] == "gc-start" for row in rows),
         "task_rows": [row["rows"] for row in submits],
         "task_bytes": [row["bytes"] for row in submits],

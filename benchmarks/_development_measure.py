@@ -178,7 +178,9 @@ def _measured(operation, job, waiting, policy, resource):
         expected = proof
         warmups.append(seconds)
         warm_seconds += seconds
-    seconds, proof, including_open, before, after, repeated = _call(operation, job, "measured", 0, waiting)
+    seconds, proof, including_open, before, after, repeated = _call(
+        operation, job, "measured", 0, waiting
+    )
     if proof != expected:
         raise ValueError("measured output differs from warmup")
     if job["stage"] == "encode-sink":
