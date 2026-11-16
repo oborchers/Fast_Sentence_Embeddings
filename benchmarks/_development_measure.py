@@ -193,6 +193,7 @@ def _measured(operation, job, waiting, policy, resource):
         * (1 if sys.platform == "darwin" else 1024),
         "rss_scope": "whole child including input preparation, warmup and verification",
         "worker_path": job["stage"],
+        "pooling_evidence": getattr(operation, "pooling_evidence", None),
         "profile": job["profile"],
         "head_spec": _head_spec(job),
         "heads_mode": job.get("heads_mode"),

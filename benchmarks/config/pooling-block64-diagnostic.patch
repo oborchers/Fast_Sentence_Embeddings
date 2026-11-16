@@ -1,0 +1,57 @@
+--- a/src/fse/_native_src/kernel/_native_kernel_tiles.h
++++ b/src/fse/_native_src/kernel/_native_kernel_tiles.h
+@@ -104,0 +105,54 @@
++    for (; i + 64 <= dim; i += 64) {
++        FSE_NEON_START(a0, 0);
++        FSE_NEON_START(a1, 1);
++        FSE_NEON_START(a2, 2);
++        FSE_NEON_START(a3, 3);
++        FSE_NEON_START(a4, 4);
++        FSE_NEON_START(a5, 5);
++        FSE_NEON_START(a6, 6);
++        FSE_NEON_START(a7, 7);
++        FSE_NEON_START(a8, 8);
++        FSE_NEON_START(a9, 9);
++        FSE_NEON_START(a10, 10);
++        FSE_NEON_START(a11, 11);
++        FSE_NEON_START(a12, 12);
++        FSE_NEON_START(a13, 13);
++        FSE_NEON_START(a14, 14);
++        FSE_NEON_START(a15, 15);
++        for (int q = 0; q < n; q++) {
++            const float *x = (const float *)row[q] + i;
++            const float32x4_t fv = vdupq_n_f32(f[q]);
++            FSE_NEON_FMA(a0, 0);
++            FSE_NEON_FMA(a1, 1);
++            FSE_NEON_FMA(a2, 2);
++            FSE_NEON_FMA(a3, 3);
++            FSE_NEON_FMA(a4, 4);
++            FSE_NEON_FMA(a5, 5);
++            FSE_NEON_FMA(a6, 6);
++            FSE_NEON_FMA(a7, 7);
++            FSE_NEON_FMA(a8, 8);
++            FSE_NEON_FMA(a9, 9);
++            FSE_NEON_FMA(a10, 10);
++            FSE_NEON_FMA(a11, 11);
++            FSE_NEON_FMA(a12, 12);
++            FSE_NEON_FMA(a13, 13);
++            FSE_NEON_FMA(a14, 14);
++            FSE_NEON_FMA(a15, 15);
++        }
++        vst1q_f32(acc + i + 0, a0);
++        vst1q_f32(acc + i + 4, a1);
++        vst1q_f32(acc + i + 8, a2);
++        vst1q_f32(acc + i + 12, a3);
++        vst1q_f32(acc + i + 16, a4);
++        vst1q_f32(acc + i + 20, a5);
++        vst1q_f32(acc + i + 24, a6);
++        vst1q_f32(acc + i + 28, a7);
++        vst1q_f32(acc + i + 32, a8);
++        vst1q_f32(acc + i + 36, a9);
++        vst1q_f32(acc + i + 40, a10);
++        vst1q_f32(acc + i + 44, a11);
++        vst1q_f32(acc + i + 48, a12);
++        vst1q_f32(acc + i + 52, a13);
++        vst1q_f32(acc + i + 56, a14);
++        vst1q_f32(acc + i + 60, a15);
++    }

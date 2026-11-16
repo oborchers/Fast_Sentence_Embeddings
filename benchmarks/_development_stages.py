@@ -77,14 +77,20 @@ def pooling(model, job):
     if len(offsets) != job["texts"] + 1:
         raise ValueError("fixed pooling batch row count differs")
     batch = Batch(0, offsets, tokens)
+    from _development_pooling import evidence, prepare
+
+    pool, batch = prepare(model, batch, job)
     backend = CpuBackend()
-    prepared = backend.prepare(model._spec.pool_input(), ())
+    prepared = backend.prepare(pool, ())
     output = np.empty((job["texts"], model.output_dim), dtype=np.float32)
 
     def operation():
         backend.rows(batch, prepared, output)
         return output
 
+    operation.pooling_evidence = evidence(
+        pool, batch, backend, job.get("pooling_layout", "original")
+    )
     return operation
 
 

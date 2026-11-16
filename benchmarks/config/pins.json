@@ -27,6 +27,7 @@
   },
   "models": {
     "minishlab/potion-base-8M": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "minishlab/potion-base-2M": "389b9f64be5aa4ae7a6bc6fe95ef20ce485ae5da",
     "sentence-transformers/static-retrieval-mrl-en-v1": "f60985c706f192d45d218078e49e5a8b6f15283a",
     "sentence-transformers/static-similarity-mrl-multilingual-v1": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
     "minishlab/potion-base-32M": "1e5a03f8eeb2c98b928fbbd846f22f816360919f",

@@ -1,0 +1,124 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen). Local development indications only; never publication evidence.",
+  "cells": [
+    {
+      "id": "potion-8m-stsb-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31
+    },
+    {
+      "id": "potion-8m-stsb-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 25
+    },
+    {
+      "id": "potion-8m-stsb-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 12
+    },
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31
+    },
+    {
+      "id": "potion-8m-chunks256-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 30
+    },
+    {
+      "id": "potion-8m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 14
+    },
+    {
+      "id": "potion-2m-stsb-tokenizer",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 33
+    },
+    {
+      "id": "potion-2m-stsb-pooling",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 70
+    },
+    {
+      "id": "potion-2m-stsb-encode-memory",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 22
+    },
+    {
+      "id": "potion-2m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 34
+    },
+    {
+      "id": "potion-2m-chunks256-pooling",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling",
+      "resident_cycles": 32,
+      "iterations": 83
+    },
+    {
+      "id": "potion-2m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 21
+    },
+    {
+      "id": "bekko-stsb-pooling-control",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "workers": 1,
+      "table_dtype": "float32",
+      "output_dtype": "float32",
+      "scope": "control",
+      "decision_gate": false
+    },
+    {
+      "id": "potion-retrieval-32m-stsb-pooling-control",
+      "model": "minishlab/potion-retrieval-32M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "workers": 1,
+      "table_dtype": "float32",
+      "output_dtype": "float32",
+      "scope": "control",
+      "decision_gate": false
+    }
+  ]
+}
