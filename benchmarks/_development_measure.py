@@ -116,7 +116,7 @@ def _call(operation, job, phase, number, waiting):
     proof = output_proof(job, output)
     del output
     gc.collect()
-    return seconds, proof, including_open, before, after
+    return seconds, proof, including_open, before, after, repeated
 
 
 def _head_spec(job):
@@ -172,13 +172,13 @@ def measure(job):
 def _measured(operation, job, waiting, policy, resource):
     warmups, warm_seconds, expected = [], 0.0, None
     while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
-        seconds, proof, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
+        seconds, proof, _, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
         if expected is not None and proof != expected:
             raise ValueError("warmup output changed")
         expected = proof
         warmups.append(seconds)
         warm_seconds += seconds
-    seconds, proof, including_open, before, after = _call(operation, job, "measured", 0, waiting)
+    seconds, proof, including_open, before, after, repeated = _call(operation, job, "measured", 0, waiting)
     if proof != expected:
         raise ValueError("measured output differs from warmup")
     if job["stage"] == "encode-sink":
@@ -186,6 +186,8 @@ def _measured(operation, job, waiting, policy, resource):
     return {
         "wait_seconds": waiting[0],
         "seconds": seconds,
+        "process_cpu_seconds": repeated["process_cpu_seconds"],
+        "mean_cores": repeated["mean_cores"],
         "timer_contract": "repeated-prepared-input@1",
         "operation_repetitions": job["iterations"],
         "processed_texts": job["texts"] * job["iterations"],

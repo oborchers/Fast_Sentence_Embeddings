@@ -12,8 +12,12 @@ def _spans(rows, begin, end):
     for row in rows:
         key = row["thread"]
         if row["event"] == begin:
+            if key in opened:
+                raise ValueError("nested runtime diagnostic span")
             opened[key] = row
-        elif row["event"] == end and key in opened:
+        elif row["event"] == end:
+            if key not in opened:
+                raise ValueError("runtime diagnostic end without start")
             first = opened.pop(key)
             spans.append((first, row))
     if opened:
@@ -93,6 +97,9 @@ def summarize(record, workers):
                                  for a, b in _spans(rows, "join-start", "join-end")),
         "caller_wait_seconds": sum(_seconds(b["wall_ns"] - a["wall_ns"])
                                    for a, b in _spans(rows, "wait-start", "wait-end")),
+        "gc_wall_seconds": sum(_seconds(b["wall_ns"] - a["wall_ns"])
+                               for a, b in _spans(rows, "gc-start", "gc-end")),
+        "gc_collections": sum(row["event"] == "gc-start" for row in rows),
         "task_rows": [row["rows"] for row in submits],
         "task_bytes": [row["bytes"] for row in submits],
         "windows": sorted({row["window"] for row in rows if row["window"] >= 0}),

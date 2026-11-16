@@ -6,6 +6,7 @@ not just the GIL-free kernel. Wall minus thread CPU is not a measured GIL wait.
 
 from __future__ import annotations
 
+import gc
 import threading
 import time
 from array import array
@@ -22,7 +23,7 @@ FIELDS = ("event", "wall_ns", "thread_cpu_ns", "thread", "sequence", "rows", "by
           "pending", "done_later", "oldest_done", "window", "unfinished")
 EVENTS = ("call-start", "call-end", "join-start", "join-end", "submit", "work-start",
           "work-end", "publish", "fill", "commit-start", "commit-end", "wait-start",
-          "wait-end", "place-refused", "native-start", "native-end", "plan-start", "plan-end")
+          "wait-end", "place-refused", "native-start", "native-end", "plan-start", "plan-end", "gc-start", "gc-end")
 
 
 class Timeline:
@@ -124,6 +125,12 @@ class Timeline:
         from fse._text import StringSource
 
         self.executor(stack)
+
+        def collecting(phase, info):
+            self.mark("gc-start" if phase == "start" else "gc-end", info["generation"])
+
+        gc.callbacks.append(collecting)
+        stack.callback(gc.callbacks.remove, collecting)
         for cls, name, start, end in (
             (StringSource, "__init__", "join-start", "join-end"),
             (_pipeline.Pipeline, "plan_tasks", "plan-start", "plan-end"),

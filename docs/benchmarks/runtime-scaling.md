@@ -46,6 +46,8 @@ potion-base-8M float32 model and complete WikiText and STS-B corpus cycles.
 The allocating adapter calls public `encode(..., sink=None)` each time. The
 existing `encode-memory` adapter remains the reused-target comparison.
 Memory admission reserves two complete output arrays for allocating encode.
+Measured process CPU time is differenced around the same repeat loop as wall
+time. Their ratio reports mean cores used, without attributing any wait cause.
 Initial resident cycles are planning assumptions, subject to memory admission
 and a short provenance/size probe before the run. Freeze the same row count
 across all variants of a corpus. Each production encode call must take at least
@@ -84,7 +86,7 @@ A separate untimed encode follows each measured arm when `runtime_timeline`
 is true. It must produce the identical full output identity. Its preallocated
 fixed event buffer records wall and thread CPU clocks, thread identity,
 submission, worker entry/exit, native-call entry/exit, publication callbacks,
-commit, planning, join and caller waits. It records actual task row and byte
+commit, planning, join, automatic garbage collection and caller waits. It records actual task row and byte
 counts and executor window observations. Overflow invalidates the diagnostic.
 
 The event artifact is separate from the arm's speed summary. Its offline
