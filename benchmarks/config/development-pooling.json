@@ -73,6 +73,28 @@
       "model": "minishlab/potion-base-2M",
       "corpus": "wikitext-256-words",
       "stage": "encode-memory"
+    },
+    {
+      "id": "bekko-stsb-pooling-control",
+      "model": "hotchpotch/bekko-static-embedding-v1",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "workers": 1,
+      "table_dtype": "float32",
+      "output_dtype": "float32",
+      "scope": "control",
+      "decision_gate": false
+    },
+    {
+      "id": "potion-retrieval-32m-stsb-pooling-control",
+      "model": "minishlab/potion-retrieval-32M",
+      "corpus": "stsb",
+      "stage": "pooling",
+      "workers": 1,
+      "table_dtype": "float32",
+      "output_dtype": "float32",
+      "scope": "control",
+      "decision_gate": false
     }
   ]
 }
