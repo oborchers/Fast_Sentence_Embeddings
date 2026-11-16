@@ -18,10 +18,10 @@ You can return with the missing evidence.
 
 You need standard CPython 3.11 to 3.15, [uv](https://docs.astral.sh/uv/), Make and a C compiler.
 
-Free-threaded Python builds are unsupported.
+Free-threaded Python builds are unsupported. The repository's `.python-version` pins uv to CPython 3.13, so `make init` never picks a free-threaded interpreter such as 3.14t; set `UV_PYTHON` to develop against another supported version.
 
 ```sh
-UV_PYTHON=3.13 make init
+make init
 make check PYTEST_N=4
 ```
 
