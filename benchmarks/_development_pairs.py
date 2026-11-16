@@ -163,6 +163,8 @@ def block(
     from _development_runtime_screen import compare as runtime_compare
 
     runtime = runtime_compare(cell, rows)
+    if args.functional and runtime is not None and not runtime.get("valid", False):
+        raise PathEvidenceError("functional runtime screen has invalid diagnostic evidence")
     paths = per_arm(rows)
     return {
         **LABEL,

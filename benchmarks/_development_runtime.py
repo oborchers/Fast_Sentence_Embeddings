@@ -84,6 +84,10 @@ class Allocating:
     def __init__(self, model, texts, job):
         from fse._text import StringSource
 
+        if job.get("runtime_phased_memory", False):
+            from _development_runtime_memory import check_limits
+
+            check_limits(model)
         self.model, self.job = model, job
         self.variant = job.get("runtime_variant", "baseline")
         self.texts = StringSource(texts) if self.variant == "joined" else texts

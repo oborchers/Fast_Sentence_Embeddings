@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-442 (Wartezeiten der Laufzeit bei acht Workern messen). Approved AWS x86, paired same-build preliminary screens, diagnostic profiles and timelines, publishable false.",
+  "description": "DR-442 (Wartezeiten der Laufzeit bei acht Workern messen). Second AWS sizing: unchanged rows, WikiText 2560 cycles, STS-B 1248 cycles with optional size/RAM pilot. Same-build preliminary screens, no publication evidence.",
   "defaults": {
     "workers": 8,
     "table_dtype": "float32",
@@ -12,7 +12,8 @@
     "target_seconds": 2.0,
     "minimum_seconds": 2.0,
     "pairs": 5,
-    "warmup_seconds": 2.0
+    "warmup_seconds": 2.0,
+    "runtime_phased_memory": true
   },
   "cells": [
     {
@@ -20,7 +21,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "joined",
       "runtime_timeline": true
@@ -30,7 +31,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "gc-off",
       "runtime_timeline": true
@@ -40,7 +41,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "window-4x",
       "runtime_timeline": true,
@@ -51,7 +52,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "chunk-4m",
       "runtime_timeline": true
@@ -61,7 +62,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "chunk-256k",
       "runtime_timeline": true
@@ -71,7 +72,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-allocate",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_variant": "inline-off",
       "runtime_timeline": true
@@ -81,7 +82,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "wikitext",
       "stage": "encode-memory",
-      "resident_cycles": 128,
+      "resident_cycles": 2560,
       "workers": 8,
       "runtime_timeline": false
     },
@@ -90,7 +91,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "joined",
       "runtime_timeline": true
@@ -100,7 +101,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "gc-off",
       "runtime_timeline": true
@@ -110,7 +111,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "window-4x",
       "runtime_timeline": true,
@@ -121,7 +122,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "chunk-4m",
       "runtime_timeline": true
@@ -131,7 +132,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "chunk-256k",
       "runtime_timeline": true
@@ -141,7 +142,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-allocate",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_variant": "inline-off",
       "runtime_timeline": true
@@ -151,7 +152,7 @@
       "model": "minishlab/potion-base-8M",
       "corpus": "stsb",
       "stage": "encode-memory",
-      "resident_cycles": 512,
+      "resident_cycles": 1248,
       "workers": 8,
       "runtime_timeline": false
     }

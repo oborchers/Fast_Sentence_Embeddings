@@ -97,6 +97,10 @@ def admission(cell, prepared, count, work, requested_limit, kind):
         from _development_file_resources import file_components
 
         components, phases = file_components(cell, count, dim, mean_bytes, components)
+    if cell.get("runtime_phased_memory", False):
+        from _development_runtime_memory import components as runtime_components
+
+        components, phases = runtime_components(cell, corpus, count, dim, components)
     disk = int(count * (mean_bytes + 1) + disk_reserve(cell))
     if cell["stage"] == "encode-sink":
         disk += (output + count * 8) * cell["iterations"] * 2

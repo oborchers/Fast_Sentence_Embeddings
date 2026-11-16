@@ -222,7 +222,8 @@ def _runtime_evidence(observe, expected):
     # A failed diagnostic must never erase a completed, verified timing arm.
     try:
         evidence = observe()
-        if evidence is not None and evidence.get("output") != expected:
+        expected_iteration = expected.get("one_iteration", expected)
+        if evidence is not None and evidence.get("output") != expected_iteration:
             evidence.update(valid=False, reason="diagnostic output differs from measured output")
         return evidence
     except Exception as error:

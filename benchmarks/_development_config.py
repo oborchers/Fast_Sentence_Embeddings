@@ -44,6 +44,7 @@ DEFAULTS = {
     "runtime_baseline": None,
     "runtime_timeline": False,
     "runtime_paired": False,
+    "runtime_phased_memory": False,
     "source_bytes": 1024**3,
     "source_rows": 1_000_000,
     "probe_bytes": 10 * 1024**2,

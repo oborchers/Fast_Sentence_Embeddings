@@ -4,6 +4,10 @@ from __future__ import annotations
 
 
 def validate(cell):
+    if type(cell.get("runtime_phased_memory", False)) is not bool:
+        raise ValueError("runtime_phased_memory must be boolean")
+    if cell.get("runtime_phased_memory", False) and not cell.get("runtime_paired", False):
+        raise ValueError("runtime_phased_memory requires the paired runtime study")
     if type(cell.get("runtime_paired", False)) is not bool:
         raise ValueError("runtime_paired must be boolean")
     if not cell.get("runtime_paired", False):
@@ -26,8 +30,17 @@ def configure(job, cell, name, control):
 def compare(cell, rows):
     if not cell.get("runtime_paired", False):
         return None
+    if cell.get("runtime_timeline", False) and any(
+        not row.get("runtime_evidence", {}).get("valid", False) for row in rows
+    ):
+        return {"valid": False, "reason": "paired runtime diagnostic incomplete"}
     if cell["runtime_variant"] != "window-4x":
-        return {"preliminary": True, "variant": cell["runtime_variant"], "stage": cell["stage"]}
+        return {
+            "valid": True,
+            "preliminary": True,
+            "variant": cell["runtime_variant"],
+            "stage": cell["stage"],
+        }
     tasks = []
     for row in rows:
         evidence = row.get("runtime_evidence")
@@ -41,3 +54,14 @@ def compare(cell, rows):
         "preliminary": True,
         "reason": None if equal else "paired window task sizes differ",
     }
+
+
+def fixed_size(cell, rows, functional):
+    if not cell.get("runtime_paired", False):
+        return False
+    if not functional and any(row["seconds_per_iteration"] < 2 for row in rows):
+        raise ValueError(
+            "fixed runtime workload is below two seconds per encode; "
+            "do not substitute repeated short calls or retry automatically"
+        )
+    return True
