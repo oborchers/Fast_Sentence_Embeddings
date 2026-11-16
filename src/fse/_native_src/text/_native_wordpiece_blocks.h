@@ -16,6 +16,9 @@
 #ifndef FSE_WP_SCAN_CAPACITY
 #define FSE_WP_SCAN_CAPACITY 64
 #endif
+#if FSE_WP_SCAN_CAPACITY != 1 && FSE_WP_SCAN_CAPACITY != 64
+#error "WordPiece scanner capacity must be 1 or 64"
+#endif
 
 typedef struct { uint64_t slow, space, punct; } fse_wp_masks;
 

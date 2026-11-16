@@ -73,7 +73,14 @@ def fuzz_texts(seed: int, count: int = 4000) -> list[str]:
     texts = []
     for _ in range(count):
         length = rng.choice([rng.randrange(301), *range(61, 67), *range(125, 131)])
-        texts.append("".join(rng.choice(alphabet) for _ in range(length)))
+        parts, used = [], 0
+        while used < length:
+            ch = rng.choice(alphabet)
+            if len(ch.encode()) > length - used:
+                ch = "a"
+            parts.append(ch)
+            used += len(ch.encode())
+        texts.append("".join(parts))
     return texts
 
 
@@ -152,3 +159,48 @@ def test_native_scanner_matches_model(capacity, variant):
         q = text.encode()
         expected = [(batch, astuple(state)) for batch, state in scan(q, classify, capacity)]
         assert _native._wp_scan_words(q, capacity, variant) == expected, (text, capacity, variant)
+
+
+@pytest.mark.parametrize("q", ["text", bytearray(64), None])
+def test_mask_probe_requires_original_bytes(q):
+    from fse import _native
+
+    with pytest.raises(TypeError, match="q must be bytes"):
+        _native._wp_block_masks(q)
+    with pytest.raises(TypeError, match="q must be bytes"):
+        _native._wp_scan_words(q)
+
+
+@pytest.mark.parametrize("length", [0, 1, 63, 65])
+def test_mask_probe_requires_one_full_block(length):
+    from fse import _native
+
+    with pytest.raises(ValueError, match="exactly 64 bytes"):
+        _native._wp_block_masks(b"a" * length)
+
+
+@pytest.mark.parametrize("capacity", [True, 1.0, "1"])
+def test_scan_probe_rejects_capacity_types(capacity):
+    from fse import _native
+
+    with pytest.raises(TypeError, match="capacity must be an int"):
+        _native._wp_scan_words(b"a", capacity)
+
+
+@pytest.mark.parametrize("capacity", [0, -1, 65])
+def test_scan_probe_rejects_capacity_values(capacity):
+    from fse import _native
+
+    with pytest.raises(ValueError, match="between 1 and 64"):
+        _native._wp_scan_words(b"a", capacity)
+
+
+def test_scan_probe_rejects_invalid_utf8_and_variant():
+    from fse import _native
+
+    with pytest.raises(UnicodeDecodeError):
+        _native._wp_scan_words(b"a\xff")
+    with pytest.raises(TypeError, match="variant must be a str"):
+        _native._wp_scan_words(b"a", variant=[])
+    with pytest.raises(ValueError, match="variant must be native, byte or swar"):
+        _native._wp_scan_words(b"a", variant="missing")

@@ -39,6 +39,8 @@ def _wp_scan_words(q, capacity=64, variant="native"):
         raise TypeError("capacity must be an int")
     if not 1 <= capacity <= 64:
         raise ValueError("capacity must be between 1 and 64")
+    if not isinstance(variant, str):
+        raise TypeError("variant must be a str")
     if variant not in ("native", "byte", "swar"):
         raise ValueError("variant must be native, byte or swar")
     cdef int v = {"native": 0, "byte": 1, "swar": 2}[variant]
@@ -48,10 +50,16 @@ def _wp_scan_words(q, capacity=64, variant="native"):
     cdef int64_t starts[64]
     cdef int64_t ends[64]
     cdef int size, k
+    cdef int64_t start, end
     fse_wp_scan_init(&scanner, data, v)
     calls = []
     while not scanner.done:
-        size = fse_wp_scan_words(&scanner, data, len(q), starts, ends, capacity, v)
+        if capacity == 1 and v == 0:
+            size = fse_wp_scan_next(&scanner, data, len(q), &start, &end)
+            if size:
+                starts[0], ends[0] = start, end
+        else:
+            size = fse_wp_scan_words(&scanner, data, len(q), starts, ends, capacity, v)
         pending = (scanner.pend_start, scanner.pend_end) if scanner.pending else None
         calls.append(([(starts[k], ends[k]) for k in range(size)],
                       (scanner.b, scanner.j, scanner.open, pending, bool(scanner.done))))

@@ -359,12 +359,18 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
         return WP_GO_ON
     memset(q + m, 0x20, 64)
     fse_wp_scan_init(&scanner, q, 0)
-    while not scanner.done:
-        size = fse_wp_scan_words(&scanner, q, m, starts, ends, FSE_WP_SCAN_CAPACITY, 0)
-        for k in range(size):
-            count[0] += _wp_word_trie(st, q + starts[k], ends[k] - starts[k], ids + count[0])
+    if FSE_WP_SCAN_CAPACITY == 1:
+        while fse_wp_scan_next(&scanner, q, m, &start, &end):
+            count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
             if st.max_tokens and count[0] >= st.max_tokens:
                 return WP_FULL
+    else:
+        while not scanner.done:
+            size = fse_wp_scan_words(&scanner, q, m, starts, ends, 64, 0)
+            for k in range(size):
+                count[0] += _wp_word_trie(st, q + starts[k], ends[k] - starts[k], ids + count[0])
+                if st.max_tokens and count[0] >= st.max_tokens:
+                    return WP_FULL
     return WP_GO_ON
 
 
