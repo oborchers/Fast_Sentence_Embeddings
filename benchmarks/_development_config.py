@@ -192,6 +192,7 @@ def _inputs(cell, identity):
     elif cell["model"] not in MODEL_PINS or cell["corpus"] not in (
         "stsb",
         "wikitext",
+        "wikitext-256-words",
         "wikitext-train",
         "agnews",
         *CORPORA,

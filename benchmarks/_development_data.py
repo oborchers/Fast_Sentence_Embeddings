@@ -313,7 +313,44 @@ def _length_corpus(name, work, cache, models, deadline):
     return data
 
 
+def _word_chunks(work, cache, loaded, deadline):
+    """Consecutive full 256-word chunks of the pinned test split; drop the final rest."""
+    import numpy as np
+
+    data = _wikitext(work, cache, deadline)
+    words = [word for row in data["texts"] for word in row.split()]
+    end = len(words) // 256 * 256
+    texts = [" ".join(words[i : i + 256]) for i in range(0, end, 256)]
+    if not texts:
+        raise ValueError("WikiText contains no full 256-word chunk")
+    lengths = {}
+    for repo, model in loaded.items():
+        check(deadline)
+        if repo.startswith("minishlab/potion-base-") and model._spec.tokenizer.max_tokens != 512:
+            raise ValueError("pooling study requires the potion 512-token rule")
+        _, report = model.encode(texts, lengths="per_row", count_truncated=True, workers=1)
+        lengths[repo] = dict(
+            rule=_rule(model),
+            tokens_min=int(np.min(report.tokens)),
+            tokens_median=float(np.median(report.tokens)),
+            tokens_max=int(np.max(report.tokens)),
+            tokens_total=int(report.tokens_total),
+            truncated_rows=int(report.n_truncated),
+        )
+    data.update(texts=texts, timing_texts=texts)
+    data["timing_policy"] = "consecutive 256 whitespace words; drop final incomplete chunk"
+    data["source"].update(
+        preprocessing="split all original rows on whitespace; concatenate in source order; "
+        "retain headings; join each full 256-word chunk with one space",
+        dropped_final_words=len(words) - end,
+        token_lengths=lengths,
+    )
+    return data
+
+
 def _corpus(name, work, cache, loaded, deadline):
+    if name == "wikitext-256-words":
+        return _word_chunks(work, cache, loaded, deadline)
     if name == "wikitext-train":
         data = _wikitext_train(work, cache, deadline)
         data["timing_texts"] = data["texts"]  # already collapsed; saved once (see prepare_child)

@@ -1,0 +1,78 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-440 (Pooling von potion-base-8M und -2M auf dem M1 vermessen). Local development indications only; never publication evidence.",
+  "cells": [
+    {
+      "id": "potion-8m-stsb-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-8m-stsb-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-8m-stsb-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-8m-chunks256-pooling",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-8m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "potion-2m-stsb-tokenizer",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-2m-stsb-pooling",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-2m-stsb-encode-memory",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "stsb",
+      "stage": "encode-memory"
+    },
+    {
+      "id": "potion-2m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "potion-2m-chunks256-pooling",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "pooling"
+    },
+    {
+      "id": "potion-2m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-2M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory"
+    }
+  ]
+}
