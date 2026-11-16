@@ -49,7 +49,7 @@ def _run(lookup, encoded, ws):
     except (UnicodeDecodeError, TruncationError) as error:
         return type(error), str(error), getattr(error, "start", None)
     report = ws.take_lengths() if ws.watch else None
-    if report is not None:
+    if report is not None and report[1] is not None:
         report = report[0], tuple(None if r is None else r.tobytes() for r in report[1])
     return batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, report
 
