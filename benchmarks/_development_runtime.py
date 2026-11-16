@@ -14,14 +14,7 @@ def validate(cell):
     variant = cell.get("runtime_variant", "baseline")
     if not isinstance(variant, str) or variant not in VARIANTS:
         raise ValueError("unknown runtime_variant")
-    baseline = cell.get("runtime_baseline")
-    if variant == "window-4x":
-        if not isinstance(baseline, str) or not re.fullmatch(
-            r"[a-zA-Z0-9][a-zA-Z0-9_-]*", baseline
-        ):
-            raise ValueError("window-4x requires a safe runtime_baseline cell id")
-    elif baseline is not None:
-        raise ValueError("runtime_baseline applies only to window-4x")
+    _validate_baseline(cell, variant)
     if type(cell.get("runtime_timeline", False)) is not bool:
         raise ValueError("runtime_timeline must be boolean")
     if cell["stage"] == "encode-allocate" and (
@@ -33,6 +26,17 @@ def validate(cell):
             raise ValueError("runtime probes require allocating float32 encode")
         if cell["decision_gate"]:
             raise ValueError("runtime variants are preliminary screens without keep decisions")
+
+
+def _validate_baseline(cell, variant):
+    baseline = cell.get("runtime_baseline")
+    if variant == "window-4x":
+        if not isinstance(baseline, str) or not re.fullmatch(
+            r"[a-zA-Z0-9][a-zA-Z0-9_-]*", baseline
+        ):
+            raise ValueError("window-4x requires a safe runtime_baseline cell id")
+    elif baseline is not None:
+        raise ValueError("runtime_baseline applies only to window-4x")
 
 
 @contextmanager
