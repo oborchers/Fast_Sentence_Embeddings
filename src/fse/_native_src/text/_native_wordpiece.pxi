@@ -19,11 +19,12 @@ cdef extern from "_native_wordpiece.h":
     int fse_wp_ascii_init() nogil
     int fse_wp_next_word(const unsigned char *q, int64_t m, int64_t *pos, int64_t *start,
                          int64_t *end) nogil
-    int fse_wp_next_word_ascii(const unsigned char *q, int64_t m, int64_t *pos,
-                               int64_t *start, int64_t *end) nogil
     int64_t fse_wp_validate(const unsigned char *p, int64_t i, int64_t n) nogil
     int64_t fse_wp_char_cut(const unsigned char *p, int64_t n, int64_t max_chars) nogil
     int64_t fse_wp_char_cut_ascii(const unsigned char *p, int64_t n, int64_t max_chars) nogil
+
+include "_native_wordpiece_blocks.pxi"
+
 
 cdef extern from "_native_wordpiece_trie.h":
     ctypedef struct fse_trie:  # base, check and value are only read in C
@@ -343,6 +344,10 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
     cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
                       else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
     cdef int64_t pos = 0, start, end
+    cdef int64_t starts[64]
+    cdef int64_t ends[64]
+    cdef fse_wp_scan scanner
+    cdef int size, k
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
@@ -352,10 +357,14 @@ cdef inline int _wp_piece(WordPieceState st, const unsigned char *p, Py_ssize_t 
             if st.max_tokens and count[0] >= st.max_tokens:
                 return WP_FULL
         return WP_GO_ON
-    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word_trie(st, q + start, end - start, ids + count[0])
-        if st.max_tokens and count[0] >= st.max_tokens:
-            return WP_FULL
+    memset(q + m, 0x20, 64)
+    fse_wp_scan_init(&scanner, q, 0)
+    while not scanner.done:
+        size = fse_wp_scan_words(&scanner, q, m, starts, ends, FSE_WP_SCAN_CAPACITY, 0)
+        for k in range(size):
+            count[0] += _wp_word_trie(st, q + starts[k], ends[k] - starts[k], ids + count[0])
+            if st.max_tokens and count[0] >= st.max_tokens:
+                return WP_FULL
     return WP_GO_ON
 
 
@@ -375,9 +384,9 @@ cdef int _wordpiece_sentence(WordPieceState st, const unsigned char *p, Py_ssize
         limit = cut
     ws.norm.size = 0
     ws.run.size = 0
-    # At most 3 normalized bytes per byte in (and 32 to read words 16 bytes wide), so as
+    # At most 3 normalized bytes per byte in (and 64 padding bytes for the class masks), so as
     # many items of a run and ids, and one id per added token.
-    if (_ensure(&ws.norm, 3 * limit + 32) or _ensure(&ws.run, 12 * limit + 4)
+    if (_ensure(&ws.norm, 3 * limit + 64) or _ensure(&ws.run, 12 * limit + 4)
             or _ensure(&ws.tokens, (4 * limit + 1) * <Py_ssize_t>sizeof(uINT_t))):
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)

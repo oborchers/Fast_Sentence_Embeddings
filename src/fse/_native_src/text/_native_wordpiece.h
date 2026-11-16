@@ -145,9 +145,13 @@ static int fse_wp_ascii_init(void) {
         uint32_t lower = b >= 'A' && b <= 'Z' ? b + 0x20 : b;
         if (b >= 0x20 && b < 0x7F && (!fse_wp_ascii_keep[b] || fse_wp_ascii_map[b] != lower))
             return 1 + (int)b;
-        /* The block step of fse_wp_next_word_ascii takes a-z and 0-9 as word bytes. */
-        if (((b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')) && fse_wp_ascii_class[b])
-            return 1 + (int)b;
+        /* The class masks must agree with the composed Unicode table. */
+        if (b >= 0x20 && b <= 0x7E) {
+            int punct = (b >= 0x21 && b <= 0x2F) || (b >= 0x3A && b <= 0x40) ||
+                        (b >= 0x5B && b <= 0x60) || (b >= 0x7B && b <= 0x7E);
+            uint32_t expected = b == 0x20 ? FSE_BERT_SPACE : (punct ? FSE_BERT_PUNCT : 0);
+            if (fse_wp_ascii_class[b] != expected) return 1 + (int)b;
+        }
     }
     return 0;
 }
@@ -265,60 +269,6 @@ static inline uint32_t fse_wp_class_at(const uint8_t *q, int64_t i, int64_t m, i
     uint32_t cp;
     *len = fse_wp_decode(q, i, m, &cp);
     return fse_bert_entry(cp) & (FSE_BERT_SPACE | FSE_BERT_PUNCT);
-}
-
-/* The high bit of each byte of x that is not a-z or 0-9 (exact in every byte: the bytes
-   are compared as 7 bits, so no carry crosses them). */
-static inline uint64_t fse_wp_not_alnum8(uint64_t x) {
-    uint64_t y = x & ~FSE_WP_HIGH;
-    uint64_t digit = (y + FSE_WP_ONES * (0x80 - '0')) & ~(y + FSE_WP_ONES * (0x80 - '9' - 1));
-    uint64_t lower = (y + FSE_WP_ONES * (0x80 - 'a')) & ~(y + FSE_WP_ONES * (0x80 - 'z' - 1));
-    return ~((digit | lower) & ~x) & FSE_WP_HIGH;
-}
-
-/* fse_wp_next_word with the class of ASCII bytes from a table: no decode and no two-stage
-   lookup for them. Inside a word, at an ASCII byte, the bytes of a-z and 0-9 (word bytes,
-   as module init checks) among the next 8 are skipped at once while at least 8 bytes are
-   left. */
-FSE_INLINE int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
-                                         int64_t *start, int64_t *end) {
-    int64_t i = *pos;
-    int len;
-    while (i < m) {
-        uint32_t c = fse_wp_class_at(q, i, m, &len);
-        if (c & FSE_BERT_SPACE) {
-            i += len;
-            continue;
-        }
-        *start = i;
-        i += len;
-        if (!(c & FSE_BERT_PUNCT)) {
-            while (i < m) {
-                if (q[i] < 0x80) {
-                    if (m - i >= 8) {
-                        uint64_t x;
-                        memcpy(&x, q + i, 8);
-                        uint64_t other = fse_wp_not_alnum8(x);
-                        if (!other) {
-                            i += 8;
-                            continue;
-                        }
-                        i += fse_wp_bytes_below(other);
-                        if (q[i] >= 0x80) continue;
-                    }
-                    if (fse_wp_ascii_class[q[i]]) break;
-                    i++;
-                    continue;
-                }
-                if (fse_wp_class_at(q, i, m, &len)) break;
-                i += len;
-            }
-        }
-        *end = *pos = i;
-        return 1;
-    }
-    *pos = m;
-    return 0;
 }
 
 /* fse_wp_char_cut 8 bytes at a time: a block of 8 ASCII bytes (when at least 8 are left,

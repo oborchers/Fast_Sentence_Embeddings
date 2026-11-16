@@ -85,6 +85,10 @@ cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ss
     cdef int64_t m = (fse_wp_normalize(p, n, q, <uint32_t *>ws.run.data) if st.generic
                       else fse_wp_normalize_ascii(p, n, q, <uint32_t *>ws.run.data))
     cdef int64_t pos = 0, start, end
+    cdef int64_t starts[64]
+    cdef int64_t ends[64]
+    cdef fse_wp_scan scanner
+    cdef int size, k
     if m < 0:
         bad[0] = -1 - m
         return WP_BAD
@@ -94,10 +98,14 @@ cdef inline int _wp_piece_until(WordPieceState st, const unsigned char *p, Py_ss
             if stop_at and count[0] >= stop_at:
                 return WP_FULL
         return WP_GO_ON
-    while fse_wp_next_word_ascii(q, m, &pos, &start, &end):
-        count[0] += _wp_word_trie_w(st, q + start, end - start, ids + count[0])
-        if stop_at and count[0] >= stop_at:
-            return WP_FULL
+    memset(q + m, 0x20, 64)
+    fse_wp_scan_init(&scanner, q, 0)
+    while not scanner.done:
+        size = fse_wp_scan_words(&scanner, q, m, starts, ends, FSE_WP_SCAN_CAPACITY, 0)
+        for k in range(size):
+            count[0] += _wp_word_trie_w(st, q + starts[k], ends[k] - starts[k], ids + count[0])
+            if stop_at and count[0] >= stop_at:
+                return WP_FULL
     return WP_GO_ON
 
 
@@ -168,7 +176,7 @@ cdef int _wordpiece_sentence_watched(WordPieceState st, const unsigned char *p, 
         limit = cut
     ws.norm.size = 0
     ws.run.size = 0
-    if (_ensure(&ws.norm, 3 * limit + 32) or _ensure(&ws.run, 12 * limit + 4)
+    if (_ensure(&ws.norm, 3 * limit + 64) or _ensure(&ws.run, 12 * limit + 4)
             or _ensure(&ws.tokens, (4 * limit + 1) * <Py_ssize_t>sizeof(uINT_t))):
         return ENCODE_NO_MEMORY
     ids = <uINT_t *>(ws.tokens.data + ws.tokens.size)

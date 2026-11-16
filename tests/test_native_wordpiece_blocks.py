@@ -99,3 +99,56 @@ def test_scanner_model_pending_return():
     assert calls[0][1].pend == (66, 69)
     assert calls[0][1].j == 5
     assert calls[1][0] == [(66, 69)]
+
+
+def test_native_masks_exhaustive():
+    import platform
+
+    from fse import _native
+    from support.wordpiece_scan import masks
+
+    machine = platform.machine().lower()
+    simd = "neon" if machine in ("aarch64", "arm64") else "sse2"
+    expected_names = (
+        {"byte", "swar", simd}
+        if machine in ("aarch64", "arm64", "amd64", "x86_64")
+        else {"byte", "swar"}
+    )
+    for background in (0x61, 0x20, 0x21, 0x80):
+        for pos in range(64):
+            for value in range(256):
+                block = bytearray([background] * 64)
+                block[pos] = value
+                q = bytes(block)
+                slow, punct, word = masks(q)
+                expected = slow, ((1 << 64) - 1) ^ (slow | punct | word), punct
+                actual = _native._wp_block_masks(q)
+                assert set(actual) == expected_names
+                assert all(item == expected for item in actual.values()), (q, actual, expected)
+
+
+def test_native_masks_neighbors():
+    from fse import _native
+    from support.wordpiece_scan import masks
+
+    rng = random.Random(449)
+    blocks = [rng.randbytes(64) for _ in range(1000)]
+    for pair in (b"\x1f\x20", b"\x7e\x7f", b"\x7f\x80", b"\xff\x00"):
+        blocks += [pair * 32, pair[::-1] * 32]
+    for q in blocks:
+        slow, punct, word = masks(q)
+        expected = slow, ((1 << 64) - 1) ^ (slow | punct | word), punct
+        assert all(item == expected for item in _native._wp_block_masks(q).values())
+
+
+@pytest.mark.parametrize("capacity", [1, 2, 3, 64])
+@pytest.mark.parametrize("variant", ["native", "swar", "byte"])
+def test_native_scanner_matches_model(capacity, variant):
+    from dataclasses import astuple
+
+    from fse import _native
+
+    for text in ["", *boundary_cases(), *fuzz_texts(449)]:
+        q = text.encode()
+        expected = [(batch, astuple(state)) for batch, state in scan(q, classify, capacity)]
+        assert _native._wp_scan_words(q, capacity, variant) == expected, (text, capacity, variant)
