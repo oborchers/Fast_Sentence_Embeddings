@@ -1,9 +1,6 @@
 --- a/src/fse/_native_src/kernel/_native_kernel_tiles.h
 +++ b/src/fse/_native_src/kernel/_native_kernel_tiles.h
-@@ -102,6 +102,60 @@
-                                   const float *f, int n, int first) {
-     const float32x4_t zero = vdupq_n_f32(0.0f);
-     int i = 0;
+@@ -104,0 +105,54 @@
 +    for (; i + 64 <= dim; i += 64) {
 +        FSE_NEON_START(a0, 0);
 +        FSE_NEON_START(a1, 1);
@@ -58,6 +55,3 @@
 +        vst1q_f32(acc + i + 56, a14);
 +        vst1q_f32(acc + i + 60, a15);
 +    }
-     for (; i + 32 <= dim; i += 32) {
-         FSE_NEON_START(a0, 0); FSE_NEON_START(a1, 1); FSE_NEON_START(a2, 2); FSE_NEON_START(a3, 3);
-         FSE_NEON_START(a4, 4); FSE_NEON_START(a5, 5); FSE_NEON_START(a6, 6); FSE_NEON_START(a7, 7);
