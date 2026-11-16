@@ -266,6 +266,10 @@ jobs:
       - run: make typecheck
 
   test:
+    # Test-only counters prove that dispatch executes the float32 tiles. Release wheels
+    # use the normal build without this macro and still run the bit-conformance suite.
+    env:
+      FSE_TEST_TILES: "1"
     name: test (${{ matrix.os }}, ${{ matrix.python-version }}, ${{ matrix.deps }})${{ needs.changes.outputs.targeted == 'true' && format(' at {0}', needs.changes.outputs.source_ref) || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true'

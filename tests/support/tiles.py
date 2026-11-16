@@ -2,7 +2,8 @@
 
 The kernel cuts the terms of a sentence (one row and factor per contribution) into tiles
 of at most K terms and keeps the accumulators of a block of the dimension in registers
-over a tile: blocks of 32 values, then one block each of 16, 8 and 4, then single values.
+over a tile: NEON blocks of 32/16/8/4 values, AVX2 blocks of 64/32/16/8/4,
+then single values.
 The cases put witnesses at every block, sub-block and the tail, and at tile boundaries
 for every K up to 64; ``model_pool`` computes the tiled kernel in numpy, with a mistake if
 asked, so the meta-tests can show that the cases catch each mistake.
@@ -16,7 +17,7 @@ from fse import _reference
 from fse._contract import OOV_TOKEN
 from support.conformance import F32, TINY, Case, _rng
 
-BLOCK = 32
+LAYOUTS = {"neon": (32, 16, 8, 4), "avx2": (64, 32, 16, 8, 4)}
 # Block edges of 32, 16, 8 and 4 values, the tail, and dimensions at and above the tile
 # budget (1024 float32 values give K = 4, 1025 and more take the row loop).
 DIMS = (
@@ -43,6 +44,12 @@ DIMS = (
     127,
     128,
     129,
+    191,
+    192,
+    193,
+    255,
+    256,
+    257,
     300,
     301,
     768,
@@ -51,15 +58,16 @@ DIMS = (
     2048,
 )
 LONGEST = 130  # terms: K - 1, K and K + 1 for every K up to 64, twice over
-WITNESS_DIM = 63  # 32 + 16 + 8 + 4 + 3: every block and the tail
+WITNESS_DIM = 127  # 64 + 32 + 16 + 8 + 4 + 3: every AVX2 block and the tail
 
 
-def regions(dim: int) -> dict[str, slice]:
+def regions(dim: int, layout: str = "neon") -> dict[str, slice]:
     """The columns of the main blocks, each sub-block and the tail that ``dim`` has."""
-    out, i = {}, BLOCK * (dim // BLOCK)
+    block, *subblocks = LAYOUTS[layout]
+    out, i = {}, block * (dim // block)
     if i:
         out["main"] = slice(0, i)
-    for width in (16, 8, 4):
+    for width in subblocks:
         if i + width <= dim:
             out[f"sub{width}"] = slice(i, i + width)
             i += width
@@ -307,12 +315,14 @@ def _run_tiles(tiles, start, where, mistake):
     return acc
 
 
-def model_rows(case, k_max: int, mistake: str | None = None, region: str | None = None):
+def model_rows(
+    case, k_max: int, mistake: str | None = None, region: str | None = None, layout: str = "neon"
+):
     """The rows of the tiled kernel with tiles of k_max terms, one sentence at a time,
     with a mistake in the columns of ``region`` (all columns if None)."""
     dim = case.base.shape[1]
     where = np.zeros(dim, bool)
-    where[regions(dim)[region] if region else slice(None)] = True
+    where[regions(dim, layout)[region] if region else slice(None)] = True
     start = dirty(dim)
     table, unknown = _stored(case), 0
     for sentence in case.sentences:
@@ -323,10 +333,12 @@ def model_rows(case, k_max: int, mistake: str | None = None, region: str | None 
             yield F32(F32(1) / F32(n)) * acc if n else acc
 
 
-def model_pool(case, k_max: int, mistake: str | None = None, region: str | None = None):
+def model_pool(
+    case, k_max: int, mistake: str | None = None, region: str | None = None, layout: str = "neon"
+):
     """The rows of ``model_rows`` as one array."""
     dim = case.base.shape[1]
     out = np.zeros((len(case.sentences), dim), F32)
-    for s, row in enumerate(model_rows(case, k_max, mistake, region)):
+    for s, row in enumerate(model_rows(case, k_max, mistake, region, layout)):
         out[s] = row
     return out

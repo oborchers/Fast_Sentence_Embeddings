@@ -250,7 +250,7 @@ FSE_DEFINE_LOOP(fse_loop_f32_portable, FSE_NO_TARGET, fse_fma_f32_portable, 0)
 FSE_DEFINE_LOOP(fse_loop_f16_portable, FSE_NO_TARGET, fse_fma_f16_portable, 0)
 FSE_DEFINE_LOOP(fse_loop_i8_portable, FSE_NO_TARGET, fse_fma_i8_portable, 1)
 #if defined(FSE_X86)
-FSE_DEFINE_LOOP(fse_loop_f32_avx2, FSE_AVX2_TARGET, fse_fma_f32_avx2, 0)
+FSE_DEFINE_LOOP(fse_loop_f32_avx2_rows, FSE_AVX2_TARGET, fse_fma_f32_avx2, 0)
 FSE_DEFINE_LOOP(fse_loop_f16_avx2, FSE_AVX2_TARGET, fse_fma_f16_avx2, 0)
 FSE_DEFINE_LOOP(fse_loop_i8_avx2, FSE_AVX2_TARGET, fse_fma_i8_avx2, 1)
 #endif

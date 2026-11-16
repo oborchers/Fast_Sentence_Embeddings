@@ -18,6 +18,7 @@ from support.conformance import assert_bits_equal
 from support.tiles import (
     ACC_MISTAKES,
     BUILDER_MISTAKES,
+    LAYOUTS,
     model_pool,
     model_rows,
     regions,
@@ -54,24 +55,25 @@ def expected(index: int):
     return _reference.pool_weighted_mean(case.batch, *case.args())
 
 
-def _caught(k_max, mistake, region=None):
+def _caught(k_max, mistake, region=None, layout="neon"):
     for index in _order(mistake):
         case = CASES[index]
         if mistake in BUILDER_MISTAKES and case.ngrams is None:
             continue  # the builder errs only on unknown words
-        if region is not None and region not in regions(case.base.shape[1]):
+        if region is not None and region not in regions(case.base.shape[1], layout):
             continue
         want = expected(index)
-        for s, row in enumerate(model_rows(case, k_max, mistake, region)):
+        for s, row in enumerate(model_rows(case, k_max, mistake, region, layout)):
             if row.tobytes() != want[s].tobytes():
                 return True
     return False
 
 
+@pytest.mark.parametrize("layout", LAYOUTS)
 @pytest.mark.parametrize("k_max", [1, 13, 64])
-def test_the_model_is_the_reference(k_max):
+def test_the_model_is_the_reference(k_max, layout):
     for index in range(len(CASES)):
-        assert_bits_equal(model_pool(CASES[index], k_max), expected(index), CASES[index].name)
+        assert_bits_equal(model_pool(CASES[index], k_max, layout=layout), expected(index), CASES[index].name)
 
 
 @pytest.mark.parametrize("mistake", BUILDER_MISTAKES)
@@ -84,8 +86,11 @@ def test_the_suite_catches_a_builder_mistake(mistake):
 ACC_KS = {"reverse the terms of a tile": KS[1:]}
 
 
-@pytest.mark.parametrize("region", ["main", "sub16", "sub8", "sub4", "tail"])
+@pytest.mark.parametrize(
+    ("layout", "region"),
+    [(layout, region) for layout in LAYOUTS for region in regions(127, layout)],
+)
 @pytest.mark.parametrize("mistake", ACC_MISTAKES)
-def test_the_suite_catches_an_accumulator_mistake(mistake, region):
-    missed = [k for k in ACC_KS.get(mistake, KS) if not _caught(k, mistake, region)]
-    assert not missed, f"no case catches {mistake!r} in {region} with K in {missed}"
+def test_the_suite_catches_an_accumulator_mistake(mistake, region, layout):
+    missed = [k for k in ACC_KS.get(mistake, KS) if not _caught(k, mistake, region, layout)]
+    assert not missed, f"no case catches {mistake!r} in {layout}/{region} with K in {missed}"

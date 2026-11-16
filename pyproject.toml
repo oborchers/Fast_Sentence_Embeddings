@@ -154,6 +154,7 @@ all = [
 
 [tool.uv]
 cache-keys = [
+    { env = "FSE_TEST_TILES" },
     { file = "pyproject.toml" },
     { file = "setup.py" },
     { file = "src/fse/*.pyx" },
