@@ -1,0 +1,51 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-448 (Normalisierung, Wortgrenzen und Wort-Hash von WordPiece in einem ASCII-Durchlauf verschmelzen). Primary optimization requires 10% saving in comparison AND confirmation, in addition to the v2 noise and confirmation rules. Secondary cells use preliminary regression screens with relevant slowdown 0.02. Local development indications only; no publication evidence.",
+  "cells": [
+    {
+      "id": "potion-8m-stsb-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "minimum_saving": 0.1
+    },
+    {
+      "id": "potion-8m-stsb-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 12
+    },
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31
+    },
+    {
+      "id": "potion-8m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 14
+    },
+    {
+      "id": "potion-wikitext-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "tokenizer"
+    },
+    {
+      "id": "retrieval-wikitext-tokenizer",
+      "model": "sentence-transformers/static-retrieval-mrl-en-v1",
+      "corpus": "wikitext",
+      "stage": "tokenizer"
+    }
+  ]
+}
