@@ -1,0 +1,71 @@
+--- a/src/fse/_native_src/text/_native_wordpiece.h
++++ b/src/fse/_native_src/text/_native_wordpiece.h
+@@ -183,7 +183,7 @@
+    byte is its table entry. A byte that is not ASCII, and any byte while the run holds
+    marks (an ASCII byte ends the run, a removed one does not), takes fse_wp_step. out has
+    3 n bytes, so the 8 bytes stored at out + m always fit (m <= 3 i and i + 8 <= n). */
+-FSE_INLINE int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
++static __attribute__((noinline)) int64_t fse_wp_normalize_ascii(const uint8_t *p, int64_t n, uint8_t *out,
+                                       uint32_t *run) {
+     int64_t i = 0, m = 0, r = 0;
+     while (i < n) {
+@@ -280,7 +280,7 @@
+    lookup for them. Inside a word, at an ASCII byte, the bytes of a-z and 0-9 (word bytes,
+    as module init checks) among the next 8 are skipped at once while at least 8 bytes are
+    left. */
+-FSE_INLINE int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
++static __attribute__((noinline)) int fse_wp_next_word_ascii(const uint8_t *q, int64_t m, int64_t *pos,
+                                          int64_t *start, int64_t *end) {
+     int64_t i = *pos;
+     int len;
+@@ -324,7 +324,7 @@
+ /* fse_wp_char_cut 8 bytes at a time: a block of 8 ASCII bytes (when at least 8 are left,
+    by memcpy) is 8 code points, and holds the cut at i + (max_chars - chars) when it falls
+    inside it; every other byte takes the decoder, so the whole input is still validated. */
+-static inline int64_t fse_wp_char_cut_ascii(const uint8_t *p, int64_t n, int64_t max_chars) {
++static __attribute__((noinline)) int64_t fse_wp_char_cut_ascii(const uint8_t *p, int64_t n, int64_t max_chars) {
+     uint32_t cp;
+     int64_t i = 0, chars = 0, cut = n;
+     while (i < n) {
+--- a/src/fse/_native_src/text/_native_wordpiece_trie.h
++++ b/src/fse/_native_src/text/_native_wordpiece_trie.h
+@@ -378,7 +378,7 @@
+ /* The greedy step: the id of the longest token w[k:j] read from node s (the root, or the
+    node of the continuation prefix) with j > k on a code-point boundary of w[0:n] (j == n,
+    or w[j] is no continuation byte), and *end = j; FSE_TRIE_NONE when there is none. */
+-static inline uint32_t fse_trie_longest(const fse_trie *t, int64_t s, const uint8_t *w,
++static __attribute__((noinline)) uint32_t fse_trie_longest(const fse_trie *t, int64_t s, const uint8_t *w,
+                                         int64_t k, int64_t n, int64_t *end) {
+     uint32_t best = FSE_TRIE_NONE;
+     for (int64_t i = k; i < n; i++) {
+--- a/src/fse/_native_src/text/_native_vocab.pxi
++++ b/src/fse/_native_src/text/_native_vocab.pxi
+@@ -45,7 +45,7 @@
+     return w if k >= 8 else w & ((1ULL << (8 * k)) - 1)
+ 
+ 
+-cdef inline np.uint64_t _hash_word(
++cdef np.uint64_t _hash_word(
+     const unsigned char *p, Py_ssize_t n, np.uint64_t *key, bint padded
+ ) noexcept nogil:
+     """The slot hash of a word, 8 bytes per step. For a word of at most INLINE_KEY_BYTES
+@@ -90,7 +90,7 @@
+     np.uint64_t mask
+ 
+ 
+-cdef inline uINT_t _vocab_lookup(
++cdef uINT_t _vocab_lookup(
+     const VocabView *v, const unsigned char *p, Py_ssize_t n, bint padded=False
+ ) noexcept nogil:
+     """Vocabulary index of the n bytes at p, or NOT_FOUND; padded as for _hash_word."""
+--- a/src/fse/_native_src/text/_native_wordpiece.pxi
++++ b/src/fse/_native_src/text/_native_wordpiece.pxi
+@@ -297,7 +297,7 @@
+     return count
+ 
+ 
+-cdef inline Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, Py_ssize_t n,
++cdef Py_ssize_t _wp_word_trie(WordPieceState st, const unsigned char *w, Py_ssize_t n,
+                                      uINT_t *ids) noexcept nogil:
+     """_wp_word by the trie: the code points are counted only when the word has more bytes
+     than the limit (n bytes are at most n code points); the whole word is one lookup of the
