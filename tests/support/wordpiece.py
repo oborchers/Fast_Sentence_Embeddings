@@ -212,7 +212,7 @@ def edge_cases() -> list[str]:
     return _mark_runs() + _ascii_classes() + _word_limits() + _added_and_bytes()
 
 
-def ascii_heavy(count: int, seed: int) -> list[str]:
+def ascii_heavy(count: int, seed: int, max_length: int = 40) -> list[str]:
     """Random ASCII text with about 1 % of marks, controls, CJK, other code points that
     are not ASCII and added tokens: the mixtures where an ASCII path meets the generic one."""
     rng = random.Random(seed)
@@ -222,7 +222,7 @@ def ascii_heavy(count: int, seed: int) -> list[str]:
     common += " " * 12 + "\t\n\r"
     texts = []
     for _ in range(count):
-        n = rng.randint(0, 40)
+        n = rng.randint(0, max_length)
         chars = [rng.choice(rare) if rng.random() < 0.01 else rng.choice(common) for _ in range(n)]
         texts.append("".join(chars))
     return texts
