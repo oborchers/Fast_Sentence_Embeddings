@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-445 (Tokenizer- und Laufzeitanteil von potion-base-8M auf dem M1 aufschl\u00fcsseln). Descriptive local M1 study, never publication evidence.",
+  "description": "DR-445 (Tokenizer- und Laufzeitanteil von potion-base-8M auf dem M1 aufschl\u00fcsseln). Descriptive local M1 study, never publication evidence. chunk_bytes=null uses public encode; 0 uses automatic Pipeline.infer chunks; positive integers select its private byte target. chunks-default versus encode-memory controls private/public adapter overhead. Private API changes raise errors.",
   "cells": [
     {
       "id": "potion-8m-stsb-tokenizer",
