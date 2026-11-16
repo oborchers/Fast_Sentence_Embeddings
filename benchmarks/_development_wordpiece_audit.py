@@ -20,25 +20,10 @@ def audit(job):
         raise ValueError("whole-word audit requires wordpiece@1")
     config = spec.config
     vocab = {word.decode("utf-8"): index for word, index in model.word_vectors._words().items()}
-    added = {word: index for index, word in config.added_tokens}
     counts = Counter(words=0, whole_word_hits=0, trie_words=0, overlong_bypass=0, added_tokens=0)
-    expected = []
-    for text in texts:
-        ids = []
-        cut = text if spec.max_chars is None else text[: spec.max_chars]
-        for piece, token in reference.split_added(cut, added):
-            if token is not None:
-                counts["added_tokens"] += 1
-                ids.append(token)
-            else:
-                _words(piece, ids, counts, vocab, config, spec, reference)
-            if spec.max_tokens and len(ids) >= spec.max_tokens:
-                break
-        if spec.max_tokens:
-            ids = ids[: spec.max_tokens]
-        if spec.unknown == "drop":
-            ids = [token for token in ids if token != config.unk_id]
-        expected.extend(ids)
+    expected = [
+        token for text in texts for token in _sentence(text, counts, vocab, config, spec, reference)
+    ]
     native = tokenizer(model, texts)()
     if output_identity(native) != output_identity(reference_batch(model, texts)):
         raise ValueError("whole-word audit reference differs from native batch")
@@ -60,6 +45,23 @@ def audit(job):
         corpus=job["corpus"],
         artifact=job["artifact"],
     )
+
+
+def _sentence(text, counts, vocab, config, spec, reference):
+    ids = []
+    cut = text if spec.max_chars is None else text[: spec.max_chars]
+    added = {word: index for index, word in config.added_tokens}
+    for piece, token in reference.split_added(cut, added):
+        if token is not None:
+            counts["added_tokens"] += 1
+            ids.append(token)
+        else:
+            _words(piece, ids, counts, vocab, config, spec, reference)
+        if spec.max_tokens and len(ids) >= spec.max_tokens:
+            break
+    if spec.max_tokens:
+        ids = ids[: spec.max_tokens]
+    return [token for token in ids if token != config.unk_id] if spec.unknown == "drop" else ids
 
 
 def _words(piece, ids, counts, vocab, config, spec, reference):

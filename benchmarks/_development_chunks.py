@@ -20,7 +20,7 @@ def operation(model, texts, job):
     from _development_encode import output_identity
     from _development_memory import _Target
 
-    from fse._text import StringSource
+    from fse._text import Chunk, StringSource
 
     dtype = job["output_dtype"]
     codes = np.empty((len(texts), model.output_dim), dtype=dtype)
@@ -36,18 +36,17 @@ def operation(model, texts, job):
 
     observed = []
 
-    class ObservedSource(StringSource):
-        def encode(self, chunk, lookup, workspace):
-            observed.append(
-                dict(
-                    first_row=chunk.first_row, rows=chunk.n_sentences, bytes=self._span_bytes(chunk)
-                )
-            )
-            return super().encode(chunk, lookup, workspace)
+    source = StringSource(texts)
 
-    # Record only this real verification run. The timed closure has no observer.
-    source = ObservedSource(texts)
-    sink = _Target(codes, scales, dtype)
+    class ObservedTarget(_Target):
+        def target(self, first_row, n_rows):
+            chunk = Chunk(first_row, first_row + n_rows, first_row, n_rows)
+            observed.append(dict(first_row=first_row, rows=n_rows, bytes=source._span_bytes(chunk)))
+            return super().target(first_row, n_rows)
+
+    # The executor reserves one target per actual task. Only this verification
+    # sink records the ranges, including the fused text/pooling worker path.
+    sink = ObservedTarget(codes, scales, dtype)
     pipeline.infer(source, workers=1, sink=sink, chunk_bytes=size)
     if output_identity(sink.result()) != expected:
         raise ValueError("chunk-controlled pipeline differs from public encode")
@@ -77,7 +76,7 @@ def operation(model, texts, job):
         row_quantiles=quantiles("rows"),
         quantile_probabilities=[0, 0.25, 0.5, 0.75, 1],
         observed_tasks=observed,
-        observation="source.encode calls in the untimed verification run",
+        observation="Sink.target reservations in the untimed verification run",
         output_matches_public_encode=True,
         path="Pipeline.infer, fresh StringSource and Sink per operation",
     )
