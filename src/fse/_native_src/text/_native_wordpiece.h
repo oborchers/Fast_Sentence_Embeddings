@@ -145,9 +145,13 @@ static int fse_wp_ascii_init(void) {
         uint32_t lower = b >= 'A' && b <= 'Z' ? b + 0x20 : b;
         if (b >= 0x20 && b < 0x7F && (!fse_wp_ascii_keep[b] || fse_wp_ascii_map[b] != lower))
             return 1 + (int)b;
-        /* The block step of fse_wp_next_word_ascii takes a-z and 0-9 as word bytes. */
-        if (((b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')) && fse_wp_ascii_class[b])
-            return 1 + (int)b;
+        /* The fused scanner treats space separately and every other printable
+           non-alphanumeric byte as punctuation. Check the whole partition. */
+        if (b >= 0x20 && b < 0x7F) {
+            uint32_t expected = b == ' ' ? FSE_BERT_SPACE :
+                ((lower >= 'a' && lower <= 'z') || (b >= '0' && b <= '9') ? 0 : FSE_BERT_PUNCT);
+            if (fse_wp_ascii_class[b] != expected) return 1 + (int)b;
+        }
     }
     return 0;
 }

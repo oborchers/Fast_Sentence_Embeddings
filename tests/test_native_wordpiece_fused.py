@@ -110,7 +110,7 @@ def test_fused_boundaries_replay_and_long_keys(word_limit, max_tokens, max_chars
 
 
 @pytest.mark.parametrize("watch", [0, 1, 2])
-@pytest.mark.parametrize(("max_tokens", "max_chars"), [(1, 0), (1, 8), (0, 8)])
+@pytest.mark.parametrize(("max_tokens", "max_chars"), [(0, 0), (1, 0), (1, 8), (0, 8)])
 def test_fused_errors_behind_stops_and_in_later_spans(watch, max_tokens, max_chars):
     fast, generic = _lookups(100, max_tokens, max_chars, True)
     for raise_cut in (False, True) if watch else (False,):
@@ -120,3 +120,74 @@ def test_fused_errors_behind_stops_and_in_later_spans(watch, max_tokens, max_cha
                 rows = [b"", lead + bad]
                 assert _run(fast, rows, workspaces[0]) == _run(generic, rows, workspaces[1])
                 assert _run(fast, [b"a"], workspaces[0]) == _run(generic, [b"a"], workspaces[1])
+
+
+def test_register_keys_hit_the_table_without_a_trie():
+    words = ["ab", "ba"]
+    for length in range(1, 26):
+        word = "abcdefgh12345678qrstuvxyz9"[:length]
+        words += [word, word[::-1], word[1:] + word[:1]]
+    words = list(dict.fromkeys(words))
+    wv = WordVectors.from_arrays(np.zeros((len(words), 2), np.float32), words=words)
+    table = _native.VocabTable(wv.vocab_bytes, wv.vocab_offsets)
+    for index, word in enumerate(words):
+        for offset in range(9):
+            probes = _native._wordpiece_ascii_probe(table, (" " * offset + word.upper()).encode())
+            assert probes == [(offset, offset + len(word), index, True, True)]
+    with pytest.raises(ValueError, match="printable ASCII"):
+        _native._wordpiece_ascii_probe(table, b"a[b")
+
+
+@pytest.mark.parametrize("watch", [0, 1, 2])
+@pytest.mark.parametrize("chunk_bytes", [1, 7])
+def test_fused_arrow_and_small_chunks(watch, chunk_bytes):
+    import pyarrow as pa
+
+    from fse._text import ArrowSource, StringSource
+
+    texts = ["", "A" * 17 + " b", "aB[MASK]cd", "ab\x01cd", "A" * 64 + "é", "a b c"]
+    fast, generic = _lookups(100, 2, 0, True)
+    signatures = []
+    for lookup in (fast, generic):
+        for source in (StringSource(texts), ArrowSource(pa.array(texts))):
+            ws = _native.Workspace(watch=watch, store_rows=bool(watch))
+            rows = []
+            for chunk in source.scan(chunk_bytes=chunk_bytes).chunks:
+                batch = source.encode(chunk, lookup, ws)
+                report = ws.take_lengths() if watch else None
+                if report is not None:
+                    report = report[0], tuple(None if r is None else r.tobytes() for r in report[1])
+                rows.append(
+                    (batch.tokens.tobytes(), batch.offsets.tobytes(), ws.tokens_seen, report)
+                )
+            signatures.append(rows)
+    assert signatures[0] == signatures[1] == signatures[2] == signatures[3]
+
+
+@pytest.mark.parametrize("watch", [1, 2])
+def test_fused_reports_match_the_independent_reference(watch):
+    texts = ["A" * n + " b c [MASK] ab\x01cd é" for n in LENGTHS]
+    vocab = {t: i for i, t in enumerate(TOKENS)}
+    want = [
+        ref.encode_lengths(
+            t,
+            vocab,
+            unk_id=wp.UNK_ID,
+            added=wp.added_tokens(TOKENS),
+            max_tokens=2,
+            drop_unknown=True,
+        )
+        for t in texts
+    ]
+    lookup = _lookups(100, 2, 0, True)[0]
+    result = _run(
+        lookup, [t.encode() for t in texts], _native.Workspace(watch=watch, store_rows=True)
+    )
+    fields = ("dropped_unknown", "tokens", "truncated_tokens", "truncated_chars")
+    rows = result[3][1]
+    assert rows[0] == bytes(
+        int(w["char_truncated"]) | (int(w["token_truncated"]) << 1) for w in want
+    )
+    for index, name in enumerate(fields, 1):
+        if index < 3 or watch == 2:
+            assert rows[index] == np.array([w[name] for w in want], np.int64).tobytes()

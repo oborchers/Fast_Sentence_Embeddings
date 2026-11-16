@@ -1,15 +1,12 @@
 # Included by _native.pyx: The sentence functions that record what the length rule cut.
 #
-# They are copies of the default ones (TextLookup._sentence, _wordpiece_sentence,
-# _unigram_sentence, _wp_piece), which stay as they were before the length report and know
-# nothing of it, so the encoding without a report runs the same machine code. The loop of a
-# batch picks one or the other once (``ws.watch``). Recording changes no id, offset or other
-# state. For the flags the run reads one more word than the cut needs (stop_at is
-# max_tokens + 1) and cuts afterwards; counting tokenizes the rest of the sentence a second
-# time (_wp_over) in the scratch of the ids.
+# Sentence bookkeeping remains separate from the default path. Plain and watched
+# WordPiece share _wp_piece_fused and its fast word helpers. The generic oracle
+# keeps a separate word function below. Cython inline is a compiler hint, not forced
+# inlining; generated machine code is checked when profiling changed paths.
+# For flags, stop_at is max_tokens + 1. Counting tokenizes the rest a second time
+# (_wp_over) in the scratch of the ids, without changing the kept batch.
 
-# Copies of the word functions of _wp_piece: each piece function keeps its own, so the
-# compiler inlines them in both as it did in the one.
 cdef inline Py_ssize_t _wp_word_w(WordPieceState st, const unsigned char *w, Py_ssize_t n,
                                 uINT_t *ids) noexcept nogil:
     """Step 5 for the word w[0:n] of the normalized buffer (16 bytes readable after any
