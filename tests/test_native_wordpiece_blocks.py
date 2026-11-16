@@ -155,7 +155,9 @@ def test_native_scanner_matches_model(capacity, variant):
 
     from fse import _native
 
-    for text in ["", *boundary_cases(), *fuzz_texts(449)]:
+    texts = ["", *boundary_cases(), *fuzz_texts(449)]
+    texts += [ref.normalize(text) for text in texts[::7]]
+    for text in texts:
         q = text.encode()
         expected = [(batch, astuple(state)) for batch, state in scan(q, classify, capacity)]
         assert _native._wp_scan_words(q, capacity, variant) == expected, (text, capacity, variant)
@@ -204,3 +206,11 @@ def test_scan_probe_rejects_invalid_utf8_and_variant():
         _native._wp_scan_words(b"a", variant=[])
     with pytest.raises(ValueError, match="variant must be native, byte or swar"):
         _native._wp_scan_words(b"a", variant="missing")
+
+
+def test_compiled_scan_capacity_probe():
+    from fse import _native
+
+    capacity = _native._wp_scan_capacity()
+    assert type(capacity) is int
+    assert capacity in (1, 64)

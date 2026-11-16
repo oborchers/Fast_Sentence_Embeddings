@@ -1,0 +1,109 @@
+{
+  "format": "local-development-v2",
+  "description": "WordPiece tokenizer and memory-encoding cells for the iterator scanner.",
+  "cells": [
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": true,
+      "practical_saving": 0.08
+    },
+    {
+      "id": "potion-8m-stsb-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-chunks256-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 14,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-stsb-encode-memory",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "stage": "encode-memory",
+      "resident_cycles": 32,
+      "iterations": 12,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-massive-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "massive-de-fr-ru",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-short-limit-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-long-docs",
+      "stage": "tokenizer",
+      "token_limit": 16,
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-added-pieces-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb-added-pieces",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    }
+  ],
+  "decision": {
+    "rule": "cells@1",
+    "practical_saving": 0.08,
+    "main": [
+      "potion-8m-chunks256-tokenizer"
+    ],
+    "edge": {
+      "potion-8m-stsb-tokenizer": {
+        "min_factor": 0.9803921568627451
+      },
+      "potion-8m-chunks256-encode-memory": {
+        "min_factor": 0.9803921568627451
+      },
+      "potion-8m-stsb-encode-memory": {
+        "min_factor": 0.9803921568627451
+      },
+      "potion-8m-massive-tokenizer": {
+        "min_factor": 0.970873786407767
+      },
+      "potion-8m-short-limit-tokenizer": {
+        "min_factor": 0.9803921568627451
+      },
+      "potion-8m-added-pieces-tokenizer": {
+        "min_factor": 0.9803921568627451
+      }
+    },
+    "stop_early": false
+  },
+  "defaults": {
+    "base_wp_scan_capacity": 0,
+    "candidate_wp_scan_capacity": 1
+  }
+}

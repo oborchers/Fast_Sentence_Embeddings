@@ -24,6 +24,29 @@ def validate(cell):
         raise ValueError("token_limit must be a positive integer or null")
     if limit is not None and cell["stage"] != "tokenizer":
         raise ValueError("token_limit currently supports the tokenizer stage only")
+    for name in ("base_wp_scan_capacity", "candidate_wp_scan_capacity"):
+        expected = cell[name]
+        if expected is not None and (type(expected) is not int or expected not in (0, 1, 64)):
+            raise ValueError(f"{name} must be 0, 1, 64 or null")
+
+
+def scan_capacity():
+    """Observed compiled arm; zero identifies an older native build without the probe."""
+    from fse import _native
+
+    probe = getattr(_native, "_wp_scan_capacity", None)
+    capacity = 0 if probe is None else probe()
+    if type(capacity) is not int or capacity not in (0, 1, 64):
+        raise ValueError("native WordPiece scanner capacity is invalid")
+    return capacity
+
+
+def check_capacity(identity, cell, candidate):
+    name = "candidate_wp_scan_capacity" if candidate else "base_wp_scan_capacity"
+    expected = cell[name]
+    observed = identity["wordpiece_scan_capacity"]
+    if expected is not None and observed != expected:
+        raise ValueError(f"{name} differs: expected {expected}, observed {observed}")
 
 
 def variants(model, repo, cells):

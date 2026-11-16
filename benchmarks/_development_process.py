@@ -18,6 +18,7 @@ from _development_system import (
     mark_functional,
     require_unix,
 )
+from _development_wordpiece import scan_capacity
 from _harness.budget import WallBudgetExpiredError, check
 from _harness.records import atomic, document, sha256
 from _measurement import package_identity
@@ -94,6 +95,7 @@ def identity():
         "python": sys.version,
         "executable": sys.executable,
         "fse": package_identity("fse"),
+        "wordpiece_scan_capacity": scan_capacity(),
         "dependencies": dict(
             sorted((d.metadata["Name"], d.version) for d in importlib.metadata.distributions())
         ),

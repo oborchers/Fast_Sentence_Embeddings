@@ -1,6 +1,6 @@
 {
   "format": "local-development-v2",
-  "description": "DR-449 (Vorzerlegung von WordPiece blockweise über Bitmasken der Zeichenklassen ausführen). Local optimization, never publication evidence. One worker. Deciding saving at least 8%, independent confirmation at least half the effect. Edge savings at least -2%, or -3% for MASSIVE, in both comparison and confirmation. Independent A/A IQR must be below the relevant boundary. Full protocol: 330 minutes total, USD 0, no retry or extension.",
+  "description": "WordPiece tokenizer and memory-encoding cells for the batch scanner.",
   "cells": [
     {
       "id": "potion-8m-chunks256-tokenizer",
@@ -101,5 +101,9 @@
       }
     },
     "stop_early": false
+  },
+  "defaults": {
+    "base_wp_scan_capacity": 0,
+    "candidate_wp_scan_capacity": 64
   }
 }

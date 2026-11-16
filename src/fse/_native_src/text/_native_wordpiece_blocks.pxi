@@ -15,6 +15,11 @@ cdef extern from "_native_wordpiece_blocks.h":
     const char *fse_wp_simd_name() noexcept nogil
 
 
+def _wp_scan_capacity():
+    """Compiled production arm: one range for the iterator or 64 for the batch."""
+    return FSE_WP_SCAN_CAPACITY
+
+
 def _wp_block_masks(q):
     """Masks of exactly 64 bytes, from every compiled classifier."""
     if not isinstance(q, bytes):

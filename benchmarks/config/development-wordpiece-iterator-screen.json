@@ -1,0 +1,42 @@
+{
+  "format": "local-development-v2",
+  "description": "WordPiece tokenizer cells for the iterator scanner.",
+  "defaults": {
+    "pairs": 5,
+    "base_wp_scan_capacity": 0,
+    "candidate_wp_scan_capacity": 1
+  },
+  "cells": [
+    {
+      "id": "potion-8m-chunks256-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-256-words",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": true,
+      "practical_saving": 0.08
+    },
+    {
+      "id": "potion-8m-short-limit-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext-long-docs",
+      "stage": "tokenizer",
+      "token_limit": 16,
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    },
+    {
+      "id": "potion-8m-added-pieces-tokenizer",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb-added-pieces",
+      "stage": "tokenizer",
+      "resident_cycles": 32,
+      "iterations": 31,
+      "decision_gate": false,
+      "practical_saving": null
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 {
   "format": "local-development-v2",
-  "description": "DR-449 (Vorzerlegung von WordPiece blockweise über Bitmasken der Zeichenklassen ausführen). Preliminary screen only, both scanner arms separately against base. Five pairs per block. Shared total budget 120 minutes including preparation, locks and profiles, USD 0. Never decides keep. No retry or extension.",
+  "description": "WordPiece tokenizer cells for the batch scanner.",
   "defaults": {
-    "pairs": 5
+    "pairs": 5,
+    "base_wp_scan_capacity": 0,
+    "candidate_wp_scan_capacity": 64
   },
   "cells": [
     {

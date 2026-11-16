@@ -41,6 +41,8 @@ HEAD_STAGES = ("head-folded", "head-with-vectors", "head-labels")
 DEFAULTS = {
     "model": None,
     "token_limit": None,
+    "base_wp_scan_capacity": None,
+    "candidate_wp_scan_capacity": None,
     "runtime_variant": "baseline",
     "runtime_baseline": None,
     "runtime_timeline": False,
