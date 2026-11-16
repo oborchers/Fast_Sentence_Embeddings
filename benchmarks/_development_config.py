@@ -10,6 +10,8 @@ from pathlib import Path
 
 from _development_identity import STAGE
 from _development_identity import validate as validate_identity
+from _development_join import CORPORA as JOIN_CORPORA
+from _development_join import validate as validate_join
 from _development_lengths import CORPORA
 from _development_statistics import decision_enabled
 from _development_system import LABEL, require_unix
@@ -18,6 +20,8 @@ from _harness.records import document
 from _measurement_config import CONFIG, MODEL_PINS
 
 STAGES = (
+    "text-join",
+    "token-join",
     "tokenizer",
     "pooling",
     "encode-memory",
@@ -161,6 +165,7 @@ def validate_cell(raw, defaults):
         "confirmation_fraction",
     ):
         _positive(cell[name], name)
+    validate_join(cell)
     _profile(cell)
     from _development_heads_multi import validate as validate_group
 
@@ -208,6 +213,7 @@ def _inputs(cell, identity):
         "wikitext-train",
         "agnews",
         *CORPORA,
+        *JOIN_CORPORA,
     ):
         raise ValueError("development cell requires a pinned model and a known corpus")
 

@@ -17,6 +17,7 @@ from _development_heads import SPEC as HEAD_SPEC
 from _development_heads import operation as head_operation
 from _development_heads_multi import SPEC as GROUP_SPEC
 from _development_heads_multi import operation as group_operation
+from _development_join import operation as join_operation
 from _development_locks import busy, lock_paths
 from _development_path_evidence import observe as path_evidence
 from _development_prefilter_search import metrics as prefilter_metrics
@@ -137,6 +138,8 @@ def measure(job):
     check(job.get("wall_deadline"))
     job["dimensions"] = model.output_dim
     factories = {
+        "text-join": lambda: join_operation(texts, job),
+        "token-join": lambda: join_operation(texts, job),
         "tokenizer": lambda: tokenizer(model, texts, job),
         "pooling": lambda: pooling(model, job),
         "encode-memory": lambda: encode_operation(model, texts, job),

@@ -25,7 +25,9 @@ def _same(texts, threads):
 
 @pytest.mark.parametrize("threads", [1, 4])
 @pytest.mark.parametrize(("stage", "acquired"), [(1, 0), (2, 1), (3, 3), (4, 7), (5, 15)])
-def test_each_failed_allocation_releases_resources_and_next_call_works(faults, threads, stage, acquired):
+def test_each_failed_allocation_releases_resources_and_next_call_works(
+    faults, threads, stage, acquired
+):
     texts = ["abc é 日 𝄞"] * (4096 * threads)
     faults(fail_stage=stage)
     with pytest.raises(MemoryError):

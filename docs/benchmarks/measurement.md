@@ -2506,3 +2506,18 @@ supports the padding explanation; it does not prove identical GPU scores.
 The same probe confirmed both ST loading paths apply the limit, a long input
 is truncated to 8192 tokens, and both allocation definitions expand the retry
 into four prompt-smoke cells and seven measurement cells.
+
+
+### Local text construction
+
+`benchmarks/config/text-join-local.json` selects the end-to-end string encoding
+and construction cells. The `text-join@1` profile adds `text-join` (StringSource)
+and `token-join` (TokenListSource) to the existing local v2 controller. It checks
+all UTF-8 bytes and offsets against the Python path outside the timer. Token
+splitting is prepared outside the timer. These stages measure construction only,
+not task submission or end-to-end token-list encoding. Each child sets the public
+`PYTHON_CPU_COUNT` override to the requested join thread budget, capped at eight.
+The synthetic short corpus has 400,000 rows of 20 words. The non-ASCII corpus
+cycles three declared Latin-1, BMP and astral patterns over 400,000 rows. Receipts
+retain patterns and character/byte lengths. Full v2 controls, claim classes,
+shared locks, provenance and budget rules apply unchanged.
