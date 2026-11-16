@@ -90,6 +90,8 @@ class Allocating:
     def evidence(self):
         from _development_runtime_probe import observe
 
-        if self.job.get("runtime_timeline", False):
+        if self.job.get("runtime_timeline", False) and not self.job.get(
+            "diagnostic_profile", False
+        ):
             return observe(self, self.job)
         return None
