@@ -61,7 +61,6 @@
 enum { FSE_F32 = 0, FSE_F16 = 1, FSE_I8 = 2 };
 enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2 };
 
-/* Every float16 bit pattern as float32, filled at import: exact widening. */
 /* Per-thread diagnostics exist only in explicitly instrumented test builds. */
 #if defined(FSE_TEST_TILES)
 #if defined(_MSC_VER)
@@ -72,10 +71,13 @@ enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2 };
 static FSE_TEST_TLS int64_t fse_test_tiles;
 static FSE_TEST_TLS int fse_test_loop;
 #define FSE_TEST_TILE() (++fse_test_tiles)
+#define FSE_TEST_ROWS() (fse_test_loop = 0)
 #else
 #define FSE_TEST_TILE() ((void)0)
+#define FSE_TEST_ROWS() ((void)0)
 #endif
 
+/* Every float16 bit pattern as float32, filled at import: exact widening. */
 static float fse_half_table[65536];
 
 typedef struct {

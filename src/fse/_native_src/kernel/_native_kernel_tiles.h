@@ -97,7 +97,7 @@ FSE_INLINE int fse_fill_tile(const fse_params *p, const fse_batch *b, int64_t to
 #define FSE_AVX2_FMA(a, q) a = _mm256_fmadd_ps(fv, _mm256_loadu_ps(x + 8 * (q)), a)
 
 /* Independent lanes, with each lane's fused chain kept in token order. */
-FSE_AVX2_TARGET static inline void fse_tile_f32_avx2(float *FSE_RESTRICT acc, int dim,
+FSE_INLINE FSE_AVX2_TARGET void fse_tile_f32_avx2(float *FSE_RESTRICT acc, int dim,
                           const char *const *row, const float *f, int n, int first) {
     const __m256 zero = _mm256_setzero_ps();
     int i = 0;
@@ -167,7 +167,10 @@ FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *
                                               float *out, int64_t *counts, int finish) {
     const int dim = p->dim;
     const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-    if (cap < FSE_TILE_MIN) return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+    }
     const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
     const char *row[FSE_TILE_MAX];
     float f[FSE_TILE_MAX];
@@ -266,7 +269,10 @@ FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_bat
                                               float *out, int64_t *counts, int finish) {
     const int dim = p->dim;
     const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-    if (cap < FSE_TILE_MIN) return fse_loop_f32_neon_rows(p, b, out, counts, finish);
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_neon_rows(p, b, out, counts, finish);
+    }
     const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
     const char *row[FSE_TILE_MAX];
     float f[FSE_TILE_MAX];

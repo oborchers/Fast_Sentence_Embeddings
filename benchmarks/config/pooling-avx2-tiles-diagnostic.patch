@@ -45,10 +45,10 @@
      }
      if (i + 16 <= dim) {
          FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1);
-@@ -168,7 +181,7 @@
-     const int dim = p->dim;
-     const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-     if (cap < FSE_TILE_MIN) return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+@@ -171,7 +184,7 @@
+         FSE_TEST_ROWS();
+         return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+     }
 -    const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
 +    const int K = cap < FSE_AVX2_CAP ? (int)cap : FSE_AVX2_CAP;
      const char *row[FSE_TILE_MAX];

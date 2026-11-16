@@ -156,7 +156,7 @@ def test_dispatch_executes_tiles(isa, dtype, dim):
     case = Case("trace", dtype, np.ones((1, dim), F32), np.ones(1, F32), ((0,) * 130, ()))
     got = _kernel(case, isa).pool(case.batch)
     trace = _native._test_pool_trace()
-    tiled = dtype == "float32" and isa in ("avx2", "neon")
+    tiled = dtype == "float32" and isa in ("avx2", "neon") and dim <= 1024
     k_max = min(64, 16384 // (dim * 4))
     tiles = (130 + k_max - 1) // k_max + 1 if tiled and k_max >= 4 else 0
     assert trace == (f"{isa}-tiles" if tiled else "rows", tiles)
