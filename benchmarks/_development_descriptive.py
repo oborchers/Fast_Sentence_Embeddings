@@ -42,7 +42,7 @@ def describe(args, cell, prepared, ledger, owner, identities):
     costs = summary([r["seconds"] for r in rows])
     # Distance from one is meaningful for ratios only, never for absolute seconds.
     costs.pop("max_deviation")
-    cores = summary([r["mean_cores"] for r in rows])
+    cores = _cores(rows)
     cores.pop("max_deviation")
     result = dict(
         status="valid",
@@ -101,3 +101,13 @@ def regression_screen(args, cell, prepared, ledger, owner, identities):
         result.update(status="valid", decision="functional_only")
     atomic(args.results / (cell["id"] + "-regression-screen.json"), result)
     return result
+
+
+def _cores(rows):
+    values = [row.get("mean_cores") for row in rows]
+    if any(value is None for value in values):
+        raise ValueError(
+            "descriptive CPU summary requires mean_cores in every receipt; "
+            "older or reused receipts lack this metadata, run a fresh study"
+        )
+    return summary(values)

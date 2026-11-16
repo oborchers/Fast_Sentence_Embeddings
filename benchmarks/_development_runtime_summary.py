@@ -1,55 +1,66 @@
-"""Offline reduction of runtime-timeline@1 observations, without causal claims."""
+"""Streaming reduction of compact runtime timelines, without causal claims."""
 
 from __future__ import annotations
+
+from collections import deque
+from typing import ClassVar
 
 
 def _seconds(ns):
     return ns / 1_000_000_000
 
 
-def _spans(rows, begin, end):
-    opened, spans = {}, []
-    for row in rows:
-        key = row["thread"]
-        if row["event"] == begin:
-            if key in opened:
+class _Spans:
+    START: ClassVar = {"work-start": "work", "join-start": "join", "wait-start": "wait"}
+    END: ClassVar = {"work-end": "work", "join-end": "join", "wait-end": "wait"}
+
+    def __init__(self):
+        self.opened, self.workers = {}, {}
+        self.totals = {"join": 0, "wait": 0}
+
+    def step(self, row):
+        event = row["event"]
+        kind = self.START.get(event) or self.END.get(event)
+        if kind is None:
+            return
+        key = (row["thread"], kind)
+        if event in self.START:
+            if key in self.opened:
                 raise ValueError("nested runtime diagnostic span")
-            opened[key] = row
-        elif row["event"] == end:
-            if key not in opened:
-                raise ValueError("runtime diagnostic end without start")
-            first = opened.pop(key)
-            spans.append((first, row))
-    if opened:
-        raise ValueError("incomplete runtime diagnostic spans")
-    return spans
+            self.opened[key] = row
+            return
+        if key not in self.opened:
+            raise ValueError("runtime diagnostic end without start")
+        first = self.opened.pop(key)
+        wall = row["wall_ns"] - first["wall_ns"]
+        if kind == "work":
+            state = self.workers.setdefault(str(row["thread"]), {"tasks": 0, "wall": 0, "cpu": 0})
+            state["tasks"] += 1
+            state["wall"] += wall
+            state["cpu"] += row["thread_cpu_ns"] - first["thread_cpu_ns"]
+        else:
+            self.totals[kind] += wall
 
-
-def _workers(rows, duration):
-    threads = {}
-    for first, last in _spans(rows, "work-start", "work-end"):
-        thread = str(first["thread"])
-        state = threads.setdefault(thread, {"tasks": 0, "wall_ns": 0, "cpu_ns": 0})
-        state["tasks"] += 1
-        state["wall_ns"] += last["wall_ns"] - first["wall_ns"]
-        state["cpu_ns"] += last["thread_cpu_ns"] - first["thread_cpu_ns"]
-    return {
-        thread: {
-            "tasks": state["tasks"],
-            "work_wall_seconds": _seconds(state["wall_ns"]),
-            "work_thread_cpu_seconds": _seconds(state["cpu_ns"]),
-            "work_wall_fraction": state["wall_ns"] / duration,
-            "work_cpu_fraction": state["cpu_ns"] / duration,
+    def result(self, duration):
+        if self.opened:
+            raise ValueError("incomplete runtime diagnostic spans")
+        return {
+            thread: {
+                "tasks": state["tasks"],
+                "work_wall_seconds": _seconds(state["wall"]),
+                "work_thread_cpu_seconds": _seconds(state["cpu"]),
+                "work_wall_fraction": state["wall"] / duration,
+                "work_cpu_fraction": state["cpu"] / duration,
+            }
+            for thread, state in self.workers.items()
         }
-        for thread, state in threads.items()
-    }
 
 
 class _Stalls:
     def __init__(self, workers):
         self.workers, self.active = workers, 0
-        self.snapshot = self.previous = self.published_at = None
-        self.intervals, self.wake_delays = [], []
+        self.snapshot = self.previous = self.published_at = self.interval_end = None
+        self.count = self.stall_ns = self.wake_ns = 0
 
     def _idle(self):
         state = self.snapshot
@@ -63,18 +74,24 @@ class _Stalls:
     def step(self, row):
         now, event = row["wall_ns"], row["event"]
         if self.previous is not None and self._idle():
-            self.intervals.append((self.previous, now))
+            if self.interval_end != self.previous:
+                self.count += 1
+            self.stall_ns += now - self.previous
+            self.interval_end = now
         if event == "work-start":
             self.active += 1
         elif event == "work-end":
             self.active -= 1
         self._publication(row)
-        if event in ("fill", "commit-start", "commit-end", "place-refused"):
-            if self.published_at is not None:
-                self.wake_delays.append(now - self.published_at)
-                self.published_at = None
-            self.snapshot = row if event == "fill" else None
+        self._caller(row)
         self.previous = now
+
+    def _caller(self, row):
+        if row["event"] in ("fill", "commit-start", "commit-end", "place-refused"):
+            if self.published_at is not None:
+                self.wake_ns += row["wall_ns"] - self.published_at
+                self.published_at = None
+            self.snapshot = row if row["event"] == "fill" else None
 
     def _publication(self, row):
         if row["event"] != "publish" or self.snapshot is None:
@@ -84,71 +101,86 @@ class _Stalls:
             self.snapshot = None
 
     def result(self):
-        merged = []
-        for start, end in self.intervals:
-            if merged and merged[-1][1] == start:
-                merged[-1] = (merged[-1][0], end)
-            else:
-                merged.append((start, end))
         return {
-            "observed_stall_intervals": len(merged),
-            "observed_stall_seconds": _seconds(sum(b - a for a, b in merged)),
-            "oldest_publication_to_caller_seconds": _seconds(sum(self.wake_delays)),
+            "observed_stall_intervals": self.count,
+            "observed_stall_seconds": _seconds(self.stall_ns),
+            "oldest_publication_to_caller_seconds": _seconds(self.wake_ns),
             "stall_scope": "snapshot estimate ending at oldest publication; own pool only",
         }
 
 
-def _stalls(rows, workers):
-    state = _Stalls(workers)
-    for row in rows:
-        state.step(row)
-    return {
-        **state.result(),
-        "pool_place_refusals": sum(row["event"] == "place-refused" for row in rows),
-    }
-
-
-def _gc_by_thread(rows):
-    result = {}
-    for first, last in _spans(rows, "gc-start", "gc-end"):
-        key = str(first["thread"])
-        result[key] = result.get(key, 0.0) + _seconds(last["wall_ns"] - first["wall_ns"])
-    return result
-
-
-def summarize(record, workers):
-    rows = [dict(zip(record["fields"], values, strict=True)) for values in record["records"]]
-    for row in rows:
+def event_rows(record, data):
+    """Decode one row at a time from an int64 buffer, without expanding the whole trace."""
+    width = len(record["fields"])
+    if len(data) < record["record_count"] * width:
+        raise ValueError("truncated runtime event buffer")
+    for index in range(record["record_count"]):
+        row = {field: data[index * width + column] for column, field in enumerate(record["fields"])}
         row["event"] = record["events"][row["event"]]
-    rows.sort(key=lambda row: row["wall_ns"])
-    first = next(row["wall_ns"] for row in rows if row["event"] == "call-start")
-    last = next(row["wall_ns"] for row in rows if row["event"] == "call-end")
-    duration = last - first
-    submits = [row for row in rows if row["event"] == "submit" and row["rows"] >= 0]
-    starts = [row for row in rows if row["event"] == "work-start" and row["rows"] >= 0]
-    return {
-        "call_wall_seconds": _seconds(duration),
-        "before_first_submit_seconds": _seconds(submits[0]["wall_ns"] - first) if submits else None,
-        "last_wave_tail_seconds": _seconds(last - min(row["wall_ns"] for row in starts[-workers:]))
-        if starts
-        else None,
-        "worker_activity": _workers(rows, duration),
-        "join_wall_seconds": sum(
-            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "join-start", "join-end")
-        ),
-        "caller_wait_seconds": sum(
-            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "wait-start", "wait-end")
-        ),
-        "gc_wall_seconds_by_thread": _gc_by_thread(rows),
-        "gc_wall_seconds": sum(
-            _seconds(b["wall_ns"] - a["wall_ns"]) for a, b in _spans(rows, "gc-start", "gc-end")
-        ),
-        "gc_collections": sum(row["event"] == "gc-start" for row in rows),
-        "task_rows": [row["rows"] for row in submits],
-        "task_bytes": [row["bytes"] for row in submits],
-        "windows": sorted({row["window"] for row in rows if row["window"] >= 0}),
-        **_stalls(rows, workers),
-    }
+        yield row
+
+
+class _Reduction:
+    def __init__(self, workers):
+        self.spans, self.stalls = _Spans(), _Stalls(workers)
+        self.first = self.last = self.first_submit = None
+        self.starts = deque(maxlen=workers)
+        self.task_rows, self.task_bytes, self.windows = [], [], set()
+        self.refusals = 0
+
+    def step(self, row):
+        event, now = row["event"], row["wall_ns"]
+        if event == "call-start":
+            self.first = now
+        elif event == "call-end":
+            self.last = now
+        elif event == "submit" and row["rows"] >= 0:
+            self.task_rows.append(row["rows"])
+            self.task_bytes.append(row["bytes"])
+            if self.first_submit is None:
+                self.first_submit = now
+        elif event == "work-start" and row["rows"] >= 0:
+            self.starts.append(now)
+        if row["window"] >= 0:
+            self.windows.add(row["window"])
+        self.refusals += event == "place-refused"
+        self.spans.step(row)
+        self.stalls.step(row)
+
+    def result(self, gc):
+        if self.first is None or self.last is None or self.last <= self.first:
+            raise ValueError("missing or invalid runtime call boundaries")
+        duration = self.last - self.first
+        return {
+            "call_wall_seconds": _seconds(duration),
+            "before_first_submit_seconds": _seconds(self.first_submit - self.first)
+            if self.first_submit is not None
+            else None,
+            "last_wave_tail_seconds": _seconds(self.last - min(self.starts))
+            if self.starts
+            else None,
+            "worker_activity": self.spans.result(duration),
+            "join_wall_seconds": _seconds(self.spans.totals["join"]),
+            "caller_wait_seconds": _seconds(self.spans.totals["wait"]),
+            "gc_wall_seconds_by_thread": {
+                thread: row["wall_seconds"] for thread, row in gc["threads"].items()
+            },
+            "gc_wall_seconds": sum(row["wall_seconds"] for row in gc["threads"].values()),
+            "gc_collections": sum(row["collections"] for row in gc["threads"].values()),
+            "gc_callback_losses": gc["callback_losses"],
+            "task_rows": self.task_rows,
+            "task_bytes": self.task_bytes,
+            "windows": sorted(self.windows),
+            "pool_place_refusals": self.refusals,
+            **self.stalls.result(),
+        }
+
+
+def summarize(record, workers, data):
+    state = _Reduction(workers)
+    for row in event_rows(record, data):
+        state.step(row)
+    return state.result(record["gc"])
 
 
 def screen(cell, rows, root):
