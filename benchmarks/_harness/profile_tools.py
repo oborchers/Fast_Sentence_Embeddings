@@ -14,7 +14,7 @@ SOURCES = {
     "memray": "https://github.com/bloomberg/memray/blob/v1.20.0/src/memray/_metadata.py",
 }
 LIMITS = {
-    "py-spy": "Python threads excluding idle frames; native frames on Linux only",
+    "py-spy": "Python threads including idle frames; native frames on Linux only",
     "samply": "Tool records a process tree; project acceptance scope is child",
     "memray": "All threads of this process; no forks and no following exec",
 }
@@ -53,6 +53,7 @@ def command(spec, executable, folder, target):
         "record",
         "--native",
         "--threads",
+        "--idle",
         *children,
         "-f",
         "speedscope",

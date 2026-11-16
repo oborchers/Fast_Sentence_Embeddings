@@ -12,6 +12,7 @@ from _development_locks import busy, lock_paths
 from _development_path_evidence import PathEvidenceError, per_arm
 from _development_path_evidence import validate as validate_path
 from _development_process import launch
+from _development_runtime_screen import configure as configure_runtime
 from _development_search import configure
 from _development_statistics import order, paired
 from _development_system import LABEL, observations
@@ -74,6 +75,7 @@ def arm(
     job["lengths"] = lengths_for(cell, candidate=not control and name == "candidate")
     configure(job, cell, name, control)
     configure_heads(job, cell, name, control)
+    configure_runtime(job, cell, name, control)
     from _development_pooling import configure as configure_pooling
 
     configure_pooling(job, cell, name, control)
@@ -158,11 +160,15 @@ def block(
             rows.append(row)
     if len(proofs) != 1:
         raise ValueError("complete paired stage output differs between builds or rounds")
+    from _development_runtime_screen import compare as runtime_compare
+
+    runtime = runtime_compare(cell, rows)
     paths = per_arm(rows)
     return {
         **LABEL,
         **paired(cell, rows),
         "output": rows[0]["output"],
+        **({"runtime_screen": runtime} if runtime is not None else {}),
         **({"path_evidence": paths} if paths else {}),
     }
 
@@ -176,5 +182,7 @@ def _validate(row, name, identities, control, cell, functional):
     expected = identities[0] if control or name == "base" else identities[1]
     if row["identity"] != expected:
         raise ValueError("build identity differs from the full quality gate")
+    if not functional and cell.get("runtime_paired", False) and row["seconds_per_iteration"] < 2:
+        raise ValueError("runtime screen requires each individual encode call to last two seconds")
     if not functional and row["seconds"] < max(cell["minimum_seconds"], cell["target_seconds"]):
         raise ValueError("measured call is shorter than the frozen duration floor")

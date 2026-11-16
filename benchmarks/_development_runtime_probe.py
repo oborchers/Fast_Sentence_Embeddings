@@ -57,6 +57,8 @@ EVENTS = (
     "native-end",
     "plan-start",
     "plan-end",
+    "direct-start",
+    "direct-end",
 )
 
 
@@ -204,6 +206,7 @@ class Timeline:
         for cls, name, start, end in (
             (StringSource, "__init__", "join-start", "join-end"),
             (_pipeline.Pipeline, "plan_tasks", "plan-start", "plan-end"),
+            (_pipeline.Pipeline, "_infer_single", "direct-start", "direct-end"),
             (CpuBackend, "text_rows", "native-start", "native-end"),
         ):
             stack.enter_context(

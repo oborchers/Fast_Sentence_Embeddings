@@ -11,12 +11,23 @@ def _seconds(ns):
 
 
 class _Spans:
-    START: ClassVar = {"work-start": "work", "join-start": "join", "wait-start": "wait"}
-    END: ClassVar = {"work-end": "work", "join-end": "join", "wait-end": "wait"}
+    START: ClassVar = {
+        "work-start": "work",
+        "join-start": "join",
+        "wait-start": "wait",
+        "direct-start": "direct",
+    }
+    END: ClassVar = {
+        "work-end": "work",
+        "join-end": "join",
+        "wait-end": "wait",
+        "direct-end": "direct",
+    }
 
     def __init__(self):
         self.opened, self.workers = {}, {}
-        self.totals = {"join": 0, "wait": 0}
+        self.totals = {"join": 0, "wait": 0, "direct": 0}
+        self.direct_calls = 0
 
     def step(self, row):
         event = row["event"]
@@ -28,6 +39,7 @@ class _Spans:
             if key in self.opened:
                 raise ValueError("nested runtime diagnostic span")
             self.opened[key] = row
+            self.direct_calls += kind == "direct"
             return
         if key not in self.opened:
             raise ValueError("runtime diagnostic end without start")
@@ -160,6 +172,8 @@ class _Reduction:
             if self.starts
             else None,
             "worker_activity": self.spans.result(duration),
+            "direct_path_calls": self.spans.direct_calls,
+            "direct_path_wall_seconds": _seconds(self.spans.totals["direct"]),
             "join_wall_seconds": _seconds(self.spans.totals["join"]),
             "caller_wait_seconds": _seconds(self.spans.totals["wait"]),
             "gc_wall_seconds_by_thread": {

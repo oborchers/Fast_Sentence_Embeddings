@@ -60,7 +60,10 @@ def settings(variant):
         with patch.object(_scan, "_CHUNK_MAX_BYTES", limit):
             yield
     elif variant == "inline-off":
-        with patch.object(_tasks, "INLINE_MAX_BYTES", 0):
+        with (
+            patch.object(_tasks, "INLINE_MAX_BYTES", 0),
+            patch.object(_pipeline, "INLINE_MAX_BYTES", 0),
+        ):
             yield
     else:
         enabled = gc.isenabled()

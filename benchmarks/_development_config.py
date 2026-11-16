@@ -43,6 +43,7 @@ DEFAULTS = {
     "runtime_variant": "baseline",
     "runtime_baseline": None,
     "runtime_timeline": False,
+    "runtime_paired": False,
     "source_bytes": 1024**3,
     "source_rows": 1_000_000,
     "probe_bytes": 10 * 1024**2,
@@ -198,6 +199,9 @@ def validate_cell(raw, defaults):
     from _development_runtime import validate as validate_runtime
 
     validate_runtime(cell)
+    from _development_runtime_screen import validate as validate_runtime_screen
+
+    validate_runtime_screen(cell)
     return cell
 
 
