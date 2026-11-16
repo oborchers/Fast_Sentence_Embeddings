@@ -1,65 +1,43 @@
 # Recipe 06 validation
 
-The complete [integration recipe](06-integrations.ipynb) executed on 1 November 2026
+The complete [integration recipe](06-integrations.ipynb) executed on 16 November 2026
 with Python 3.13.16 on an Apple M1 Pro running macOS 27.0.1.
+It used fse 2.1.0 and version 0.2.0 of `langchain-fse`, `llama-index-embeddings-fse` and `fse-haystack`,
+all installed from PyPI (DR-434: raise the outdated version statements and adapter pins in integration recipe 06 to 2.1.0 and 0.2.0).
 It used the real POTION-base-8M model and 100 AG News articles.
 Model and dataset revisions are pinned in [_helpers.py](_helpers.py).
+The claim class is correctness. No speed measurement was made.
 
 ## Durable results
 
 - [Executed notebook](06-integrations.ipynb): all 15 code cells completed in order,
-  with no error outputs. All 11 original code cells remain unchanged.
-- [Execution record](06-integrations-run.json): package versions, source commits,
-  installation substitution and the notebook checksum.
-- This report: the verified local gate results and reviewed README text.
+  with no error outputs. Only text and install pins changed since the 1 November run;
+  every code cell is unchanged.
+- [Execution record](06-integrations-run.json): package versions, source commit,
+  installation note and the notebook checksum.
+- This report: the verified results and the reviewed README text.
 
 LangChain, LlamaIndex and Haystack each retrieved the article used as the query.
 Haystack stored all 100 articles. The assertions check the connections for this
-example, rather than measuring search quality. No speed measurement was made.
+example, rather than measuring search quality.
 
 ## Local validation
 
-The tested input was commit `a1fec82e6a22d75130d45c704d172ddbde12195a`.
-The executed outputs were committed as `db0a7c45e7334c54753f3d186b9419e871147838`,
-with every notebook source cell unchanged from the tested input.
+The tested input was the notebook on commit `87f11f9c` with the new version text and pins.
 
 | Step | Verified result |
 |---|---|
-| Core install with Python 3.13 | Passed |
-| `make check PYTEST_N=4` | Passed, 9086 tests passed and 515 skipped |
-| Separate recipe environment with Python 3.13 | Created |
-| Recipe dependencies and local source packages | Installed |
-| `uv pip check` | Passed, 231 compatible packages |
-| Dependency freeze | Captured during validation |
-| Complete notebook execution | Passed, all 15 code cells |
+| Clean Python 3.13.16 environment | Created |
+| fse 2.1.0, `langchain-fse` 0.2.0, `llama-index-embeddings-fse` 0.2.0, `fse-haystack` 0.2.0 | Installed from PyPI |
+| Recipe packages pinned in `requirements.txt` that recipe 06 imports | Installed |
+| Complete notebook execution | Passed, all 15 code cells, no error outputs |
 
-The original temporary logs, dependency freeze, isolated environment and review
-transcript were later cleaned away. The gate results above were inspected at
-execution and recorded in the draft PR before that cleanup. This summary does
-not recreate those raw logs. The committed notebook and execution record remain
-available, and their checksum and execution counts were reverified afterward.
-
-## Installation substitution
-
-The notebook's final `pip install` commands are Markdown instructions for use
-after publication. They were not executed during local validation.
-Instead, validation installed the recipe requirements, fse and all three adapter
-packages from parent source commit `2f408ecd8cc164c2d89aa29c36e34f0977fee691`.
-The source directories were `integrations/langchain-fse`,
-`integrations/llama-index-embeddings-fse` and `integrations/fse-haystack`.
-Installed distribution metadata confirmed those local source directories.
-
-`SETUPTOOLS_SCM_PRETEND_VERSION_FOR_FSE=2.0.0` labelled the unreleased fse build
-for dependency resolution. It created no tag or release. Each adapter reported
-version 0.1.0. The framework versions were langchain-core 1.7.3,
-llama-index-core 0.14.25 and haystack-ai 3.4.1.
-No PyPI adapter package was installed or published.
-
-The independent read-only review found no API issues. Its installation warning
-was addressed with environment activation instructions and adapter version pins.
-Optional skipping was rejected because validation must execute every framework
-example. No further heavy validation is needed unless a new failure or review
-concern appears.
+The framework versions were langchain-core 1.7.3, llama-index-core 0.14.25 and
+haystack-ai 3.4.1. The environment held only the packages recipe 06 imports, not the
+full recipe requirements. The notebook's `pip install` commands are Markdown
+instructions and were not executed as cells. The first execution, on 1 November 2026
+with fse 2.0.0 and adapters 0.1.0 built from source before publication, is
+superseded by this run.
 
 ## Reviewed README insertion
 
@@ -69,7 +47,7 @@ metadata) merged as `6c7457b4682ab302a106e963eee6dd2effe03e6e` before this inser
 The class paths match the package source and the successful notebook imports.
 
 The maintainer requested ready-for-review status after green CI. Merge still
-requires publication of all three adapters after fse 2.0.0 and separate
+required publication of all three adapters after fse 2.0.0 and separate
 maintainer approval. This record authorizes no PR merge, package publication
 or infrastructure lifecycle action.
 
