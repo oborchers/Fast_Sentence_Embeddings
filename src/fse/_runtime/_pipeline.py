@@ -168,18 +168,13 @@ class Pipeline:
         own: ArrayRows | GrowingRows | None = None
         tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
-            rows = tasks.rows
-            own = (
-                GrowingRows(self.output_dim, dtype)
-                if rows is None
-                else ArrayRows(rows, self.output_dim, dtype)
-            )
+            own = _own_rows(tasks.rows, self.output_dim, dtype)
             sink = own
         local = WorkerLocal(lengths)
         done = [0, 0]  # the rows and tasks committed, for the record of the run
 
-        internal = own if type(own) is ArrayRows else None
-        native_work = self._task_work(source, internal is not None, local, base, collector)
+        native_work = self._task_work(source, type(own) is ArrayRows, local, base, collector)
+        internal = cast(ArrayRows, own) if native_work is not None else None
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
             first = tbase + task.first_row
@@ -473,3 +468,8 @@ def check_sink_rows(sink: object, dim: int):
         raise ValueError(f"the sink must take rows of {dim} values")
     sink_dtype(sink)
     wants_inverse_norms(sink)
+
+
+def _own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:
+    """A checked target for the call, with fixed or growing row count."""
+    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)

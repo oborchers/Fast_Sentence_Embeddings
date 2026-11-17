@@ -30,7 +30,7 @@ from typing import Any, TypeVar
 
 import numpy as np
 
-from ._pool import _ACTIVE, Pool
+from ._pool import _ACTIVE, _NESTED_POOL_ERROR, Pool
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -239,10 +239,7 @@ class _Run:
             active = _ACTIVE.__dict__.setdefault("pools", set())
             identity = id(self.pool_of_call)
             if identity in active:
-                raise RuntimeError(
-                    "a call on this pool was made inside a call or a task of the same pool; "
-                    "give the inner call its own pool or run it with workers=1"
-                )
+                raise RuntimeError(_NESTED_POOL_ERROR)
             active.add(identity)
             try:
                 return self.work(task)

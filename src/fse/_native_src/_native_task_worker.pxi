@@ -28,7 +28,7 @@ cdef class _TextAttempt:
     cdef TextTasks owner
     cdef object task, target
 
-    def __init__(self, TextTasks owner, item):
+    def __init__(self, TextTasks owner not None, item):
         self.owner, self.task = owner, item[0]
         stored = item[1]
         codes, scales = stored if isinstance(stored, tuple) else (stored, None)
@@ -36,6 +36,8 @@ cdef class _TextAttempt:
 
     def run(self, Py_ssize_t n):
         cdef TextTasks owner = self.owner
+        if owner is None:
+            raise TypeError("native text attempt is not initialized")
         # Preserve the order of Pipeline._work and pooled_task for every prefix.
         part = owner.helpers[0](self.target, n)
         task = self.task.prefix(n)
@@ -43,6 +45,10 @@ cdef class _TextAttempt:
         rows = codes if codes.dtype == np.float32 else owner.helpers[1](
             owner.local, len(codes), owner.kernel.dim)
         cdef Workspace ws = owner.helpers[2](owner.local)
+        if ws is None:
+            raise TypeError(
+                "Argument 'ws' has incorrect type (expected fse._native.Workspace, got NoneType)"
+            )
         chunk = task.chunk
         _pool_text_checked(owner.kernel, owner.lookup, ws, owner.text,
                            chunk.start, chunk.end, chunk.n_sentences,

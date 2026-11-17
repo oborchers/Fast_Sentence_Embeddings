@@ -9,6 +9,7 @@ from fse._runtime import ArrayRows, EncodeSpec, Pipeline, _pipeline, _tasks
 from fse._text import StringSource, TokenListSource
 from fse._tokenizer_spec import TokenizerSpec
 from fse._wordvectors import WordVectors
+from support.runtime import source as make_source
 from support.runtime import texts, word_vectors
 
 F32 = np.float32
@@ -181,3 +182,77 @@ def test_storage_error_before_a_later_pooling_error_keeps_its_row(monkeypatch, c
     checked = _outcome(pipeline, source, "float16", True, workers=3, chunk_bytes=chunk_bytes)
     assert native == checked
     assert native == (ValueError, "row 1 has values beyond the float16 range")
+
+
+def test_an_uninitialized_native_attempt_raises_instead_of_dereferencing_none():
+    attempt = _native._TextAttempt.__new__(_native._TextAttempt)
+    with pytest.raises(TypeError, match="native text attempt is not initialized"):
+        attempt.run(1)
+
+
+def test_a_missing_workspace_keeps_the_checked_route_error(monkeypatch):
+    monkeypatch.setattr(_pipeline, "_workspace", lambda _local: None)
+    pipeline = Pipeline(_spec())
+    source = StringSource(["w1", "w2"])
+    native = _outcome(pipeline, source, "float32", False, chunk_bytes=1000)
+    assert native == _outcome(pipeline, source, "float32", True, chunk_bytes=1000)
+    assert native[0] is TypeError
+    assert "Workspace, got NoneType" in native[1]
+
+
+def test_a_nested_parallel_call_from_a_native_worker_is_refused(monkeypatch):
+    from fse._runtime import Pool
+    from fse._runtime._pool import Workers
+
+    monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+    pipeline = Pipeline(_spec())
+    original = pipeline.stored
+    entered = []
+    with Pool(2, max_tasks=2) as pool:
+
+        def stored(rows, target, first):
+            entered.append(1)
+            Pipeline(_spec()).infer(
+                StringSource(["w1", "w2"]), workers=Workers(2, pool), chunk_bytes=1
+            )
+            original(rows, target, first)
+
+        monkeypatch.setattr(pipeline, "_work", lambda *_: pytest.fail("ordinary worker selected"))
+        monkeypatch.setattr(pipeline, "stored", stored)
+        with pytest.raises(RuntimeError, match="inside a call or a task of the same pool"):
+            pipeline.infer(StringSource(["w1", "w2"]), workers=Workers(2, pool), chunk_bytes=1)
+        assert entered
+        monkeypatch.setattr(pipeline, "stored", original)
+        assert pipeline.infer(
+            StringSource(["w1", "w2"]), workers=Workers(2, pool), chunk_bytes=1
+        ).shape == (2, pipeline.output_dim)
+
+
+@pytest.mark.parametrize("kind", ["strings", "subclass", "tokens", "file", "numpy"])
+def test_only_the_native_route_skips_internal_target_checks(monkeypatch, tmp_path, kind):
+    calls = []
+    target, commit = ArrayRows.target, ArrayRows.commit
+
+    def checked_target(self, *args):
+        calls.append("target")
+        return target(self, *args)
+
+    def checked_commit(self, *args):
+        calls.append("commit")
+        return commit(self, *args)
+
+    class Sub(StringSource):
+        pass
+
+    monkeypatch.setattr(ArrayRows, "target", checked_target)
+    monkeypatch.setattr(ArrayRows, "commit", checked_commit)
+    spec = _spec()
+    if kind == "tokens":
+        spec = EncodeSpec(spec.word_vectors, spec.weights, spec.steps, TokenizerSpec.of("external"))
+    src = (
+        Sub(["w1", "w2"])
+        if kind == "subclass"
+        else make_source("strings" if kind == "numpy" else kind, ["w1", "w2"], tmp_path)
+    )
+    Pipeline(spec, "numpy" if kind == "numpy" else "cpu").infer(src, chunk_bytes=1000)
+    assert calls == ([] if kind == "strings" else ["target", "commit"])

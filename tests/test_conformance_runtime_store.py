@@ -9,7 +9,7 @@ import pytest
 
 from fse import _native, _reference
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _pipeline, _pool, _tasks
+from fse._runtime import EncodeSpec, GrowingRows, Pipeline, _pool, _tasks, _worker
 from fse._stream import StreamSource
 from fse._text import StringSource
 from fse._wordvectors import WordVectors
@@ -66,14 +66,14 @@ def test_stored_rows_are_the_reference_bits(
 def test_workers_store_in_the_kernel_environment(monkeypatch, env, store, backend):
     spec = _spec(False, "normalize", "fse_words@1")
     sentences = texts(2000)
-    made = _pipeline.new_workspace
+    made = _worker.new_workspace
     saved = []
 
     def hooked():
         saved.append(_native._test_fpenv_set(**env))  # in the worker thread, which then ends
         return made()
 
-    monkeypatch.setattr(_pipeline, "new_workspace", hooked)
+    monkeypatch.setattr(_worker, "new_workspace", hooked)
     got = Pipeline(spec, backend).infer(
         StringSource(sentences), workers=3, chunk_bytes=1024, dtype=store
     )
