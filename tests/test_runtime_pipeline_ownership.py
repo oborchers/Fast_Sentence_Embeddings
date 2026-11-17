@@ -75,7 +75,7 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
     def interrupted(pool):
         wv = word_vectors()
         pipeline = Pipeline(EncodeSpec(wv, np.ones(len(wv), np.float32), ()))
-        with pytest.raises(KeyboardInterrupt, match="^second$"):
+        with pytest.raises(KeyboardInterrupt, match=r"^second$"):
             pipeline.infer(StringSource(["w1", "w2"]), workers=Workers(2, pool), chunk_bytes=1)
 
     with Pool(2, max_tasks=2) as pool:
