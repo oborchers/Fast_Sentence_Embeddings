@@ -42,6 +42,10 @@ class BlockProbe:
         trace.used = 0
         trace.current_call = self.calls
         self.calls += 1
+        trace.mark("call-start")
+
+    def end_call(self):
+        self.timeline.mark("call-end")
 
     def evidence(self):
         self._check()

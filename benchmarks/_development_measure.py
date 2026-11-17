@@ -100,6 +100,8 @@ def _call(operation, job, phase, number, waiting):
     duration_valid = not job.get("single_operation", False) or (
         len(repeated["operation_seconds"]) == 1 and repeated["operation_seconds"][0] >= 2
     )
+    if job.get("runtime_fixed_iterations"):
+        duration_valid = duration_valid and seconds >= 2
     append(
         Path(job["receipt"]).with_suffix(".calls.jsonl"),
         {
@@ -125,7 +127,9 @@ def _call(operation, job, phase, number, waiting):
         },
     )
     if not duration_valid and not job.get("functional_only", False):
-        raise ValueError("single operation is below two seconds; frozen input is invalid")
+        raise ValueError(
+            "operation or frozen block is below two seconds; fixed workload is invalid"
+        )
     proof = output_proof(job, output)
     del output
     gc.collect()

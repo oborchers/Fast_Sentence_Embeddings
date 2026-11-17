@@ -101,16 +101,27 @@ class Repeated:
     def one(self):
         if self.block_probe is not None:
             self.block_probe.next_call()
-        return self.model.encode(
-            self.texts, workers=self.job["workers"], dtype=self.job["output_dtype"], pool=self.pool
-        )
+        try:
+            return self.model.encode(
+                self.texts,
+                workers=self.job["workers"],
+                dtype=self.job["output_dtype"],
+                pool=self.pool,
+            )
+        finally:
+            if self.block_probe is not None:
+                self.block_probe.end_call()
 
     def __enter__(self):
         if self.job.get("runtime_probe_blocks", False):
             from _development_runtime_block import BlockProbe
 
-            self.block_probe = BlockProbe(self)
-            self.block_probe.__enter__()
+            try:
+                self.block_probe = BlockProbe(self)
+                self.block_probe.__enter__()
+            except BaseException:
+                self.__exit__(None, None, None)
+                raise
         return self
 
     def __exit__(self, *args):
@@ -140,8 +151,11 @@ class Repeated:
 
         if not self.job.get("runtime_timeline") or self.job.get("diagnostic_profile", False):
             return None
-        # The probe sees exactly one call, not the whole repeated block. Its
-        # sequence numbers therefore remain unique within the trace.
+        # Restore timed hooks before installing the separate full-capture hooks.
+        if self.block_probe is not None:
+            self.block_probe.__exit__(None, None, None)
+            self.block_probe = None
+        # The separate probe records consecutive calls with composite task identity.
         with settings(self.variant):
             return observe(_Single(self), self.job)
 

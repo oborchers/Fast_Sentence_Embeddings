@@ -43,6 +43,8 @@ def validate(cell):
 
 
 def _validate_block_probe(cell):
+    if cell.get("runtime_probe_blocks") and not cell.get("runtime_fixed_iterations"):
+        raise ValueError("timed probe blocks require frozen iterations")
     for key in ("runtime_probe_blocks", "runtime_fixed_iterations"):
         if type(cell.get(key, False)) is not bool:
             raise ValueError(f"{key} must be boolean")

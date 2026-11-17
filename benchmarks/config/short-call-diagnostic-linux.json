@@ -34,7 +34,8 @@
       "call_repeats": 1,
       "runtime_variant": "tasks-per-worker-1",
       "runtime_timeline": true,
-      "runtime_paired": true
+      "runtime_paired": true,
+      "functional_rows": 65536
     },
     {
       "id": "chunks-lt512-tasks-per-worker-4",
@@ -44,7 +45,8 @@
       "call_repeats": 1,
       "runtime_variant": "tasks-per-worker-4",
       "runtime_timeline": true,
-      "runtime_paired": true
+      "runtime_paired": true,
+      "functional_rows": 65536
     },
     {
       "id": "chunks-lt512-window-4x",
@@ -55,7 +57,8 @@
       "runtime_variant": "window-4x",
       "runtime_timeline": true,
       "runtime_paired": true,
-      "runtime_baseline": "chunks-lt512-baseline"
+      "runtime_baseline": "chunks-lt512-baseline",
+      "functional_rows": 65536
     },
     {
       "id": "queries-tasks-per-worker-1",
@@ -65,7 +68,8 @@
       "call_repeats": 1,
       "runtime_variant": "tasks-per-worker-1",
       "runtime_timeline": true,
-      "runtime_paired": true
+      "runtime_paired": true,
+      "functional_rows": 65536
     },
     {
       "id": "queries-tasks-per-worker-4",
@@ -75,7 +79,8 @@
       "call_repeats": 1,
       "runtime_variant": "tasks-per-worker-4",
       "runtime_timeline": true,
-      "runtime_paired": true
+      "runtime_paired": true,
+      "functional_rows": 65536
     },
     {
       "id": "queries-window-4x",
@@ -86,7 +91,8 @@
       "runtime_variant": "window-4x",
       "runtime_timeline": true,
       "runtime_paired": true,
-      "runtime_baseline": "queries-baseline"
+      "runtime_baseline": "queries-baseline",
+      "functional_rows": 65536
     },
     {
       "id": "queries-pool-prebuilt",
@@ -96,7 +102,8 @@
       "call_repeats": 1,
       "runtime_variant": "pool+prebuilt",
       "runtime_timeline": true,
-      "runtime_paired": true
+      "runtime_paired": true,
+      "functional_rows": 65536
     },
     {
       "id": "chunks-pool-2x2-unprobed",
@@ -106,12 +113,13 @@
       "call_repeats": 1,
       "runtime_variant": "pool",
       "runtime_paired": true,
-      "runtime_timeline": false,
+      "runtime_timeline": true,
       "runtime_probe_blocks": false,
       "runtime_fixed_iterations": true,
       "iterations": 2048,
       "warmup_calls": 1,
-      "warmup_seconds": 1e-09
+      "warmup_seconds": 1e-09,
+      "functional_rows": 65536
     },
     {
       "id": "chunks-pool-2x2-probed",
@@ -121,12 +129,13 @@
       "call_repeats": 1,
       "runtime_variant": "pool",
       "runtime_paired": true,
-      "runtime_timeline": false,
+      "runtime_timeline": true,
       "runtime_probe_blocks": true,
       "runtime_fixed_iterations": true,
       "iterations": 2048,
       "warmup_calls": 1,
-      "warmup_seconds": 1e-09
+      "warmup_seconds": 1e-09,
+      "functional_rows": 65536
     },
     {
       "id": "queries-pool-2x2-unprobed",
@@ -136,12 +145,13 @@
       "call_repeats": 1,
       "runtime_variant": "pool",
       "runtime_paired": true,
-      "runtime_timeline": false,
+      "runtime_timeline": true,
       "runtime_probe_blocks": false,
       "runtime_fixed_iterations": true,
       "iterations": 1024,
       "warmup_calls": 1,
-      "warmup_seconds": 1e-09
+      "warmup_seconds": 1e-09,
+      "functional_rows": 65536
     },
     {
       "id": "queries-pool-2x2-probed",
@@ -151,12 +161,13 @@
       "call_repeats": 1,
       "runtime_variant": "pool",
       "runtime_paired": true,
-      "runtime_timeline": false,
+      "runtime_timeline": true,
       "runtime_probe_blocks": true,
       "runtime_fixed_iterations": true,
       "iterations": 1024,
       "warmup_calls": 1,
-      "warmup_seconds": 1e-09
+      "warmup_seconds": 1e-09,
+      "functional_rows": 65536
     }
   ]
 }
