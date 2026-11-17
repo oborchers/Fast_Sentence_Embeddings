@@ -324,12 +324,16 @@ def _capacity(operation, job):
 
 def _capture(operation, timeline, calls):
     from _development_encode import output_identity
+    from _development_runtime_cuts import Cuts
 
+    cuts = Cuts()
     records, output = [], None
     with ExitStack() as stack:
+        cuts.install(stack)
         timeline.install(stack)
         for number in range(calls):
             output = None
+            cuts.rows = []
             timeline.current_call = number
             timeline.collections = Collector()
             timeline.mark("call-start")
@@ -340,6 +344,7 @@ def _capture(operation, timeline, calls):
             records.append(
                 {
                     "call": number,
+                    "planning_cuts": cuts.rows,
                     "process_cpu_seconds": cpu_ns / 1e9,
                     "gc": timeline.collections.export(),
                 }

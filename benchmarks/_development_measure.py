@@ -89,6 +89,9 @@ def _call(operation, job, phase, number, waiting):
     seconds, output, repeated = repeat(
         operation, job["iterations"], record_calls=job.get("single_operation", False)
     )
+    block_evidence = getattr(operation, "block_evidence", None)
+    if block_evidence is not None:
+        repeated["runtime_block_probe"] = block_evidence()
     pressure_after = snapshot()
     job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
@@ -181,13 +184,18 @@ def measure(job):
             result["runtime_evidence"] = _runtime_evidence(
                 runtime_evidence, result["output"], result
             )
+        join_spans = getattr(operation, "join_spans", None)
+        if join_spans is not None:
+            result["join_spans"] = join_spans()
         evidence = path_evidence(operation, job)  # one untimed call after the measurement
         return result if evidence is None else {**result, "path_evidence": evidence}
 
 
 def _measured(operation, job, waiting, policy, resource):
     warmups, warm_seconds, expected = [], 0.0, None
-    while len(warmups) < job["warmup_calls"] or warm_seconds < job["warmup_seconds"]:
+    while len(warmups) < job["warmup_calls"] or (
+        not job.get("runtime_fixed_iterations", False) and warm_seconds < job["warmup_seconds"]
+    ):
         seconds, proof, _, _, _, _ = _call(operation, job, "warmup", len(warmups), waiting)
         if expected is not None and proof != expected:
             raise ValueError("warmup output changed")
@@ -205,6 +213,7 @@ def _measured(operation, job, waiting, policy, resource):
         "wait_seconds": waiting[0],
         "seconds": seconds,
         "process_cpu_seconds": repeated["process_cpu_seconds"],
+        "runtime_block_probe": repeated.get("runtime_block_probe"),
         "mean_cores": repeated["mean_cores"],
         "timer_contract": "repeated-prepared-input@1",
         "operation_repetitions": job["iterations"],

@@ -76,6 +76,7 @@ class Repeated:
         self.model, self.job = model, job
         self.variant = job.get("runtime_variant", "baseline")
         self.pool = None
+        self.block_probe = None
         self.texts = StringSource(texts) if "prebuilt" in self.variant else texts
         # Pool construction/start and eventual close are outside timed groups.
         if self.variant in ("pool", "pool+prebuilt"):
@@ -98,16 +99,30 @@ class Repeated:
                 raise ValueError("repeated exact call differs from baseline full output")
 
     def one(self):
+        if self.block_probe is not None:
+            self.block_probe.next_call()
         return self.model.encode(
             self.texts, workers=self.job["workers"], dtype=self.job["output_dtype"], pool=self.pool
         )
 
     def __enter__(self):
+        if self.job.get("runtime_probe_blocks", False):
+            from _development_runtime_block import BlockProbe
+
+            self.block_probe = BlockProbe(self)
+            self.block_probe.__enter__()
         return self
 
     def __exit__(self, *args):
-        if self.pool is not None:
-            self.pool.close()
+        try:
+            if self.block_probe is not None:
+                self.block_probe.__exit__(*args)
+        finally:
+            if self.pool is not None:
+                self.pool.close()
+
+    def block_evidence(self):
+        return None if self.block_probe is None else self.block_probe.evidence()
 
     def __call__(self):
         from _development_runtime import settings

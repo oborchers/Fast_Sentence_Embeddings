@@ -11,6 +11,10 @@ PROFILE = "text-join@1"
 
 
 def validate(cell):
+    if type(cell.get("join_spans", False)) is not bool:
+        raise ValueError("join_spans must be boolean")
+    if cell.get("join_spans") and (cell["stage"] != "text-join" or cell["workers"] not in (1, 8)):
+        raise ValueError("join_spans requires text-join with one or eight requested parts")
     if (cell["stage"] in STAGES) != (cell["profile"] == PROFILE):
         raise ValueError("text-join and token-join require the text-join@1 profile exclusively")
     if cell["profile"] == PROFILE and cell["workers"] > 8:
@@ -71,6 +75,10 @@ def operation(texts, job):
 
     if output_identity(construct()) != expected:
         raise ValueError("text construction bytes or offsets differ from Python reference")
+    if job.get("join_spans", False):
+        from _development_join_spans import observe
+
+        construct.join_spans = lambda: observe(prepared, job, expected)
     return construct
 
 
