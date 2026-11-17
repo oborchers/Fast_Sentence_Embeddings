@@ -32,6 +32,7 @@ import numpy as np
 
 import fse
 from fse import _native
+from fse._backends._cpu import CpuBackend
 from fse._runtime import _heads, _pipeline
 
 # Blocking calls a profile function sees as c_call: their modules or names.
@@ -60,13 +61,13 @@ class Budget:
         budget = self
 
         def windowed(real):
-            def work(owner, *args):
+            def work(*args):
                 with budget._lock:
                     window = Window()
                     budget._local.window = window
                     before = _native._test_nogil_sections()
                     try:
-                        return real(owner, *args)
+                        return real(*args)
                     finally:
                         window.sections = _native._test_nogil_sections() - before
                         budget._local.window = None
@@ -74,6 +75,12 @@ class Budget:
 
             return work
 
+        factory = CpuBackend.string_tasks
+
+        def native(owner, *args):
+            return windowed(factory(owner, *args))
+
+        monkeypatch.setattr(CpuBackend, "string_tasks", native)
         # The task of an encoder and the task of the heads.
         monkeypatch.setattr(_pipeline.Pipeline, "_work", windowed(_pipeline.Pipeline._work))
         monkeypatch.setattr(_heads.HeadsPipeline, "_work", windowed(_heads.HeadsPipeline._work))
@@ -166,6 +173,7 @@ TASK_PATH = {
     "_native_search.pxi": {"_inverse_norms_into"},
 }
 FUSED = "_native_task.pxi"
+FUSED_PARTS = (FUSED, "_native_task_worker.pxi")
 _COUNT = "_nogil_sections += 1"
 _DEF = re.compile(r"^(\s*)(?:c?p?def|cdef)\b.*?\b(\w+)\(")
 

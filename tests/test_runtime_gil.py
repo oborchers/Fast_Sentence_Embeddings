@@ -64,7 +64,7 @@ def _without_scratch(numpy):
 @pytest.mark.parametrize("workers", [1, 3])
 def test_a_task_hands_the_gil_over_within_its_budget(monkeypatch, tmp_path, kind, dtype, workers):
     windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=workers)
-    view = Counter() if kind == "arrow" else VIEW
+    view = Counter() if kind in ("arrow", "strings") else VIEW
     # A file is checked unchanged before and after it is encoded (os.stat), as before.
     blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
     for w in windows:
@@ -81,7 +81,7 @@ def test_a_task_of_the_split_tail_has_the_same_budget(monkeypatch, tmp_path, kin
     like those of every other task."""
     small_tasks(monkeypatch)
     windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=4, chunk_bytes=None)
-    view = Counter() if kind == "arrow" else VIEW
+    view = Counter() if kind in ("arrow", "strings") else VIEW
     blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
     for w in windows:
         assert w.sections == SECTIONS[dtype]
@@ -164,9 +164,10 @@ def test_every_section_of_the_task_path_is_counted(part):
     assert gil_budget.uncounted(text, names) == []
 
 
-def test_the_fused_part_is_counted_and_holds_nothing_forbidden():
-    text = gil_budget.source(gil_budget.FUSED)
-    assert text.count("with nogil") == 2
+@pytest.mark.parametrize("part", gil_budget.FUSED_PARTS)
+def test_the_fused_part_is_counted_and_holds_nothing_forbidden(part):
+    text = gil_budget.source(part)
+    assert text.count("with nogil") == (2 if part == gil_budget.FUSED else 0)
     assert gil_budget.uncounted(text, None) == []
     assert gil_budget.forbidden(text) == []
 
@@ -180,9 +181,10 @@ DEFECTS = {
 }
 
 
+@pytest.mark.parametrize("part", gil_budget.FUSED_PARTS)
 @pytest.mark.parametrize("defect", sorted(DEFECTS))
-def test_the_source_check_finds_each_defect(defect):
-    text = DEFECTS[defect]
+def test_the_source_check_finds_each_defect(defect, part):
+    text = gil_budget.source(part) + "\n" + DEFECTS[defect]
     found = gil_budget.uncounted(text, None) + gil_budget.forbidden(text)
     assert len(found) == 1
     assert gil_budget.forbidden('def f(out):\n    """np.may_share_memory, in words"""\n') == []

@@ -337,3 +337,17 @@ class ArrowIds:
     def from_stream(capsule: object) -> ArrowIds: ...
     def block(self, begin: int, end: int) -> ndarray: ...
     def release(self) -> None: ...
+
+class TextTasks:
+    def __init__(
+        self,
+        kernel: WeightedMean,
+        lookup: TextLookup,
+        isa: str,
+        normalize: bool,
+        text: object,
+        local: object,
+        base: int,
+        helpers: tuple,
+    ) -> None: ...
+    def __call__(self, item: tuple) -> object: ...
