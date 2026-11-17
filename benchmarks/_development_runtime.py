@@ -28,14 +28,7 @@ def validate(cell):
     if not isinstance(variant, str) or variant not in VARIANTS:
         raise ValueError("unknown runtime_variant")
     _validate_baseline(cell, variant)
-    if variant in (
-        "pool",
-        "prebuilt",
-        "pool+prebuilt",
-        "tasks-per-worker-1",
-        "tasks-per-worker-4",
-    ) and (cell["stage"] != "encode-calls" or cell.get("call_repeats") is None):
-        raise ValueError("short-call variants require encode-calls with call_repeats")
+    _short_variant(cell, variant)
     if type(cell.get("runtime_timeline", False)) is not bool:
         raise ValueError("runtime_timeline must be boolean")
     if cell["stage"] == "encode-allocate" and (
@@ -50,6 +43,17 @@ def validate(cell):
             raise ValueError("runtime probes require allocating float32 encode")
         if cell["decision_gate"]:
             raise ValueError("runtime variants are preliminary screens without keep decisions")
+
+
+def _short_variant(cell, variant):
+    if variant in (
+        "pool",
+        "prebuilt",
+        "pool+prebuilt",
+        "tasks-per-worker-1",
+        "tasks-per-worker-4",
+    ) and (cell["stage"] != "encode-calls" or cell.get("call_repeats") is None):
+        raise ValueError("short-call variants require encode-calls with call_repeats")
 
 
 def _validate_baseline(cell, variant):

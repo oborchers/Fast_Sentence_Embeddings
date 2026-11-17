@@ -14,6 +14,7 @@ class Tasks:
         self.tasks, self.opened = {}, {}
         self.spans = {"workspace": [], "pool-close": [], "plan": [], "native": []}
         self.active, self.intervals = {}, []
+        self.current = {}
 
     def step(self, row):
         event, now = row["event"], row["wall_ns"]
@@ -21,10 +22,18 @@ class Tasks:
             self._task(row)
         for kind in self.spans:
             if event == kind + "-start":
-                self.opened[row["thread"], kind] = now
+                self.opened[row["thread"], kind] = (now, self.current.get(row["thread"]))
             elif event == kind + "-end":
-                start = self.opened.pop((row["thread"], kind))
-                self.spans[kind].append({"thread": row["thread"], "seconds": _seconds(now - start)})
+                start, sequence = self.opened.pop((row["thread"], kind))
+                self.spans[kind].append(
+                    {
+                        "thread": row["thread"],
+                        "sequence": sequence,
+                        "start_wall_ns": start,
+                        "end_wall_ns": now,
+                        "seconds": _seconds(now - start),
+                    }
+                )
 
     def _task(self, row):
         event, sequence, now = row["event"], row["sequence"], row["wall_ns"]
@@ -38,7 +47,9 @@ class Tasks:
             task["thread"] = row["thread"]
             task["cpu_start"] = row["thread_cpu_ns"]
             self.active[sequence] = now
+            self.current[row["thread"]] = sequence
         elif event == "work-end":
+            self.current.pop(row["thread"])
             task["cpu_end"] = row["thread_cpu_ns"]
             self.intervals.append((self.active.pop(sequence), now))
 
