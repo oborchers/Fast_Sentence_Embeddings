@@ -49,6 +49,8 @@ def test_row_boundaries_and_thread_caps(threads, n):
         else max(1, min(threads, n, max(n // 4096, n * 16 // PART_BYTES)))
     )
     _joined(texts, threads, parts)
+    estimated = threads > 1 and 0 < n <= 65536 and n // 4096 < threads
+    assert _native._test_join_string_estimated() is estimated
 
 
 @pytest.mark.parametrize("threads", range(1, 9))
