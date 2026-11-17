@@ -25,7 +25,7 @@ def _joined(texts, threads, parts):
     assert _native._test_join_resources() == 0
 
 
-@pytest.mark.parametrize("parts", range(2, 9))
+@pytest.mark.parametrize("parts", range(1, 9))
 @pytest.mark.parametrize("delta", [-1, 0, 1])
 @pytest.mark.parametrize("container", [list, tuple])
 def test_size_thresholds_select_actual_parts_and_preserve_bits(parts, delta, container):
@@ -35,7 +35,7 @@ def test_size_thresholds_select_actual_parts_and_preserve_bits(parts, delta, con
     texts = container(["a\x00é日𝄞" * (size // 5)] * 7)
     # Fill the remaining code points exactly, including the seven truncated rows.
     texts = container([*texts, "x" * (total - sum(map(len, texts)))])
-    expected_parts = min(8, total // PART_BYTES)
+    expected_parts = max(1, min(8, total // PART_BYTES))
     _joined(texts, 8, expected_parts)
 
 
@@ -110,3 +110,11 @@ def test_actual_part_observation_survives_allocation_failures(faults, stage):
 def test_thread_input_errors_are_unchanged(threads):
     with pytest.raises(OverflowError if threads == 2**40 else ValueError):
         _native.join_strings(["x"], threads)
+
+
+@pytest.mark.parametrize("first", [0b10, 0b11111110])
+@pytest.mark.parametrize("second", [0b10, 0b10101010])
+def test_short_list_runs_failed_starts_in_caller_in_both_passes(faults, first, second):
+    texts = ["é日𝄞" * (PART_BYTES // 3)] * 17
+    faults(failed_starts=first, second_failed_starts=second)
+    _joined(texts, 8, 8)
