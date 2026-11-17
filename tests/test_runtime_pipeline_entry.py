@@ -181,7 +181,7 @@ def test_storage_error_before_a_later_pooling_error_keeps_its_row(monkeypatch, c
     native = _outcome(pipeline, source, "float16", False, workers=3, chunk_bytes=chunk_bytes)
     checked = _outcome(pipeline, source, "float16", True, workers=3, chunk_bytes=chunk_bytes)
     assert native == checked
-    assert native == (ValueError, "row 1 has values beyond the float16 range")
+    assert native == (ValueError, "row 1 has values beyond the float16 range of +-65504")
 
 
 def test_an_uninitialized_native_attempt_raises_instead_of_dereferencing_none():
