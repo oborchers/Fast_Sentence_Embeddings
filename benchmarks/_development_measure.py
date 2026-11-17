@@ -272,7 +272,14 @@ def _runtime_evidence(observe, expected, measured):
         if evidence is not None and evidence.get("valid"):
             from _development_runtime_series import overhead
 
-            evidence["probe_overhead"] = overhead(evidence["summary"], measured)
+            evidence["probe_overhead"] = (
+                {
+                    "available": False,
+                    "reason": "measured block also has probe hooks; use the separate unprobed cell",
+                }
+                if measured.get("runtime_block_probe") is not None
+                else overhead(evidence["summary"], measured)
+            )
         return evidence
     except Exception as error:
         return {
