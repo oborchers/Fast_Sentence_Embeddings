@@ -4,6 +4,8 @@ Only unprobed blocks decide. Reset bookkeeping is included in probed timings.
 The buffer retains the last call; full per-call traces come from untimed evidence.
 """
 
+import resource
+import threading
 from contextlib import ExitStack
 
 from _development_runtime_probe import Timeline, _capacity
@@ -58,3 +60,25 @@ class BlockProbe:
             "claim_class": "descriptive",
             "valid_for_speed_decision": False,
         }
+
+
+def scheduling():
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    return {
+        "voluntary_context_switches": usage.ru_nvcsw,
+        "involuntary_context_switches": usage.ru_nivcsw,
+        "python_thread_count": threading.active_count(),
+    }
+
+
+def scheduling_delta(before, after):
+    return {
+        "voluntary_context_switches": after["voluntary_context_switches"]
+        - before["voluntary_context_switches"],
+        "involuntary_context_switches": after["involuntary_context_switches"]
+        - before["involuntary_context_switches"],
+        "thread_count_before": before["python_thread_count"],
+        "thread_count_after": after["python_thread_count"],
+        "scope": "RUSAGE_SELF process counters around the block; thread counts at boundaries, not peak",
+        "claim_class": "descriptive",
+    }

@@ -22,6 +22,7 @@ from _development_locks import busy, lock_paths
 from _development_path_evidence import observe as path_evidence
 from _development_prefilter_search import metrics as prefilter_metrics
 from _development_repeat import repeat
+from _development_runtime_block import scheduling, scheduling_delta
 from _development_resources import check_write_disk
 from _development_search import metrics as search_metrics
 from _development_search import proof as output_proof
@@ -86,9 +87,12 @@ def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
     check_write_disk(job)
     before["cpu_pressure"] = snapshot()
+    schedule_before = scheduling() if job.get("runtime_fixed_iterations") else None
     seconds, output, repeated = repeat(
         operation, job["iterations"], record_calls=job.get("single_operation", False)
     )
+    if schedule_before is not None:
+        repeated["runtime_scheduling"] = scheduling_delta(schedule_before, scheduling())
     block_evidence = getattr(operation, "block_evidence", None)
     if block_evidence is not None:
         repeated["runtime_block_probe"] = block_evidence()
@@ -218,6 +222,7 @@ def _measured(operation, job, waiting, policy, resource):
         "seconds": seconds,
         "process_cpu_seconds": repeated["process_cpu_seconds"],
         "runtime_block_probe": repeated.get("runtime_block_probe"),
+        "runtime_scheduling": repeated.get("runtime_scheduling"),
         "mean_cores": repeated["mean_cores"],
         "timer_contract": "repeated-prepared-input@1",
         "operation_repetitions": job["iterations"],
