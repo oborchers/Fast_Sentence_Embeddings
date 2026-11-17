@@ -108,7 +108,7 @@ class _Stalls:
     def _publication(self, row):
         if row["event"] != "publish" or self.snapshot is None:
             return
-        if row["sequence"] == self.snapshot["oldest_future"]:
+        if row.get("future", row["sequence"]) == self.snapshot["oldest_future"]:
             self.published_at = row["wall_ns"]
             self.snapshot = None
 

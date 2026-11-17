@@ -357,6 +357,11 @@ def _word_chunks(work, cache, loaded, deadline):
 
 
 def _corpus(name, work, cache, loaded, deadline):
+    from _development_call_inputs import PINS as CALL_PINS
+    from _development_call_inputs import corpus as call_corpus
+
+    if name in CALL_PINS:
+        return call_corpus(name)
     if name == "wikitext-256-words":
         return _word_chunks(work, cache, loaded, deadline)
     if name == "wikitext-train":

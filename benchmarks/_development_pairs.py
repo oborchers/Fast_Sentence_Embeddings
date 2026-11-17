@@ -161,6 +161,7 @@ def block(
     if len(proofs) != 1:
         raise ValueError("complete paired stage output differs between builds or rounds")
     from _development_runtime_screen import compare as runtime_compare
+    from _development_runtime_screen import pair_observations
 
     runtime = runtime_compare(cell, rows)
     if args.functional and runtime is not None and not runtime.get("valid", False):
@@ -169,6 +170,7 @@ def block(
     return {
         **LABEL,
         **paired(cell, rows),
+        **pair_observations(cell, rows),
         "output": rows[0]["output"],
         **({"runtime_screen": runtime} if runtime is not None else {}),
         **({"path_evidence": paths} if paths else {}),
@@ -190,7 +192,12 @@ def _validate(row, name, identities, control, cell, functional):
             raise ValueError(
                 "fixed single-operation duration proof is missing or below two seconds"
             )
-    if not functional and cell.get("runtime_paired", False) and row["seconds_per_iteration"] < 2:
+    if (
+        not functional
+        and cell.get("runtime_paired", False)
+        and cell["stage"] != "encode-calls"
+        and row["seconds_per_iteration"] < 2
+    ):
         raise ValueError("runtime screen requires each individual encode call to last two seconds")
     if not functional and row["seconds"] < max(cell["minimum_seconds"], cell["target_seconds"]):
         raise ValueError("measured call is shorter than the frozen duration floor")

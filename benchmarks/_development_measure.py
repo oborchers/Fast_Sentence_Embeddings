@@ -167,13 +167,20 @@ def measure(job):
 
         context = StoreOperation(model, texts, job)
     else:
-        context = nullcontext(factories[job["stage"]]())
+        prepared_operation = factories[job["stage"]]()
+        context = (
+            prepared_operation
+            if hasattr(prepared_operation, "__enter__")
+            else nullcontext(prepared_operation)
+        )
     with context as operation:
         check(job.get("wall_deadline"))
         result = _measured(operation, job, waiting, policy, resource)
         runtime_evidence = getattr(operation, "evidence", None)
         if runtime_evidence is not None:
-            result["runtime_evidence"] = _runtime_evidence(runtime_evidence, result["output"])
+            result["runtime_evidence"] = _runtime_evidence(
+                runtime_evidence, result["output"], result
+            )
         evidence = path_evidence(operation, job)  # one untimed call after the measurement
         return result if evidence is None else {**result, "path_evidence": evidence}
 
@@ -206,7 +213,8 @@ def _measured(operation, job, waiting, policy, resource):
             if "operation_seconds" in repeated
             else {}
         ),
-        "processed_texts": job["texts"] * job["iterations"],
+        "processed_texts": job["texts"] * job["iterations"] * (job.get("call_repeats") or 1),
+        "calls_per_iteration": job.get("call_repeats"),
         "seconds_per_iteration": seconds / job["iterations"],
         "including_open_seconds": including_open,
         "warmup_seconds": warmups,
@@ -236,13 +244,17 @@ def _measured(operation, job, waiting, policy, resource):
     }
 
 
-def _runtime_evidence(observe, expected):
+def _runtime_evidence(observe, expected, measured):
     # A failed diagnostic must never erase a completed, verified timing arm.
     try:
         evidence = observe()
         expected_iteration = expected.get("one_iteration", expected)
         if evidence is not None and evidence.get("output") != expected_iteration:
             evidence.update(valid=False, reason="diagnostic output differs from measured output")
+        if evidence is not None and evidence.get("valid"):
+            from _development_runtime_series import overhead
+
+            evidence["probe_overhead"] = overhead(evidence["summary"], measured)
         return evidence
     except Exception as error:
         return {
