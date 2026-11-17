@@ -101,6 +101,12 @@ def admission(cell, prepared, count, work, requested_limit, kind):
         from _development_runtime_memory import components as runtime_components
 
         components, phases = runtime_components(cell, corpus, count, dim, components)
+    if cell.get("runtime_timeline") or cell.get("runtime_probe_blocks"):
+        from _development_runtime_probe import FIELDS, MAX_CAPACITY
+
+        # Capture and per-call reduction buffers can coexist. Reserve their upper
+        # bound explicitly, rather than relying on the general interpreter reserve.
+        components["runtime_timeline_buffers"] = 2 * MAX_CAPACITY * len(FIELDS) * 8
     disk = int(count * (mean_bytes + 1) + disk_reserve(cell))
     if cell["stage"] == "encode-sink":
         disk += (output + count * 8) * cell["iterations"] * 2
