@@ -337,7 +337,7 @@ def closing_pool(monkeypatch):
     return pools, shutdowns, releases
 
 
-@pytest.mark.parametrize("failure", [None, "work", "commit"])
+@pytest.mark.parametrize("failure", [None, "work", "commit", "source"])
 def test_own_pool_starts_shutdown_before_draining(closing_pool, failure):
     pools, shutdowns, releases = closing_pool
     committed = []
@@ -355,24 +355,30 @@ def test_own_pool_starts_shutdown_before_draining(closing_pool, failure):
         yield 0
         assert shutdowns == []
         exhausted.set()
+        if failure == "source":
+            raise OSError("last source read")
 
     def commit(task, result):
-        assert shutdowns == [(False, False)]
+        assert shutdowns == ([] if failure == "source" else [(False, False)])
         if failure == "commit":
             raise ValueError("last commit")
         committed.append((task, result))
 
-    expected = (
-        contextlib.nullcontext()
-        if failure is None
-        else pytest.raises(ValueError, match="last task" if failure == "work" else "last commit")
-    )
+    expected = contextlib.nullcontext()
+    if failure == "source":
+        expected = pytest.raises(OSError, match="last source read")
+    elif failure is not None:
+        expected = pytest.raises(
+            ValueError, match="last task" if failure == "work" else "last commit"
+        )
     with expected:
         run(tasks(), work, commit, workers=2)
-    assert shutdowns == [(False, False), (True, False)]
+    assert shutdowns == (
+        [(True, False)] if failure == "source" else [(False, False), (True, False)]
+    )
     assert releases == [pools[0], pools[0]]  # task and speculative read, each once
     assert pools[0]._executor is None
-    assert committed == ([(0, 0)] if failure is None else [])
+    assert committed == ([(0, 0)] if failure in (None, "source") else [])
 
 
 @pytest.mark.parametrize("second_interrupt", [False, True])
@@ -432,11 +438,29 @@ def test_interrupt_in_last_wave_keeps_join_and_places(monkeypatch, closing_pool,
 
 def test_exhaustion_keeps_shared_and_stream_pools_open(closing_pool):
     pools, shutdowns, _releases = closing_pool
-    for context in (_pool.Pool(2), _pool.iteration(_pool.Workers(2))):
+    contexts = (_pool.Pool(2), _pool.iteration(_pool.Workers(2)))
+    for context, expected in zip(contexts, ([], [(True, False)]), strict=True):
         with context as owned:
             pool = owned.pool if isinstance(owned, _pool.Workers) else owned
             for _ in range(2):
                 run([0], lambda task: task, lambda *_: None, workers=2, pool=pool)
                 assert not pool.closed
-                assert shutdowns == [(True, False)] * (len(pools) - 1)
+                assert shutdowns == expected
     assert shutdowns == [(True, False), (True, False)]
+
+
+def test_own_pool_refills_several_windows_before_exhaustion(closing_pool):
+    pools, shutdowns, releases = closing_pool
+    committed = []
+
+    def commit(task, result):
+        if task < 8:  # an unread task remains outside the three-task window
+            assert shutdowns == []
+        if task == 10:
+            assert shutdowns == [(False, False)]
+        committed.append((task, result))
+
+    run(range(11), lambda task: task, commit, workers=2, window=3)
+    assert committed == [(task, task) for task in range(11)]
+    assert shutdowns == [(False, False), (True, False)]
+    assert releases == [pools[0]] * 12  # eleven tasks and the final speculative read

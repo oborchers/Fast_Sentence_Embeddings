@@ -95,7 +95,8 @@ class Pool:
 
     def close(self) -> None:
         """Wait for the running tasks and end the threads; later calls of the pool raise.
-        Every caller of ``close`` waits until the threads have ended."""
+        Every caller of ``close`` waits until the threads have ended, including an own
+        call's internal pool that already started nonblocking shutdown at exhaustion."""
         with self._lock:
             self._closed = True
             executor = self._executor

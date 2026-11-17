@@ -111,6 +111,7 @@ class _Run:
         self.exhausted = False
         self.sequence = 0  # of the next task
         self.pool_of_call: Pool
+        self.close_on_exhaustion = False
 
     def execute(self, pool: Pool, *, close_on_exhaustion: bool = False):
         pool._check_open()
