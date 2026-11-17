@@ -103,9 +103,16 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
             release.set()
             with condition:
                 condition.notify_all()
-        pool._acquire()
-        pool._release()
         assert until(lambda: len(marks) == 2)
         assert all(marks)
-        gc.collect()
-        assert all(owner() is None for owner in owners)
+
+        def released():
+            gc.collect()
+            return all(owner() is None for owner in owners)
+
+        assert until(released)
+        assert pool._try_acquire()
+        assert pool._try_acquire()
+        assert not pool._try_acquire()
+        pool._release()
+        pool._release()
