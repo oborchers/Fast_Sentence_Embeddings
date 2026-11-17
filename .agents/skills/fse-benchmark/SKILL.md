@@ -174,7 +174,7 @@ Never publish local Mac times or run beside another heavy job.
 
 ## 4. Measure under the agreed protocol
 
-Publish speed only from Linux. Size input so every measured fse inference call (encode or predict) lasts at least two seconds.
+Publish speed only from Linux. Size input so every timed block lasts at least two seconds: a large call (encode or predict) lasts two seconds on its own, and short calls are timed as blocks of repeated identical calls with a large-call control cell.
 Aim for three seconds with headroom. If a call falls below the gate, mark it invalid.
 For search, individual calls have no two-second minimum. Measure whole passes of a
 fixed query pool, calibrate every cell toward three-second blocks (at least two),
