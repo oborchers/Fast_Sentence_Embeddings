@@ -21,6 +21,9 @@ PINS = {
     },
 }
 
+# Same production bytes; separate name permits an independent functional reduction.
+PINS["calls-chunks-lt512-control"] = PINS["calls-chunks-lt512"]
+
 
 def corpus(name):
     root = os.environ.get("FSE_CALL_INPUTS")

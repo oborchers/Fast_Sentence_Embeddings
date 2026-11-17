@@ -157,7 +157,7 @@
     {
       "id": "chunks-large-control",
       "model": "minishlab/potion-base-8M",
-      "corpus": "calls-chunks-lt512",
+      "corpus": "calls-chunks-lt512-control",
       "stage": "encode-memory",
       "resident_cycles": 600,
       "single_operation": true,

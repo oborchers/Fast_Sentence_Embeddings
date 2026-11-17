@@ -222,6 +222,7 @@ def _inputs(cell, identity):
         validate_identity(cell)
     elif cell["model"] not in MODEL_PINS or cell["corpus"] not in (
         "calls-chunks-lt512",
+        "calls-chunks-lt512-control",
         "calls-queries",
         "stsb",
         "wikitext",

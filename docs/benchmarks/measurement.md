@@ -2588,3 +2588,8 @@ pairs remain in the result with per-pair observations and the first pair flagged
 separately. Probe/unprobed ratios are descriptive, never a correction. Missing
 publication markers and optional metrics carry missing counts. Calls with a
 different task layout are identified and retained, without discarding the series.
+
+The large chunk control uses `calls-chunks-lt512-control`, an alias of the same
+SHA-256-pinned file. Its independent corpus name lets functional rehearsal keep
+16 source rows without reducing the short-call inputs. Production still uses
+the original complete corpus repeated 600 times.
