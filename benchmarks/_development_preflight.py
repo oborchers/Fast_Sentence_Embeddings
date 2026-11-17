@@ -131,7 +131,11 @@ def _adapter_proof(model, texts, job, batch, expected_batch):
     else:
         expected = model.encode(texts, dtype=job["output_dtype"], workers=1, backend="numpy")
         check(job.get("wall_deadline"))
-        _, got, _ = repeat(operation(model, texts, job), 1)
+        from contextlib import nullcontext
+
+        adapter = operation(model, texts, job)
+        with adapter if hasattr(adapter, "__enter__") else nullcontext(adapter):
+            _, got, _ = repeat(adapter, 1)
         if job["stage"] == "encode-sink":
             _store(got["folder"], expected)
             proof = output_identity(got)

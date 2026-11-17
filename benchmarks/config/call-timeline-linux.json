@@ -1,0 +1,182 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-205 (GIL-Wartezeiten messen und weitere Arbeit aus dem GIL verlagern). Exact repeated short calls, same-build preliminary runtime screens. Pinned external inputs via FSE_CALL_INPUTS. Separate untimed timelines. No product change or publication evidence.",
+  "defaults": {
+    "workers": 8,
+    "decision_gate": false,
+    "table_dtype": "float32",
+    "output_dtype": "float32",
+    "pairs": 5,
+    "warmup_calls": 2,
+    "warmup_seconds": 12,
+    "target_seconds": 6
+  },
+  "cells": [
+    {
+      "id": "chunks-lt512-baseline",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "baseline",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-lt512-prebuilt",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "prebuilt",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-lt512-pool",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "pool",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-lt512-pool-prebuilt",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "pool+prebuilt",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-lt512-window-4x",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "window-4x",
+      "runtime_timeline": true,
+      "runtime_paired": true,
+      "runtime_baseline": "chunks-lt512-baseline"
+    },
+    {
+      "id": "chunks-lt512-tasks-per-worker-1",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "tasks-per-worker-1",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-lt512-tasks-per-worker-4",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "tasks-per-worker-4",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-baseline",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "baseline",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-prebuilt",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "prebuilt",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-pool",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "pool",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-pool-prebuilt",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "pool+prebuilt",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-window-4x",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "window-4x",
+      "runtime_timeline": true,
+      "runtime_paired": true,
+      "runtime_baseline": "queries-baseline"
+    },
+    {
+      "id": "queries-tasks-per-worker-1",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "tasks-per-worker-1",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "queries-tasks-per-worker-4",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "encode-calls",
+      "call_repeats": 1,
+      "runtime_variant": "tasks-per-worker-4",
+      "runtime_timeline": true,
+      "runtime_paired": true
+    },
+    {
+      "id": "chunks-large-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "encode-memory",
+      "resident_cycles": 600,
+      "single_operation": true,
+      "max_calibration_steps": 1,
+      "target_seconds": 2,
+      "max_target_seconds": 2,
+      "warmup_seconds": 2
+    },
+    {
+      "id": "wikitext-large-control",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "stage": "encode-memory",
+      "resident_cycles": 2560,
+      "single_operation": true,
+      "max_calibration_steps": 1,
+      "target_seconds": 2,
+      "max_target_seconds": 2,
+      "warmup_seconds": 2
+    }
+  ]
+}

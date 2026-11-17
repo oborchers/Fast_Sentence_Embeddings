@@ -72,6 +72,7 @@ DEFAULTS = {
     "single_operation": False,
     "workers": 1,
     "call_texts": 1,
+    "call_repeats": None,
     "table_dtype": "float32",
     "output_dtype": "float32",
     "order": "alternating",
@@ -220,6 +221,8 @@ def _inputs(cell, identity):
     if identity:
         validate_identity(cell)
     elif cell["model"] not in MODEL_PINS or cell["corpus"] not in (
+        "calls-chunks-lt512",
+        "calls-queries",
         "stsb",
         "wikitext",
         "wikitext-256-words",
@@ -258,8 +261,9 @@ def _bounds(cell):
             "decision gates require noise_multiplier >= 3, minimum_saving >= 0.02 "
             "and confirmation_fraction >= 0.5; use decision_gate=false for weaker descriptive cells"
         )
-    if cell["stage"] == "encode-calls" and cell["workers"] != 1:
-        raise ValueError("small encode calls require one worker")
+    from _development_calls import validate
+
+    validate(cell)
     if cell["stage"] in ("tokenizer", "pooling") and cell["workers"] != 1:
         raise ValueError("isolated tokenizer and pooling calls require one worker")
     if cell["pairs"] < 3 or cell["minimum_seconds"] < 2:

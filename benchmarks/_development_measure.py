@@ -167,7 +167,12 @@ def measure(job):
 
         context = StoreOperation(model, texts, job)
     else:
-        context = nullcontext(factories[job["stage"]]())
+        prepared_operation = factories[job["stage"]]()
+        context = (
+            prepared_operation
+            if hasattr(prepared_operation, "__enter__")
+            else nullcontext(prepared_operation)
+        )
     with context as operation:
         check(job.get("wall_deadline"))
         result = _measured(operation, job, waiting, policy, resource)
@@ -206,7 +211,8 @@ def _measured(operation, job, waiting, policy, resource):
             if "operation_seconds" in repeated
             else {}
         ),
-        "processed_texts": job["texts"] * job["iterations"],
+        "processed_texts": job["texts"] * job["iterations"] * (job.get("call_repeats") or 1),
+        "calls_per_iteration": job.get("call_repeats"),
         "seconds_per_iteration": seconds / job["iterations"],
         "including_open_seconds": including_open,
         "warmup_seconds": warmups,

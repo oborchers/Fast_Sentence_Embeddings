@@ -1,0 +1,6 @@
+diff --git a/src/fse/_text/_scan.py b/src/fse/_text/_scan.py
+--- a/src/fse/_text/_scan.py
++++ b/src/fse/_text/_scan.py
+@@ -36 +36 @@
+-TASKS_PER_WORKER = 2
++TASKS_PER_WORKER = 1

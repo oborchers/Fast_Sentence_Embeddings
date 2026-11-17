@@ -59,6 +59,10 @@ EVENTS = (
     "plan-end",
     "direct-start",
     "direct-end",
+    "pool-close-start",
+    "pool-close-end",
+    "workspace-start",
+    "workspace-end",
 )
 
 
@@ -212,6 +216,21 @@ class Timeline:
             stack.enter_context(
                 patch.object(cls, name, self.around(getattr(cls, name), start, end))
             )
+        stack.enter_context(
+            patch.object(
+                _pool.Pool,
+                "close",
+                self.around(_pool.Pool.close, "pool-close-start", "pool-close-end"),
+            )
+        )
+        workspace = _pipeline._workspace
+
+        def building(local):
+            if getattr(local, "workspace", None) is not None:
+                return workspace(local)
+            return self.around(workspace, "workspace-start", "workspace-end")(local)
+
+        stack.enter_context(patch.object(_pipeline, "_workspace", building))
         submit = _pool.Pool._submit
 
         def submitting(pool, fn, *args, **kwargs):
@@ -341,6 +360,9 @@ def observe(operation, job):
     if "reason" not in result:
         try:
             result["summary"] = summarize(record, job["workers"], timeline.data)
+            from _development_runtime_tasks import summarize_tasks
+
+            result["summary"].update(summarize_tasks(record, timeline.data, job["workers"]))
             result["summary"]["probed_process_cpu_seconds"] = cpu
             result["valid"] = timeline.dropped_reentrant == 0
             if not result["valid"]:

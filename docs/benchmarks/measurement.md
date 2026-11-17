@@ -2541,3 +2541,36 @@ The synthetic short corpus has 400,000 rows of 20 words. The non-ASCII corpus
 cycles three declared Latin-1, BMP and astral patterns over 400,000 rows. Receipts
 retain patterns and character/byte lengths. Full v2 controls, claim classes,
 shared locks, provenance and budget rules apply unchanged.
+
+### Short calls with parallel workers
+
+`benchmarks/config/call-timeline-linux.json` extends `encode-calls` with
+`call_repeats`: each iteration repeats the complete prepared input this many
+times, dropping each previous output before allocating the next. Without this
+key, the original one-worker grouped-pool adapter remains unchanged. Calibration
+increases outer iterations, never the resident input. Full-output identity is
+checked against an ordinary exact-input encode before timing and after each
+block. `processed_texts` includes both repetition counts.
+
+Set `FSE_CALL_INPUTS` to an external directory containing `chunks-lt512.txt` and
+`queries.txt`. Preparation verifies the SHA-256 pins and row counts in
+`_development_call_inputs.py`, then preserves the original driver's newline
+handling and text order. It does not normalize whitespace in these inputs.
+
+The baseline, `pool`, `prebuilt`, and `pool+prebuilt` cells separate fresh or
+reused explicit pools and ordinary or prebuilt sources. Reused pools start and
+close outside timed groups. `window-4x` doubles the ordinary two-worker-multiple
+window. `tasks-per-worker-1` and `tasks-per-worker-4` temporarily patch the
+benchmark child's task planner. All patches restore at the operation boundary.
+There is no product change. Same-build paired screens remain preliminary.
+
+`runtime_timeline` captures one separate untimed exact-input call. Its raw
+boundaries include source build, planning, submission, pickup, native calls,
+workspace creation, publication, commit, caller waits and fresh-pool close.
+The summary records per-task rows, bytes, pickup and commit latency, worker
+activity, first-wave stagger, task-count waves, the final interval with one
+active task, and snapshot-based reorder stalls. The wave count is arithmetic,
+not evidence of synchronized waves. Native boundaries include GIL-held checks.
+Wall time minus thread CPU is not measured GIL wait. The probe perturbs scheduling
+and can rank further investigations, but cannot establish a cause or a speedup.
+Large-call controls retain the existing single-call two-second gate.

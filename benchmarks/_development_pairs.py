@@ -190,7 +190,12 @@ def _validate(row, name, identities, control, cell, functional):
             raise ValueError(
                 "fixed single-operation duration proof is missing or below two seconds"
             )
-    if not functional and cell.get("runtime_paired", False) and row["seconds_per_iteration"] < 2:
+    if (
+        not functional
+        and cell.get("runtime_paired", False)
+        and cell["stage"] != "encode-calls"
+        and row["seconds_per_iteration"] < 2
+    ):
         raise ValueError("runtime screen requires each individual encode call to last two seconds")
     if not functional and row["seconds"] < max(cell["minimum_seconds"], cell["target_seconds"]):
         raise ValueError("measured call is shorter than the frozen duration floor")
