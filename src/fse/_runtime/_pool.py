@@ -95,7 +95,8 @@ class Pool:
 
     def close(self) -> None:
         """Wait for the running tasks and end the threads; later calls of the pool raise.
-        Every caller of ``close`` waits until the threads have ended."""
+        Every caller of ``close`` waits until the threads have ended, including an own
+        call's internal pool that already started nonblocking shutdown at exhaustion."""
         with self._lock:
             self._closed = True
             executor = self._executor
@@ -123,6 +124,15 @@ class Pool:
     # --- internal: used by the executors of fse (_runtime._executor, _store._search_run); not
     # part of the API. ``_submit`` takes no place of ``max_tasks``, so only the executors may call it.
     # ------------------------------------------------------------------------------------
+
+    def _stop_submitting(self) -> None:
+        """End an own call's idle threads while its last tasks finish. Keep the executor
+        until ``close`` joins it, including when draining the results is interrupted."""
+        with self._lock:
+            self._closed = True
+            executor = self._executor
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=False)
 
     def _submit(self, work: Callable[..., Any], *args: Any) -> Future:
         """``work(*args)`` on a thread of the pool."""
