@@ -7,8 +7,8 @@
     "table_dtype": "float32",
     "output_dtype": "float32",
     "pairs": 5,
-    "warmup_calls": 2,
-    "warmup_seconds": 12,
+    "warmup_calls": 1,
+    "warmup_seconds": 6,
     "target_seconds": 6
   },
   "cells": [

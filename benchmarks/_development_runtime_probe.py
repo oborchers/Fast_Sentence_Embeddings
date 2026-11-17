@@ -37,6 +37,8 @@ FIELDS = (
     "window",
     "unfinished",
     "oldest_future",
+    "call",
+    "future",
 )
 EVENTS = (
     "call-start",
@@ -77,18 +79,20 @@ class Timeline:
         self.overflow = False
         self.threads = {}
         self.collections = Collector()
+        self.current_call = 0
+        self.future_tasks = {}
 
-    def mark(self, event, sequence=-1, task=None, run=None):
+    def mark(self, event, sequence=-1, task=None, run=None, future=None, call=None):
         if getattr(self.local, "marking", False):
             self.dropped_reentrant += 1
             return
         self.local.marking = True
         try:
-            self._mark(event, sequence, task, run)
+            self._mark(event, sequence, task, run, future, call)
         finally:
             self.local.marking = False
 
-    def _mark(self, event, sequence, task, run):
+    def _mark(self, event, sequence, task, run, future, call):
         # No tuples, lists, generators, enumerate or other GC-tracked containers.
         # Clock readings and integer arithmetic allocate only untracked scalars.
         with self.lock:
@@ -104,6 +108,8 @@ class Timeline:
             self.data[start + 4] = sequence
             self._task_fields(start, task)
             self._state_fields(start, run)
+            self.data[start + 13] = self.current_call if call is None else call
+            self.data[start + 14] = -1 if future is None else id(future)
             self.used += 1
             self.threads[thread] = threading.current_thread().name
 
@@ -118,7 +124,7 @@ class Timeline:
 
     def _state_fields(self, start, run):
         field = 7
-        while field < len(FIELDS):
+        while field < 13:
             self.data[start + field] = -1
             field += 1
         if run is None:
@@ -181,7 +187,8 @@ class Timeline:
 
         def publishing(run, future):
             # Future.set_result has happened before this callback. This marker is an upper bound.
-            self.mark("publish", id(future))
+            call, sequence = self.future_tasks.pop(id(future))
+            self.mark("publish", sequence, future=future, call=call)
             return finished(run, future)
 
         def placing(run, pool):
@@ -237,12 +244,17 @@ class Timeline:
             sequence = args[0] if args and type(args[0]) is int else -1
             task = args[1] if len(args) > 1 else None
             self.mark("submit", sequence, task)
-            return submit(pool, fn, *args, **kwargs)
+            future = submit(pool, fn, *args, **kwargs)
+            self.future_tasks[id(future)] = (self.current_call, sequence)
+            return future
 
         stack.enter_context(patch.object(_pool.Pool, "_submit", submitting))
         # Install last, so setup allocations are outside collection observations.
-        stack.callback(gc.callbacks.remove, self.collections.callback)
-        gc.callbacks.append(self.collections.callback)
+        stack.callback(gc.callbacks.remove, self.collect_gc)
+        gc.callbacks.append(self.collect_gc)
+
+    def collect_gc(self, phase, info):
+        self.collections.callback(phase, info)
 
     def export(self, path):
         binary = path.with_suffix(".bin")
@@ -251,7 +263,7 @@ class Timeline:
             stream.flush()
             os.fsync(stream.fileno())
         return {
-            "format": "runtime-timeline@2",
+            "format": "runtime-timeline@3",
             "fields": FIELDS,
             "events": EVENTS,
             "threads": self.threads,
@@ -266,7 +278,10 @@ class Timeline:
             "diagnostic_profile": True,
             "valid_for_comparison": False,
             "limits": [
-                "Python boundary probes perturb scheduling",
+                "Python boundary probes perturb scheduling; a global RLock serializes markers",
+                "work-start is _Run._work entry, after worker-side Future dispatch",
+                "publication marker follows set_result and may follow caller commit",
+                "task identity is the composite (call, sequence)",
                 "GC callback overhead remains; GC coverage losses are warnings",
                 "native boundaries include checks and GIL-held work",
                 "publication marker follows Future.set_result",
@@ -295,9 +310,11 @@ def _capacity(operation, job):
         1, min(MAX_CHUNK_ROWS, (1 << 24) // (4 * dim), (1 << 29) // (2 * job["workers"] * 16 * dim))
     )
     tasks = min(count, ceil(size / chunk_bytes) + ceil(count / row_limit) + job["workers"])
-    events = 10_000 + tasks * 40
+    calls = 50 if job["stage"] == "encode-calls" else 1
+    events = calls * (10_000 + tasks * 40)
     return {
         "estimated_tasks": tasks,
+        "calls": calls,
         "planning_chunk_bytes": chunk_bytes,
         "estimated_events": events,
         "capacity": min(MAX_CAPACITY, max(CAPACITY, events)),
@@ -305,22 +322,33 @@ def _capacity(operation, job):
     }
 
 
-def _capture(operation, timeline):
+def _capture(operation, timeline, calls):
     from _development_encode import output_identity
 
+    records, output = [], None
     with ExitStack() as stack:
         timeline.install(stack)
-        timeline.mark("call-start")
-        cpu_start = time.process_time_ns()
-        output = operation()
-        cpu_ns = time.process_time_ns() - cpu_start
-        timeline.mark("call-end")
-    proof = output_identity(output)
-    return proof, cpu_ns / 1_000_000_000
+        for number in range(calls):
+            output = None
+            timeline.current_call = number
+            timeline.collections = Collector()
+            timeline.mark("call-start")
+            cpu_start = time.process_time_ns()
+            output = operation()
+            cpu_ns = time.process_time_ns() - cpu_start
+            timeline.mark("call-end")
+            records.append(
+                {
+                    "call": number,
+                    "process_cpu_seconds": cpu_ns / 1e9,
+                    "gc": timeline.collections.export(),
+                }
+            )
+    return output_identity(output), records
 
 
 def observe(operation, job):
-    from _development_runtime_summary import summarize
+    from _development_runtime_series import summarize
 
     check(job.get("wall_deadline"))
     plan = _capacity(operation, job)
@@ -337,9 +365,9 @@ def observe(operation, job):
         atomic(path, result)
         return result
     timeline = Timeline(plan["capacity"])
-    proof, cpu = None, None
+    proof, calls = None, []
     try:
-        proof, cpu = _capture(operation, timeline)
+        proof, calls = _capture(operation, timeline, plan["calls"])
     except Exception as error:
         result["reason"] = f"capture: {type(error).__name__}: {error}"
     record = timeline.export(path)
@@ -352,6 +380,7 @@ def observe(operation, job):
             "variant": operation.variant,
             "workers": job["workers"],
             "plan": plan,
+            "calls": calls,
         },
     )
     result["output"] = proof
@@ -359,11 +388,7 @@ def observe(operation, job):
         result["reason"] = "runtime timeline capacity exhausted"
     if "reason" not in result:
         try:
-            result["summary"] = summarize(record, job["workers"], timeline.data)
-            from _development_runtime_tasks import summarize_tasks
-
-            result["summary"].update(summarize_tasks(record, timeline.data, job["workers"]))
-            result["summary"]["probed_process_cpu_seconds"] = cpu
+            result["summary"] = summarize(record, timeline.data, job["workers"], calls)
             result["valid"] = timeline.dropped_reentrant == 0
             if not result["valid"]:
                 result["reason"] = "reentrant worker markers dropped; timeline incomplete"

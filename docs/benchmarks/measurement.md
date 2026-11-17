@@ -2549,8 +2549,8 @@ shared locks, provenance and budget rules apply unchanged.
 times, dropping each previous output before allocating the next. Without this
 key, the original one-worker grouped-pool adapter remains unchanged. Calibration
 increases outer iterations, never the resident input. Full-output identity is
-checked against an ordinary exact-input encode before timing and after each
-block. `processed_texts` includes both repetition counts.
+checked against an ordinary exact-input encode before timing. The last call
+of each timed block is hashed after timing. `processed_texts` includes both repetition counts.
 
 Set `FSE_CALL_INPUTS` to an external directory containing `chunks-lt512.txt` and
 `queries.txt`. Preparation verifies the SHA-256 pins and row counts in
@@ -2564,13 +2564,20 @@ window. `tasks-per-worker-1` and `tasks-per-worker-4` temporarily patch the
 benchmark child's task planner. All patches restore at the operation boundary.
 There is no product change. Same-build paired screens remain preliminary.
 
-`runtime_timeline` captures one separate untimed exact-input call. Its raw
+`runtime_timeline` captures 50 consecutive untimed exact-input calls in one
+bounded capture. Each task has a composite `(call, sequence)` identity. The
+summary retains each call and reports median and IQR across calls. Its raw
 boundaries include source build, planning, submission, pickup, native calls,
 workspace creation, publication, commit, caller waits and fresh-pool close.
+The `work-start` marker is entry to `_Run._work`, after worker-side Future
+dispatch, so it omits that part of pickup latency. Publication is a callback
+marker after `Future.set_result`, an upper bound that may follow caller commit.
 The summary records per-task rows, bytes, pickup and commit latency, worker
 activity, first-wave stagger, task-count waves, the final interval with one
 active task, and snapshot-based reorder stalls. The wave count is arithmetic,
 not evidence of synchronized waves. Native boundaries include GIL-held checks.
-Wall time minus thread CPU is not measured GIL wait. The probe perturbs scheduling
+Per-call stalls and worker busy fractions use the existing streaming reducer.
+Each receipt compares probed wall and process CPU per call against the unprobed
+block means. Wall time minus thread CPU is not measured GIL wait. The probe perturbs scheduling
 and can rank further investigations, but cannot establish a cause or a speedup.
 Large-call controls retain the existing single-call two-second gate.

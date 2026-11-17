@@ -58,16 +58,9 @@ def validate(cell):
 
 
 def _validate_variant(cell):
-    allowed = (
-        "baseline",
-        "pool",
-        "prebuilt",
-        "pool+prebuilt",
-        "window-4x",
-        "tasks-per-worker-1",
-        "tasks-per-worker-4",
-    )
-    if cell["runtime_variant"] not in allowed:
+    from _development_runtime import CALL_VARIANTS
+
+    if cell["runtime_variant"] not in CALL_VARIANTS:
         raise ValueError("unsupported encode-calls runtime variant")
     if cell["runtime_variant"] != "baseline" and cell.get("call_repeats") is None:
         raise ValueError("encode-calls variants require call_repeats")

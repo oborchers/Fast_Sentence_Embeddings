@@ -18,7 +18,7 @@ class Tasks:
 
     def step(self, row):
         event, now = row["event"], row["wall_ns"]
-        if event in ("submit", "work-start", "work-end", "commit-start", "commit-end"):
+        if event in ("submit", "work-start", "work-end", "commit-start", "commit-end", "publish"):
             self._task(row)
         for kind in self.spans:
             if event == kind + "-start":
@@ -37,7 +37,7 @@ class Tasks:
 
     def _task(self, row):
         event, sequence, now = row["event"], row["sequence"], row["wall_ns"]
-        if sequence < 0 or row["rows"] < 0:
+        if sequence < 0 or (event != "publish" and row["rows"] < 0):
             return
         task = self.tasks.setdefault(sequence, {"sequence": sequence})
         task[event] = now
@@ -54,7 +54,7 @@ class Tasks:
             self.intervals.append((self.active.pop(sequence), now))
 
     def result(self, workers):
-        required = {"submit", "work-start", "work-end", "commit-start", "commit-end"}
+        required = {"submit", "work-start", "work-end", "commit-start", "commit-end", "publish"}
         if self.active or self.opened or any(required - t.keys() for t in self.tasks.values()):
             raise ValueError("incomplete per-task timeline")
         tasks = [self.tasks[k] for k in sorted(self.tasks)]
@@ -86,6 +86,8 @@ class Tasks:
             "bytes": task["bytes"],
             "submit_to_pickup_seconds": _seconds(task["work-start"] - task["submit"]),
             "end_to_commit_seconds": _seconds(task["commit-start"] - task["work-end"]),
+            "publication_to_commit_seconds": _seconds(task["commit-start"] - task["publish"]),
+            "publication_marker_wall_ns": task["publish"],
             "work_wall_seconds": _seconds(task["work-end"] - task["work-start"]),
             "work_cpu_seconds": _seconds(task["cpu_end"] - task["cpu_start"]),
             "submit_wall_ns": task["submit"],

@@ -7,20 +7,16 @@ import re
 from contextlib import contextmanager
 from unittest.mock import patch
 
-VARIANTS = (
+CALL_VARIANTS = (
     "baseline",
-    "joined",
-    "gc-off",
-    "window-4x",
-    "chunk-4m",
-    "chunk-256k",
-    "inline-off",
     "pool",
     "prebuilt",
     "pool+prebuilt",
+    "window-4x",
     "tasks-per-worker-1",
     "tasks-per-worker-4",
 )
+VARIANTS = (*CALL_VARIANTS, "joined", "gc-off", "chunk-4m", "chunk-256k", "inline-off")
 
 
 def validate(cell):
