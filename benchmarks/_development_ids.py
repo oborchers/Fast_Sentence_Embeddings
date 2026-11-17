@@ -62,6 +62,7 @@ def _check_unique(cell, modes):
 def validate(cell):
     if cell["profile"] not in (
         "standard@1",
+        "text-join@1",
         "encoder@1",
         "linear-heads@1",
         "linear-heads-multi@1",

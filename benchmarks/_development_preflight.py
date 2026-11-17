@@ -58,8 +58,7 @@ def preflight(args, cell, prepared, ledger, owner):
 
 
 def probe(job):
-    from _development_encode import operation, output_identity
-    from _development_repeat import repeat
+    from _development_encode import output_identity
     from _development_stages import tokenizer
     from _development_token_reference import reference_batch
 
@@ -76,6 +75,10 @@ def probe(job):
     if not texts:
         raise ValueError("preflight requires nonempty source rows")
     job["texts"] = len(texts)
+    if job["stage"] in ("text-join", "token-join"):
+        from _development_join import probe as join_probe
+
+        return join_probe(model, texts, job)
     requested_fraction = job.get("filter_fraction")
     check(job.get("wall_deadline"))
     batch = tokenizer(model, texts, job)()
@@ -84,6 +87,31 @@ def probe(job):
     if output_identity(batch) != output_identity(expected_batch):
         raise ValueError("preflight tokenizer differs from independent reference")
     check(job.get("wall_deadline"))
+    proof = _adapter_proof(model, texts, job, batch, expected_batch)
+    from _development_lengths import check_reference
+
+    return {
+        "output": proof,
+        "lengths": check_reference(model, texts, job.get("lengths", "none")),
+        "source_rows": len(texts),
+        "probe_filter_count": job.get("filter_count"),
+        "requested_filter_fraction": requested_fraction,
+        "probe_filter_fraction": job.get("filter_fraction"),
+        "document_ids": job.get("doc_ids", "none"),
+        "encoder_fingerprint": model.fingerprint,
+        "dimensions": model.output_dim,
+        "reference": "independent tokenizer and numpy backend",
+        "valid_for_comparison": False,
+        "functional_only": True,
+        "artifact": job["artifact"],
+        "corpus": job["corpus"],
+    }
+
+
+def _adapter_proof(model, texts, job, batch, expected_batch):
+    from _development_encode import operation, output_identity
+    from _development_repeat import repeat
+
     if job["stage"] in ("store-open", "store-search"):
         from _development_probe_store import probe_store
 
@@ -110,24 +138,7 @@ def probe(job):
             (Path(job["work"]) / (job["tag"] + "-timing.txt")).unlink()
         else:
             proof = _equal(got, expected)
-    from _development_lengths import check_reference
-
-    return {
-        "output": proof,
-        "lengths": check_reference(model, texts, job.get("lengths", "none")),
-        "source_rows": len(texts),
-        "probe_filter_count": job.get("filter_count"),
-        "requested_filter_fraction": requested_fraction,
-        "probe_filter_fraction": job.get("filter_fraction"),
-        "document_ids": job.get("doc_ids", "none"),
-        "encoder_fingerprint": model.fingerprint,
-        "dimensions": model.output_dim,
-        "reference": "independent tokenizer and numpy backend",
-        "valid_for_comparison": False,
-        "functional_only": True,
-        "artifact": job["artifact"],
-        "corpus": job["corpus"],
-    }
+    return proof
 
 
 def _pool(model, texts, job, expected_batch):

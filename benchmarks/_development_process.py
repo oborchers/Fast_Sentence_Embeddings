@@ -133,7 +133,7 @@ def child(file):
         raise
     if identity() != before:
         raise ValueError("installed build changed during development child execution")
-    result["active_seconds"] = time.monotonic() - started - result.pop("wait_seconds", 0.0)
+    result["active_seconds"] = time.monotonic() - started - result.get("wait_seconds", 0.0)
     atomic(Path(job["receipt"]), {**result, **LABEL, "identity": before})
 
 

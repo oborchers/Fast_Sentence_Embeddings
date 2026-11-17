@@ -7,8 +7,9 @@ import time
 CONTRACT = "repeated-prepared-input@1"
 
 
-def repeat(operation, iterations):
+def repeat(operation, iterations, *, record_calls=False):
     output, first_index, read_seconds, open_seconds = None, None, 0.0, 0.0
+    call_seconds = []
     restart = getattr(operation, "restart", None)
     if restart is not None:
         restart()  # a group of calls starts at the same place of a rotating input
@@ -17,7 +18,10 @@ def repeat(operation, iterations):
     for _ in range(iterations):
         # Release the previous tokenizer batch before allocating another one.
         output = None
+        call_started = time.perf_counter() if record_calls else None
         output = operation()
+        if record_calls:
+            call_seconds.append(time.perf_counter() - call_started)
         if isinstance(output, dict):
             if first_index is None:
                 first_index = output["index"]
@@ -35,6 +39,7 @@ def repeat(operation, iterations):
             "process_cpu_seconds": cpu_seconds,
             "mean_cores": cpu_seconds / elapsed,
             "operation_repetitions": iterations,
+            **({"operation_seconds": call_seconds} if record_calls else {}),
             "sink_read_to_close_seconds_sum": read_seconds if first_index is not None else None,
             "sink_including_open_seconds_sum": open_seconds if first_index is not None else None,
         },

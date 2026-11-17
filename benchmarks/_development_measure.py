@@ -17,6 +17,7 @@ from _development_heads import SPEC as HEAD_SPEC
 from _development_heads import operation as head_operation
 from _development_heads_multi import SPEC as GROUP_SPEC
 from _development_heads_multi import operation as group_operation
+from _development_join import operation as join_operation
 from _development_locks import busy, lock_paths
 from _development_path_evidence import observe as path_evidence
 from _development_prefilter_search import metrics as prefilter_metrics
@@ -85,12 +86,17 @@ def _call(operation, job, phase, number, waiting):
     before = _quiet(job, waiting)
     check_write_disk(job)
     before["cpu_pressure"] = snapshot()
-    seconds, output, repeated = repeat(operation, job["iterations"])
+    seconds, output, repeated = repeat(
+        operation, job["iterations"], record_calls=job.get("single_operation", False)
+    )
     pressure_after = snapshot()
     job["session_last_operation_at_unix"] = time.time()
     including_open = repeated["sink_including_open_seconds_sum"]
     after = observations(job["work"], excluded=(os.getppid(),))
     after["cpu_pressure"] = pressure_after
+    duration_valid = not job.get("single_operation", False) or (
+        len(repeated["operation_seconds"]) == 1 and repeated["operation_seconds"][0] >= 2
+    )
     append(
         Path(job["receipt"]).with_suffix(".calls.jsonl"),
         {
@@ -100,7 +106,9 @@ def _call(operation, job, phase, number, waiting):
             **repeated,
             "sizing_only": job.get("sizing_only", False),
             "functional_only": job.get("functional_only", False),
+            "duration_valid": duration_valid,
             "valid_for_comparison": phase == "measured"
+            and duration_valid
             and not (
                 job.get("sizing_only", False)
                 or job.get("functional_only", False)
@@ -113,6 +121,8 @@ def _call(operation, job, phase, number, waiting):
             "cpu_pressure": interval(before, after),
         },
     )
+    if not duration_valid and not job.get("functional_only", False):
+        raise ValueError("single operation is below two seconds; frozen input is invalid")
     proof = output_proof(job, output)
     del output
     gc.collect()
@@ -137,6 +147,8 @@ def measure(job):
     check(job.get("wall_deadline"))
     job["dimensions"] = model.output_dim
     factories = {
+        "text-join": lambda: join_operation(texts, job),
+        "token-join": lambda: join_operation(texts, job),
         "tokenizer": lambda: tokenizer(model, texts, job),
         "pooling": lambda: pooling(model, job),
         "encode-allocate": lambda: encode_operation(model, texts, job),
@@ -189,6 +201,11 @@ def _measured(operation, job, waiting, policy, resource):
         "mean_cores": repeated["mean_cores"],
         "timer_contract": "repeated-prepared-input@1",
         "operation_repetitions": job["iterations"],
+        **(
+            {"operation_seconds": repeated["operation_seconds"]}
+            if "operation_seconds" in repeated
+            else {}
+        ),
         "processed_texts": job["texts"] * job["iterations"],
         "seconds_per_iteration": seconds / job["iterations"],
         "including_open_seconds": including_open,

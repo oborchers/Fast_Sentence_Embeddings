@@ -1,0 +1,54 @@
+{
+  "format": "local-development-v2",
+  "description": "Direct parallel string join and token-list final assembly. Local development only. Token-list regression measures construction, not end-to-end encode.",
+  "cells": [
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "workers": 8,
+      "id": "join-wikitext-encode",
+      "stage": "encode-memory",
+      "resident_cycles": 256
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "workers": 8,
+      "id": "join-wikitext-construction",
+      "stage": "text-join",
+      "profile": "text-join@1",
+      "resident_cycles": 256
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "join-short-400k",
+      "workers": 8,
+      "id": "join-short-encode",
+      "stage": "encode-memory"
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "join-unicode-400k",
+      "workers": 8,
+      "id": "join-unicode-encode",
+      "stage": "encode-memory"
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "wikitext",
+      "workers": 8,
+      "id": "join-token-wikitext",
+      "stage": "token-join",
+      "profile": "text-join@1",
+      "resident_cycles": 4
+    },
+    {
+      "model": "minishlab/potion-base-8M",
+      "corpus": "stsb",
+      "workers": 1,
+      "id": "join-small-calls",
+      "stage": "encode-calls",
+      "call_texts": 1
+    }
+  ]
+}

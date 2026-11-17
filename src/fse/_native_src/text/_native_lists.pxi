@@ -1,14 +1,10 @@
 # Included by _native.pyx: str sentences (StringSource) and token lists (TokenListSource,
 # the tokens of a sentence joined by one space) joined into one UTF-8 buffer.
 #
-# One pass over exact lists, tuples and str: every str is checked and written at once
-# into a C buffer, in parts of the sentences that native threads run in parallel (reading
-# each of millions of scattered str objects once is what the time goes to). The calling
-# thread holds the GIL all along, also while it waits for the threads, so no Python code
-# runs: items are read as borrowed pointers, nothing calls Python, drops a reference or
-# allocates a Python object, and the threads only read memory. The bytes object is made
-# from the buffers after the pass. (Free-threaded builds, where the GIL does not keep
-# other threads out, would need the input locked; fse refuses to build for them.)
+# Strings use two parallel passes directly into the final allocation (see
+# _native_strings.pxi). Token lists keep growing part buffers and assemble them in
+# parallel. The caller holds the GIL while native threads read borrowed pointers to
+# exact, ready, immutable strings. Workers never call Python or touch refcounts.
 
 from cpython.object cimport PyObject
 from libc.stdint cimport uint32_t
@@ -50,6 +46,10 @@ cdef extern from "_native_threads.h":
     ctypedef void (*fse_part)(void *arg, int part) noexcept nogil
     int fse_parallel(int n, fse_part fn, void *arg) nogil
     unsigned fse_test_failed_starts
+    size_t fse_test_join_live
+    void *fse_join_calloc(size_t n, size_t size) noexcept nogil
+    void fse_join_free(void *p) noexcept nogil
+    int fse_test_fail_bookkeeping
 
 
 # For the tests: a buffer growth beyond this many bytes fails, and the part buffers the
@@ -68,11 +68,13 @@ cdef enum:
 
 cdef struct _Part:
     PyObject *outer
-    bint strings  # its sentences are str, not token lists
     Py_ssize_t first, last  # its sentences
     _Buffer text
     _Buffer ends  # int64 ends of its sentences in its text
     int status
+    char *out
+    np.int64_t *offsets
+    Py_ssize_t base
 
 
 cdef inline bint _is_space_code(uint32_t c) noexcept nogil:
@@ -209,10 +211,7 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
     cdef _Part *part = (<_Part *>arg) + index
     cdef Py_ssize_t i
     for i in range(part.first, part.last):
-        if part.strings:
-            part.status = _append_str(&part.text, _item(part.outer, i), False)
-        else:
-            part.status = _append_sentence(&part.text, _item(part.outer, i))
+        part.status = _append_sentence(&part.text, _item(part.outer, i))
         if part.status == 0 and _grow(&part.ends, sizeof(np.int64_t)) < 0:
             part.status = _NO_MEMORY
         if part.status < 0:
@@ -221,9 +220,18 @@ cdef void _run_part(void *arg, int index) noexcept nogil:
         part.ends.size += sizeof(np.int64_t)
 
 
+cdef void _assemble_part(void *arg, int index) noexcept nogil:
+    cdef _Part *part = (<_Part *>arg) + index
+    cdef Py_ssize_t j
+    if part.text.size:
+        memcpy(part.out + part.base, part.text.data, part.text.size)
+    for j in range(part.last - part.first):
+        part.offsets[part.first + j + 1] = part.base + (<np.int64_t *>part.ends.data)[j]
+
+
 cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n, str what):
     """The bytes and the offsets of the finished parts."""
-    cdef Py_ssize_t total = 0, at = 0, k = 1, j
+    cdef Py_ssize_t total = 0, at = 0
     cdef int p
     cdef np.int64_t[::1] offsets
     cdef char *out
@@ -237,12 +245,17 @@ cdef object _joined(_Part *parts, int n_parts, Py_ssize_t n, str what):
     out = PyBytes_AS_STRING(data)
     offsets[0] = 0
     for p in range(n_parts):
-        if parts[p].text.size:
-            memcpy(out + at, parts[p].text.data, parts[p].text.size)
-        for j in range(parts[p].ends.size // <Py_ssize_t>sizeof(np.int64_t)):
-            offsets[k] = at + (<np.int64_t *>parts[p].ends.data)[j]
-            k += 1
+        parts[p].out = out
+        parts[p].offsets = &offsets[0]
+        parts[p].base = at
         at += parts[p].text.size
+    global fse_test_fail_bookkeeping
+    fse_test_fail_bookkeeping = _string_fail_stage == 6
+    try:
+        if fse_parallel(n_parts, _assemble_part, parts) < 0:
+            raise MemoryError(f"could not start the assembly threads for the {what}")
+    finally:
+        fse_test_fail_bookkeeping = 0
     return data, starts
 
 
@@ -254,8 +267,7 @@ def join_strings(texts, int threads=1):
     encode, a numpy array, a legacy string of 3.11) or a text holds a lone surrogate; the
     caller then takes the Python path, which decides and raises its errors in their order.
     """
-    joined = _join_parts(texts, threads, True)
-    return None if joined is False else joined
+    return _join_strings_direct(texts, threads)
 
 
 def join_token_lists(sentences, int threads=1):
@@ -270,31 +282,30 @@ def join_token_lists(sentences, int threads=1):
     input the verdict depends on how it was split. The Python path decides in both cases:
     a subclass in the input may change the lists while it runs.
     """
-    return _join_parts(sentences, threads, False)
+    return _join_parts(sentences, threads)
 
 
-cdef object _join_parts(sentences, int threads, bint strings):
-    """The joined sentences (str if ``strings``, else token lists), None or False."""
+cdef object _join_parts(sentences, int threads):
+    """The joined token lists, None or False."""
     global _test_freed_buffers
     cdef PyObject *outer = <PyObject *>sentences
     cdef Py_ssize_t n, size
     cdef int p, n_parts, status = 0
     cdef _Part *parts
-    what = "strings" if strings else "token lists"  # in the errors
+    what = "token lists"  # in the errors
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
         return None
     n = _items(outer)
     n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
-    parts = <_Part *>calloc(n_parts, sizeof(_Part))
+    parts = <_Part *>fse_join_calloc(n_parts, sizeof(_Part))
     if parts == NULL:
         raise MemoryError(f"could not allocate the parts of the {what}")
     try:
         size = n // n_parts
         for p in range(n_parts):
             parts[p].outer = outer
-            parts[p].strings = strings
             parts[p].first = p * size
             parts[p].last = n if p == n_parts - 1 else (p + 1) * size
         if fse_parallel(n_parts, _run_part, parts) < 0:
@@ -313,18 +324,25 @@ cdef object _join_parts(sentences, int threads, bint strings):
             _test_freed_buffers += (parts[p].text.data != NULL) + (parts[p].ends.data != NULL)
             free(parts[p].text.data)
             free(parts[p].ends.data)
-        free(parts)
+        fse_join_free(parts)
 
 
-def _test_join_faults(unsigned failed_starts=0, Py_ssize_t growth_limit=PY_SSIZE_T_MAX):
-    """For the tests: make the thread starts of the parts in the bit mask fail, and every
-    growth of a buffer to more than ``growth_limit`` bytes (0: every growth; a buffer starts
-    at 4,096 bytes and doubles, so 2**k * 4096 lets it grow k + 1 times); returns the
-    previous (failed_starts, growth_limit)."""
-    global fse_test_failed_starts, _test_growth_limit
+def _test_join_faults(unsigned failed_starts=0, Py_ssize_t growth_limit=PY_SSIZE_T_MAX,
+                      unsigned second_failed_starts=0, int fail_stage=0, int mismatch=0):
+    """Test-only controls: starts for each pass, token growth, string allocation stage
+    (1 offsets, 2 parts, 3 sizing bookkeeping, 4 bytes, 5 writing bookkeeping;
+    6 fails token-list assembly bookkeeping), and a signed error in the first row's
+    reserved span. Token buffers start at 4,096 bytes and double: a growth_limit of
+    2**k * 4096 permits k + 1 growths, while 0 fails every growth. Reset all controls
+    with no arguments. Returns only the previous (failed_starts, growth_limit)."""
+    global fse_test_failed_starts, _test_growth_limit, _string_second_starts
+    global _string_fail_stage, _string_mismatch
     previous = (fse_test_failed_starts, _test_growth_limit)
     fse_test_failed_starts = failed_starts
     _test_growth_limit = growth_limit
+    _string_second_starts = second_failed_starts
+    _string_fail_stage = fail_stage
+    _string_mismatch = mismatch
     return previous
 
 

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from _development_budget import check_args, stopped
 from _development_identity import STAGE, prepare_cases, verify
+from _development_join import CORPORA as JOIN_CORPORA
+from _development_join import corpus as join_corpus
 from _development_locks import coordinated
 from _development_process import checked, interpreter, launch
 from _development_system import LABEL
@@ -362,7 +364,9 @@ def _corpus(name, work, cache, loaded, deadline):
         data["timing_texts"] = data["texts"]  # already collapsed; saved once (see prepare_child)
         data["timing_policy"] = "paragraphs of the training split, one-space whitespace"
         return data
-    if name == "agnews":
+    if name in JOIN_CORPORA:
+        data = join_corpus(name)
+    elif name == "agnews":
         data = _agnews(work, cache, deadline)
     elif name == "stsb":
         data = _stsb(deadline)
