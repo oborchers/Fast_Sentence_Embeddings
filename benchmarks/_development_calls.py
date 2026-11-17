@@ -77,8 +77,6 @@ class Repeated:
     """Repeat the exact complete input, releasing each result before the next call."""
 
     def __init__(self, model, texts, job):
-        from _development_runtime import settings
-
         from fse import Pool
         from fse._text import StringSource
 
@@ -90,20 +88,21 @@ class Repeated:
         if self.variant in ("pool", "pool+prebuilt"):
             self.pool = Pool(job["workers"], start=True)
         try:
-            with settings(self.variant):
-                self._verify(texts)
+            self._verify(texts)
         except BaseException:
             self.__exit__(None, None, None)
             raise
 
     def _verify(self, texts):
         from _development_encode import output_identity
+        from _development_runtime import settings
 
         expected = output_identity(
             self.model.encode(texts, workers=self.job["workers"], dtype=self.job["output_dtype"])
         )
-        if output_identity(self.one()) != expected:
-            raise ValueError("repeated exact call differs from baseline full output")
+        with settings(self.variant):
+            if output_identity(self.one()) != expected:
+                raise ValueError("repeated exact call differs from baseline full output")
 
     def one(self):
         return self.model.encode(

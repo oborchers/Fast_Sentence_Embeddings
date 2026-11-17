@@ -66,6 +66,7 @@ class Tasks:
             "first_wave_stagger_seconds": _seconds(first_wave[-1] - first_wave[0])
             if first_wave
             else None,
+            "first_wave_scope": "first min(tasks, workers) task pickups; threads may repeat",
             "task_count_waves": (len(tasks) + workers - 1) // workers,
             "task_count_waves_scope": "ceiling(tasks/workers), not synchronized execution waves",
             "one_worker_tail_seconds": self._tail(),
