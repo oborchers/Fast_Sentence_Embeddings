@@ -65,6 +65,8 @@ class BuildExt(build_ext):
         )
         for extension in self.extensions:
             extension.extra_compile_args = [*extension.extra_compile_args, *flags]
+            if os.environ.get("FSE_TEST_TILES") == "1":
+                extension.define_macros = [*extension.define_macros, ("FSE_TEST_TILES", "1")]
             if probe:
                 extension.define_macros = [*extension.define_macros, ("FSE_HAVE_DOTPROD", "1")]
         super().build_extensions()

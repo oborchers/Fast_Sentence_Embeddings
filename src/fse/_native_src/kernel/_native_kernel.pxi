@@ -24,6 +24,7 @@ cdef extern from "_native_kernel.h":
         const int64_t *ngram_offsets
         const uint32_t *ngrams
     float fse_half_table[65536]
+    int64_t fse_test_pool_trace(int *loop)
     int fse_has_isa(int isa) nogil
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
@@ -96,6 +97,15 @@ def _test_fpenv_restore(saved):
 def _test_fpenv_get():
     """For the tests: the floating-point control register (MXCSR or FPCR)."""
     return fse_test_fpenv_get()
+
+
+def _test_pool_trace():
+    """Last call on this thread: selected float32 loop and executed tiles, or None."""
+    cdef int loop
+    cdef int64_t tiles = fse_test_pool_trace(&loop)
+    if tiles < 0:
+        return None
+    return ("rows", "avx2-tiles", "neon-tiles")[loop], tiles
 
 
 def _check_isa(isa):

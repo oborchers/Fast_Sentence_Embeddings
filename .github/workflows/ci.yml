@@ -276,6 +276,9 @@ jobs:
     env:
       # .python-version pins 3.13 for development; every uv call here uses the matrix version.
       UV_PYTHON: ${{ matrix.python-version }}
+      # Test-only counters prove that dispatch executes the float32 tiles. Release wheels
+      # use the normal build without this macro and still run the bit-conformance suite.
+      FSE_TEST_TILES: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:

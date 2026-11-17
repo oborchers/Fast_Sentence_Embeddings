@@ -1,4 +1,4 @@
-/* The register-blocked batch loop of weighted_mean@1: NEON float32. Included by
+/* The register-blocked batch loop of weighted_mean@1: NEON and AVX2 float32. Included by
    _native_kernel_mean.h after the row kernels and loops.
 
    A sentence is cut into tiles of at most K terms. A term is one contribution, a row and
@@ -33,8 +33,8 @@
    one tile stay in the L1 cache while the blocks walk through them. Rows above
    FSE_TILE_BYTES / FSE_TILE_MIN bytes (more than 1024 float32 values) give K below
    FSE_TILE_MIN; they take the row loop, which then loses little to loads and stores of
-   the accumulator. No load reads past a row: the blocks are 32 values, then one of 16,
-   8 and 4 each at most, then single values. */
+   the accumulator. No load reads past a row: NEON uses blocks of 32/16/8/4 values, AVX2 uses 64/32/16/8/4,
+   then single values. All vector accesses are unaligned. */
 
 #ifndef FSE_NATIVE_KERNEL_TILES_H
 #define FSE_NATIVE_KERNEL_TILES_H
@@ -91,6 +91,114 @@ FSE_INLINE int fse_fill_tile(const fse_params *p, const fse_batch *b, int64_t to
     }
     return n;
 }
+
+#if defined(FSE_X86)
+#define FSE_AVX2_START(a, q) __m256 a = first ? zero : _mm256_loadu_ps(acc + i + 8 * (q))
+#define FSE_AVX2_FMA(a, q) a = _mm256_fmadd_ps(fv, _mm256_loadu_ps(x + 8 * (q)), a)
+
+/* Independent lanes, with each lane's fused chain kept in token order. */
+FSE_INLINE FSE_AVX2_TARGET void fse_tile_f32_avx2(float *FSE_RESTRICT acc, int dim,
+                          const char *const *row, const float *f, int n, int first) {
+    const __m256 zero = _mm256_setzero_ps();
+    int i = 0;
+    for (; i + 64 <= dim; i += 64) {
+        FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1); FSE_AVX2_START(a2, 2); FSE_AVX2_START(a3, 3);
+        FSE_AVX2_START(a4, 4); FSE_AVX2_START(a5, 5); FSE_AVX2_START(a6, 6); FSE_AVX2_START(a7, 7);
+        for (int q = 0; q < n; q++) {
+            const float *x = (const float *)row[q] + i;
+            const __m256 fv = _mm256_set1_ps(f[q]);
+            FSE_AVX2_FMA(a0, 0); FSE_AVX2_FMA(a1, 1); FSE_AVX2_FMA(a2, 2); FSE_AVX2_FMA(a3, 3);
+            FSE_AVX2_FMA(a4, 4); FSE_AVX2_FMA(a5, 5); FSE_AVX2_FMA(a6, 6); FSE_AVX2_FMA(a7, 7);
+        }
+        _mm256_storeu_ps(acc + i, a0); _mm256_storeu_ps(acc + i + 8, a1);
+        _mm256_storeu_ps(acc + i + 16, a2); _mm256_storeu_ps(acc + i + 24, a3);
+        _mm256_storeu_ps(acc + i + 32, a4); _mm256_storeu_ps(acc + i + 40, a5);
+        _mm256_storeu_ps(acc + i + 48, a6); _mm256_storeu_ps(acc + i + 56, a7);
+    }
+    if (i + 32 <= dim) {
+        FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1); FSE_AVX2_START(a2, 2); FSE_AVX2_START(a3, 3);
+        for (int q = 0; q < n; q++) {
+            const float *x = (const float *)row[q] + i;
+            const __m256 fv = _mm256_set1_ps(f[q]);
+            FSE_AVX2_FMA(a0, 0); FSE_AVX2_FMA(a1, 1); FSE_AVX2_FMA(a2, 2); FSE_AVX2_FMA(a3, 3);
+        }
+        _mm256_storeu_ps(acc + i, a0); _mm256_storeu_ps(acc + i + 8, a1);
+        _mm256_storeu_ps(acc + i + 16, a2); _mm256_storeu_ps(acc + i + 24, a3);
+        i += 32;
+    }
+    if (i + 16 <= dim) {
+        FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1);
+        for (int q = 0; q < n; q++) {
+            const float *x = (const float *)row[q] + i;
+            const __m256 fv = _mm256_set1_ps(f[q]);
+            FSE_AVX2_FMA(a0, 0); FSE_AVX2_FMA(a1, 1);
+        }
+        _mm256_storeu_ps(acc + i, a0); _mm256_storeu_ps(acc + i + 8, a1);
+        i += 16;
+    }
+    if (i + 8 <= dim) {
+        FSE_AVX2_START(a0, 0);
+        for (int q = 0; q < n; q++) {
+            const float *x = (const float *)row[q] + i;
+            const __m256 fv = _mm256_set1_ps(f[q]);
+            FSE_AVX2_FMA(a0, 0);
+        }
+        _mm256_storeu_ps(acc + i, a0);
+        i += 8;
+    }
+    if (i + 4 <= dim) {
+        __m128 a = first ? _mm_setzero_ps() : _mm_loadu_ps(acc + i);
+        for (int q = 0; q < n; q++)
+            a = _mm_fmadd_ps(_mm_set1_ps(f[q]), _mm_loadu_ps((const float *)row[q] + i), a);
+        _mm_storeu_ps(acc + i, a);
+        i += 4;
+    }
+    for (; i < dim; i++) {
+        float a = first ? 0.0f : acc[i];
+        for (int q = 0; q < n; q++) a = fse_fma1_avx2(f[q], ((const float *)row[q])[i], a);
+        acc[i] = a;
+    }
+}
+#undef FSE_AVX2_START
+#undef FSE_AVX2_FMA
+
+/* The batch loop of FSE_DEFINE_LOOP (same arguments, same results) with tiles. */
+FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *p, const fse_batch *b,
+                                              float *out, int64_t *counts, int finish) {
+    const int dim = p->dim;
+    const size_t cap = FSE_TILE_BYTES / p->row_bytes;
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+    }
+    const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
+    const char *row[FSE_TILE_MAX];
+    float f[FSE_TILE_MAX];
+    const int64_t total = b->offsets[b->n_sentences];
+    fse_cursor c = {0, 0, 0, 0, 0, 0.0f};
+    for (int64_t s = 0; s < b->n_sentences; s++) {
+        float *acc = out + (size_t)s * (size_t)dim;
+        const int64_t begin = b->offsets[s], end = b->offsets[s + 1];
+        c.t = begin;
+        c.end = end;
+        /* The first tile always runs, so a sentence without terms stores +0.0. */
+        int first = 1;
+        do {
+            const int n = fse_fill_tile(p, b, total, &c, K, 0, row, f);
+            if (n || first) {
+                FSE_TEST_TILE();
+                fse_tile_f32_avx2(acc, dim, row, f, n, first);
+            }
+            first = 0;
+        } while (c.t < c.end || c.j < c.g1);
+        const int64_t n = end - begin;
+        if (counts) counts[s] = n;
+        if (fse_finish_row(acc, dim, finish && n ? 1.0f / (float)n : 1.0f, finish && n))
+            return s;
+    }
+    return -1;
+}
+#endif
 
 #if defined(FSE_NEON)
 /* The accumulators of V vectors (4 values each) at acc + i: +0.0 or loaded. */
@@ -161,7 +269,10 @@ FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_bat
                                               float *out, int64_t *counts, int finish) {
     const int dim = p->dim;
     const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-    if (cap < FSE_TILE_MIN) return fse_loop_f32_neon_rows(p, b, out, counts, finish);
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_neon_rows(p, b, out, counts, finish);
+    }
     const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
     const char *row[FSE_TILE_MAX];
     float f[FSE_TILE_MAX];
@@ -176,7 +287,10 @@ FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_bat
         int first = 1;
         do {
             const int n = fse_fill_tile(p, b, total, &c, K, 0, row, f);
-            if (n || first) fse_tile_f32_neon(acc, dim, row, f, n, first);
+            if (n || first) {
+                FSE_TEST_TILE();
+                fse_tile_f32_neon(acc, dim, row, f, n, first);
+            }
             first = 0;
         } while (c.t < c.end || c.j < c.g1);
         const int64_t n = end - begin;

@@ -1,0 +1,56 @@
+--- a/src/fse/_native_src/kernel/_native_kernel_tiles.h
++++ b/src/fse/_native_src/kernel/_native_kernel_tiles.h
+@@ -93,6 +93,18 @@
+ }
+ 
+ #if defined(FSE_X86)
++#ifndef FSE_AVX2_BLOCK
++#define FSE_AVX2_BLOCK 64
++#endif
++#ifndef FSE_AVX2_CAP
++#define FSE_AVX2_CAP 64
++#endif
++#if FSE_AVX2_BLOCK != 32 && FSE_AVX2_BLOCK != 64
++#error "FSE_AVX2_BLOCK must be 32 or 64"
++#endif
++#if FSE_AVX2_CAP != 4 && FSE_AVX2_CAP != 8 && FSE_AVX2_CAP != 64
++#error "FSE_AVX2_CAP must be 4, 8 or 64"
++#endif
+ #define FSE_AVX2_START(a, q) __m256 a = first ? zero : _mm256_loadu_ps(acc + i + 8 * (q))
+ #define FSE_AVX2_FMA(a, q) a = _mm256_fmadd_ps(fv, _mm256_loadu_ps(x + 8 * (q)), a)
+ 
+@@ -101,6 +113,7 @@
+                           const char *const *row, const float *f, int n, int first) {
+     const __m256 zero = _mm256_setzero_ps();
+     int i = 0;
++#if FSE_AVX2_BLOCK == 64
+     for (; i + 64 <= dim; i += 64) {
+         FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1); FSE_AVX2_START(a2, 2); FSE_AVX2_START(a3, 3);
+         FSE_AVX2_START(a4, 4); FSE_AVX2_START(a5, 5); FSE_AVX2_START(a6, 6); FSE_AVX2_START(a7, 7);
+@@ -115,7 +128,8 @@
+         _mm256_storeu_ps(acc + i + 32, a4); _mm256_storeu_ps(acc + i + 40, a5);
+         _mm256_storeu_ps(acc + i + 48, a6); _mm256_storeu_ps(acc + i + 56, a7);
+     }
+-    if (i + 32 <= dim) {
++#endif
++    for (; i + 32 <= dim; i += 32) {
+         FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1); FSE_AVX2_START(a2, 2); FSE_AVX2_START(a3, 3);
+         for (int q = 0; q < n; q++) {
+             const float *x = (const float *)row[q] + i;
+@@ -124,7 +138,6 @@
+         }
+         _mm256_storeu_ps(acc + i, a0); _mm256_storeu_ps(acc + i + 8, a1);
+         _mm256_storeu_ps(acc + i + 16, a2); _mm256_storeu_ps(acc + i + 24, a3);
+-        i += 32;
+     }
+     if (i + 16 <= dim) {
+         FSE_AVX2_START(a0, 0); FSE_AVX2_START(a1, 1);
+@@ -171,7 +184,7 @@
+         FSE_TEST_ROWS();
+         return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+     }
+-    const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
++    const int K = cap < FSE_AVX2_CAP ? (int)cap : FSE_AVX2_CAP;
+     const char *row[FSE_TILE_MAX];
+     float f[FSE_TILE_MAX];
+     const int64_t total = b->offsets[b->n_sentences];

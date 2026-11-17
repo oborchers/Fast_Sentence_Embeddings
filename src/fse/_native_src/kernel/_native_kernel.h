@@ -141,9 +141,31 @@ static fse_loop_t fse_loop_for(int isa, int dtype) {
 static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                        int64_t *counts, int finish) {
     fse_fpenv env = fse_fpenv_enter();
-    int64_t bad = fse_loop_for(isa, p->dtype)(p, b, out, counts, finish);
+    fse_loop_t loop = fse_loop_for(isa, p->dtype);
+#if defined(FSE_TEST_TILES)
+    fse_test_tiles = 0;
+    fse_test_loop = 0;
+#if defined(FSE_X86)
+    if (loop == fse_loop_f32_avx2) fse_test_loop = 1;
+#endif
+#if defined(FSE_NEON)
+    if (loop == fse_loop_f32_neon) fse_test_loop = 2;
+#endif
+#endif
+    int64_t bad = loop(p, b, out, counts, finish);
     fse_fpenv_leave(env);
     return bad;
+}
+
+/* -1 means this is a production build, with no counters or tracing in its loops. */
+static int64_t fse_test_pool_trace(int *loop) {
+#if defined(FSE_TEST_TILES)
+    *loop = fse_test_loop;
+    return fse_test_tiles;
+#else
+    *loop = -1;
+    return -1;
+#endif
 }
 
 #endif /* FSE_NATIVE_KERNEL_H */

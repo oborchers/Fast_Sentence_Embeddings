@@ -11,6 +11,7 @@ and when the last row of a table ends at a page that cannot be read.
 from __future__ import annotations
 
 import functools
+import os
 import sys
 
 import numpy as np
@@ -112,7 +113,7 @@ def test_a_late_overflow_writes_its_row_and_stops(isa, column):
 
 # --- Rows next to pages that cannot be read ------------------------------------------------
 
-GUARD_DIMS = (1, 2, 3, 4, 5, 7, 8, 12, 15, 16, 17, 31, 33, 47, 63, 65, 301)
+GUARD_DIMS = (1, 2, 3, 4, 5, 7, 8, 12, 15, 16, 17, 31, 33, 47, 63, 65, 127, 128, 129, 301)
 
 
 def _guard_case(dtype, dim):
@@ -142,3 +143,21 @@ def test_no_read_or_write_beyond_a_row(isa, dtype, dim, at_end):
     out = out_guard.array(np.zeros((3, dim), F32))
     kernel.pool(case.batch, out)
     assert_bits_equal(out, _reference.pool_weighted_mean(case.batch, *case.args()))
+
+
+@pytest.mark.parametrize("isa", ISAS)
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+@pytest.mark.parametrize("dim", [127, 1024, 1025])
+def test_dispatch_executes_tiles(isa, dtype, dim):
+    """A test-only per-thread counter observes the actual dispatched loop, not its model."""
+    if _native._test_pool_trace() is None:
+        assert os.environ.get("FSE_TEST_TILES") != "1", "rebuild with test instrumentation"
+        pytest.skip("production build has no tile counters")
+    case = Case("trace", dtype, np.ones((1, dim), F32), np.ones(1, F32), ((0,) * 130, ()))
+    got = _kernel(case, isa).pool(case.batch)
+    trace = _native._test_pool_trace()
+    tiled = dtype == "float32" and isa in ("avx2", "neon") and dim <= 1024
+    k_max = min(64, 16384 // (dim * 4))
+    tiles = (130 + k_max - 1) // k_max + 1 if tiled and k_max >= 4 else 0
+    assert trace == (f"{isa}-tiles" if tiled else "rows", tiles)
+    assert_bits_equal(got, _reference.pool_weighted_mean(case.batch, *case.args()))
