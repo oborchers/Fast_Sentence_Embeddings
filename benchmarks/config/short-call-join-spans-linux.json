@@ -1,0 +1,58 @@
+{
+  "format": "local-development-v2",
+  "description": "DR-457 (Fehlende Varianten, Pool-Widerspruch und Join-Teilspannen kurzer Aufrufe messen). Diagnostic native spans only. Diagnostic patch forces one or eight parts on the exact original input. Requires diagnostic patch on 9d35fece.",
+  "defaults": {
+    "warmup_calls": 1,
+    "warmup_seconds": 1e-09
+  },
+  "cells": [
+    {
+      "id": "join-chunks-parts-1",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "text-join",
+      "profile": "text-join@1",
+      "workers": 1,
+      "resident_cycles": 1,
+      "functional_rows": 65536,
+      "join_spans": true,
+      "decision_gate": false
+    },
+    {
+      "id": "join-chunks-parts-8",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-chunks-lt512",
+      "stage": "text-join",
+      "profile": "text-join@1",
+      "workers": 8,
+      "resident_cycles": 1,
+      "functional_rows": 65536,
+      "join_spans": true,
+      "decision_gate": false
+    },
+    {
+      "id": "join-queries-parts-1",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "text-join",
+      "profile": "text-join@1",
+      "workers": 1,
+      "resident_cycles": 1,
+      "functional_rows": 65536,
+      "join_spans": true,
+      "decision_gate": false
+    },
+    {
+      "id": "join-queries-parts-8",
+      "model": "minishlab/potion-base-8M",
+      "corpus": "calls-queries",
+      "stage": "text-join",
+      "profile": "text-join@1",
+      "workers": 8,
+      "resident_cycles": 1,
+      "functional_rows": 65536,
+      "join_spans": true,
+      "decision_gate": false
+    }
+  ]
+}

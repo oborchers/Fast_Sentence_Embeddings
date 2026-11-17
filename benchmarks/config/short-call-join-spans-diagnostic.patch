@@ -1,0 +1,259 @@
+--- a/src/fse/_native_src/text/_native_strings.pxi
++++ b/src/fse/_native_src/text/_native_strings.pxi
+@@ -1,3 +1,28 @@
++# DIAGNOSTIC ONLY: Linux monotonic/thread CPU spans, never ship this build.
++cdef extern from *:
++    """
++    #include <time.h>
++    #include <pthread.h>
++    static double fse_diag_clock(int cpu) {
++        struct timespec t;
++        clock_gettime(cpu ? CLOCK_THREAD_CPUTIME_ID : CLOCK_MONOTONIC, &t);
++        return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
++    }
++    static unsigned long fse_diag_thread(void) { return (unsigned long)pthread_self(); }
++    """
++    double fse_diag_clock(int cpu) noexcept nogil
++    unsigned long fse_diag_thread() noexcept nogil
++
++cdef extern from "_native_threads.h":
++    double fse_diag_parallel_spans[5]
++
++cdef object _join_diagnostic_last = None
++
++
++def _diagnostic_join_record():
++    return _join_diagnostic_last
++
++
+ # Included after _native_lists.pxi. Two passes over exact strings, one final buffer.
+ # Allocate offsets and acquire their view before fixing the input bounds: allocation
+ # may run Python finalizers. After rechecking the length, no Python can run until
+@@ -18,6 +43,9 @@
+     np.int64_t *offsets
+     char *out
+     int status
++    double size_start, size_end, size_cpu_start, size_cpu_end
++    double write_start, write_end, write_cpu_start, write_cpu_end
++    unsigned long size_thread, write_thread
+ 
+ 
+ cdef inline Py_ssize_t _utf8_width(uint32_t c) noexcept nogil:
+@@ -49,16 +77,23 @@
+ cdef void _size_strings(void *arg, int index) noexcept nogil:
+     cdef _StringPart *part = (<_StringPart *>arg) + index
+     cdef Py_ssize_t i, size
+-    for i in range(part.first, part.last):
+-        size = _string_size(_item(part.outer, i))
+-        if size < 0:
+-            part.status = <int>size
+-            return
+-        if size > PY_SSIZE_T_MAX - part.total:
+-            part.status = _NO_MEMORY
+-            return
+-        part.total += size
+-        part.offsets[i + 1] = part.total
++    part.size_thread = fse_diag_thread()
++    part.size_start = fse_diag_clock(0)
++    part.size_cpu_start = fse_diag_clock(1)
++    try:
++        for i in range(part.first, part.last):
++            size = _string_size(_item(part.outer, i))
++            if size < 0:
++                part.status = <int>size
++                return
++            if size > PY_SSIZE_T_MAX - part.total:
++                part.status = _NO_MEMORY
++                return
++            part.total += size
++            part.offsets[i + 1] = part.total
++    finally:
++        part.size_cpu_end = fse_diag_clock(1)
++        part.size_end = fse_diag_clock(0)
+ 
+ 
+ cdef int _write_string(PyObject *text, char *out, Py_ssize_t span) noexcept nogil:
+@@ -87,22 +122,30 @@
+ cdef void _write_strings(void *arg, int index) noexcept nogil:
+     cdef _StringPart *part = (<_StringPart *>arg) + index
+     cdef Py_ssize_t i, end, at = 0
+-    for i in range(part.first, part.last):
+-        end = part.offsets[i + 1]
+-        if end < at or end > part.total:
++    part.write_thread = fse_diag_thread()
++    part.write_start = fse_diag_clock(0)
++    part.write_cpu_start = fse_diag_clock(1)
++    try:
++        for i in range(part.first, part.last):
++            end = part.offsets[i + 1]
++            if end < at or end > part.total:
++                part.status = _MISMATCH
++                return
++            part.status = _write_string(_item(part.outer, i), part.out + part.base + at, end - at)
++            if part.status:
++                return
++            part.offsets[i + 1] = part.base + end
++            at = end
++        if at != part.total:
+             part.status = _MISMATCH
+-            return
+-        part.status = _write_string(_item(part.outer, i), part.out + part.base + at, end - at)
+-        if part.status:
+-            return
+-        part.offsets[i + 1] = part.base + end
+-        at = end
+-    if at != part.total:
+-        part.status = _MISMATCH
++    finally:
++        part.write_cpu_end = fse_diag_clock(1)
++        part.write_end = fse_diag_clock(0)
+ 
+ 
+ cdef object _join_strings_direct(texts, int threads):
+     global fse_test_failed_starts
++    global _join_diagnostic_last
+     global fse_test_fail_bookkeeping
+     cdef PyObject *outer = <PyObject *>texts
+     cdef Py_ssize_t n, size, total = 0
+@@ -110,7 +153,13 @@
+     cdef unsigned first_starts = fse_test_failed_starts
+     cdef _StringPart *parts = NULL
+     cdef np.int64_t[::1] offsets
++    cdef double sizing_threads[5]
++    cdef double writing_threads[5]
++    cdef int k
++    cdef double sizing_start, sizing_end, write_start, write_end
++    cdef double allocation_start, allocation_end, offsets_start, offsets_end
+     cdef char *out
++    _join_diagnostic_last = None
+     starts = data = None
+     if threads < 1:
+         raise ValueError(f"threads must be at least 1, not {threads}")
+@@ -123,12 +172,14 @@
+     try:
+         if _string_fail_stage == 1:
+             raise MemoryError("could not allocate the offsets of the strings")
++        offsets_start = fse_diag_clock(0)
+         starts = np.empty(n + 1, dtype=np.int64)
+         offsets = starts
++        offsets_end = fse_diag_clock(0)
+         # Both operations above may run Python. Fix bounds only after both complete.
+         if _items(outer) != n:
+             return None
+-        n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
++        n_parts = <int>max(1, min(threads, n))
+         if n_parts > PY_SSIZE_T_MAX // <Py_ssize_t>sizeof(_StringPart):
+             raise MemoryError("the parts of the strings would exceed the address space")
+         if _string_fail_stage != 2:
+@@ -142,8 +193,12 @@
+             parts[p].last = n if p == n_parts - 1 else (p + 1) * size
+             parts[p].offsets = &offsets[0]
+         fse_test_fail_bookkeeping = _string_fail_stage == 3
++        sizing_start = fse_diag_clock(0)
+         if fse_parallel(n_parts, _size_strings, parts) < 0:
+             raise MemoryError("could not start the sizing threads for the strings")
++        sizing_end = fse_diag_clock(0)
++        for k in range(5):
++            sizing_threads[k] = fse_diag_parallel_spans[k]
+         for p in range(n_parts):
+             status = min(status, parts[p].status)
+         if status == _NO_MEMORY:
+@@ -157,7 +212,9 @@
+             total += parts[p].total
+         if _string_fail_stage == 4:
+             raise MemoryError("could not allocate the bytes of the strings")
++        allocation_start = fse_diag_clock(0)
+         data = PyBytes_FromStringAndSize(NULL, total)
++        allocation_end = fse_diag_clock(0)
+         out = PyBytes_AS_STRING(data)
+         for p in range(n_parts):
+             parts[p].out = out
+@@ -170,12 +227,36 @@
+                 offsets[1] -= 1
+         fse_test_failed_starts = _string_second_starts
+         fse_test_fail_bookkeeping = _string_fail_stage == 5
++        write_start = fse_diag_clock(0)
+         if fse_parallel(n_parts, _write_strings, parts) < 0:
+             raise MemoryError("could not start the writing threads for the strings")
++        write_end = fse_diag_clock(0)
++        for k in range(5):
++            writing_threads[k] = fse_diag_parallel_spans[k]
+         for p in range(n_parts):
+             if parts[p].status == _MISMATCH:
+                 raise AssertionError("the string size changed between join passes")
+         offsets[0] = 0
++        # Python allocation only after all borrowed input reads and native joins end.
++        _join_diagnostic_last = {
++            "format": "join-spans@1", "parts": n_parts,
++            "offsets_allocation": [offsets_start, offsets_end],
++            "bytes_allocation": [allocation_start, allocation_end],
++            "sizing_parallel": [sizing_start, sizing_end],
++            "writing_parallel": [write_start, write_end],
++            "sizing_thread_handling": [sizing_threads[k] for k in range(5)],
++            "writing_thread_handling": [writing_threads[k] for k in range(5)],
++            "thread_handling_fields": ["entry", "after_starts", "after_caller_part", "after_joins", "after_free"],
++            "part_spans": [
++                {"part": p, "first": parts[p].first, "last": parts[p].last,
++                 "size_wall": [parts[p].size_start, parts[p].size_end],
++                 "size_cpu": parts[p].size_cpu_end - parts[p].size_cpu_start,
++                 "write_wall": [parts[p].write_start, parts[p].write_end],
++                 "write_cpu": parts[p].write_cpu_end - parts[p].write_cpu_start,
++                 "size_thread": parts[p].size_thread, "write_thread": parts[p].write_thread}
++                for p in range(n_parts)
++            ],
++        }
+         return data, starts
+     finally:
+         # On success the tuple owns the Python objects. On abort these local references
+--- a/src/fse/_native_src/_native_threads.h
++++ b/src/fse/_native_src/_native_threads.h
+@@ -10,6 +10,13 @@
+ #define FSE_NATIVE_THREADS_H
+ 
+ #include <stdlib.h>
++#include <time.h>
++static double fse_diag_parallel_spans[5];
++static double fse_diag_monotonic(void) {
++    struct timespec t;
++    clock_gettime(CLOCK_MONOTONIC, &t);
++    return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
++}
+ 
+ typedef void (*fse_part)(void *arg, int part);
+ 
+@@ -85,9 +92,14 @@
+     fse_task *tasks;
+     char *started;
+     int i;
++    fse_diag_parallel_spans[0] = fse_diag_monotonic();
+     if (fse_test_fail_bookkeeping) return -1;
+     if (n <= 1) {
++        fse_diag_parallel_spans[1] = fse_diag_monotonic();
+         if (n == 1) fn(arg, 0);
++        fse_diag_parallel_spans[2] = fse_diag_monotonic();
++        fse_diag_parallel_spans[3] = fse_diag_parallel_spans[2];
++        fse_diag_parallel_spans[4] = fse_diag_parallel_spans[2];
+         return 0;
+     }
+     threads = (fse_thread *)fse_join_calloc((size_t)n, sizeof(fse_thread));
+@@ -106,16 +118,20 @@
+         started[i] = !(i < 32 && (fse_test_failed_starts >> i) & 1u) &&
+                      fse_start(&threads[i], &tasks[i]) == 0;
+     }
++    fse_diag_parallel_spans[1] = fse_diag_monotonic();
+     fn(arg, 0);
++    fse_diag_parallel_spans[2] = fse_diag_monotonic();
+     for (i = 1; i < n; i++) {
+         if (started[i])
+             fse_join(threads[i]);
+         else
+             fn(arg, i);
+     }
++    fse_diag_parallel_spans[3] = fse_diag_monotonic();
+     fse_join_free(threads);
+     fse_join_free(tasks);
+     fse_join_free(started);
++    fse_diag_parallel_spans[4] = fse_diag_monotonic();
+     return 0;
+ }
+ 

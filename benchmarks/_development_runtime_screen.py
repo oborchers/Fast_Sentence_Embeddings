@@ -107,7 +107,11 @@ def compare(cell, rows):
 
 def fixed_size(cell, rows, functional):
     if cell["stage"] == "encode-calls":
-        return False
+        if not cell.get("runtime_fixed_iterations", False):
+            return False
+        if not functional and any(row["seconds"] < 2 for row in rows):
+            raise ValueError("frozen short-call block is below two seconds; no automatic retry")
+        return True
     if not (cell.get("runtime_paired", False) or cell.get("single_operation", False)):
         return False
     if not functional and any(row["seconds_per_iteration"] < 2 for row in rows):

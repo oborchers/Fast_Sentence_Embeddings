@@ -23,6 +23,7 @@ def validate(cell):
     variant = cell.get("runtime_variant", "baseline")
     if not isinstance(variant, str) or variant not in VARIANTS:
         raise ValueError("unknown runtime_variant")
+    _validate_block_probe(cell)
     _validate_baseline(cell, variant)
     _short_variant(cell, variant)
     if type(cell.get("runtime_timeline", False)) is not bool:
@@ -39,6 +40,24 @@ def validate(cell):
             raise ValueError("runtime probes require allocating float32 encode")
         if cell["decision_gate"]:
             raise ValueError("runtime variants are preliminary screens without keep decisions")
+
+
+def _validate_block_probe(cell):
+    if cell.get("runtime_probe_blocks") and not cell.get("runtime_fixed_iterations"):
+        raise ValueError("timed probe blocks require frozen iterations")
+    for key in ("runtime_probe_blocks", "runtime_fixed_iterations"):
+        if type(cell.get(key, False)) is not bool:
+            raise ValueError(f"{key} must be boolean")
+        if cell.get(key) and (
+            cell["stage"] != "encode-calls"
+            or cell.get("call_repeats") != 1
+            or not cell.get("runtime_paired")
+            or cell["runtime_variant"] not in ("baseline", "pool")
+            or cell["warmup_calls"] != 1
+        ):
+            raise ValueError(
+                f"{key} requires a paired exact-call pool screen with one fixed warmup"
+            )
 
 
 def _short_variant(cell, variant):

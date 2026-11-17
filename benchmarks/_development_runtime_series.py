@@ -75,7 +75,11 @@ def summarize(record, data, workers, calls):
         current = {**record, "record_count": len(group) // len(record["fields"]), "gc": meta["gc"]}
         summary = reduce_call(current, workers, group)
         summary.update(summarize_tasks(current, group, workers))
-        summary.update(call=meta["call"], probed_process_cpu_seconds=meta["process_cpu_seconds"])
+        summary.update(
+            call=meta["call"],
+            probed_process_cpu_seconds=meta["process_cpu_seconds"],
+            planning_cuts=meta.get("planning_cuts", []),
+        )
         results.append(summary)
     if not results:
         raise ValueError("no complete diagnostic calls")

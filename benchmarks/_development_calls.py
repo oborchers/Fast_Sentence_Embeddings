@@ -76,6 +76,7 @@ class Repeated:
         self.model, self.job = model, job
         self.variant = job.get("runtime_variant", "baseline")
         self.pool = None
+        self.block_probe = None
         self.texts = StringSource(texts) if "prebuilt" in self.variant else texts
         # Pool construction/start and eventual close are outside timed groups.
         if self.variant in ("pool", "pool+prebuilt"):
@@ -98,16 +99,41 @@ class Repeated:
                 raise ValueError("repeated exact call differs from baseline full output")
 
     def one(self):
-        return self.model.encode(
-            self.texts, workers=self.job["workers"], dtype=self.job["output_dtype"], pool=self.pool
-        )
+        if self.block_probe is not None:
+            self.block_probe.next_call()
+        try:
+            return self.model.encode(
+                self.texts,
+                workers=self.job["workers"],
+                dtype=self.job["output_dtype"],
+                pool=self.pool,
+            )
+        finally:
+            if self.block_probe is not None:
+                self.block_probe.end_call()
 
     def __enter__(self):
+        if self.job.get("runtime_probe_blocks", False):
+            from _development_runtime_block import BlockProbe
+
+            try:
+                self.block_probe = BlockProbe(self)
+                self.block_probe.__enter__()
+            except BaseException:
+                self.__exit__(None, None, None)
+                raise
         return self
 
     def __exit__(self, *args):
-        if self.pool is not None:
-            self.pool.close()
+        try:
+            if self.block_probe is not None:
+                self.block_probe.__exit__(*args)
+        finally:
+            if self.pool is not None:
+                self.pool.close()
+
+    def block_evidence(self):
+        return None if self.block_probe is None else self.block_probe.evidence()
 
     def __call__(self):
         from _development_runtime import settings
@@ -125,8 +151,11 @@ class Repeated:
 
         if not self.job.get("runtime_timeline") or self.job.get("diagnostic_profile", False):
             return None
-        # The probe sees exactly one call, not the whole repeated block. Its
-        # sequence numbers therefore remain unique within the trace.
+        # Restore timed hooks before installing the separate full-capture hooks.
+        if self.block_probe is not None:
+            self.block_probe.__exit__(None, None, None)
+            self.block_probe = None
+        # The separate probe records consecutive calls with composite task identity.
         with settings(self.variant):
             return observe(_Single(self), self.job)
 
