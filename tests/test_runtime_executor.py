@@ -437,7 +437,7 @@ def test_interrupt_in_last_wave_keeps_join_and_places(monkeypatch, closing_pool,
 
 
 def test_exhaustion_keeps_shared_and_stream_pools_open(closing_pool):
-    pools, shutdowns, _releases = closing_pool
+    _pools, shutdowns, _releases = closing_pool
     contexts = (_pool.Pool(2), _pool.iteration(_pool.Workers(2)))
     for context, expected in zip(contexts, ([], [(True, False)]), strict=True):
         with context as owned:
