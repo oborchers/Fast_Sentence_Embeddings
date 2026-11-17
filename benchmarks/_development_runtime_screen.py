@@ -93,6 +93,8 @@ def compare(cell, rows):
         evidence = row.get("runtime_evidence")
         if not evidence or not evidence.get("valid"):
             return {"valid": False, "reason": "paired window diagnostic incomplete"}
+        if not evidence["summary"].get("task_layout_consistent", True):
+            return {"valid": False, "reason": "window probe task layouts differ across calls"}
         tasks.append({key: evidence["summary"][key] for key in ("task_rows", "task_bytes")})
     equal = bool(tasks) and all(task == tasks[0] for task in tasks)
     return {
@@ -114,3 +116,30 @@ def fixed_size(cell, rows, functional):
             "do not substitute repeated short calls or retry automatically"
         )
     return True
+
+
+def pair_observations(cell, rows):
+    if not (cell.get("runtime_paired") or cell.get("single_operation")):
+        return {}
+    return {
+        "runtime_pair_observations": [
+            {
+                "pair": number,
+                "first_pair": number == 0,
+                "reduced_warmup": cell["warmup_calls"] == 1 and cell["warmup_seconds"] <= 6,
+                "arms": [_pair_arm(row, cell) for row in rows if row["pair"] == number],
+            }
+            for number in range(cell["pairs"])
+        ],
+        "runtime_pair_scope": "all pairs retained; inspect first pair separately after single-block warmup",
+    }
+
+
+def _pair_arm(row, cell):
+    calls = row["operation_repetitions"] * (cell.get("call_repeats") or 1)
+    return {
+        "arm": row["arm"],
+        "seconds": row["seconds"],
+        "process_cpu_seconds": row["process_cpu_seconds"],
+        "mean_seconds_per_call": row["seconds"] / calls,
+    }

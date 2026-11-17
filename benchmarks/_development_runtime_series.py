@@ -9,12 +9,16 @@ from _development_runtime_summary import summarize as reduce_call
 from _development_runtime_tasks import summarize_tasks
 
 
-def _statistics(values):
+def _statistics(values, total):
+    if not values:
+        return {"raw": [], "median": None, "iqr": None, "observed_calls": 0, "missing_calls": total}
     q1, _, q3 = (
         statistics.quantiles(values, n=4, method="inclusive") if len(values) > 1 else values * 3
     )
     return {
         "raw": values,
+        "observed_calls": len(values),
+        "missing_calls": total - len(values),
         "median": statistics.median(values),
         "iqr": q3 - q1,
         "q1": q1,
@@ -56,8 +60,9 @@ def _metrics(row, workers):
         "end_to_commit_seconds",
         "publication_to_commit_seconds",
     ):
-        if tasks:
-            metrics[name] = statistics.median(task[name] for task in tasks)
+        observed = [task[name] for task in tasks if task[name] is not None]
+        if observed:
+            metrics[name] = statistics.median(observed)
     metrics["worker_busy_fraction"] = (
         sum(state["work_wall_fraction"] for state in row["worker_activity"].values()) / workers
     )
@@ -75,18 +80,27 @@ def summarize(record, data, workers, calls):
     if not results:
         raise ValueError("no complete diagnostic calls")
     first = results[0]
-    if any(
-        (row["task_rows"], row["task_bytes"]) != (first["task_rows"], first["task_bytes"])
-        for row in results
-    ):
-        raise ValueError("consecutive diagnostic calls changed task rows or bytes")
+    deviations = []
+    for row in results:
+        row["task_layout_matches_first"] = (row["task_rows"], row["task_bytes"]) == (
+            first["task_rows"],
+            first["task_bytes"],
+        )
+        if not row["task_layout_matches_first"]:
+            deviations.append(row["call"])
     metrics = [_metrics(row, workers) for row in results]
+    names = set().union(*(row.keys() for row in metrics))
+    names.add("publication_to_commit_seconds")
     return {
         **first,
+        "task_layout_deviations": deviations,
+        "task_layout_consistent": not deviations,
+        "missing_publication_markers": sum(row["missing_publication_markers"] for row in results),
         "per_call": results,
         "probe_call_count": len(results),
         "call_statistics": {
-            name: _statistics([row[name] for row in metrics]) for name in metrics[0]
+            name: _statistics([row[name] for row in metrics if name in row], len(metrics))
+            for name in sorted(names)
         },
         "probed_process_cpu_seconds": sum(row["probed_process_cpu_seconds"] for row in results),
         "probed_call_wall_seconds": sum(row["call_wall_seconds"] for row in results),
@@ -102,6 +116,8 @@ def overhead(summary, measured):
     cpu = measured["process_cpu_seconds"] / calls
     count = summary["probe_call_count"]
     return {
+        "claim_class": "descriptive",
+        "ratio_uncertainty": "ratio of means; per-call spread retained in call_statistics",
         "unprobed_mean_call_wall_seconds": wall,
         "unprobed_mean_call_process_cpu_seconds": cpu,
         "probed_mean_call_wall_seconds": summary["probed_call_wall_seconds"] / count,

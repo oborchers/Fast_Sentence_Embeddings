@@ -161,6 +161,7 @@ def block(
     if len(proofs) != 1:
         raise ValueError("complete paired stage output differs between builds or rounds")
     from _development_runtime_screen import compare as runtime_compare
+    from _development_runtime_screen import pair_observations
 
     runtime = runtime_compare(cell, rows)
     if args.functional and runtime is not None and not runtime.get("valid", False):
@@ -169,6 +170,7 @@ def block(
     return {
         **LABEL,
         **paired(cell, rows),
+        **pair_observations(cell, rows),
         "output": rows[0]["output"],
         **({"runtime_screen": runtime} if runtime is not None else {}),
         **({"path_evidence": paths} if paths else {}),

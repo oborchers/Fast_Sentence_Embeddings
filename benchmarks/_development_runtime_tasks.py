@@ -54,7 +54,7 @@ class Tasks:
             self.intervals.append((self.active.pop(sequence), now))
 
     def result(self, workers):
-        required = {"submit", "work-start", "work-end", "commit-start", "commit-end", "publish"}
+        required = {"submit", "work-start", "work-end", "commit-start", "commit-end"}
         if self.active or self.opened or any(required - t.keys() for t in self.tasks.values()):
             raise ValueError("incomplete per-task timeline")
         tasks = [self.tasks[k] for k in sorted(self.tasks)]
@@ -63,6 +63,7 @@ class Tasks:
         return {
             "tasks_per_call": len(tasks),
             "per_task": [self._record(t) for t in tasks],
+            "missing_publication_markers": sum("publish" not in t for t in tasks),
             "first_wave_stagger_seconds": _seconds(first_wave[-1] - first_wave[0])
             if first_wave
             else None,
@@ -79,6 +80,7 @@ class Tasks:
         }
 
     def _record(self, task):
+        published = task.get("publish")
         return {
             "sequence": task["sequence"],
             "thread": task["thread"],
@@ -86,8 +88,10 @@ class Tasks:
             "bytes": task["bytes"],
             "submit_to_pickup_seconds": _seconds(task["work-start"] - task["submit"]),
             "end_to_commit_seconds": _seconds(task["commit-start"] - task["work-end"]),
-            "publication_to_commit_seconds": _seconds(task["commit-start"] - task["publish"]),
-            "publication_marker_wall_ns": task["publish"],
+            "publication_to_commit_seconds": _seconds(task["commit-start"] - published)
+            if published is not None
+            else None,
+            "publication_marker_wall_ns": published,
             "work_wall_seconds": _seconds(task["work-end"] - task["work-start"]),
             "work_cpu_seconds": _seconds(task["cpu_end"] - task["cpu_start"]),
             "submit_wall_ns": task["submit"],

@@ -2581,3 +2581,10 @@ Each receipt compares probed wall and process CPU per call against the unprobed
 block means. Wall time minus thread CPU is not measured GIL wait. The probe perturbs scheduling
 and can rank further investigations, but cannot establish a cause or a speedup.
 Large-call controls retain the existing single-call two-second gate.
+
+The one-block warmup in this study applies only to preliminary same-build
+screens, including the two large-call controls with `warmup_calls=1`. All five
+pairs remain in the result with per-pair observations and the first pair flagged
+separately. Probe/unprobed ratios are descriptive, never a correction. Missing
+publication markers and optional metrics carry missing counts. Calls with a
+different task layout are identified and retained, without discarding the series.
