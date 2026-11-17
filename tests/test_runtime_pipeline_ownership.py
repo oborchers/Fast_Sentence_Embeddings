@@ -5,11 +5,11 @@ import threading
 import weakref
 
 import numpy as np
+import pytest
 
-from fse._runtime import EncodeSpec, Pipeline, Pool, _pipeline, _pool, _tasks
-from fse._runtime import _executor
-from fse._runtime._sinks import ArrayRows
+from fse._runtime import EncodeSpec, Pipeline, Pool, _executor, _pipeline, _pool, _tasks
 from fse._runtime._pool import Workers
+from fse._runtime._sinks import ArrayRows
 from fse._text import StringSource
 from support.runtime import word_vectors
 from support.waiting import arrived, blocked_in_wait, until
@@ -75,12 +75,8 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
     def interrupted(pool):
         wv = word_vectors()
         pipeline = Pipeline(EncodeSpec(wv, np.ones(len(wv), np.float32), ()))
-        try:
+        with pytest.raises(KeyboardInterrupt, match="^second$"):
             pipeline.infer(StringSource(["w1", "w2"]), workers=Workers(2, pool), chunk_bytes=1)
-        except KeyboardInterrupt as error:
-            assert str(error) == "second"
-        else:
-            raise AssertionError("the two interrupts did not escape")
 
     with Pool(2, max_tasks=2) as pool:
         try:

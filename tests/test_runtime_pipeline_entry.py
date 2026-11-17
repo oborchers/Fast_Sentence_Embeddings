@@ -7,10 +7,9 @@ from fse import _native
 from fse._contract import Normalize
 from fse._runtime import ArrayRows, EncodeSpec, Pipeline, _pipeline, _tasks
 from fse._text import StringSource, TokenListSource
-from fse._wordvectors import WordVectors
 from fse._tokenizer_spec import TokenizerSpec
+from fse._wordvectors import WordVectors
 from support.runtime import texts, word_vectors
-
 
 F32 = np.float32
 
