@@ -46,7 +46,7 @@ def test_row_boundaries_and_thread_caps(threads, n):
     parts = (
         max(1, min(threads, n // 4096))
         if n > 65536
-        else max(1, min(threads, n, n * 16 // PART_BYTES))
+        else max(1, min(threads, n, max(n // 4096, n * 16 // PART_BYTES)))
     )
     _joined(texts, threads, parts)
 
@@ -61,7 +61,7 @@ def test_long_rows_use_available_parts_bounded_by_rows(threads, n):
 
 @pytest.mark.parametrize("n", [32767, 32768, 65535, 65536, 65537])
 def test_empty_rows_keep_offsets_and_observe_the_row_limit(n):
-    _joined([""] * n, 8, 8 if n > 65536 else 1)
+    _joined([""] * n, 8, min(8, n // 4096))
 
 
 @pytest.mark.parametrize("bad", [None, np.str_("é"), "\ud800"])
@@ -132,3 +132,18 @@ def test_unicode_kind_weighted_thresholds(text, weight, parts, delta):
     count, rest = divmod(total, weight)
     texts = [text * count, "a" * rest] + [""] * 6
     _joined(texts, 8, max(1, min(8, total // PART_BYTES)))
+
+
+@pytest.mark.parametrize("threads", [2, 4, 8])
+@pytest.mark.parametrize("delta", [-1, 0, 1])
+@pytest.mark.parametrize("container", [list, tuple])
+def test_row_rule_fills_threads_without_entering_size_prepass(threads, delta, container):
+    n = threads * 4096 + delta
+    _joined(container(["a"] * n), threads, min(threads, n // 4096))
+    assert _native._test_join_string_estimated() is (delta < 0)
+
+
+@pytest.mark.parametrize("n", [8192, 12288, 28672, 65536])
+def test_small_text_never_selects_fewer_parts_than_row_rule(n):
+    _joined(["a"] * n, 8, min(8, n // 4096))
+    assert _native._test_join_string_estimated() is (n < 32768)

@@ -8,6 +8,7 @@ cdef unsigned _string_second_starts = 0
 cdef int _string_fail_stage = 0
 cdef int _string_mismatch = 0
 cdef int _string_last_parts = 0  # Test-only observation, never a selection input.
+cdef bint _string_last_estimated = False
 
 cdef enum:
     _MISMATCH = -4
@@ -17,16 +18,18 @@ cdef enum:
 
 cdef int _string_parts(PyObject *outer, Py_ssize_t n, int threads) noexcept nogil:
     """Bounded UTF-8 upper estimate; actual sizing still validates every row."""
+    global _string_last_estimated
     cdef Py_ssize_t i, length, estimate = 0, cap = PY_SSIZE_T_MAX
     cdef int weight, kind
     cdef PyObject *text
     cdef int by_rows = <int>max(1, min(threads, n // _PART_SENTENCES))
     if threads == 1 or not n:
         return 1
-    if n > _STRING_SIZE_ROWS:
+    if n > _STRING_SIZE_ROWS or by_rows == threads:
         return by_rows
     if threads <= PY_SSIZE_T_MAX // _STRING_PART_BYTES:
         cap = <Py_ssize_t>threads * _STRING_PART_BYTES
+    _string_last_estimated = True
     for i in range(n):
         text = _item(outer, i)
         if not PyUnicode_CheckExact(text) or not FSE_UNICODE_IS_READY(text):
@@ -41,7 +44,7 @@ cdef int _string_parts(PyObject *outer, Py_ssize_t n, int threads) noexcept nogi
         estimate += length * weight
         if estimate == cap:
             break
-    return <int>max(1, min(threads, n, estimate // _STRING_PART_BYTES))
+    return <int>max(1, min(threads, n, max(by_rows, estimate // _STRING_PART_BYTES)))
 
 
 cdef struct _StringPart:
@@ -136,7 +139,7 @@ cdef void _write_strings(void *arg, int index) noexcept nogil:
 cdef object _join_strings_direct(texts, int threads):
     global fse_test_failed_starts
     global fse_test_fail_bookkeeping
-    global _string_last_parts
+    global _string_last_parts, _string_last_estimated
     cdef PyObject *outer = <PyObject *>texts
     cdef Py_ssize_t n, size, total = 0
     cdef int p, n_parts, status = 0
@@ -146,6 +149,7 @@ cdef object _join_strings_direct(texts, int threads):
     cdef char *out
     starts = data = None
     _string_last_parts = 0
+    _string_last_estimated = False
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
@@ -230,3 +234,8 @@ def _test_join_resources():
 def _test_join_string_parts():
     """Parts actually selected by the last string join, zero before selection."""
     return _string_last_parts
+
+
+def _test_join_string_estimated():
+    """Whether the last string join entered the size pre-pass."""
+    return bool(_string_last_estimated)
