@@ -29,8 +29,24 @@ def _bits(rows):
     return tuple(r.tobytes() for r in rows) if isinstance(rows, tuple) else rows.tobytes()
 
 
+class _OffsetRows(ArrayRows):
+    def __init__(self, n, dim, dtype, base):
+        super().__init__(n, dim, dtype)
+        self.base = base
+
+    def target(self, first, n):
+        return super().target(first - self.base, n)
+
+    def commit(self, first, rows):
+        super().commit(first - self.base, rows)
+
+
 def _outcome(pipeline, source, dtype, caller, **kwargs):
-    sink = ArrayRows(len(source), pipeline.output_dim, dtype) if caller else None
+    sink = (
+        _OffsetRows(len(source), pipeline.output_dim, dtype, kwargs.get("first_row", 0))
+        if caller
+        else None
+    )
     try:
         result = pipeline.infer(source, sink=sink, dtype=dtype, **kwargs)
         return _bits(sink.result() if caller else result)
@@ -153,3 +169,16 @@ def test_non_value_errors_are_not_retried(monkeypatch):
     with pytest.raises(RuntimeError, match="workspace failed"):
         Pipeline(_spec()).infer(StringSource(["w1", "w2", "w3"]))
     assert attempts == [1]
+
+
+@pytest.mark.parametrize("chunk_bytes", [5, 1000])
+def test_storage_error_before_a_later_pooling_error_keeps_its_row(monkeypatch, chunk_bytes):
+    monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+    rows = np.array([[1, 1], [1e6, 1e6], [np.finfo(F32).max, np.finfo(F32).max]], F32)
+    wv = WordVectors.from_arrays(rows, words=["good", "large", "huge"])
+    pipeline = Pipeline(EncodeSpec(wv, np.array([1, 1, 2], F32), ()))
+    source = StringSource(["good", "large", "huge"])
+    native = _outcome(pipeline, source, "float16", False, workers=3, chunk_bytes=chunk_bytes)
+    checked = _outcome(pipeline, source, "float16", True, workers=3, chunk_bytes=chunk_bytes)
+    assert native == checked
+    assert native == (ValueError, "row 1 has values beyond the float16 range")
