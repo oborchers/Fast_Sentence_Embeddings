@@ -12,7 +12,7 @@ import pytest
 
 from fse import _native
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, Pipeline, _pipeline, _pool, _tasks
+from fse._runtime import EncodeSpec, Pipeline, _pool, _tasks, _worker
 from fse._text import StringSource
 from support.runtime import expected, source, texts, word_vectors
 
@@ -78,14 +78,14 @@ def test_workers_ignore_their_floating_point_environment(monkeypatch, env, backe
     spec = _spec("float32", False, "normalize", "fse_words@1")
     sentences = texts(2000)
     want = expected(spec, sentences)
-    made = _pipeline.new_workspace
+    made = _worker.new_workspace
     saved = []
 
     def hooked():
         saved.append(_native._test_fpenv_set(**env))  # in the worker thread, which then ends
         return made()
 
-    monkeypatch.setattr(_pipeline, "new_workspace", hooked)
+    monkeypatch.setattr(_worker, "new_workspace", hooked)
     before = _native._test_fpenv_get()
     got = Pipeline(spec, backend).infer(StringSource(sentences), workers=3, chunk_bytes=1024)
     assert _native._test_fpenv_get() == before

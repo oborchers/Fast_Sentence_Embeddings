@@ -28,7 +28,21 @@ def _counting(monkeypatch):
         tasks.append(task.n_rows)
         return real(self, local, task, target, base)
 
+    factory = Pipeline._task_work
+
+    def selected(self, *args):
+        native = factory(self, *args)
+        if native is None:
+            return None
+
+        def counted(item):
+            tasks.append(item[0].n_rows)
+            return native(item)
+
+        return counted
+
     monkeypatch.setattr(Pipeline, "_work", work)
+    monkeypatch.setattr(Pipeline, "_task_work", selected)
     return tasks
 
 

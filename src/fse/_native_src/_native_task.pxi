@@ -300,7 +300,14 @@ def pool_text(WeightedMean kernel not None, TextLookup lookup not None, Workspac
     stage 1 and of the batch, before those of ``out``, pooling and normalize. Raises what
     encode, the source, ``CpuBackend.rows`` and ``postprocess_pooled`` raise on the same
     range one after the other; the rows and their bits are theirs. Returns ``rows``."""
-    cdef int code = _check_isa(isa)
+    return _pool_text_checked(kernel, lookup, ws, text, first, last, rows, first_row,
+                              out, normalize, after_encode, _check_isa(isa))
+
+
+cdef object _pool_text_checked(WeightedMean kernel, TextLookup lookup, Workspace ws, text,
+                               Py_ssize_t first, Py_ssize_t last, Py_ssize_t rows,
+                               first_row, out, bint normalize, after_encode, int code):
+    """The existing task checks and stages, with the immutable ISA already checked."""
     cdef _Stages s
     cdef _Pooled result
     error = _out_error(kernel, out, rows)

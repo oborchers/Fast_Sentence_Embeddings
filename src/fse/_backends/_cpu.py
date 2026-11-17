@@ -145,6 +145,22 @@ class CpuBackend:
             isa=state.isa,
         )
 
+    def string_tasks(self, prepared, lookup, source, local, base, helpers):
+        """One call's immutable CPU state for its internal StringSource tasks."""
+        check_prepared(prepared, self.name)
+        state = prepared.state
+        assert isinstance(state, _State)
+        return _native.TextTasks(
+            state.kernel,
+            lookup,
+            state.isa,
+            bool(prepared.steps),
+            (source._array(), source._offsets),
+            local,
+            base,
+            helpers,
+        )
+
     def score(
         self, stored: ndarray, scales: ndarray | None, weights: ndarray, bias: float
     ) -> ndarray:
