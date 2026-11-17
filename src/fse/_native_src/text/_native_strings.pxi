@@ -7,9 +7,35 @@
 cdef unsigned _string_second_starts = 0
 cdef int _string_fail_stage = 0
 cdef int _string_mismatch = 0
+cdef int _string_last_parts = 0  # Test-only observation, never a selection input.
 
 cdef enum:
     _MISMATCH = -4
+    _STRING_PART_BYTES = 512 * 1024
+    _STRING_SIZE_ROWS = 65536
+
+
+cdef int _string_parts(PyObject *outer, Py_ssize_t n, int threads) noexcept nogil:
+    """Bounded code-point estimate; actual UTF-8 sizing still validates every row."""
+    cdef Py_ssize_t i, length, cp = 0, cap = PY_SSIZE_T_MAX
+    cdef PyObject *text
+    cdef int by_rows = <int>max(1, min(threads, n // _PART_SENTENCES))
+    if threads == 1 or not n:
+        return 1
+    if n > _STRING_SIZE_ROWS:
+        return by_rows
+    if threads <= PY_SSIZE_T_MAX // _STRING_PART_BYTES:
+        cap = <Py_ssize_t>threads * _STRING_PART_BYTES
+    for i in range(n):
+        text = _item(outer, i)
+        if not PyUnicode_CheckExact(text) or not FSE_UNICODE_IS_READY(text):
+            return by_rows
+        length = PyUnicode_GET_LENGTH(text)
+        if length >= cap - cp:
+            cp = cap
+            break
+        cp += length
+    return <int>max(1, min(threads, n, cp // _STRING_PART_BYTES))
 
 
 cdef struct _StringPart:
@@ -104,6 +130,7 @@ cdef void _write_strings(void *arg, int index) noexcept nogil:
 cdef object _join_strings_direct(texts, int threads):
     global fse_test_failed_starts
     global fse_test_fail_bookkeeping
+    global _string_last_parts
     cdef PyObject *outer = <PyObject *>texts
     cdef Py_ssize_t n, size, total = 0
     cdef int p, n_parts, status = 0
@@ -112,6 +139,7 @@ cdef object _join_strings_direct(texts, int threads):
     cdef np.int64_t[::1] offsets
     cdef char *out
     starts = data = None
+    _string_last_parts = 0
     if threads < 1:
         raise ValueError(f"threads must be at least 1, not {threads}")
     if not (PyList_CheckExact(outer) or PyTuple_CheckExact(outer)):
@@ -128,7 +156,8 @@ cdef object _join_strings_direct(texts, int threads):
         # Both operations above may run Python. Fix bounds only after both complete.
         if _items(outer) != n:
             return None
-        n_parts = <int>max(1, min(threads, n // _PART_SENTENCES))
+        n_parts = _string_parts(outer, n, threads)
+        _string_last_parts = n_parts
         if n_parts > PY_SSIZE_T_MAX // <Py_ssize_t>sizeof(_StringPart):
             raise MemoryError("the parts of the strings would exceed the address space")
         if _string_fail_stage != 2:
@@ -190,3 +219,8 @@ cdef object _join_strings_direct(texts, int threads):
 def _test_join_resources():
     """Actual live native part/bookkeeping allocations. Python objects use weakref/tracemalloc tests."""
     return fse_test_join_live
+
+
+def _test_join_string_parts():
+    """Parts actually selected by the last string join, zero before selection."""
+    return _string_last_parts

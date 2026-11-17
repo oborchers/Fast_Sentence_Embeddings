@@ -325,9 +325,10 @@ def _legacy(text):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 12), reason="legacy strings end with 3.11")
-def test_a_legacy_string_takes_the_python_path():
+@pytest.mark.parametrize("threads", [1, 8])
+def test_a_legacy_string_takes_the_python_path(threads):
     for join in (
-        lambda s: _native.join_strings(["a", s]),
+        lambda s: _native.join_strings(["a", s], threads),
         lambda s: _native.join_token_lists([["a"], [s]]),
     ):
         legacy = _legacy("b\u00e9")
@@ -367,8 +368,9 @@ def _many_texts(n):
 
 
 def test_string_parts_whose_threads_do_not_start_run_in_the_caller(faults):
-    texts = _many_texts(8 * 4096)
+    texts = [text * 64 for text in _many_texts(8 * 4096)]
     want = _native.join_strings(texts, 8)
+    assert _native._test_join_string_parts() == 8
     for mask in (0b10, 0b11111110, 0b1010_1010):
         faults(failed_starts=mask)
         data, offsets = _native.join_strings(texts, 8)

@@ -34,11 +34,12 @@ def _same(texts, threads):
 def test_each_failed_allocation_releases_resources_and_next_call_works(
     faults, threads, stage, message
 ):
-    texts = ["abc é 日 𝄞"] * (4096 * threads)
+    texts = ["abc é 日 𝄞" * 64] * (4096 * threads)
     faults(fail_stage=stage)
     with pytest.raises(MemoryError, match=message):
         _native.join_strings(texts, threads)
     assert _native._test_join_resources() == 0
+    assert _native._test_join_string_parts() == (0 if stage == 1 else threads)
     faults()
     _same(texts, threads)
 
@@ -47,7 +48,7 @@ def test_each_failed_allocation_releases_resources_and_next_call_works(
 @pytest.mark.parametrize("mismatch", [-1, 1])
 @pytest.mark.parametrize("threads", [1, 4])
 def test_bad_sizing_never_writes_outside_reserved_span(faults, text, mismatch, threads):
-    texts = [text] * (4096 * threads)
+    texts = [text] + ["x" * 512] * (4096 * threads - 1)
     faults(mismatch=mismatch)
     with pytest.raises(AssertionError, match="size changed between join passes"):
         _native.join_strings(texts, threads)
@@ -60,7 +61,8 @@ def test_bad_sizing_never_writes_outside_reserved_span(faults, text, mismatch, t
 @pytest.mark.parametrize("second", [0b10, 0b11111110, 0b10101010])
 def test_failed_thread_starts_in_either_pass_run_in_caller(faults, first, second):
     faults(failed_starts=first, second_failed_starts=second)
-    _same(["a", "é", "日", "𝄞", ""] * 7000, 8)
+    _same(["a" * 256, "é" * 256, "日" * 256, "𝄞" * 256, ""] * 7000, 8)
+    assert _native._test_join_string_parts() == 8
 
 
 @pytest.mark.parametrize("change", ["grow", "shrink", "replace"])
@@ -92,7 +94,7 @@ def test_offsets_allocation_can_change_input_before_bounds_are_fixed(monkeypatch
 @pytest.mark.parametrize("bad", [1, None, False, b"x", "\ud800"])
 @pytest.mark.parametrize("at", [0, 4096, 8192, 12288])
 def test_earliest_error_across_parts_matches_python(bad, at):
-    texts = ["ok"] * 16384
+    texts = ["ok" * 1024] * 16384
     texts[at] = bad
     texts[-1] = "\udfff" if not isinstance(bad, str) else False
     assert _native.join_strings(texts, 4) is None
