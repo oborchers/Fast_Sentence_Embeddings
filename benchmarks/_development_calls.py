@@ -44,6 +44,8 @@ def operation(model, texts, job):
 
 def validate(cell):
     repeats = cell.get("call_repeats")
+    if cell["stage"] == "encode-calls":
+        _validate_variant(cell)
     if repeats is not None:
         if type(repeats) is not int or repeats <= 0:
             raise ValueError("call_repeats must be a positive integer or null")
@@ -53,6 +55,22 @@ def validate(cell):
         raise ValueError("parallel encode-calls requires call_repeats")
     if cell["stage"] == "encode-calls" and cell["runtime_timeline"] and repeats is None:
         raise ValueError("encode-calls timeline requires call_repeats")
+
+
+def _validate_variant(cell):
+    allowed = (
+        "baseline",
+        "pool",
+        "prebuilt",
+        "pool+prebuilt",
+        "window-4x",
+        "tasks-per-worker-1",
+        "tasks-per-worker-4",
+    )
+    if cell["runtime_variant"] not in allowed:
+        raise ValueError("unsupported encode-calls runtime variant")
+    if cell["runtime_variant"] != "baseline" and cell.get("call_repeats") is None:
+        raise ValueError("encode-calls variants require call_repeats")
 
 
 class Repeated:
