@@ -124,6 +124,15 @@ class Pool:
     # part of the API. ``_submit`` takes no place of ``max_tasks``, so only the executors may call it.
     # ------------------------------------------------------------------------------------
 
+    def _stop_submitting(self) -> None:
+        """End an own call's idle threads while its last tasks finish. Keep the executor
+        until ``close`` joins it, including when draining the results is interrupted."""
+        with self._lock:
+            self._closed = True
+            executor = self._executor
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=False)
+
     def _submit(self, work: Callable[..., Any], *args: Any) -> Future:
         """``work(*args)`` on a thread of the pool."""
         with self._lock:

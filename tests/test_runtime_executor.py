@@ -8,6 +8,8 @@ import pytest
 
 from fse._runtime import _executor, _pool
 from fse._runtime._executor import prepare, run
+from support.pool import no_fse_threads_left  # noqa: F401
+from support.waiting import arrived, blocked_in_wait
 
 
 def _record():
@@ -305,3 +307,131 @@ def test_preparation_cancels_queued_helpers_instead_of_waiting():
             assert pool._try_acquire()
         for _ in range(4):
             pool._release()
+
+
+@pytest.fixture
+def closing_pool(monkeypatch):
+    pools, shutdowns, releases = [], [], []
+    real_executor = _pool.Pool._new_executor
+    real_release = _pool.Pool._release
+
+    def new_executor(pool):
+        executor = real_executor(pool)
+        real_shutdown = executor.shutdown
+
+        def shutdown(wait=True, *, cancel_futures=False):
+            assert pool._executor is executor  # retain it until the final join
+            shutdowns.append((wait, cancel_futures))
+            return real_shutdown(wait=wait, cancel_futures=cancel_futures)
+
+        executor.shutdown = shutdown
+        pools.append(pool)
+        return executor
+
+    def release(pool):
+        releases.append(pool)
+        real_release(pool)
+
+    monkeypatch.setattr(_pool.Pool, "_new_executor", new_executor)
+    monkeypatch.setattr(_pool.Pool, "_release", release)
+    return pools, shutdowns, releases
+
+
+@pytest.mark.parametrize("failure", [None, "work", "commit"])
+def test_own_pool_starts_shutdown_before_draining(closing_pool, failure):
+    pools, shutdowns, releases = closing_pool
+    committed = []
+
+    def work(task):
+        if failure == "work":
+            # The worker cannot fail until the caller has exhausted the iterator.
+            assert exhausted.wait(10)
+            raise ValueError("last task")
+        return task
+
+    exhausted = threading.Event()
+
+    def tasks():
+        yield 0
+        assert shutdowns == []
+        exhausted.set()
+
+    def commit(task, result):
+        assert shutdowns == [(False, False)]
+        if failure == "commit":
+            raise ValueError("last commit")
+        committed.append((task, result))
+
+    expected = contextlib.nullcontext() if failure is None else pytest.raises(ValueError)
+    with expected:
+        run(tasks(), work, commit, workers=2)
+    assert shutdowns == [(False, False), (True, False)]
+    assert releases == [pools[0], pools[0]]  # task and speculative read, each once
+    assert pools[0]._executor is None
+    assert committed == ([(0, 0)] if failure is None else [])
+
+
+@pytest.mark.parametrize("second_interrupt", [False, True])
+def test_interrupt_in_last_wave_keeps_join_and_places(monkeypatch, closing_pool, second_interrupt):
+    pools, shutdowns, releases = closing_pool
+    gate, entered = threading.Event(), threading.Event()
+    state = {}
+    real_loop, real_wait = _executor._Run._loop, _executor.wait
+
+    def work(task):
+        state["reached"] = blocked_in_wait(gate._cond, threading.current_thread().name)
+        entered.set()
+        assert gate.wait(10)
+        return task
+
+    def loop(runner, pool):
+        def interrupt(*_args, **_kwargs):
+            assert shutdowns == [(False, False)]
+            assert entered.wait(10)
+            assert arrived(state["reached"], gate._cond)
+            raise KeyboardInterrupt("first interrupt")
+
+        runner.changed.wait = interrupt
+        return real_loop(runner, pool)
+
+    def wait(futures, **kwargs):
+        assert len(futures) == 1 and not futures[0].done()
+        if second_interrupt:
+            raise KeyboardInterrupt("second interrupt")
+        gate.set()
+        return real_wait(futures, **kwargs)
+
+    real_close = _pool.Pool.close
+
+    def close(pool):
+        # A second interrupt leaves the task running. The context manager must
+        # still join the retained executor and its done callback returns its place.
+        if second_interrupt:
+            assert len(releases) == 1  # only the speculative read has returned
+        gate.set()
+        real_close(pool)
+
+    monkeypatch.setattr(_executor._Run, "_loop", loop)
+    monkeypatch.setattr(_executor, "wait", wait)
+    monkeypatch.setattr(_pool.Pool, "close", close)
+    message = "second interrupt" if second_interrupt else "first interrupt"
+    try:
+        with pytest.raises(KeyboardInterrupt, match=message):
+            run([0], work, lambda *_: pytest.fail("committed after interrupt"), workers=2)
+    finally:
+        gate.set()
+    assert shutdowns == [(False, False), (True, False)]
+    assert releases == [pools[0], pools[0]]
+    assert pools[0]._executor is None
+
+
+def test_exhaustion_keeps_shared_and_stream_pools_open(closing_pool):
+    pools, shutdowns, _releases = closing_pool
+    for context in (_pool.Pool(2), _pool.iteration(_pool.Workers(2))):
+        with context as owned:
+            pool = owned.pool if isinstance(owned, _pool.Workers) else owned
+            for _ in range(2):
+                run([0], lambda task: task, lambda *_: None, workers=2, pool=pool)
+                assert not pool.closed
+                assert shutdowns == [(True, False)] * (len(pools) - 1)
+    assert shutdowns == [(True, False), (True, False)]
