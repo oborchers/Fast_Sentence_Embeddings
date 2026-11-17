@@ -22,8 +22,8 @@ from _development_locks import busy, lock_paths
 from _development_path_evidence import observe as path_evidence
 from _development_prefilter_search import metrics as prefilter_metrics
 from _development_repeat import repeat
-from _development_runtime_block import scheduling, scheduling_delta
 from _development_resources import check_write_disk
+from _development_runtime_block import scheduling, scheduling_delta
 from _development_search import metrics as search_metrics
 from _development_search import proof as output_proof
 from _development_stages import inputs, pooling, tokenizer
