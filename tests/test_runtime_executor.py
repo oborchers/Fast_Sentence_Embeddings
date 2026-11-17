@@ -362,7 +362,11 @@ def test_own_pool_starts_shutdown_before_draining(closing_pool, failure):
             raise ValueError("last commit")
         committed.append((task, result))
 
-    expected = contextlib.nullcontext() if failure is None else pytest.raises(ValueError)
+    expected = (
+        contextlib.nullcontext()
+        if failure is None
+        else pytest.raises(ValueError, match="last task" if failure == "work" else "last commit")
+    )
     with expected:
         run(tasks(), work, commit, workers=2)
     assert shutdowns == [(False, False), (True, False)]
@@ -395,7 +399,8 @@ def test_interrupt_in_last_wave_keeps_join_and_places(monkeypatch, closing_pool,
         return real_loop(runner, pool)
 
     def wait(futures, **kwargs):
-        assert len(futures) == 1 and not futures[0].done()
+        assert len(futures) == 1
+        assert not futures[0].done()
         if second_interrupt:
             raise KeyboardInterrupt("second interrupt")
         gate.set()
