@@ -19,14 +19,25 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
     condition = threading.Condition()
     release = threading.Event()
     owners, marks = [], []
-    ready = []
+    ready, capturing = [], [False]
+    original_array = StringSource._array
     original_factory = Pipeline._task_work
     original_view = ArrayRows._view
     original_first = _pipeline.first_rows
     original_submit = _pool.Pool._submit
 
+    def array(self):
+        view = original_array(self)
+        if capturing[0]:
+            owners.append(weakref.ref(view))
+        return view
+
     def factory(self, source, *args):
-        worker = original_factory(self, source, *args)
+        capturing[0] = True
+        try:
+            worker = original_factory(self, source, *args)
+        finally:
+            capturing[0] = False
         if worker is not None:
             owners.extend((weakref.ref(worker), weakref.ref(source._offsets)))
         return worker
@@ -64,6 +75,7 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
     def second_interrupt(_self):
         raise KeyboardInterrupt("second")
 
+    monkeypatch.setattr(StringSource, "_array", array)
     monkeypatch.setattr(Pipeline, "_task_work", factory)
     monkeypatch.setattr(ArrayRows, "_view", target)
     monkeypatch.setattr(_pipeline, "first_rows", first_rows)
@@ -82,7 +94,7 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
         try:
             interrupted(pool)
             gc.collect()
-            assert len(owners) == 3
+            assert len(owners) == 4
             assert all(owner() is not None for owner in owners)
             assert pool._try_acquire()
             assert not pool._try_acquire()
