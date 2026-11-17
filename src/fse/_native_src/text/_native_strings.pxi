@@ -16,8 +16,9 @@ cdef enum:
 
 
 cdef int _string_parts(PyObject *outer, Py_ssize_t n, int threads) noexcept nogil:
-    """Bounded code-point estimate; actual UTF-8 sizing still validates every row."""
-    cdef Py_ssize_t i, length, cp = 0, cap = PY_SSIZE_T_MAX
+    """Bounded UTF-8 upper estimate; actual sizing still validates every row."""
+    cdef Py_ssize_t i, length, estimate = 0, cap = PY_SSIZE_T_MAX
+    cdef int weight, kind
     cdef PyObject *text
     cdef int by_rows = <int>max(1, min(threads, n // _PART_SENTENCES))
     if threads == 1 or not n:
@@ -31,11 +32,16 @@ cdef int _string_parts(PyObject *outer, Py_ssize_t n, int threads) noexcept nogi
         if not PyUnicode_CheckExact(text) or not FSE_UNICODE_IS_READY(text):
             return by_rows
         length = PyUnicode_GET_LENGTH(text)
-        if length >= cap - cp:
-            cp = cap
+        kind = PyUnicode_KIND(text)
+        weight = 1 if PyUnicode_IS_ASCII(text) else (2 if kind == 1 else (3 if kind == 2 else 4))
+        # Divide before multiplying: even the upper estimate must never overflow.
+        if length > (cap - estimate) // weight:
+            estimate = cap
             break
-        cp += length
-    return <int>max(1, min(threads, n, cp // _STRING_PART_BYTES))
+        estimate += length * weight
+        if estimate == cap:
+            break
+    return <int>max(1, min(threads, n, estimate // _STRING_PART_BYTES))
 
 
 cdef struct _StringPart:

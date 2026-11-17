@@ -32,8 +32,8 @@ def test_size_thresholds_select_actual_parts_and_preserve_bits(parts, delta, con
     # Eight rows, so the old row-count rule would always select a single part.
     total = parts * PART_BYTES + delta
     size = total // 8
-    texts = container(["a\x00é日𝄞" * (size // 5)] * 7)
-    # Fill the remaining code points exactly, including the seven truncated rows.
+    texts = container(["a\x00" * (size // 2)] * 7)
+    # Fill the remaining estimated bytes exactly, including the seven truncated rows.
     texts = container([*texts, "x" * (total - sum(map(len, texts)))])
     expected_parts = max(1, min(8, total // PART_BYTES))
     _joined(texts, 8, expected_parts)
@@ -43,7 +43,11 @@ def test_size_thresholds_select_actual_parts_and_preserve_bits(parts, delta, con
 @pytest.mark.parametrize("n", [0, 1, 2, 7, 4242, 32767, 32768, 65535, 65536, 65537])
 def test_row_boundaries_and_thread_caps(threads, n):
     texts = ["é\x00日𝄞"] * n
-    parts = max(1, min(threads, n // 4096)) if n > 65536 else 1
+    parts = (
+        max(1, min(threads, n // 4096))
+        if n > 65536
+        else max(1, min(threads, n, n * 16 // PART_BYTES))
+    )
     _joined(texts, threads, parts)
 
 
@@ -118,3 +122,13 @@ def test_short_list_runs_failed_starts_in_caller_in_both_passes(faults, first, s
     texts = ["é日𝄞" * (PART_BYTES // 3)] * 17
     faults(failed_starts=first, second_failed_starts=second)
     _joined(texts, 8, 8)
+
+
+@pytest.mark.parametrize(("text", "weight"), [("é", 2), ("日", 3), ("𝄞", 4)])
+@pytest.mark.parametrize("parts", range(1, 9))
+@pytest.mark.parametrize("delta", [-1, 0, 1])
+def test_unicode_kind_weighted_thresholds(text, weight, parts, delta):
+    total = parts * PART_BYTES + delta
+    count, rest = divmod(total, weight)
+    texts = [text * count, "a" * rest] + [""] * 6
+    _joined(texts, 8, max(1, min(8, total // PART_BYTES)))

@@ -172,3 +172,18 @@ def test_token_assembly_bookkeeping_failure_frees_parts(faults, threads):
     assert data == "a 日".encode() * len(texts)
     assert offsets[-1] == len(data)
     assert _native._test_join_resources() == 0
+
+
+@pytest.mark.parametrize("mismatch", [-1, 1])
+@pytest.mark.parametrize("text", ["a", "é", "日", "𝄞"])
+def test_short_multi_part_size_conflict_releases_resources(faults, mismatch, text):
+    texts = [text * (512 * 1024)] * 17
+    _same(texts, 8)
+    assert _native._test_join_string_parts() == 8
+    faults(mismatch=mismatch)
+    with pytest.raises(AssertionError, match="size changed between join passes"):
+        _native.join_strings(texts, 8)
+    assert _native._test_join_string_parts() == 8
+    assert _native._test_join_resources() == 0
+    faults()
+    _same(texts, 8)
