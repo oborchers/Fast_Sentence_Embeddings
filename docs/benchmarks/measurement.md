@@ -34,7 +34,7 @@ flowchart LR
 
 ## Eleven measurement rules
 
-1. Publish speed only from Linux. M1 timings and calls with only about 5,000 texts are withdrawn. Every measured fse inference call (encode or predict) must last at least two seconds. Search uses the whole-pool block rule below. Aim for three seconds with headroom. Rehearsal observations are never speed evidence.
+1. Publish speed only from Linux. M1 timings and calls with only about 5,000 texts are withdrawn. Every timed block must last at least two seconds: a large fse inference call (encode or predict) lasts at least two seconds on its own, and short calls are timed as blocks of repeated identical calls lasting at least two seconds in total, with a large-call control cell. Search uses the whole-pool block rule below. Aim for three seconds with headroom. Rehearsal observations are never speed evidence.
 2. Every number needs machine, CPU, date, workers, model, dimensions, table/output formats and text length. Report words or tokens per text beside texts/s. Sentences and paragraphs are different workloads.
 3. One physical allocation is one cohort. Do not combine machines into a ratio. A CPU flavor does not guarantee a specific processor. Read the CPU and allowed affinity after allocation.
 4. Use identical input within each pair on one machine. Alternate arms over at least three rounds. Report the median and the median of same-round time ratios. Different pairs may have different declared counts and digests. They are not a fixed-input scaling curve.
