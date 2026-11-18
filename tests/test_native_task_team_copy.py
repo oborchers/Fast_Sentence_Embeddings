@@ -39,6 +39,7 @@ def test_success_accounts_every_task_and_keeps_reference_bits(
     rows = ["", "w1\0w2", "w3 " * 500, "".join(map(chr, range(128)))] * 40
     source = copied_strings(container(rows))
     tasks = tasks_for(model, source, workers)
+    assert len(tasks) > len(tasks_for(model, source, workers, refined=False))
     calls = _native._test_team_calls()
     actual = model.infer(source, workers=workers)
     assert _native._test_team_calls() == calls + 1
@@ -72,6 +73,7 @@ def test_failed_task_replay_reuses_copy_and_accounts_later_tasks(monkeypatch, ki
     rows = texts(200)
     source = copied_strings(rows)
     tasks = tasks_for(model, source, 2)
+    assert len(tasks) > len(tasks_for(model, source, 2, refined=False))
     assert len(tasks) > 2
     _native._test_team_copy_control(0)
     previous = _native._test_corrupt(kind)
@@ -111,6 +113,7 @@ def test_no_memory_accounts_copies_without_replaying(monkeypatch):
     source = copied_strings(texts(200))
     model = pipeline()
     tasks = tasks_for(model, source, 2)
+    assert len(tasks) > len(tasks_for(model, source, 2, refined=False))
     _native._test_team_copy_control(0)
 
     def forbidden(*_args):
@@ -133,6 +136,7 @@ def test_skipped_tasks_are_not_counted_as_copied(monkeypatch):
     source = copied_strings(texts(200))
     model = pipeline()
     tasks = tasks_for(model, source, 4)
+    assert len(tasks) > len(tasks_for(model, source, 4, refined=False))
     # All helper starts fail, so task zero fails before any other task can copy.
     with faults(failed_starts=254, status_task=0, status=1), pytest.raises(MemoryError):
         model.infer(source, workers=4)
@@ -204,6 +208,7 @@ def test_claimed_task_copies_after_an_earlier_failure(monkeypatch):
     model = pipeline()
     source = copied_strings(texts(200))
     tasks = tasks_for(model, source, 2)
+    assert len(tasks) > len(tasks_for(model, source, 2, refined=False))
     _native._test_team_copy_control(1, before=True)
     previous = _native._test_corrupt(1)
     calls = _native._test_team_calls()

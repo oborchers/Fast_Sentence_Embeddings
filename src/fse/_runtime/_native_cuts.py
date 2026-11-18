@@ -17,7 +17,7 @@ def refine(source, tasks, workers, limit):
     at most ``limit`` new tasks and constant temporary cut state are retained.
     """
     target = max(1, -(-source.nbytes // (4 * workers)))
-    refined = []
+    refined: list[Task] = []
     for task in tasks:
         chunk = task.chunk
         offsets = source._offsets[chunk.start : chunk.end + 1]
