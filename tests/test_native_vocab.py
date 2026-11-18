@@ -125,7 +125,7 @@ def test_the_padded_and_the_unpadded_lookup_agree():
 def test_vocab_table_nbytes():
     words = [f"w{i}".encode() for i in range(1000)]
     table = _table(words)
-    assert table.nbytes == 2048 * 32 + sum(map(len, words))
+    assert table.nbytes == 2048 * 32 + 63 + sum(map(len, words))
 
 
 def test_vocab_table_is_built_once():
@@ -189,3 +189,9 @@ def test_a_text_lookup_refuses_a_second_init_while_it_is_built(monkeypatch):
     lookup.__init__(table, "external")
     assert refused == [True]
     assert lookup.tokenizer == _native.TOKENIZER_EXTERNAL
+
+
+@pytest.mark.parametrize("count", [0, 1, 31, 1000, 29528])
+def test_vocab_slots_are_cache_line_aligned(count):
+    table = _table([f"w{i}".encode() for i in range(count)])
+    assert table._slot_alignment == 0

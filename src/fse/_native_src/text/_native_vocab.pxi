@@ -212,10 +212,10 @@ cdef class VocabTable:
         while size < 2 * <np.uint64_t>n:
             size <<= 1
         # Raw bytes, so the slot layout is the C struct's, whatever numpy would pad.
-        self._slots = np.empty(size * sizeof(VocabSlot), dtype=np.uint8)
+        self._slots = np.empty(size * sizeof(VocabSlot) + 63, dtype=np.uint8)
         self._bytes = vocab_bytes
         self.n_words = n
-        cdef VocabSlot *slots = <VocabSlot *>np.PyArray_DATA(self._slots)
+        cdef VocabSlot *slots = <VocabSlot *>((<size_t>np.PyArray_DATA(self._slots) + 63) & ~<size_t>63)
         cdef const unsigned char *arena = <const unsigned char *>np.PyArray_DATA(vocab_bytes)
         cdef const np.int64_t[::1] offsets = vocab_offsets
         cdef np.uint64_t mask = size - 1
@@ -246,6 +246,12 @@ cdef class VocabTable:
         """The bytes the table holds: its slots and its own copy of the words."""
         self._check_ready()
         return self._slots.nbytes + self._bytes.nbytes
+
+    @property
+    def _slot_alignment(self):
+        """Slot base address modulo 64; for tests."""
+        self._check_ready()
+        return <size_t>self.view.slots % 64
 
     def __reduce__(self):
         raise TypeError("a VocabTable cannot be pickled; build it from the word vectors")
