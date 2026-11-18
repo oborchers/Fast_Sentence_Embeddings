@@ -36,3 +36,28 @@ def test_tracks_symbol_boundaries_and_ignores_avx2_and_comments():
     assert advanced == 2
     assert len(violations) == 1
     assert "fse_loop_f32_avx2" in violations[0]
+
+
+def test_post_link_addresses_are_checked_against_resolved_functions():
+    text = "0000 <.text>:\n 1000: vmovups zmm0, [rax]\n 1010: kmovw k1, eax\n"
+    assert INSPECT(text, {0x1000: "fse_loop_f32_avx512", 0x1010: "fse_loop_f32_avx512"}) == (2, [])
+    count, violations = INSPECT(text, {0x1000: "fse_loop_f32_avx512", 0x1010: "fse_run"})
+    assert count == 2 and len(violations) == 1
+    assert "fse_run" in violations[0]
+
+
+@pytest.mark.parametrize("name", ["", "??"])
+def test_unresolved_debug_symbols_fail_closed(name):
+    resolve = INSPECT.__globals__["resolved_symbols"]
+    with pytest.raises(RuntimeError, match="unresolved"):
+        resolve([{"Address": "0x1000", "Symbol": [{"FunctionName": name}]}], [0x1000])
+
+
+def test_debug_symbols_must_cover_exactly_the_disassembled_addresses():
+    resolve = INSPECT.__globals__["resolved_symbols"]
+    record = {"Address": "0x1000", "Symbol": [{"FunctionName": "fse_loop_f32_avx512"}]}
+    assert resolve([record], [0x1000]) == {0x1000: "fse_loop_f32_avx512"}
+    with pytest.raises(RuntimeError, match="omitted or added"):
+        resolve([record], [0x1000, 0x1010])
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        resolve([record, record], [0x1000])

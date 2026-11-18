@@ -71,6 +71,19 @@ def compiles(compiler, source, flags):
     return True
 
 
+def isolation_debug_flags(compiler_type, build_temp):
+    """Keep MSVC release optimization and retain post-LTCG names for the CI proof."""
+    if compiler_type != "msvc" or os.environ.get("FSE_VERIFY_ISOLATION") != "1":
+        return [], []
+    directory = os.path.abspath(build_temp)
+    return ["/Zi", "/Fd" + os.path.join(directory, "fse-compile.pdb")], [
+        "/DEBUG:FULL",
+        "/OPT:REF",
+        "/OPT:ICF",
+        "/PDB:" + os.path.join(directory, "fse-native.pdb"),
+    ]
+
+
 class BuildExt(build_ext):
     def build_extensions(self):
         if self.compiler.compiler_type not in FLAGS:
@@ -80,12 +93,16 @@ class BuildExt(build_ext):
                 "use MSVC on Windows, or GCC or Clang elsewhere"
             )
         flags = FLAGS[self.compiler.compiler_type]
+        debug_compile, debug_link = isolation_debug_flags(
+            self.compiler.compiler_type, self.build_temp
+        )
         probe = self.compiler.compiler_type == "unix" and compiles(
             self.compiler, DOTPROD_PROBE, flags
         )
         avx512 = compiles(self.compiler, AVX512_PROBE, flags)
         for extension in self.extensions:
-            extension.extra_compile_args = [*extension.extra_compile_args, *flags]
+            extension.extra_compile_args = [*extension.extra_compile_args, *flags, *debug_compile]
+            extension.extra_link_args = [*extension.extra_link_args, *debug_link]
             if os.environ.get("FSE_TEST_TILES") == "1":
                 extension.define_macros = [*extension.define_macros, ("FSE_TEST_TILES", "1")]
             if avx512:
@@ -94,6 +111,15 @@ class BuildExt(build_ext):
                 extension.define_macros = [*extension.define_macros, ("FSE_HAVE_DOTPROD", "1")]
         super().build_extensions()
         if os.environ.get("FSE_VERIFY_ISOLATION") == "1":
+            self.verify_isolation()
+
+    def verify_isolation(self):
+        arguments = []
+        if self.compiler.compiler_type == "msvc":
+            # /GL objects are compiler IR. Inspect actual post-LTCG instructions instead.
+            objects = [self.get_ext_fullpath(extension.name) for extension in self.extensions]
+            arguments = ["--pdb", os.path.abspath(os.path.join(self.build_temp, "fse-native.pdb"))]
+        else:
             objects = [
                 path
                 for extension in self.extensions
@@ -101,14 +127,15 @@ class BuildExt(build_ext):
                     extension.sources, output_dir=self.build_temp
                 )
             ]
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(Path(__file__).parent / "tools/check_isa_isolation.py"),
-                    *objects,
-                ],
-                check=True,
-            )
+        subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).parent / "tools/check_isa_isolation.py"),
+                *arguments,
+                *objects,
+            ],
+            check=True,
+        )
 
 
 extensions = [
