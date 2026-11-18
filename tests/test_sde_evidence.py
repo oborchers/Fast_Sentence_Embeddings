@@ -1,6 +1,7 @@
 """A zero-exit emulator dry run cannot satisfy the conformance execution gate."""
 
 import runpy
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,6 +105,7 @@ def test_a_failure_elsewhere_still_fails_the_receipt(tmp_path):
 def test_selected_profile_runs_the_full_manifest_and_requires_its_receipt(monkeypatch, profile):
     main = MODULE["main"]
     calls = []
+    monkeypatch.setattr(sys, "argv", ["check_sde.py", "--profile", profile])
 
     def run(command, *, env, check):
         assert check is True
@@ -117,7 +119,7 @@ def test_selected_profile_runs_the_full_manifest_and_requires_its_receipt(monkey
     monkeypatch.setitem(
         main.__globals__,
         "sys",
-        SimpleNamespace(argv=["check_sde.py", "--profile", profile], executable="python"),
+        SimpleNamespace(executable="python"),
     )
     monkeypatch.setitem(
         main.__globals__, "emulator_prefix", lambda value: ["sde", f"-{value}", "--"]
