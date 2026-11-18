@@ -122,9 +122,10 @@ the original buffer, with constant temporary cut state. If another item would
 exceed that limit, the native team uses the original buffered tasks. This keeps
 the native route available wherever the unrefined plan fits. If refinement or
 team preparation fails, the ordinary executor receives the original tasks and
-retained scan error. The team and error replay
-use the same refined list, so prefix rows and copied ranges are accounted per
-refined item, including actual copies beyond the earliest failure.
+retained scan error. The team and error replay use the same executed list
+(refined, or the original tasks on overflow). Prefix rows and copied ranges
+are accounted per executed item, including actual copies beyond the earliest
+failure.
 
 The caller starts at most `min(workers, tasks) - 1` native threads and participates
 in task processing. Failed thread starts reduce the team. Each slot owns a
