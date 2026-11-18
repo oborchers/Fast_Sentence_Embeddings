@@ -102,6 +102,7 @@ class CopiedStrings(_Buffered):
     """Verified offsets whose bytes only the owning native tasks may read or write."""
 
     _verified = True
+    _offsets: ndarray
 
     def __init__(self, owner: _native.StringCopy):
         self._copy = owner

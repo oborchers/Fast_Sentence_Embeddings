@@ -17,7 +17,7 @@ from support.waiting import arrived, blocked_in_wait
 
 
 @pytest.fixture(autouse=True)
-def reset_hooks():
+def reset_copied_string_hooks():
     yield
     _native._string_copy_between(None)
     _native._string_copy_check(None)
