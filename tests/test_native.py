@@ -91,7 +91,9 @@ def _batch(tokens, offsets=None, ngram_offsets=None, ngrams=None):
 def test_isas():
     isas = _native.available_isas()
     assert isas[0] == "portable"
-    assert _native.default_isa() == os.environ.get("FSE_ISA", next(isa for isa in reversed(isas) if isa != "avx512"))
+    assert _native.default_isa() == os.environ.get(
+        "FSE_ISA", next(isa for isa in reversed(isas) if isa != "avx512")
+    )
     assert set(isas) <= {"portable", "avx2", "neon", "avx512"}
     with pytest.raises(ValueError, match="isa must be one of"):
         _native.WeightedMean(np.ones((2, 2), F32), np.ones(2, F32), isa="sse")

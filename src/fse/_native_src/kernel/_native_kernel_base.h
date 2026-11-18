@@ -86,6 +86,8 @@ enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2, FSE_ISA_AVX512 
 #else
 #define FSE_TEST_TLS __thread
 #endif
+static FSE_TEST_TLS unsigned int fse_test_routes;
+#define FSE_TEST_ROUTE(bit) (fse_test_routes |= (bit))
 static FSE_TEST_TLS int64_t fse_test_tiles;
 static FSE_TEST_TLS int fse_test_loop;
 static FSE_TEST_TLS int64_t fse_test_builders[2];
@@ -100,6 +102,7 @@ static FSE_TEST_TLS uint64_t fse_test_prefetch_digest;
 #define FSE_TEST_TILE() (++fse_test_tiles)
 #define FSE_TEST_ROWS() (fse_test_loop = 0)
 #else
+#define FSE_TEST_ROUTE(bit) ((void)0)
 #define FSE_TEST_BUILDER(known) ((void)0)
 #define FSE_TEST_TILE() ((void)0)
 #define FSE_TEST_ROWS() ((void)0)

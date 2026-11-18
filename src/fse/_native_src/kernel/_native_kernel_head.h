@@ -148,7 +148,8 @@ FSE_AVX2_TARGET static void fse_divide_block_avx2(float *o, float s, int n) {
 static void fse_exp1_block(int isa, const float *x, float shift, int n, float *out) {
     int i = 0;
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) {
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(16u);
         fse_exp1_block_avx2(x, shift, n, out);
         return;
     }
@@ -165,7 +166,8 @@ static void fse_exp1_block(int isa, const float *x, float shift, int n, float *o
 static void fse_sigmoid1_block(int isa, const float *z, int n, float *out) {
     int i = 0;
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) {
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(32u);
         fse_sigmoid1_block_avx2(z, n, out);
         return;
     }
@@ -181,7 +183,8 @@ static void fse_sigmoid1_block(int isa, const float *z, int n, float *out) {
 static void fse_divide_block(int isa, float *o, float s, int n) {
     int i = 0;
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) {
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(64u);
         fse_divide_block_avx2(o, s, n);
         return;
     }

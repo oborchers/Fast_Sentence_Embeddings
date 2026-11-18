@@ -143,7 +143,9 @@ typedef void (*fse_codes_f16_fn)(const float *, int, uint16_t *);
 
 static fse_absmax_fn fse_absmax_of(int isa) {
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) return fse_absmax_avx2;
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(2u); return fse_absmax_avx2;
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON) return fse_absmax_neon;
@@ -153,7 +155,9 @@ static fse_absmax_fn fse_absmax_of(int isa) {
 }
 static fse_codes_i8_fn fse_codes_i8_of(int isa) {
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) return fse_codes_i8_avx2;
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(4u); return fse_codes_i8_avx2;
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON) return fse_codes_i8_neon;
@@ -163,7 +167,9 @@ static fse_codes_i8_fn fse_codes_i8_of(int isa) {
 }
 static fse_codes_f16_fn fse_codes_f16_of(int isa) {
 #if defined(FSE_X86)
-    if ((isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)) return fse_codes_f16_avx2;
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(8u); return fse_codes_f16_avx2;
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON) return fse_codes_f16_neon;

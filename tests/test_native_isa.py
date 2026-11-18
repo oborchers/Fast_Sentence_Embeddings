@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import subprocess
 import sys
 
@@ -60,7 +59,7 @@ def _child(choice):
     if choice is not None:
         env["FSE_ISA"] = choice
     # Explicit wrapping instruments every exec, independently of Pin's fork policy.
-    prefix = shlex.split(env.get("FSE_TEST_PYTHON_PREFIX", ""), posix=sys.platform != "win32")
+    prefix = json.loads(env.get("FSE_TEST_PYTHON_PREFIX", "[]"))
     script = """
 import json, os, numpy as np
 from fse import _native as n
@@ -78,7 +77,11 @@ assert n.default_isa() == result[0]
 print(json.dumps(result))
 """
     return subprocess.run(
-        [*prefix, sys.executable, "-c", script], env=env, capture_output=True, text=True, check=False
+        [*prefix, sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -110,9 +113,38 @@ def test_required_isa_is_executed():
         pytest.skip("no required ISA in this run")
     assert required in _native.available_isas()
     assert _native._test_pool_trace() is not None
-    kernel = _native.WeightedMean(np.ones((1, 255), np.float32), np.ones(1, np.float32), isa=required)
+    kernel = _native.WeightedMean(
+        np.ones((1, 255), np.float32), np.ones(1, np.float32), isa=required
+    )
     from fse._contract import Batch
 
     kernel.pool(Batch(0, np.array([0, 1], np.int64), np.array([0], np.uint32)))
     assert _native._test_pool_trace() == (f"{required}-tiles", 1)
     assert _native._avx512_layout() == int(os.environ.get("FSE_EXPECT_AVX512_LAYOUT", "0"))
+
+
+def test_avx512_selection_reaches_every_vector_dispatch_site():
+    if "avx512" not in _native.available_isas():
+        pytest.skip("AVX-512 unavailable on this host")
+    if _native._test_route_trace(reset=True) is None:
+        assert not os.environ.get("FSE_REQUIRE_ISA"), "required dispatch counters missing"
+        pytest.skip("production build has no dispatch counters")
+    from fse._contract import Batch, Link
+
+    rows = np.ones((1, 255), np.float32)
+    batch = Batch(0, np.array([0, 1], np.int64), np.array([0], np.uint32))
+    for dtype in (np.float32, np.float16, np.int8):
+        scales = np.ones(1, np.float32) if dtype == np.int8 else None
+        _native.WeightedMean(rows.astype(dtype), np.ones(1, np.float32), scales, isa="avx512").pool(
+            batch
+        )
+    _native.dot16(rows, rows, isa="avx512")
+    _native.store_rows(rows, np.empty_like(rows, dtype=np.float16), isa="avx512")
+    _native.store_rows(
+        rows, np.empty_like(rows, dtype=np.int8), np.empty(1, np.float32), isa="avx512"
+    )
+    logits = np.ones((1, 17), np.float32)
+    _native.exp1(logits, isa="avx512")
+    for link in (Link.SIGMOID, Link.SOFTMAX):
+        _native.head_outputs(logits, "proba", link, np.empty_like(logits), isa="avx512")
+    assert _native._test_route_trace() == 1023  # all ten vector dispatch sites, no AVX2 f32 loop

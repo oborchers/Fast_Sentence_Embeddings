@@ -17,7 +17,12 @@ from fse import _reference
 from fse._contract import OOV_TOKEN
 from support.conformance import F32, TINY, Case, _rng
 
-LAYOUTS = {"neon": (32, 16, 8, 4), "avx2": (64, 32, 16, 8, 4), "avx512": (128, 64, 32, 16), "avx512-b": (256, 16)}
+LAYOUTS = {
+    "neon": (32, 16, 8, 4),
+    "avx2": (64, 32, 16, 8, 4),
+    "avx512": (128, 64, 32, 16),
+    "avx512-b": (256, 16),
+}
 # Block edges of 32, 16, 8 and 4 values, the tail, and dimensions at and above the tile
 # budget (1024 float32 values give K = 4, 1025 and more take the row loop).
 DIMS = (

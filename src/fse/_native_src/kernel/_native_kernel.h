@@ -101,10 +101,14 @@ typedef int64_t (*fse_loop_t)(const fse_params *, const fse_batch *, float *, in
 static fse_loop_t fse_loop_for(int isa, int dtype) {
 #if defined(FSE_X86)
 #if defined(FSE_AVX512)
-    if (isa == FSE_ISA_AVX512 && dtype == FSE_F32) return fse_loop_f32_avx512;
+    if (isa == FSE_ISA_AVX512 && dtype == FSE_F32) {
+        FSE_TEST_ROUTE(512u); return fse_loop_f32_avx512;
+    }
 #endif
-    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512)
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(dtype == FSE_F16 ? 128u : dtype == FSE_I8 ? 256u : 1024u);
         return dtype == FSE_F32 ? fse_loop_f32_avx2 : dtype == FSE_F16 ? fse_loop_f16_avx2 : fse_loop_i8_avx2;
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON)
@@ -180,6 +184,16 @@ static void fse_test_prefetch_row(const void *row, size_t bytes) {
 #if defined(FSE_TEST_TILES)
     FSE_TEST_PREFETCH_RESET();
     fse_prefetch_row(row, bytes);
+#endif
+}
+
+static int fse_test_route_trace(int reset) {
+#if defined(FSE_TEST_TILES)
+    unsigned int result = fse_test_routes;
+    if (reset) fse_test_routes = 0;
+    return (int)result;
+#else
+    (void)reset; return -1;
 #endif
 }
 

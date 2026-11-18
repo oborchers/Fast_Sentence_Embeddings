@@ -51,6 +51,8 @@ src/fse/
       _native_head.pxi       #   the logits, exp@1, the links and the labels of linear heads
       _native_kernel.h       # the C kernel: its contract, ISA detection and dispatch, and
       _native_kernel_base.h  #   build checks, macros and shared types,
+      _native_kernel_isa.h   #   raw-register eligibility and conservative default policy,
+      _native_kernel_avx512.h #   both float32 AVX-512 tile layouts,
       _native_kernel_mean.h  #   the weighted mean loops per ISA and dtype,
       _native_kernel_tiles.h #   the register-blocked weighted mean loop (NEON float32),
       _native_kernel_steps.h #   FP environment, dot16, normalize@1 and score,

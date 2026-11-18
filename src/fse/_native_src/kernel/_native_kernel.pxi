@@ -40,6 +40,7 @@ cdef extern from "_native_kernel.h":
         uint32_t family
         uint64_t xcr0
     int fse_test_isa_detection(fse_cpu_features r, int compiled)
+    int fse_test_route_trace(int reset)
     int fse_isa_compiled(int isa)
     int fse_default_isa()
     int FSE_AVX512_LAYOUT
@@ -70,6 +71,12 @@ del _half_values, _i
 def available_isas():
     """The compiled instruction sets this CPU and operating system can run."""
     return tuple(name for name, isa in _ISAS.items() if fse_has_isa(isa))
+
+
+def _test_route_trace(reset=False):
+    """Observed vector dispatch sites on this thread, or None without instrumentation."""
+    cdef int result = fse_test_route_trace(1 if reset else 0)
+    return None if result < 0 else result
 
 
 def _compiled_isas():

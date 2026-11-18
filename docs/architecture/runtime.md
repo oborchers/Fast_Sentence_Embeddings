@@ -98,3 +98,26 @@ validation. Caller sinks, including caller-supplied `ArrayRows`, keep their chec
 Other sources, subclasses and backends keep the ordinary route. Executor workers mark
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
+
+
+## CPU instruction-set selection
+
+The native extension reports compiled, runnable instruction sets through `available_isas()`.
+AVX-512 requires AVX, AVX2, FMA, F16C, AVX-512 F/DQ/BW/VL and operating-system
+support for XMM, YMM, opmask and ZMM state (`XCR0 & 0xE6 == 0xE6`). Detection
+checks leaf availability before reading CPUID and OSXSAVE before executing XGETBV.
+Missing state, including Intel macOS lazy state, conservatively excludes AVX-512.
+
+AVX-512 is available without becoming the automatic default. Its CPU-family allowlist
+is empty until a full optimization decision justifies adding a family. The existing
+AVX2 or NEON default remains in effect. Both float32 tile layouts pass conformance;
+layout A is provisional. The story measurement chooses a layout later, and changing
+the constant requires a separate ticket. Float16/int8 pooling, dot16, storage conversion
+and head vector operations use AVX2 when AVX-512 is selected.
+
+Set `FSE_ISA` before importing the native extension to choose exactly one default:
+`portable`, `avx2`, `avx512` or `neon`. Empty values, whitespace, case variants and
+unavailable kernels raise `ValueError` at extension import. The value is read once.
+An explicit `isa=` on a backend or native call takes precedence. The environment
+choice does not alter `available_isas()`. One wheel contains all variants supported
+by its compiler; advanced instructions stay behind runtime dispatch boundaries.
