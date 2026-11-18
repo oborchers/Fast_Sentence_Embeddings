@@ -5,12 +5,12 @@ Historical M1 timing observations in this document are withdrawn and must not su
 
 Binding for every 2.0 module (formerly under "2.0 design").
 
-`fse._runtime` runs encoding on one executor (`run`):
+`fse._runtime` runs encoding through `run` or the bounded per-call native team below:
 
 - **Uniform inputs.** Every finite text batch in `encode_batches` and `predict_batches` may be a list, tuple, one-dimensional NumPy text array or Arrow string column. The same element and dimension checks apply before conversion. This also holds inside document-ID and stream-position tuples, including a batch sliced while resuming stores of different lengths. Local file parameters accept `str` and `os.PathLike[str]`; model references distinguish local path objects from string Hub identifiers. Stores, sinks and views retain TypeError for invalid path types, while validated loaders retain ValidationError.
 
 - **Tasks.** A source is scanned into chunks, one task each: about `TASKS_PER_WORKER` (2) per worker, `ceil(bytes / (2 * workers))` bytes each within 64 KiB and 1 MiB (`fse._text._scan.default_chunk_bytes`), and at most 16 MiB of finished rows (`TASK_ROW_BYTES`) and the rows the window leaves a task. A task took the GIL back at about ten points (its native stages and the numpy checks around them): at one worker that cost about 19 µs, with 10 threads that hand the GIL around about 0.2 to 0.34 ms of CPU and more wall time (M1 Pro), so the default rule of 8 tasks per worker made WikiText (2.4 MB) 29 tasks of about 1 ms that waited for the GIL in 46 % of their samples; two tasks per worker leave room to balance cores of different speed. The automatic plan (`chunk_bytes=None`, more than one worker, not inline, not a stream) also splits its tail: the last `workers` chunks are each cut into two parts of about equal rows (`_Buffered.split_tail`, in the calling thread before any task runs, by `prefix` and the rows, so a file needs one newline search per cut), because the workers that finish last would otherwise idle while the last whole chunks run (DR-180). A chunk is cut only if both parts keep the minimum chunk size (64 KiB), so a source of chunks near that size is not split. The cuts are a function of the chunks and the workers alone, the chunks stay contiguous, in row order and non-empty, an explicit `chunk_bytes` keeps its cuts, and the rows, the errors and the GIL budget of a task do not change (only the tasks differ in number and size). On the cpu backend a task now runs its stages 1 to 4 in one section without the GIL (`text_rows`, `_native.pool_text`), with no numpy call that releases it; storage into float16 or int8 adds one section (`store_rows`) and its overlap checks, inverse norms one more. On an M1 Pro the workers then wait for the GIL in 10 % of their samples instead of 36 % (WikiText, 10 workers), and potion-base-8M encodes WikiText 1.25 times and MASSIVE 1.05 times as fast at 10 workers, with the same bits. `tests/test_runtime_gil.py` holds these budgets per task exactly: it counts the sections fse enters (every one on the task path increments `_native._test_nogil_sections` right before it, which a check of the Cython source enforces) and every call of a numpy function, ufunc (and ufunc method) and ndarray method, blocking call and lock in a task, and fails when one more appears. No CPython API counts GIL acquisitions (`PyEval_SaveThread` and `PyEval_RestoreThread` are what `Py_BEGIN_ALLOW_THREADS` expands to, and the GIL's switch counter is private), so ndarray operators and methods in Cython code are invisible to it; the source check forbids them, `with gil` and `except *` in `_native_task.pxi`, and requires `noexcept` of every cdef function its nogil blocks call, directly or through each other (without it Cython checks for an exception after each call, and a void function takes the GIL back for that). `out` overlaps an array only if both hold bytes, as `np.may_share_memory` says. Sources from about 20 MiB at 10 workers get chunks of 1 MiB, as before. A chunk holds at most its bytes plus its last sentence, and a sentence (up to 2**30 bytes) is never split, so a task of one long sentence takes as long as that sentence. Besides its rows a task holds its batch (4 bytes per token id and FastText bucket, at most `max_ngrams` buckets per unknown word, 8 per sentence and unknown word for the offsets) and the workspace of its thread (about `2 n + 32` bytes for the candidates of its longest sentence of n bytes and 16 bytes per token of it), which the thread reuses; at most the window's tasks hold them at once. A stream is read in collections of up to 65,536 sentences, each scanned into 8 tasks (`STREAM_TASKS_PER_COLLECTION`: a collection is not the whole input) with rows counted from the start of the stream.
-- **Inline.** A source of at most 64 KiB, and `workers=1`, run in the calling thread without any computation thread; with the default workers such inputs are within 8 % of `workers=1` ([`bench_runtime.py latency`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/5d176f46703931c72fcde196d156426c4964620c/benchmarks/bench_runtime.py), removed; withdrawn measurement). **Direct path.** `Pipeline.infer` of exactly a `StringSource` or `TokenListSource` (not a subclass) whose buffer the native join verified, with at least one sentence and at most as many as one task holds (`Pipeline.task_rows`, or fewer where the window of `2 * workers` tasks leaves less of `WINDOW_BYTES`: `Pipeline._window`) in at most 64 KiB, without sink, `chunk_bytes`, length settings, length collector or `first_row`, is exactly the case in which the plan is one chunk. It then runs that one task in the calling thread without the plan, the executor, `ArrayRows` and the commit (`Pipeline._infer_single`): the same `_work`, `pooled_task` and kernel on a new workspace, the same rows and errors (`earliest`), the same `runtime.plan` and `runtime.done` records. Every other input keeps the planned path, with its errors in their order (DR-206, Inline-Grenze und Aufgabenplanung bei kleinen Aufrufen mit Hypothesen prüfen). `encode` and the first batch of `encode_batches` reach it; the records are built only when their level is enabled.
+- **Inline.** A source of at most 64 KiB, and `workers=1`, run in the calling thread without any computation thread; with the default workers such inputs are within 8 % of `workers=1` ([`bench_runtime.py latency`](https://github.com/oborchers/Fast_Sentence_Embeddings/blob/5d176f46703931c72fcde196d156426c4964620c/benchmarks/bench_runtime.py), removed; withdrawn measurement). **Direct path.** `Pipeline.infer` of exactly a `StringSource`, `TokenListSource` or `CopiedStrings` (not a subclass) whose bytes or ASCII descriptors the native source builder verified, with at least one sentence and at most as many as one task holds (`Pipeline.task_rows`, or fewer where the window of `2 * workers` tasks leaves less of `WINDOW_BYTES`: `Pipeline._window`) in at most 64 KiB, without sink, `chunk_bytes`, length settings, length collector or `first_row`, is exactly the case in which the plan is one chunk. It then runs that one task in the calling thread without the plan, the executor, `ArrayRows` and the commit (`Pipeline._infer_single`): the same `_work`, `pooled_task` and kernel on a new workspace, the same rows and errors (`earliest`), the same `runtime.plan` and `runtime.done` records. Every other input keeps the planned path, with its errors in their order (DR-206, Inline-Grenze und Aufgabenplanung bei kleinen Aufrufen mit Hypothesen prüfen). `encode` and the first batch of `encode_batches` reach it; the records are built only when their level is enabled.
 - **Text scans on a pool.** Before encoding, a file, encoded-string or Arrow source is scanned on the same pool and uses its task places. No `fse-text` executor is created with `pool=`. Scans with one worker or less than 1 MiB run inline, and verified string lists skip validation. The batch iterators `encode_batches` and `predict_batches` without `pool=` also scan on their iteration pool. `StreamSource` collections still scan inline. Chunks and error order stay the same.
 
 - **Pool.** A task run that creates its own pool starts nonblocking shutdown when its task iterator reaches `StopIteration`. Submitted tasks still finish and commit in order. The pool retains its executor until the final blocking close joins the threads, including after an error or interrupt. Shared pools and stream-iteration pools stay open until their owner closes them. A `Pool(workers=None, *, start=False, max_tasks=None)` is a set of `workers` threads (`fse-worker`) that runs the tasks of any number of calls, one after the other or at once; every method that tokenizes text (the ten of "Length reports" below) takes the keyword-only `pool=`, the last of its keywords, and so do `VectorStore.search`, `score` and `rescore` and the store mode of a head, and `fse.add_sign_bits` (store.md, "Concurrency", whose calls give a place back when its task ends rather than at the commit), and `workers=` then may not exceed `pool.workers` (a `ValueError`; a closed pool is a `RuntimeError`, a wrong type is refused by the argument check, all before the source is read). A call on a pool runs at most `workers` tasks at once; a pool of more threads is shared. A text encoding or prediction call that runs inline (`workers=1`, or a source of at most 64 KiB) runs in its calling thread and uses neither the threads nor the places of the pool. A nested text encoding or prediction call that runs inline is allowed, including an inline encode from a sink commit on the same pool: it needs no pool places. While a call or task has entered a pool guard, a nested call that enters the same guard raises `RuntimeError`: it could wait for places its outer call holds. Text calls enter the guard only when they use the pool runner, not when they run inline. An outer inline text call therefore allows its sink commit to start a task-submitting call on that pool, unless an enclosing call already holds the guard. Store calls with `workers > 1` also enter the pool guard when a single task runs inline, so they refuse same-pool reentry even without submitting a task. With `workers=1` they bypass that guard. The default for computation threads stays "no computation thread outlives a call": a call without `pool=` makes a pool for itself and closes it before it returns, and a stream (`encode_batches`, `predict_batches`, with or without sinks and `positions=True`) makes one for its iteration, so every batch runs on the same threads, and closes it when the iteration is exhausted, fails, is closed or is collected (`fse._runtime._pool.streaming`); threads start with the first task that needs them, never when a model or an iterator is made. A pool the caller passes is the caller's: `close()` (or the `with` block) waits for the running tasks and ends the threads, a pool that is dropped ends them when it is collected, and an exit of the interpreter joins them before `atexit` handlers (`ThreadPoolExecutor`). `start=True` starts every thread when the pool is made, for a server whose first call must not wait. `max_tasks` (default `2 * workers`) is the pool's own limit on tasks that are running, waiting or finished and not yet committed, over all calls at once: a call takes a place before it reads the next task of its source and gives it back after the commit, and waits for one only while it holds none (a call that holds places commits first, so the calls that wait are never the ones that hold them). It bounds tasks, not memory: each call keeps its window of rows (`WINDOW_BYTES`), so N calls on one pool can hold N windows; there is no shared byte budget (maintainer decision in DR-254, Gleichzeitige Suche aus mehreren Threads und Prozessen auf einem Store absichern; store.md, "Concurrency", Memory per call). An error or interrupt of a call cancels its own tasks that have not started, waits for its own running ones and is raised; it neither cancels nor waits for the tasks of other calls. A place of a task that still runs when its call ends (a second interrupt ends the wait) returns to the pool when that task ends, and a finished task is dropped with its rows as soon as it has finished, never kept until the call ends. Every `close()` waits until the threads have ended. A child of `os.fork` forgets the threads and the places of its parent (`os.register_at_fork`, `after_in_child`) and starts new threads at its first call; a `fork` made by third-party C code that does not call the hooks leaves the pool as it was. A task never submits tasks to the pool it runs on, so no task waits for another task of its pool. Bits, the order of the commits and the error that is raised do not depend on the pool. **Store calls on a pool.** `search`, `score`, `rescore`, `add_sign_bits` and the store mode of a head (`fse._store._search_run`) count a place differently: a task holds it from before it is submitted until it ends, and its finished result, until the call takes it, holds none. For them `max_tasks` therefore bounds the tasks that wait or run over all calls, not the finished results: each call keeps at most `2 * workers` of them (its window), so C concurrent calls hold together at most `C * 2 * workers` finished results. The size of a result: for search the candidates of the block, at most `min(k, rows of the block)` per query of its query block (up to 256 queries) at 20 bytes each (int64 query and row, float32 score; 28 with `max_per_doc=1`), so a large `k` makes a result large (16 queries, 65,536 rows and `k` of at least that give 20 MiB); for `rescore` one hit list per query, 12 bytes per hit (20 with document IDs), and the call collects every list of its queries anyway; `score` writes into its output and keeps no result; a block of `score_blocks` (the store mode of a head) holds at most 2**20 float32 scores (4 MiB) and the outputs derived from them (at most as large again), except that a block has at least one row, so a head of more than 2**20 outputs exceeds this by its one row; a pass of the int8 prefilter holds the rows it kept and their bounds (at most its buffers of 512 KiB), with `rows=` the int64 positions of its block (up to 512 KiB more) and the float64 heap of the `k` best estimates of every query. The scores of a block (about 4 MiB, with `mode="blas"` also its decoded rows, at most 16 MiB) live only while its task runs. This differs from encoding on purpose: an encoding call commits its results itself, in its calling thread, without returning to the caller between two tasks, so holding a place until the commit never waits on code outside the call. A `predict_batches` stream of a store gives its blocks to the caller's code by `yield`; if a finished block held its place across that `yield`, a consumer that calls `search` or `encode` on the same pool between two blocks would wait for places that only its own next `next()` would give back, and hang. Returning the place at the end of the task removes that wait, and the window of the call still bounds what it keeps; `tests/test_store_vectorstore_pool.py` searches on the pool of a stream between two of its blocks with `max_tasks=1`. The public surface is the constructor, `workers`, `max_tasks`, `closed`, `close()` and the `with` block; the methods that submit tasks and hand out places are internal (`submit` would bypass `max_tasks`).
@@ -99,6 +99,103 @@ Other sources, subclasses and backends keep the ordinary route. Executor workers
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
 
+### Per-call native text team
+
+After the direct single-task check, an exact, verified `StringSource` or
+`CopiedStrings` may run its CPU text tasks in a native team. This requires internally allocated float32
+`ArrayRows`, no pool or sink, original `first_row=0`, no length settings or
+collector, automatic chunking, a non-inline plan and more than one worker.
+Limits are 131,072 rows, 16 MiB of text and 256 tasks. The runtime reads at most
+257 task items before choosing the team or replaying the iterator to `run`.
+Preparation failure also replays the tasks and any retained scan error.
+
+Only this route refines the buffered plan after `split_tail`. Each original task
+is cut at byte quantiles targeting `max(1, ceil(text_bytes / (4 * workers)))`
+bytes. Normal balanced inputs produce about four to eight items per worker.
+Indivisible sentences and existing row limits can change that count. Cuts retain
+original boundaries and row limits, stay non-empty and contiguous, and depend
+only on offsets and the worker count. Zero-byte ranges stay whole. The direct
+single-task path and excluded routes retain their original cuts.
+
+Refinement consumes byte cuts lazily and retains at most 256 new tasks alongside
+the original buffer, with constant temporary cut state. If another item would
+exceed that limit, the native team uses the original buffered tasks. This keeps
+the native route available wherever the unrefined plan fits. If refinement or
+team preparation fails, the ordinary executor receives the original tasks and
+retained scan error. The team and error replay use the same executed list
+(refined, or the original tasks on overflow). Prefix rows and copied ranges
+are accounted per executed item, including actual copies beyond the earliest
+failure.
+
+The caller starts at most `min(workers, tasks) - 1` native threads and participates
+in task processing. Failed thread starts reduce the team. Each slot owns a
+workspace. Atomic ascending task claims and the atomic minimum failure index
+preserve the successful prefix and the earliest task error. Non-memory task
+errors are replayed through `TextTasks` and `earliest` to identify the earliest
+row. Stored errors, replay iterators and consumed task owners are released on
+every exit, including preparation fallback. Exception type, message and traceback
+remain intact. This also applies to the existing Python executor and earliest-row
+localization, which must drop their stored exception references. A memory failure
+raises directly, without replay. A successful replay of
+an allegedly failed task raises an internal `RuntimeError`.
+
+The team releases the GIL once and never re-enters Python while processing tasks.
+It restores each thread's floating-point environment, joins all started threads,
+frees native team buffers and checks its own resource balance before returning
+to Python. `runtime.plan` adds `executor="native"` for this route. Successful
+calls emit `runtime.done` once. Its `tasks` field counts the items actually
+executed: refined items on the native route, original tasks when refinement
+exceeds the limit, and ordinary plan tasks on the Python route. Errors emit no
+completion record.
+
+Python executor interrupts retain their existing behavior: cancel the call's own
+pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second
+interrupt preserves task-place accounting. Within the native team's limits, an
+interrupt takes effect after the native section ends. Tasks complete or skip
+after failure, all started threads join and native resources are freed before
+Python can raise. A second interrupt cannot shorten this section. There is no
+general latency bound. Signals raise in the main Python thread; an encode call
+in another thread may return normally.
+
+No computation thread outlives the call and no default pool is created. There is
+no new fork handler. If another Python thread forks during a team call, the child
+does not resume the team's calling frame or join inherited handles. The child's
+resource tests use their post-fork baseline for inherited allocations.
+
+Native helper stacks have an explicit 1 MiB floor (`FSE_TEAM_STACK_MIN`).
+Pthread helpers retain a larger system default. Windows helpers inspect the
+executable PE header and keep its default reserve when it is at least 1 MiB,
+requesting the floor through `_beginthreadex` only for smaller reserves. This avoids depending on musl's smaller default.
+Helpers run no Python frames; variable-sized token, normalization and lattice
+buffers live in their heap workspaces. Python's `threading.stack_size()` does
+not configure these native helpers. The existing parallel input-join passes keep
+their thread-start behavior.
+
+Excluded calls log `runtime.plan` before output allocation and task-worker setup,
+as before. Potential native calls delay this record until preparation selects
+the executor. If their setup fails, they still emit one plan record before raising.
+Preparation errors from checked input/output validation may use the old executor;
+an internal range-order invariant raises `RuntimeError` without silent fallback.
+### Ownership of task-copied strings
+
+A short ASCII collection can supply a `StringCopy` owner to `TextTasks`. The source,
+tasks, native worker and each active attempt retain the snapshot, descriptors,
+offsets and output bytes. The main thread plans from offsets and never reads
+unwritten bytes. Task ranges are disjoint. An attempt copies its whole original
+range once, even when error localization retries shorter prefixes. Failure before
+the copy leaves that attempt eligible to copy on its next retry.
+
+On the per-call native route, each task copies its whole range before encoding.
+After the join, native Cython code accounts every range that actually copied,
+including failing tasks and tasks beyond the earliest failure. Skipped tasks add
+nothing. This accounting precedes signal handling, so interrupts cannot lose it.
+Error localization inherits the failing task's copy and reporting state. It reuses
+the bytes and adds neither a second completed range nor a second copy call.
+
+A running attempt retains these owners after a second interrupt returns to the
+caller. Final release holds the GIL, including when it occurs on a worker thread.
+Copying adds no section without the GIL: float32 tasks retain one section, and
+float16 and int8 tasks retain two, including storage.
 
 ## CPU instruction-set selection
 

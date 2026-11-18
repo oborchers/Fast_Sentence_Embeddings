@@ -17,6 +17,7 @@ makes, not by the bytes: the targets inside one sentence are skipped at once
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from itertools import pairwise
 
 import numpy as np
@@ -33,31 +34,31 @@ def offset_cuts(offsets: ndarray, chunk_bytes: int, chunk_rows: int) -> ndarray:
     # As many pieces as the larger of both bounds asks for, so where the rows bind the
     # pieces are cut by bytes at once rather than each split by rows afterwards.
     pieces = max(1, -(-total // chunk_bytes), -(-n // chunk_rows))
-    cuts = [0, *_byte_cuts(offsets, pieces), n]
+    cuts = [0, *byte_cuts(offsets, pieces), n]
     return np.array(_row_cuts(cuts, chunk_rows), dtype=np.int64)
 
 
-def _byte_cuts(offsets: ndarray, pieces: int) -> list[int]:
+def byte_cuts(offsets: ndarray, pieces: int) -> Iterator[int]:
     """The cuts into ``pieces`` of about equal bytes, one loop step per cut, in Python
     ints (no overflow)."""
     n = len(offsets) - 1
     base = int(offsets[0])
     total = int(offsets[-1]) - base
     if total == 0:
-        return []
-    cuts: list[int] = []
+        return
+    previous = 0
     j = 1
     while j < pieces:
         target = base + j * total // pieces
         cut = int(np.searchsorted(offsets, target, side="left"))
         if cut >= n:
             break
-        if cut > (cuts[-1] if cuts else 0):
-            cuts.append(cut)
+        if cut > previous:
+            yield cut
+            previous = cut
         # The next target behind the start of the sentence cut: (j * total) // pieces
         # > offsets[cut] - base, that is j >= ceil((offsets[cut] - base + 1) * pieces / total).
         j = max(j + 1, -(-(int(offsets[cut]) - base + 1) * pieces // total))
-    return cuts
 
 
 def _row_cuts(cuts: list[int], chunk_rows: int) -> list[int]:

@@ -235,7 +235,7 @@ jobs:
             echo "lint=true"
             # The extension sources, setup.py, the project metadata, the sdist manifest,
             # the lockfile. Store/container changes also need the real Windows suite.
-            flag native '^tools/hub/|^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
+            flag native '^tests/native/|^tools/hub/|^benchmarks/[^/]*hub[^/]*\.py$|^benchmarks/baseline/dr157/|^tests/test_hub|^tests/support/hub_classics\.py$|^\.gitattributes$|^src/fse/_native|^src/fse/(_store|_container)/|^tests/test_(store|container)|^tests/support/(durability|store)\.py$|^(setup\.py|pyproject\.toml|MANIFEST\.in|uv\.lock)$|\.(pyx|pxd|pxi|h)$'
             flag deps '^(pyproject\.toml|uv\.lock)$'
             # The converter, its tests and helpers (tests/support/converted.py builds the
             # models of the conversion tests), the Model2Vec classifier importers (their trained-model
@@ -697,9 +697,28 @@ jobs:
           path: wheelhouse/*.whl
           retention-days: 7
 
+  tsan:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.native == 'true' && needs.changes.outputs.targeted != 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compile the production task runner with ThreadSanitizer
+        run: |
+          clang -std=c11 -O1 -g -fsanitize=thread -fno-omit-frame-pointer -pthread -Isrc/fse/_native_src tests/native/task_team_tsan.c -o /tmp/fse-team-tsan
+          clang -std=c11 -O1 -g -DNDEBUG -fsanitize=thread -fno-omit-frame-pointer -pthread -Isrc/fse/_native_src tests/native/task_team_tsan.c -o /tmp/fse-team-tsan-ndebug
+      - name: Check concurrent teams, atomic failure order and resource balance
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: |
+          /tmp/fse-team-tsan
+          /tmp/fse-team-tsan-ndebug
+
   check:
     if: always()
-    needs: [changes, lint, test, test-st, test-prefetch, test-sde, test-sde-complete, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-st, test-prefetch, test-sde, test-sde-complete, coverage, sdist, wheels, tsan]
     permissions:
       contents: read
       actions: read

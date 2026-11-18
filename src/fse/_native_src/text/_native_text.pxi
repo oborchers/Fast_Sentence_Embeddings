@@ -222,6 +222,10 @@ cdef class TextLookup:
 
     cdef int _sentence(self, const unsigned char *p, Py_ssize_t n, Workspace ws,
                        Py_ssize_t *bad) noexcept nogil:
+        return self._sentence_limit(p, n, ws, bad, _MAX_SENTENCE_BYTES)
+
+    cdef int _sentence_limit(self, const unsigned char *p, Py_ssize_t n, Workspace ws,
+                             Py_ssize_t *bad, Py_ssize_t limit) noexcept nogil:
         """Append the tokens of the sentence p[0:n] to the batch buffers of ws."""
         cdef fse_tokens out
         cdef Py_ssize_t k, start, length, cap, kept
@@ -230,7 +234,7 @@ cdef class TextLookup:
         cdef int64_t err
         cdef uINT_t index
         cdef size_t written
-        if n > _MAX_SENTENCE_BYTES:
+        if n > limit:
             return ENCODE_TOO_LONG
         if self.tokenizer == FSE_TOKENIZER_WORDPIECE:
             return _wordpiece_sentence(self.wordpiece, p, n, ws, bad)
@@ -381,6 +385,11 @@ cdef int _start_batch(Workspace ws) noexcept nogil:
 
 
 cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nogil:
+    return _encode_span_limit(lookup, span, ws, -1)
+
+
+cdef int _encode_span_limit(TextLookup lookup, _Span *span, Workspace ws,
+                            Py_ssize_t limit) noexcept nogil:
     """Stages 1 and 2 of the sentences of span into the batch buffers of ws; stops at the
     first sentence that fails, with its status. The loop keeps its state in locals (the
     loop of encode before it was shared) and stores it in span once at the end."""
@@ -403,8 +412,12 @@ cdef int _encode_span(TextLookup lookup, _Span *span, Workspace ws) noexcept nog
             start = items[pos]
             end = items[pos + 1]
             pos += 1
-        status = (_sentence_watched(lookup, p + start, end - start, ws, &bad) if watched
-                  else lookup._sentence(p + start, end - start, ws, &bad))
+        if watched:
+            status = _sentence_watched(lookup, p + start, end - start, ws, &bad)
+        elif limit < 0:
+            status = lookup._sentence(p + start, end - start, ws, &bad)
+        else:
+            status = lookup._sentence_limit(p + start, end - start, ws, &bad, limit)
         if status == ENCODE_OK:
             sentence += 1
     span.start, span.end, span.sentence, span.bad = start, end, sentence, bad

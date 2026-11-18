@@ -54,6 +54,11 @@ fse logs through the standard library only, on the fixed loggers `fse.artifact` 
 | `scores.shard_published` | DEBUG | `fse.store` | first_row, rows, published_rows, durable_rows | the publisher of `ScoreSink` (thread `fse-shard-publish`) |
 | `scores.sink_closed` | INFO | `fse.store` | rows, shards, published_rows, durable_rows, dropped_rows, durability (`full`, `none`), outcome (`ok`, `error`, `interrupt`), seconds; `skipped_rows` (resume sinks only) | `ScoreSink.close` (a sink that never attached reports zero rows) |
 
+For `runtime.done`, `tasks` counts the executed items. The native text team counts
+refined items, or original buffered tasks if refinement exceeds its 256-item
+limit. The Python executor counts ordinary plan tasks. `rows` counts finished
+rows on both routes. Failed calls emit no `runtime.done` event.
+
 Tests fail on every WARNING or higher of fse that no `support.logs.expect_log` expected, in setup, call and teardown (`tests/conftest.py`); a suite that causes a warning by design marks itself `expected_log(event)`.
 
 For `store.opened`, `unsynced_shards` counts shards tagged `fse.durability=none`. `verified_bytes` counts their mapped tensor data bytes, excluding headers and manifests. `verify_seconds` covers their checksum and value checks. All three fields are zero for an untagged snapshot; a sign-bits artifact tagged `fse.durability=none` adds its bytes and its seconds to them. `sign_bits_shards` counts the shards with a sign-bits artifact and `sign_bits_bytes` the bytes of their bits.
