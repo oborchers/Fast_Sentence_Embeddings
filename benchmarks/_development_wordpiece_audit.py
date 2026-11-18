@@ -16,13 +16,18 @@ def audit(job):
 
     model, texts = inputs(job)
     spec = model._spec.tokenizer
+    if spec.name == "fse_words@1":
+        return _word_audit(model, texts, job)
     if spec.name != "wordpiece@1":
-        raise ValueError("whole-word audit requires wordpiece@1")
+        raise ValueError("whole-word audit requires wordpiece@1 or fse_words@1")
     config = spec.config
     vocab = {word.decode("utf-8"): index for word, index in model.word_vectors._words().items()}
     counts = Counter(words=0, whole_word_hits=0, trie_words=0, overlong_bypass=0, added_tokens=0)
+    frequencies = Counter()
     expected = [
-        token for text in texts for token in _sentence(text, counts, vocab, config, spec, reference)
+        token
+        for text in texts
+        for token in _sentence(text, counts, vocab, config, spec, reference, frequencies)
     ]
     native = tokenizer(model, texts)()
     if output_identity(native) != output_identity(reference_batch(model, texts)):
@@ -34,6 +39,7 @@ def audit(job):
     state = _native.WordPieceState(vocabulary.table, data, offsets, *spec.native_arguments())
     return dict(
         counts=dict(counts),
+        **_frequencies(frequencies),
         trie_fraction=counts["trie_words"] / counts["words"] if counts["words"] else None,
         rows=len(texts),
         output=output_identity(native),
@@ -47,7 +53,7 @@ def audit(job):
     )
 
 
-def _sentence(text, counts, vocab, config, spec, reference):
+def _sentence(text, counts, vocab, config, spec, reference, frequencies):
     ids = []
     cut = text if spec.max_chars is None else text[: spec.max_chars]
     added = {word: index for index, word in config.added_tokens}
@@ -56,7 +62,7 @@ def _sentence(text, counts, vocab, config, spec, reference):
             counts["added_tokens"] += 1
             ids.append(token)
         else:
-            _words(piece, ids, counts, vocab, config, spec, reference)
+            _words(piece, ids, counts, vocab, config, spec, reference, frequencies)
         if spec.max_tokens and len(ids) >= spec.max_tokens:
             break
     if spec.max_tokens:
@@ -64,10 +70,11 @@ def _sentence(text, counts, vocab, config, spec, reference):
     return [token for token in ids if token != config.unk_id] if spec.unknown == "drop" else ids
 
 
-def _words(piece, ids, counts, vocab, config, spec, reference):
+def _words(piece, ids, counts, vocab, config, spec, reference, frequencies):
     for word in reference.pre_tokenize(reference.normalize(piece)):
         if spec.max_tokens and len(ids) >= spec.max_tokens:
             break
+        frequencies[word] += 1
         counts["words"] += 1
         if len(word) > config.max_input_chars_per_word:
             counts["overlong_bypass"] += 1
@@ -84,3 +91,47 @@ def _words(piece, ids, counts, vocab, config, spec, reference):
                 config.max_input_chars_per_word,
             )
         )
+
+
+def _frequencies(words):
+    lengths = Counter()
+    for word, count in words.items():
+        lengths[str(len(word.encode("utf-8")))] += count
+    return dict(
+        word_frequencies=dict(sorted(words.items())), byte_lengths=dict(sorted(lengths.items()))
+    )
+
+
+def _word_audit(model, texts, job):
+    from _development_encode import output_identity
+    from _development_stages import tokenizer
+    from _development_token_reference import reference_batch
+
+    from fse import _reference_text
+    from fse._text import make_vocabulary
+
+    words = Counter(
+        word for text in texts for word in _reference_text.tokenize(text, "fse_words@1")
+    )
+    native = tokenizer(model, texts)()
+    if output_identity(native) != output_identity(reference_batch(model, texts)):
+        raise ValueError("whole-word audit reference differs from native batch")
+    vocabulary = make_vocabulary(model.word_vectors)
+    vocab = model.word_vectors._words()
+    return dict(
+        counts=dict(
+            words=words.total(),
+            whole_word_hits=sum(
+                count for word, count in words.items() if word.encode("utf-8") in vocab
+            ),
+        ),
+        **_frequencies(words),
+        rows=len(texts),
+        output=output_identity(native),
+        reference_matches_native_bits=True,
+        table_nbytes=vocabulary.table.nbytes,
+        table_words=len(vocabulary.table),
+        untimed=True,
+        corpus=job["corpus"],
+        artifact=job["artifact"],
+    )

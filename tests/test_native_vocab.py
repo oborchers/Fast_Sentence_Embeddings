@@ -125,7 +125,7 @@ def test_the_padded_and_the_unpadded_lookup_agree():
 def test_vocab_table_nbytes():
     words = [f"w{i}".encode() for i in range(1000)]
     table = _table(words)
-    assert table.nbytes == 2048 * 32 + 63 + sum(map(len, words))
+    assert table.nbytes == 2048 * 16 + 63 + 8 * len(words) + sum(map(len, words))
 
 
 def test_vocab_table_is_built_once():
@@ -195,3 +195,73 @@ def test_a_text_lookup_refuses_a_second_init_while_it_is_built(monkeypatch):
 def test_vocab_slots_are_cache_line_aligned(count):
     table = _table([f"w{i}".encode() for i in range(count)])
     assert table._slot_alignment == 0
+
+
+@pytest.mark.parametrize("length", [0, 7, 8, 9, 15, 16, 17, 40])
+def test_vocab_shared_prefixes_and_zero_padding(length):
+    word = (b"abcdefghABCDEFGH" + b"x" * 24)[:length]
+    words = list(dict.fromkeys([word, word + b"\0", word + b"\0\0", word[:-1]]))
+    if length > 8:
+        words.append(word[:8] + b"!" + word[9:])
+    if length > 16:
+        words.append(word[:16] + b"!" + word[17:])
+    table = _table(words)
+    for index, value in enumerate(words):
+        assert table.get(value) == index
+    assert table.get(word + b"!") is None
+
+
+@pytest.mark.parametrize("length", [0, 8, 9, 16, 17])
+def test_vocab_duplicate_message_at_key_boundaries(length):
+    word = b"a" * length
+    with pytest.raises(ValueError, match=r"^word 1 is also word 0 of the vocabulary$"):
+        _table([word, word])
+
+
+@pytest.mark.parametrize("length", [16, 40])
+def test_vocab_collision_cluster_wraps_with_equal_prefix_and_length(length):
+    # A 64-word table has 128 slots. Choose 65 keys at home slot 127, with the
+    # same first key and length, so lookup must compare the high key or arena.
+    probe = _table([f"seed{i}".encode() for i in range(64)])
+    words = []
+    for value in range(100_000):
+        word = b"abcdefgh" + (b"ABCDEFGH" + b"x" * 16 if length == 40 else b"")
+        word += value.to_bytes(8, "little")
+        if probe._probe(word)[0] == 127:
+            words.append(word)
+            if len(words) == 65:
+                break
+    assert len(words) == 65
+    table = _table(words[:64])
+    for index, word in enumerate(words[:64]):
+        assert table._probe(word) == (127, (127 + index) % 128)
+        assert table.get(word) == index
+    assert table._probe(words[64]) == (127, 63)
+    assert table.get(words[64]) is None
+    assert table.get(words[64][:-1]) is None
+
+
+@pytest.mark.parametrize("name", ["encoder_wordpiece_int8", "encoder_unigram_float16"])
+def test_vocab_finds_every_word_of_persisted_tokenizer_fixture(name):
+    from pathlib import Path
+
+    from fse import Encoder
+
+    model = Encoder.load(
+        Path(__file__).parent / "test_data" / "v2" / "finished" / f"{name}.safetensors"
+    )
+    words = model.word_vectors._words()
+    table = _native.VocabTable(model.word_vectors.vocab_bytes, model.word_vectors.vocab_offsets)
+    for word, index in words.items():
+        assert table.get(word) == index
+
+
+@pytest.mark.network
+def test_vocab_finds_every_word_of_potion():
+    from fse import Encoder
+
+    model = Encoder.from_pretrained("minishlab/potion-base-8M")
+    words = model.word_vectors._words()
+    table = _native.VocabTable(model.word_vectors.vocab_bytes, model.word_vectors.vocab_offsets)
+    for word, index in words.items():
+        assert table.get(word) == index
