@@ -446,7 +446,7 @@ jobs:
           mkdir "$RUNNER_TEMP/sde"
           (cd "$RUNNER_TEMP" && tar -xf "$archive" -C sde --strip-components=1)
           executable="$RUNNER_TEMP/sde/sde64"
-          if [ "$SDE_PLATFORM" = win ]; then executable="$executable.exe"; fi
+          if [ "$SDE_PLATFORM" = win ]; then executable="$RUNNER_TEMP/sde/sde.exe"; fi
           echo "FSE_SDE_EXE=$executable" >> "$GITHUB_ENV"
       - name: Build instrumented extension and prove compiled support
         run: |
