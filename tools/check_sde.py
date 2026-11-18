@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-import subprocess
-import sys
 
 TESTS = (
     "tests/test_native_isa.py",
