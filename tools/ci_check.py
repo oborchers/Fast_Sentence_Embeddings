@@ -27,7 +27,7 @@ def required(needs, event):
     outputs = needs["changes"]["outputs"]
     if any(
         outputs.get(key) not in ("true", "false")
-        for key in ("code", "lint", "st", "sdist", "native", "targeted")
+        for key in ("code", "lint", "st", "sdist", "native", "sde", "targeted")
     ):
         raise ValueError("CI selection outputs must contain explicit boolean strings")
     targeted = outputs["targeted"] == "true"
@@ -40,7 +40,7 @@ def required(needs, event):
         "test": code,
         "test-st": code and outputs["st"] == "true",
         "test-prefetch": code,
-        "test-sde": code and outputs["native"] == "true",
+        "test-sde": code and outputs["sde"] == "true",
         "coverage": code and event != "pull_request" and not targeted,
         "sdist": code and outputs["sdist"] == "true",
         "wheels": code and outputs["native"] == "true",

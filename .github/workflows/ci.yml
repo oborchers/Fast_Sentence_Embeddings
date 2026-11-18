@@ -59,6 +59,8 @@ jobs:
       lint: ${{ steps.diff.outputs.lint }}
       # The native code and the build: wheels.
       native: ${{ steps.diff.outputs.native }}
+      # ISA emulation has a narrower input set than the wheel/Windows selection.
+      sde: ${{ steps.diff.outputs.sde }}
       # The dependency pins: the job with the minimum versions.
       deps: ${{ steps.diff.outputs.deps }}
       # The sentence-transformers path: test-st.
@@ -110,6 +112,24 @@ jobs:
                select($libc == "manylinux" or ($extended and ($os | startswith("ubuntu-")))) |
                {os: $os, libc: $libc} ]')
           echo "wheel_matrix={\"include\":$wheels}" >> "$GITHUB_OUTPUT"
+          comparison=""
+          if [ "$TARGETED" = "true" ]; then
+            comparison=$(git merge-base origin/master HEAD || true)
+          elif [ "$EVENT" = "pull_request" ]; then
+            comparison=$(git merge-base "origin/$BASE" HEAD || true)
+          elif [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/master" ] \
+            && [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$BEFORE" HEAD; then
+            comparison="$BEFORE"
+          fi
+          # Full manual/scheduled and unknown-base runs keep all proof. Known PR
+          # and master diffs select SDE from native/build and emulation inputs only.
+          sde=true
+          if [ -n "$comparison" ]; then
+            sde=$(python3 tools/ci_sde_selection.py "$comparison")
+          fi
+          echo "sde=$sde" >> "$GITHUB_OUTPUT"
           if [ "$TARGETED" = "true" ]; then
             {
               echo 'code=true'
@@ -133,15 +153,6 @@ jobs:
           echo "st_matrix={\"include\":$st}" >> "$GITHUB_OUTPUT"
           # Only a verified PR base or ordinary master push can use the light path.
           # A missing, initial, or otherwise unknown base falls back to all jobs.
-          comparison=""
-          if [ "$EVENT" = "pull_request" ]; then
-            comparison=$(git merge-base "origin/$BASE" HEAD || true)
-          elif [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/master" ] \
-            && [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] \
-            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
-            && git merge-base --is-ancestor "$BEFORE" HEAD; then
-            comparison="$BEFORE"
-          fi
           if [ -n "$comparison" ] && python3 - "$comparison" <<'PY'
           import re, subprocess, sys
           # Keep the allowlist narrow. Scripts, assets, unknown metadata, and executable
@@ -394,7 +405,7 @@ jobs:
   test-sde:
     name: test-sde (${{ matrix.os }}, ${{ matrix.compiler }}, layout ${{ matrix.layout }}, ${{ matrix.profile }})
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.native == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.sde == 'true'
     runs-on: ${{ matrix.os }}
     # Real execution exceeded the former combined 30-minute limit. Keep each full
     # profile independent, including the slower layout-B mutation witnesses.

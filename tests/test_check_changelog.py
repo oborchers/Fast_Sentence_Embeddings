@@ -68,6 +68,7 @@ def repository(tmp_path):
     base = commit(
         {
             "pyproject.toml": CONFIG,
+            "tools/ci_sde_selection.py": (ROOT / "tools/ci_sde_selection.py").read_text(),
             "src/example.py": "old = True\n",
             "changelog.d/DR-1.fixed.md": "Existing entry.\n",
             "changelog.d/template.md": (ROOT / "changelog.d/template.md").read_text(),

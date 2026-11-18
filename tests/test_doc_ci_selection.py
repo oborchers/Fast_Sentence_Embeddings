@@ -59,6 +59,10 @@ def selection(
 def repository(tmp_path):
     git(tmp_path, "init", "-q")
     (tmp_path / "initial.md").write_text("initial")
+    (tmp_path / "tools").mkdir()
+    shutil.copyfile(
+        WORKFLOW.parents[2] / "tools/ci_sde_selection.py", tmp_path / "tools/ci_sde_selection.py"
+    )
     commit(tmp_path)
     git(tmp_path, "update-ref", "refs/remotes/origin/master", "HEAD")
     return tmp_path
