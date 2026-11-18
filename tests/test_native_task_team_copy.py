@@ -17,7 +17,8 @@ from support.waiting import until
 
 
 @pytest.fixture(autouse=True)
-def balanced():
+def balanced(monkeypatch):
+    monkeypatch.setattr(_pipeline, "INLINE_MAX_BYTES", 0)
     baseline = (_native._test_team_resources(), _native._test_join_resources())
     yield
     _native._test_team_copy_control(-1)

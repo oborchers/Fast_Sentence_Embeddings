@@ -291,7 +291,7 @@ cdef class TaskTeam:
         if not self.prepared:
             raise RuntimeError("task team is unprepared or has already run")
         cdef _Team *t = &self.team
-        cdef Py_ssize_t i
+        cdef Py_ssize_t i, copied_rows = 0, copy_calls = 0
         self.prepared = False
         _team_calls += 1
         _nogil_sections += 1
@@ -303,8 +303,8 @@ cdef class TaskTeam:
             if self.copy is not None:
                 for i in range(t.n):
                     if t.tasks[i].copied:
-                        self.copy.finished += t.tasks[i].copy.last - t.tasks[i].copy.first
-                        self.copy.copy_calls += t.tasks[i].copies
+                        copied_rows += t.tasks[i].copy.last - t.tasks[i].copy.first
+                        copy_calls += t.tasks[i].copies
                 if self.failed_at < t.n:
                     self.failed_copied = t.tasks[self.failed_at].copied
                     self.failed_copies = t.tasks[self.failed_at].copies
@@ -315,6 +315,11 @@ cdef class TaskTeam:
                 t.started_ids[i] = t.slots[i].started_id
                 t.actual_ids[i] = t.slots[i].actual_id
             _team_release(t)
+        # C field updates under the GIL, before any Python call or signal check.
+        # Keep accounting serialized with the ordinary TextTasks finally block.
+        if self.copy is not None:
+            self.copy.finished += copied_rows
+            self.copy.copy_calls += copy_calls
         self.workspaces = []
         self.owners = None
         if not t.balanced:
