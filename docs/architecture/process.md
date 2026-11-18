@@ -129,7 +129,7 @@ failed or cancelled run blocks publication with an explicit error.
 The gate does not accept PR, manual, scheduled or tag runs as substitutes.
 
 The required branch check is `check`. It requires every selected job among
-`changes`, `lint`, `test`, `test-st`, `coverage`, `sdist` and `wheels` to succeed.
+`changes`, `lint`, `test`, `test-st`, `test-prefetch`, `coverage`, `sdist` and `wheels` to succeed.
 Only jobs intentionally omitted by the declared selection may be skipped. The
 summary also inspects individual matrix jobs through the Actions API. Failure,
 cancellation, `abandoned`, unknown results and unfinished work fail closed, including
