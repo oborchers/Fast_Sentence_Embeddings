@@ -41,6 +41,7 @@ from fse._text import (
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
+from ._native_run import execute as execute_native
 from ._native_run import select as select_native
 from ._pool import Pool, Workers, resolve_workers
 from ._sinks import (
@@ -50,6 +51,7 @@ from ._sinks import (
     Sink,
     Stored,
     new_rows,
+    own_rows,
     sink_dtype,
     split_target,
     wants_inverse_norms,
@@ -161,10 +163,11 @@ class Pipeline:
         tasks, window, stop = self.plan_tasks(
             source, workers, chunk_bytes, row_bytes, base, pool=pool
         )
+        requested_sink = sink
         own: ArrayRows | GrowingRows | None = None
         tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
-            own = _own_rows(tasks.rows, self.output_dim, dtype)
+            own = own_rows(tasks.rows, self.output_dim, dtype)
             sink = own
         local = WorkerLocal(lengths)
         done = [0, 0]  # the rows and tasks committed, for the record of the run
@@ -201,7 +204,7 @@ class Pipeline:
             own,
             workers,
             pool,
-            None if own is not None else sink,
+            requested_sink,
             base,
             lengths,
             collector,
@@ -214,23 +217,24 @@ class Pipeline:
             workers,
             window,
             dtype,
-            None if own is not None else sink,
-            "native" if team is not None else None,
+            requested_sink,
+            getattr(team, "executor", None),
         )
-        if team is not None:
-            team.execute(own, done, native_work, reserve)
-        else:
-            run(
-                remaining,
-                native_work if native_work is not None else work,
-                commit,
-                workers=workers,
-                inline=tasks.inline,
-                window=window,
-                reserve=reserve,
-                stop=stop,
-                pool=pool,
-            )
+        execute_native(
+            team,
+            own,
+            done,
+            native_work if native_work is not None else work,
+            reserve,
+            commit,
+            remaining,
+            runner=run,
+            workers=workers,
+            inline=tasks.inline,
+            window=window,
+            stop=stop,
+            pool=pool,
+        )
         self._done(done[0], done[1], time.perf_counter() - start)
         return None if own is None else own.result()
 
@@ -491,8 +495,3 @@ def check_sink_rows(sink: object, dim: int):
         raise ValueError(f"the sink must take rows of {dim} values")
     sink_dtype(sink)
     wants_inverse_norms(sink)
-
-
-def _own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:
-    """A checked target for the call, with fixed or growing row count."""
-    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)

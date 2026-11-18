@@ -33,7 +33,7 @@ import numpy as np
 import fse
 from fse import _native
 from fse._backends._cpu import CpuBackend
-from fse._runtime import _heads, _pipeline
+from fse._runtime import _heads, _native_run, _pipeline
 
 # Blocking calls a profile function sees as c_call: their modules or names.
 _BLOCKING_MODULES = {"posix", "nt", "time", "_thread", "select"}
@@ -81,6 +81,9 @@ class Budget:
             return windowed(factory(owner, *args))
 
         monkeypatch.setattr(CpuBackend, "string_tasks", native)
+        monkeypatch.setattr(
+            _native_run.NativeCall, "execute", windowed(_native_run.NativeCall.execute)
+        )
         # The task of an encoder and the task of the heads.
         monkeypatch.setattr(_pipeline.Pipeline, "_work", windowed(_pipeline.Pipeline._work))
         monkeypatch.setattr(_heads.HeadsPipeline, "_work", windowed(_heads.HeadsPipeline._work))
@@ -173,7 +176,7 @@ TASK_PATH = {
     "_native_search.pxi": {"_inverse_norms_into"},
 }
 FUSED = "_native_task.pxi"
-FUSED_PARTS = (FUSED, "_native_task_worker.pxi")
+FUSED_PARTS = (FUSED, "_native_task_worker.pxi", "_native_task_team.pxi")
 _COUNT = "_nogil_sections += 1"
 _DEF = re.compile(r"^(\s*)(?:c?p?def|cdef)\b.*?\b(\w+)\(")
 
@@ -304,7 +307,10 @@ def checked_without_gil(fused: str, others: list[str]) -> list[str]:
     bodies = {
         name: "\n".join(body) for text in (fused, *others) for name, _, body in _functions(text)
     }
-    todo, seen, found = list(_nogil_calls(fused)), set(), []
+    roots = _nogil_calls(fused)
+    if "_team_worker" in signatures:
+        roots.add("_team_worker")  # A C callback is passed by name, never called syntactically.
+    todo, seen, found = list(roots), set(), []
     while todo:
         name = todo.pop()
         if name in seen or name not in signatures:

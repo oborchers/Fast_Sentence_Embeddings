@@ -42,6 +42,7 @@ typedef struct {
     fse_part fn;
     void *arg;
     int part;
+    uint64_t *actual_id;
 } fse_task;
 
 #ifdef _WIN32
@@ -51,6 +52,7 @@ typedef HANDLE fse_thread;
 
 static unsigned __stdcall fse_thread_main(void *p) {
     fse_task *t = (fse_task *)p;
+    if (t->actual_id) *t->actual_id = (uint64_t)GetCurrentThreadId();
     t->fn(t->arg, t->part);
     return 0;
 }
@@ -64,12 +66,16 @@ static void fse_join(fse_thread thread) {
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
 }
+static uint64_t fse_thread_id(fse_thread thread) { return (uint64_t)GetThreadId(thread); }
+static void fse_team_pause(void) { Sleep(1); }
 #else
 #include <pthread.h>
+#include <time.h>
 typedef pthread_t fse_thread;
 
 static void *fse_thread_main(void *p) {
     fse_task *t = (fse_task *)p;
+    if (t->actual_id) *t->actual_id = (uint64_t)(uintptr_t)pthread_self();
     t->fn(t->arg, t->part);
     return NULL;
 }
@@ -79,6 +85,11 @@ static int fse_start(fse_thread *thread, fse_task *task) {
 }
 
 static void fse_join(fse_thread thread) { pthread_join(thread, NULL); }
+static uint64_t fse_thread_id(fse_thread thread) { return (uint64_t)(uintptr_t)thread; }
+static void fse_team_pause(void) {
+    struct timespec delay = {0, 1000000};
+    nanosleep(&delay, NULL);
+}
 #endif
 
 /* Caller-owned storage. Failed starts reduce the team; slot zero drains the queue.
@@ -87,6 +98,7 @@ typedef struct {
     fse_thread thread, joined_thread;
     fse_task task;
     int started, joined;
+    uint64_t started_id, joined_id, actual_id;
 } fse_team_slot;
 
 static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
@@ -96,12 +108,15 @@ static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
         slots[i].task.fn = fn;
         slots[i].task.arg = arg;
         slots[i].task.part = i;
+        slots[i].task.actual_id = &slots[i].actual_id;
         slots[i].started = !(i < 32 && (failed_starts >> i) & 1u) &&
                            fse_start(&slots[i].thread, &slots[i].task) == 0;
+        if (slots[i].started) slots[i].started_id = fse_thread_id(slots[i].thread);
     }
     fn(arg, 0);
     for (i = 1; i < n; i++) {
         if (slots[i].started) {
+            slots[i].joined_id = fse_thread_id(slots[i].thread);
             fse_join(slots[i].thread);
             slots[i].joined_thread = slots[i].thread;
             slots[i].joined = 1;
@@ -114,6 +129,8 @@ static int fse_team_balanced(int n, fse_team_slot *slots) {
     for (i = 1; i < n; i++) {
         if (slots[i].started != slots[i].joined) return 0;
         if (!slots[i].started) continue;
+        if (slots[i].started_id != slots[i].joined_id ||
+            slots[i].started_id != slots[i].actual_id) return 0;
 #ifdef _WIN32
         if (slots[i].thread != slots[i].joined_thread) return 0;
 #else

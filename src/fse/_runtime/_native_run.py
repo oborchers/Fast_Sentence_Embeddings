@@ -56,11 +56,26 @@ def select(
     pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
 ):
     """Return a prepared call, or an iterator preserving all buffered tasks and errors."""
-    remaining = tasks.tasks
     if not eligible(
         pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
     ):
-        return None, remaining
+        return None, tasks.tasks
+    remaining = tasks.tasks
+    buffered, error, replay = _buffer(remaining)
+    if buffered is None or not buffered:
+        return None, replay
+    try:
+        team = pipeline.backend.string_team(
+            pipeline.prepared, pipeline.lookup, source, buffered, own._out, workers
+        )
+    except (MemoryError, ValueError, TypeError, RuntimeError):
+        return None, replay
+    if not team.prepared:
+        return None, replay
+    return NativeCall(team, buffered, error), replay
+
+
+def _buffer(remaining):
     buffered: list[Any] = []
     error = None
     for _ in range(MAX_TASKS + 1):
@@ -74,25 +89,25 @@ def select(
         try:
             _append(buffered, item)
         except MemoryError:
-            return None, chain(buffered, (item,), remaining)
+            return None, None, chain(buffered, (item,), remaining)
     else:
-        return None, chain(buffered, remaining)
+        return None, None, chain(buffered, remaining)
     replay = chain(buffered, _reraise(error))
-    if not buffered:
-        return None, replay
-    try:
-        team = pipeline.backend.string_team(
-            pipeline.prepared, pipeline.lookup, source, buffered, own._out, workers
-        )
-    except (MemoryError, ValueError, TypeError, RuntimeError):
-        return None, replay
-    if not team.prepared:
-        return None, replay
-    return NativeCall(team, buffered, error), replay
+    return buffered, error, replay
+
+
+def execute(team, own, done, work, reserve, commit, remaining, *, runner, **options):
+    """Execute the selected route with the existing executor's untouched options."""
+    if team is None:
+        runner(remaining, work, commit, reserve=reserve, **options)
+    else:
+        team.execute(own, done, work, reserve)
 
 
 class NativeCall:
     """A prepared team and the successful prefix it must book in task order."""
+
+    executor = "native"
 
     def __init__(self, team, tasks, error):
         self.team, self.tasks, self.error = team, tasks, error

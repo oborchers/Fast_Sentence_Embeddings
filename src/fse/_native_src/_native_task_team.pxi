@@ -8,9 +8,13 @@ cdef extern from "_native_threads.h":
     ctypedef struct fse_team_slot:
         int started
         int joined
+        uint64_t started_id
+        uint64_t joined_id
+        uint64_t actual_id
     void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
                   unsigned failed_starts) noexcept nogil
     int fse_team_balanced(int n, fse_team_slot *slots) noexcept nogil
+    void fse_team_pause() noexcept nogil
 
 
 cdef struct _TeamTask:
@@ -29,16 +33,36 @@ cdef struct _Team:
     fse_team_slot *slots
     Py_ssize_t n, workers, limit
     int corrupt
+    Py_ssize_t corrupt_task, status_task, delay_task
+    int status, delay_ms
+    bint hold
     unsigned failed_starts
     int allocated, freed, started, joined
     bint balanced
+    uint64_t started_ids[256]
+    uint64_t joined_ids[256]
+    uint64_t actual_ids[256]
 
 
 cdef int _test_team_fail_allocation = 0
 cdef unsigned _test_team_failed_starts = 0
-cdef Py_ssize_t _test_team_status_task = -1
-cdef int _test_team_status = 0
 cdef long long _team_calls = 0
+cdef Py_ssize_t _team_status_task = -1
+cdef int _team_status = 0
+cdef Py_ssize_t _team_corrupt_task = -1
+cdef Py_ssize_t _team_delay_task = -1
+cdef int _team_delay_ms = 0
+cdef fse_atomic _team_hold
+cdef fse_atomic _team_entered
+
+
+def _test_team_control(hold=None):
+    """Atomic test barrier: entry receipt proves native execution before a signal/fork."""
+    if hold is not None:
+        if hold:
+            fse_atomic_store(&_team_entered, 0)
+        fse_atomic_store(&_team_hold, bool(hold))
+    return fse_atomic_load(&_team_hold), fse_atomic_load(&_team_entered)
 
 
 def _test_team_calls():
@@ -49,10 +73,16 @@ def _test_team_resources():
     return fse_atomic_load(&fse_test_team_live)
 
 
-def _test_team_faults(int allocation=0, unsigned failed_starts=0):
+def _test_team_faults(int allocation=0, unsigned failed_starts=0,
+                      Py_ssize_t status_task=-1, int status=0,
+                      Py_ssize_t corrupt_task=-1, Py_ssize_t delay_task=-1, int delay_ms=0):
     global _test_team_fail_allocation, _test_team_failed_starts
-    old = (_test_team_fail_allocation, _test_team_failed_starts)
+    global _team_status_task, _team_status, _team_corrupt_task, _team_delay_task, _team_delay_ms
+    old = (_test_team_fail_allocation, _test_team_failed_starts, _team_status_task,
+           _team_status, _team_corrupt_task, _team_delay_task, _team_delay_ms)
     _test_team_fail_allocation, _test_team_failed_starts = allocation, failed_starts
+    _team_status_task, _team_status, _team_corrupt_task = status_task, status, corrupt_task
+    _team_delay_task, _team_delay_ms = delay_task, delay_ms
     return old
 
 
@@ -93,18 +123,32 @@ cdef void _team_worker(void *arg, int slot) noexcept nogil:
     cdef _Team *t = <_Team *>arg
     cdef int64_t i
     cdef _TeamTask *task
+    cdef int delay, corrupt
     cdef uint64_t saved = fse_fpenv_push()
+    if t.hold:
+        fse_atomic_add(&_team_entered, 1)
+        while fse_atomic_load(&_team_hold):
+            fse_team_pause()
     while True:
         i = fse_atomic_add(&t.next, 1)
         if i >= t.n or i > fse_atomic_load(&t.failed_at):
             break
         task = &t.tasks[i]
+        if i == t.delay_task:
+            for delay in range(t.delay_ms):
+                fse_team_pause()
         _start_result(&task.result)
-        task.result.encode = _encode_span_limit(
-            <TextLookup>t.lookup, &task.span, <Workspace>t.workspaces[slot], t.limit)
+        if i == t.status_task and t.status == ENCODE_NO_MEMORY:
+            task.result.encode = ENCODE_NO_MEMORY
+        else:
+            task.result.encode = _encode_span_limit(
+                <TextLookup>t.lookup, &task.span, <Workspace>t.workspaces[slot], t.limit)
         if task.result.encode == ENCODE_OK:
+            corrupt = t.corrupt if t.corrupt_task < 0 or i == t.corrupt_task else 0
             _pool_stages_kind(<WeightedMean>t.kernel, <Workspace>t.workspaces[slot],
-                              &task.stages, &task.result, t.corrupt)
+                              &task.stages, &task.result, corrupt)
+            if i == t.status_task and t.status != ENCODE_OK:
+                task.result.built = CHECK_OFFSETS_START  # deterministic mismatch probe
         if _team_failed(&task.result):
             fse_atomic_min(&t.failed_at, i)
     fse_fpenv_pop(saved)
@@ -129,6 +173,10 @@ cdef class TaskTeam:
         self.team.failed_starts = _test_team_failed_starts
         self.team.corrupt = _test_corrupt_kind
         self.team.limit = _MAX_SENTENCE_BYTES
+        self.team.status_task, self.team.status = _team_status_task, _team_status
+        self.team.corrupt_task = _team_corrupt_task
+        self.team.delay_task, self.team.delay_ms = _team_delay_task, _team_delay_ms
+        self.team.hold = fse_atomic_load(&_team_hold) != 0
         self.workspaces = []
         try:
             self._prepare(kernel, lookup, isa, normalize, text, tasks, out, workers)
@@ -139,13 +187,14 @@ cdef class TaskTeam:
             return
         self.prepared = True
 
-    cdef void _allocation(self) except *:
+    cdef int _allocation(self) except -1:
         self.preparation_steps += 1
         if self.preparation_steps == self.fail_allocation:
             raise MemoryError("injected task-team preparation failure")
+        return 0
 
-    cdef void _prepare(self, WeightedMean kernel, TextLookup lookup, isa, bint normalize,
-                       text, tasks, out, int workers) except *:
+    cdef int _prepare(self, WeightedMean kernel, TextLookup lookup, isa, bint normalize,
+                       text, tasks, out, int workers) except -1:
         cdef _Team *t = &self.team
         cdef Workspace ws
         cdef const unsigned char[::1] data
@@ -197,6 +246,7 @@ cdef class TaskTeam:
             start, first_row = end, first_row + rows
         fse_atomic_store(&t.next, 0)
         fse_atomic_store(&t.failed_at, t.n)
+        return 0
 
     def run(self):
         global _nogil_sections, _team_calls
@@ -216,12 +266,20 @@ cdef class TaskTeam:
             for i in range(1, t.workers):
                 t.started += t.slots[i].started
                 t.joined += t.slots[i].joined
+                t.started_ids[i] = t.slots[i].started_id
+                t.joined_ids[i] = t.slots[i].joined_id
+                t.actual_ids[i] = t.slots[i].actual_id
             _team_release(t)
         self.workspaces = []
         self.owners = None
         if not t.balanced:
             raise RuntimeError("native task team resource balance mismatch")
         return self.failed_at, self.encode_status == ENCODE_NO_MEMORY
+
+    @property
+    def thread_ids(self):
+        return tuple((self.team.started_ids[i], self.team.joined_ids[i], self.team.actual_ids[i])
+                     for i in range(1, self.team.workers) if self.team.started_ids[i])
 
     @property
     def balance(self):

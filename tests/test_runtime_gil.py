@@ -9,6 +9,7 @@ from collections import Counter
 import numpy as np
 import pytest
 
+from fse import _native
 from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _tasks
 from fse._text import StringSource
@@ -42,6 +43,7 @@ def _windows(
     pipeline = _pipeline(kind)
     pipeline._text_rows = fused
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
+    calls = _native._test_team_calls()
     with Budget(monkeypatch) as budget:
         pipeline.infer(
             source(kind, texts(2000), tmp_path),
@@ -49,7 +51,11 @@ def _windows(
             chunk_bytes=chunk_bytes,
             dtype=dtype,
         )
-    assert len(budget.windows) > 5
+    if kind == "strings" and dtype == "float32" and chunk_bytes is None and workers > 1 and fused:
+        assert _native._test_team_calls() == calls + 1
+        assert len(budget.windows) == 1
+    else:
+        assert len(budget.windows) > 5
     return budget.windows
 
 
@@ -167,7 +173,8 @@ def test_every_section_of_the_task_path_is_counted(part):
 @pytest.mark.parametrize("part", gil_budget.FUSED_PARTS)
 def test_the_fused_part_is_counted_and_holds_nothing_forbidden(part):
     text = gil_budget.source(part)
-    assert text.count("with nogil") == (2 if part == gil_budget.FUSED else 0)
+    sections = {gil_budget.FUSED: 2, "_native_task_team.pxi": 1}
+    assert text.count("with nogil") == sections.get(part, 0)
     assert gil_budget.uncounted(text, None) == []
     assert gil_budget.forbidden(text) == []
 
@@ -265,3 +272,23 @@ def test_the_record_of_a_task_makes_only_allocations(monkeypatch, tmp_path, mode
         assert set(window.numpy) <= {"empty in taken"}
         assert window.numpy["empty in taken"] == RECORD_EMPTY[mode]
     assert collector.report().n_rows == 2000
+
+
+def test_team_callback_and_its_exclusive_helpers_require_noexcept():
+    part = "_native_task_team.pxi"
+    text = gil_budget.source(part)
+    declaration = "cdef bint _team_failed("
+    start = text.index(declaration)
+    end = text.index(":\n", start)
+    broken = text[:start] + text[start:end].replace(" noexcept", "") + text[end:]
+    others = [source for source in gil_budget.native_sources() if source != text]
+    assert "_team_failed" in gil_budget.checked_without_gil(broken, others)
+
+
+def test_native_call_has_one_section_and_no_numpy_calls(monkeypatch, tmp_path):
+    small_tasks(monkeypatch)
+    windows = _windows(monkeypatch, tmp_path, "strings", workers=4, chunk_bytes=None)
+    assert len(windows) == 1
+    assert windows[0].sections == 1
+    assert windows[0].numpy == Counter()
+    assert windows[0].profiled == Counter()

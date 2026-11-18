@@ -36,7 +36,7 @@ def test_team_matches_reference_and_old_executor(monkeypatch, workers, normalize
     np.testing.assert_array_equal(
         found.view(np.uint32), expected(model.spec, sentences).view(np.uint32)
     )
-    monkeypatch.setattr(_native_run, "eligible", lambda *args: False)
+    monkeypatch.setattr(_native_run, "eligible", lambda *_args: False)
     old = model.infer(source, workers=workers)
     np.testing.assert_array_equal(found.view(np.uint32), old.view(np.uint32))
 
@@ -57,3 +57,151 @@ def test_failed_thread_starts_still_drain_the_queue(failed_starts):
         assert _native._test_team_resources() == 0
     finally:
         _native._test_team_faults(*previous)
+
+
+@pytest.mark.parametrize(
+    ("status", "error_type", "message"),
+    [
+        (1, MemoryError, "could not grow the buffers of the Workspace"),
+        (2, RuntimeError, "native task team and Python task error mismatch"),
+    ],
+)
+@pytest.mark.parametrize("position", ["first", "middle", "last"])
+def test_failure_status_preserves_prefix_and_replay_contract(
+    monkeypatch, status, error_type, message, position
+):
+    from fse._runtime import _pipeline
+    from support.native_team import faults, tasks_for
+
+    model = pipeline()
+    source = StringSource(texts(4000))
+    tasks = tasks_for(model, source, 4)
+    index = {"first": 0, "middle": len(tasks) // 2, "last": len(tasks) - 1}[position]
+    allocations, replays = [], []
+    real_own, real_work = _pipeline.own_rows, Pipeline._task_work
+
+    def own(*args):
+        rows = real_own(*args)
+        allocations.append(rows)
+        return rows
+
+    def work_factory(*args):
+        work = real_work(*args)
+
+        def replay(item):
+            replays.append(item[0])
+            return work(item)
+
+        return replay
+
+    monkeypatch.setattr(_pipeline, "own_rows", own)
+    monkeypatch.setattr(Pipeline, "_task_work", work_factory)
+    before = _native._test_team_calls()
+    with faults(status_task=index, status=status), pytest.raises(error_type, match=message):
+        model.infer(source, workers=4)
+    assert _native._test_team_calls() == before + 1
+    assert allocations[0].next_row == sum(task.n_rows for task in tasks[:index])
+    assert len(replays) == (0 if status == 1 else 1)
+    assert _native._test_team_resources() == 0
+
+
+def _fixed_plan(monkeypatch, count, *, scan_error=False):
+    import threading
+
+    from fse._runtime._tasks import Plan, Task
+    from fse._text import Chunk
+
+    source = StringSource(["w0 " + " " * 300] * count)
+    seen = []
+
+    def items():
+        for i in range(count):
+            seen.append(i)
+            yield Task(source, Chunk(i, i + 1, i, 1))
+        if scan_error:
+            raise ValueError("scan stopped after complete tasks")
+
+    def plan(*_args, **_kwargs):
+        return Plan(items(), count, False), 8, threading.Event()
+
+    monkeypatch.setattr(Pipeline, "plan_tasks", plan)
+    return source, seen
+
+
+@pytest.mark.parametrize("count", [256, 257, 258])
+def test_task_limit_buffers_at_most_257_then_replays_all_tasks(monkeypatch, count):
+    source, seen = _fixed_plan(monkeypatch, count)
+    observed = []
+    real = _native_run._buffer
+
+    def buffer(remaining):
+        result = real(remaining)
+        observed.append(len(seen))
+        return result
+
+    monkeypatch.setattr(_native_run, "_buffer", buffer)
+    before = _native._test_team_calls()
+    found = pipeline().infer(source, workers=4)
+    assert len(found) == count
+    assert observed == [min(count, 257)]
+    assert seen == list(range(count))
+    assert _native._test_team_calls() == before + (count <= 256)
+
+
+@pytest.mark.parametrize("count", [256, 257])
+@pytest.mark.parametrize("preparation_failure", [False, True])
+def test_scan_error_is_preserved_by_team_and_fallback(monkeypatch, count, preparation_failure):
+    from support.native_team import faults
+
+    source, seen = _fixed_plan(monkeypatch, count, scan_error=True)
+    before = _native._test_team_calls()
+    with (
+        faults(allocation=int(preparation_failure)),
+        pytest.raises(ValueError, match="scan stopped"),
+    ):
+        pipeline().infer(source, workers=4)
+    assert seen == list(range(count))
+    assert _native._test_team_calls() == before + (count <= 256 and not preparation_failure)
+    assert _native._test_team_resources() == 0
+
+
+def test_append_failure_keeps_the_item_and_remaining_iterator(monkeypatch):
+    source, seen = _fixed_plan(monkeypatch, 258)
+    real = _native_run._append
+    attempts = []
+
+    def append(buffered, item):
+        attempts.append(1)
+        if len(attempts) == 7:
+            raise MemoryError("could not buffer a task")
+        real(buffered, item)
+
+    monkeypatch.setattr(_native_run, "_append", append)
+    before = _native._test_team_calls()
+    found = pipeline().infer(source, workers=4)
+    assert len(found) == 258
+    assert seen == list(range(258))
+    assert len(attempts) == 7
+    assert _native._test_team_calls() == before
+
+
+@pytest.mark.parametrize("difference", [-1, 0, 1])
+def test_actual_row_limit_routes_below_at_and_above_boundary(difference):
+    count = _native_run.MAX_ROWS + difference
+    source = StringSource(["w0"] * count)
+    before = _native._test_team_calls()
+    found = pipeline().infer(source, workers=2)
+    assert found.shape == (count, 12)
+    assert _native._test_team_calls() == before + (difference <= 0)
+
+
+@pytest.mark.parametrize("difference", [-1, 0, 1])
+def test_actual_byte_limit_routes_below_at_and_above_boundary(difference):
+    count = _native_run.MAX_BYTES + difference
+    first, remainder = divmod(count, 256)
+    source = StringSource(["w0" + " " * (first - 2)] * 255 + ["w0" + " " * (first + remainder - 2)])
+    assert source.nbytes == count
+    before = _native._test_team_calls()
+    found = pipeline().infer(source, workers=2)
+    assert found.shape == (256, 12)
+    assert _native._test_team_calls() == before + (difference <= 0)
