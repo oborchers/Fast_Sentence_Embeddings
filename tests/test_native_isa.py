@@ -58,8 +58,6 @@ def _child(choice):
     env.pop("FSE_ISA", None)
     if choice is not None:
         env["FSE_ISA"] = choice
-    # Explicit wrapping instruments every exec, independently of Pin's fork policy.
-    prefix = json.loads(env.get("FSE_TEST_PYTHON_PREFIX", "[]"))
     script = """
 import json, os, numpy as np
 from fse import _native as n
@@ -77,7 +75,7 @@ assert n.default_isa() == result[0]
 print(json.dumps(result))
 """
     return subprocess.run(
-        [*prefix, sys.executable, "-c", script],
+        [sys.executable, "-c", script],
         env=env,
         capture_output=True,
         text=True,

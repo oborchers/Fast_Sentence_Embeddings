@@ -470,7 +470,7 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then python="$RUNNER_TEMP/sde-production-env/Scripts/python.exe"; fi
           uv pip install --python "$python" "$RUNNER_TEMP"/sde-production-wheel/*.whl
           "$FSE_SDE_EXE" -hsw -- "$python" -I tools/wheel_smoke.py
-      - name: Conformance and baseline isolation, with explicit emulated children
+      - name: Conformance and baseline isolation, with followed emulated children
         run: uv run --no-sync python tools/check_sde.py
 
   # The comparisons with sentence-transformers 6.2.0 (group st, torch from the CPU index

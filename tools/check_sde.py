@@ -1,12 +1,11 @@
-"""Run serial kernel conformance under a pinned Intel SDE, including child interpreters.
+"""Run serial kernel conformance under a pinned Intel SDE, including followed child interpreters.
 
-The workflow supplies FSE_SDE_EXE. Every Python exec in the environment-choice tests
-uses the same explicit prefix and checks the emulated feature profile itself.
+The workflow supplies FSE_SDE_EXE. Pin follows every Python exec in the environment-choice tests. Each child checks
+the emulated feature profile itself, under both Sapphire Rapids and Haswell.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -36,13 +35,13 @@ TESTS = (
 
 def main() -> None:
     for profile in ("spr", "hsw"):
-        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "--"]
+        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "-follow_execv", "--"]
         env = os.environ.copy()
         env["FSE_SDE_PROFILE"] = profile
-        env["FSE_TEST_PYTHON_PREFIX"] = json.dumps(prefix)
         env["FSE_REQUIRE_ISA"] = "avx512" if profile == "spr" else "avx2"
-        # Serial pytest prevents unwrapped xdist execs. Environment-choice children
-        # explicitly enter SDE, so their feature checks cannot accidentally see the host.
+        # Pin's documented -follow_execv instruments the same Python executable in
+        # children. Do not nest Pin inside Pin: that fails before child import.
+        # Child assertions under BOTH profiles catch accidental host execution.
         subprocess.run(
             [*prefix, sys.executable, "-m", "pytest", "-x", *TESTS, "-m", "not network"],
             env=env,
