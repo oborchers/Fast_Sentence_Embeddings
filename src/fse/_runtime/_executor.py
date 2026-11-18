@@ -75,7 +75,9 @@ def run(
         _Run(iter(tasks), work, commit, window, reserve, stop, workers).execute(pool)
         return
     with Pool(workers, max_tasks=window) as own:  # all the window this call needs
-        _Run(iter(tasks), work, commit, window, reserve, stop, workers).execute(own)
+        _Run(iter(tasks), work, commit, window, reserve, stop, workers).execute(
+            own, close_on_exhaustion=True
+        )
 
 
 def _same(task: Any) -> Any:
@@ -109,10 +111,12 @@ class _Run:
         self.exhausted = False
         self.sequence = 0  # of the next task
         self.pool_of_call: Pool
+        self.close_on_exhaustion = False
 
-    def execute(self, pool: Pool):
+    def execute(self, pool: Pool, *, close_on_exhaustion: bool = False):
         pool._check_open()
         self.pool_of_call = pool
+        self.close_on_exhaustion = close_on_exhaustion
         if self.workers < pool.workers:  # this call may use no more threads than it asked for
             self.limit = self.workers
         with pool._inside():
@@ -226,7 +230,8 @@ class _Run:
         try:
             return next(self.tasks)
         except StopIteration:
-            pass
+            if self.close_on_exhaustion:
+                self.pool_of_call._stop_submitting()
         except Exception as error:  # committed in order before it is raised
             self.source_error = error
         self.exhausted = True
