@@ -44,8 +44,9 @@ def _counting(monkeypatch):
     execute = _native_run.NativeCall.execute
 
     def team(self, *args):
+        rows = tuple(task.n_rows for task in self.tasks)
         result = execute(self, *args)
-        tasks.extend(task.n_rows for task in self.tasks)
+        tasks.extend(rows)
         return result
 
     monkeypatch.setattr(Pipeline, "_work", work)
