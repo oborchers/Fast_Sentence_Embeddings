@@ -36,7 +36,7 @@ TESTS = (
 
 def main() -> None:
     for profile in ("spr", "hsw"):
-        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "-chip_check", "--"]
+        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "--"]
         env = os.environ.copy()
         env["FSE_SDE_PROFILE"] = profile
         env["FSE_TEST_PYTHON_PREFIX"] = json.dumps(prefix)

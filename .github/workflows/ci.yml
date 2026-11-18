@@ -444,7 +444,7 @@ jobs:
           curl --fail --location --retry 2 "https://downloadmirror.intel.com/924984/$archive" -o "$RUNNER_TEMP/$archive"
           echo "$digest  $RUNNER_TEMP/$archive" | sha256sum --check
           mkdir "$RUNNER_TEMP/sde"
-          tar -xf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/sde" --strip-components=1
+          (cd "$RUNNER_TEMP" && tar -xf "$archive" -C sde --strip-components=1)
           executable="$RUNNER_TEMP/sde/sde64"
           if [ "$SDE_PLATFORM" = win ]; then executable="$executable.exe"; fi
           echo "FSE_SDE_EXE=$executable" >> "$GITHUB_ENV"
