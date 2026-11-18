@@ -67,8 +67,22 @@ static int fse_start(fse_thread *thread, fse_task *task) {
 }
 
 static int fse_start_team(fse_thread *thread, fse_task *task) {
-    *thread = (HANDLE)_beginthreadex(NULL, FSE_TEAM_STACK_MIN, fse_thread_main,
-                                    task, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+    const unsigned char *image = (const unsigned char *)GetModuleHandleW(NULL);
+    const IMAGE_DOS_HEADER *dos;
+    const IMAGE_NT_HEADERS *header;
+    unsigned size = 0;
+    if (!image) return -1;
+    dos = (const IMAGE_DOS_HEADER *)image;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0) return -1;
+    header = (const IMAGE_NT_HEADERS *)(image + dos->e_lfanew);
+    if (header->Signature != IMAGE_NT_SIGNATURE ||
+        header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR_MAGIC) return -1;
+    /* Zero keeps the executable's larger default; grow only a smaller reserve.
+     * Unknown executable metadata is a start failure, never a guessed stack cap. */
+    if (header->OptionalHeader.SizeOfStackReserve < FSE_TEAM_STACK_MIN)
+        size = FSE_TEAM_STACK_MIN;
+    *thread = (HANDLE)_beginthreadex(NULL, size, fse_thread_main, task,
+                                    size ? STACK_SIZE_PARAM_IS_A_RESERVATION : 0, NULL);
     return *thread ? 0 : -1;
 }
 

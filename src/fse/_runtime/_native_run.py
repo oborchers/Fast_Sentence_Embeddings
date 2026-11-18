@@ -91,8 +91,8 @@ def prepare(
             pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
         )
         if not logged:
-            pipeline._planned(*log_args, executor=getattr(team, "executor", None))
             logged = True
+            pipeline._planned(*log_args, executor=getattr(team, "executor", None))
         return own, active_sink, local, work, internal, team, remaining
     except BaseException:
         if not logged:

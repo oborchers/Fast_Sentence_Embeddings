@@ -307,3 +307,22 @@ def test_checked_preparation_error_replays_tasks(monkeypatch):
     np.testing.assert_array_equal(
         found.view(np.uint32), expected(model.spec, sentences).view(np.uint32)
     )
+
+
+@pytest.mark.parametrize("candidate", [False, True])
+def test_raising_plan_hook_is_called_once_and_releases_prepared_team(monkeypatch, candidate):
+    model = pipeline()
+    source = StringSource(texts(2000))
+    attempts = []
+
+    def fail(*_args, **_kwargs):
+        attempts.append(1)
+        raise RuntimeError("plan hook failed")
+
+    monkeypatch.setattr(model, "_planned", fail)
+    before = _native._test_team_calls()
+    with pytest.raises(RuntimeError, match="plan hook failed"):
+        model.infer(source, workers=2, chunk_bytes=None if candidate else 8000)
+    assert attempts == [1]
+    assert _native._test_team_calls() == before
+    assert _native._test_team_resources() == 0

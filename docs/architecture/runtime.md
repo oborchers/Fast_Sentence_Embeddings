@@ -138,8 +138,9 @@ does not resume the team's calling frame or join inherited handles. The child's
 resource tests use their post-fork baseline for inherited allocations.
 
 Native helper stacks have an explicit 1 MiB floor (`FSE_TEAM_STACK_MIN`).
-Pthread helpers retain a larger system default. Windows helpers explicitly reserve
-1 MiB with `_beginthreadex`. This avoids depending on musl's smaller default.
+Pthread helpers retain a larger system default. Windows helpers inspect the
+executable PE header and keep its default reserve when it is at least 1 MiB,
+requesting the floor through `_beginthreadex` only for smaller reserves. This avoids depending on musl's smaller default.
 Helpers run no Python frames; variable-sized token, normalization and lattice
 buffers live in their heap workspaces. Python's `threading.stack_size()` does
 not configure these native helpers. The existing parallel input-join passes keep
