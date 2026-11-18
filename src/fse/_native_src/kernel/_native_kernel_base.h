@@ -77,6 +77,7 @@ enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2 };
 #endif
 static FSE_TEST_TLS int64_t fse_test_tiles;
 static FSE_TEST_TLS int fse_test_loop;
+static FSE_TEST_TLS int64_t fse_test_builders[2];
 static FSE_TEST_TLS uint64_t fse_test_prefetch_count;
 static FSE_TEST_TLS uint64_t fse_test_prefetch_digest;
 #define FSE_TEST_PREFETCH_RESET() do { fse_test_prefetch_count = 0; fse_test_prefetch_digest = 0; } while (0)
@@ -84,9 +85,11 @@ static FSE_TEST_TLS uint64_t fse_test_prefetch_digest;
     ++fse_test_prefetch_count; \
     fse_test_prefetch_digest = (fse_test_prefetch_digest ^ (uint64_t)(address)) * UINT64_C(1099511628211); \
 } while (0)
+#define FSE_TEST_BUILDER(known) (++fse_test_builders[known])
 #define FSE_TEST_TILE() (++fse_test_tiles)
 #define FSE_TEST_ROWS() (fse_test_loop = 0)
 #else
+#define FSE_TEST_BUILDER(known) ((void)0)
 #define FSE_TEST_TILE() ((void)0)
 #define FSE_TEST_ROWS() ((void)0)
 #define FSE_TEST_PREFETCH_RESET() ((void)0)

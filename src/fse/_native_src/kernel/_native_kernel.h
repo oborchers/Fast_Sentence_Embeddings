@@ -144,6 +144,7 @@ static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *
     fse_loop_t loop = fse_loop_for(isa, p->dtype);
 #if defined(FSE_TEST_TILES)
     fse_test_tiles = 0;
+    fse_test_builders[0] = fse_test_builders[1] = 0;
     fse_test_loop = 0;
     FSE_TEST_PREFETCH_RESET();
 #if defined(FSE_X86)
@@ -166,6 +167,17 @@ static int64_t fse_test_pool_trace(int *loop) {
 #else
     *loop = -1;
     return -1;
+#endif
+}
+
+/* Builder calls, not merely the selected mode; no state in production builds. */
+static int fse_test_builder_trace(int64_t *known, int64_t *general) {
+#if defined(FSE_TEST_TILES)
+    *known = fse_test_builders[1];
+    *general = fse_test_builders[0];
+    return 1;
+#else
+    return 0;
 #endif
 }
 
