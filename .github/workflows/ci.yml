@@ -458,10 +458,10 @@ jobs:
       - name: Build the production wheel and inspect instruction isolation
         env:
           FSE_TEST_TILES: "0"
+          FSE_VERIFY_ISOLATION: "1"
         run: |
           make clean
           uv build --wheel --out-dir "$RUNNER_TEMP/sde-production-wheel"
-          uv run --no-sync python tools/check_isa_isolation.py
       - name: Run the production wheel under the Haswell profile
         env:
           FSE_EXPECT_PRODUCTION: "1"

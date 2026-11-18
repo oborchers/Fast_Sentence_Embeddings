@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 SYMBOL = re.compile(r"^\s*[0-9a-fA-F]+ <([^>]+)>:$")
@@ -45,7 +46,9 @@ def objdump() -> str:
 
 
 def main() -> None:
-    objects = [*Path("build").rglob("_native.o"), *Path("build").rglob("_native.obj")]
+    objects = [Path(path) for path in sys.argv[1:]] if len(sys.argv) > 1 else [
+        *Path("build").rglob("_native.o"), *Path("build").rglob("_native.obj")
+    ]
     if not objects:
         raise RuntimeError("no unstripped production native object was retained")
     tool = objdump()

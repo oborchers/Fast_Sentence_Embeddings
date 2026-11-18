@@ -1,6 +1,9 @@
 """Build the Cython extension. All package metadata lives in pyproject.toml."""
 
 import os
+import subprocess
+import sys
+from pathlib import Path
 import tempfile
 from glob import glob
 
@@ -90,6 +93,18 @@ class BuildExt(build_ext):
             if probe:
                 extension.define_macros = [*extension.define_macros, ("FSE_HAVE_DOTPROD", "1")]
         super().build_extensions()
+        if os.environ.get("FSE_VERIFY_ISOLATION") == "1":
+            objects = [
+                path
+                for extension in self.extensions
+                for path in self.compiler.object_filenames(
+                    extension.sources, output_dir=self.build_temp
+                )
+            ]
+            subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "tools/check_isa_isolation.py"), *objects],
+                check=True,
+            )
 
 
 extensions = [
