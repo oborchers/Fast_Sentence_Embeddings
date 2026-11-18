@@ -17,11 +17,11 @@ from fse import _reference
 from fse._contract import OOV_TOKEN
 from support.conformance import F32, TINY, Case, _rng
 
-LAYOUTS = {"neon": (32, 16, 8, 4), "avx2": (64, 32, 16, 8, 4)}
+LAYOUTS = {"neon": (32, 16, 8, 4), "avx2": (64, 32, 16, 8, 4), "avx512": (128, 64, 32, 16), "avx512-b": (256, 16)}
 # Block edges of 32, 16, 8 and 4 values, the tail, and dimensions at and above the tile
 # budget (1024 float32 values give K = 4, 1025 and more take the row loop).
 DIMS = (
-    *range(1, 10),
+    *range(1, 18),
     12,
     15,
     16,
@@ -53,12 +53,16 @@ DIMS = (
     300,
     301,
     768,
+    511,
+    512,
+    513,
+    1023,
     1024,
     1025,
     2048,
 )
 LONGEST = 130  # terms: K - 1, K and K + 1 for every K up to 64, twice over
-WITNESS_DIM = 127  # 64 + 32 + 16 + 8 + 4 + 3: every AVX2 block and the tail
+WITNESS_DIMS = {"neon": 127, "avx2": 127, "avx512": 255, "avx512-b": 511}
 
 
 def regions(dim: int, layout: str = "neon") -> dict[str, slice]:
@@ -149,34 +153,32 @@ def _documents(dtype: str) -> list[Case]:
     return out
 
 
-def _signed_zeros(dtype: str) -> list[Case]:
+def _signed_zeros(dtype: str, dim: int) -> list[Case]:
     """-0.0 in every block, sub-block and the tail (float32 and float16; int8 sums are
     multiples of the smallest subnormal and never reach -0.0 from +0.0).
 
     start: products of -0.0 from +0.0 give +0.0, a start from the first product -0.0.
     across tiles: fma(-TINY, 0.5, +0.0) is -0.0, and the products of -0.0 that follow keep
     it; a tile that reloads it as +0.0 ends at +0.0."""
-    dim = WITNESS_DIM
     rows = np.vstack([np.full(dim, -0.0, F32), np.full(dim, 0.5, F32)])
     weights = np.array([1.0, -TINY], F32)
     lengths = range(1, LONGEST + 1)
     start = tuple((0,) * n for n in lengths)
     across = tuple((1,) + (0,) * (n - 1) for n in lengths)
     return [
-        Case("signed zero start", dtype, rows, weights, start),
-        Case("signed zero across tiles", dtype, rows, weights, across),
+        Case(f"signed zero start {dim}", dtype, rows, weights, start),
+        Case(f"signed zero across tiles {dim}", dtype, rows, weights, across),
     ]
 
 
-def _fused() -> Case:
+def _fused(dim: int) -> Case:
     """The rounded negative product, then the fused one, at every position of a tile:
     zero rows before them add nothing (fma(1, +0.0, a) = a)."""
     f, x = F32(1 + 2**-12), F32(1 + 2**-12)
-    dim = WITNESS_DIM
     rows = np.vstack([np.full(dim, x, F32), np.full(dim, -(f * x), F32), np.zeros(dim, F32)])
     weights = np.array([f, 1, 1], F32)
     sentences = tuple((2,) * p + (1, 0) for p in range(LONGEST))
-    return Case("fused across tiles", "float32", rows, weights, sentences)
+    return Case(f"fused across tiles {dim}", "float32", rows, weights, sentences)
 
 
 def tile_cases() -> list[Case]:
@@ -187,8 +189,9 @@ def tile_cases() -> list[Case]:
         out.append(_unknown_words(dtype))
         out += _documents(dtype)
         if dtype != "int8":
-            out += _signed_zeros(dtype)
-    out.append(_fused())
+            for dim in sorted(set(WITNESS_DIMS.values())):
+                out += _signed_zeros(dtype, dim)
+    out.extend(_fused(dim) for dim in sorted(set(WITNESS_DIMS.values())))
     return out
 
 

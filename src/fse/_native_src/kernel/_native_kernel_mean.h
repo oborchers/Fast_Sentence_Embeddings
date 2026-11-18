@@ -262,5 +262,6 @@ FSE_DEFINE_LOOP(fse_loop_i8_neon, FSE_NO_TARGET, fse_fma_i8_neon, 1)
 #endif
 
 #include "_native_kernel_tiles.h"
+#include "_native_kernel_avx512.h"
 
 #endif /* FSE_NATIVE_KERNEL_MEAN_H */

@@ -19,6 +19,7 @@ from support.tiles import (
     ACC_MISTAKES,
     BUILDER_MISTAKES,
     LAYOUTS,
+    WITNESS_DIMS,
     model_pool,
     model_rows,
     regions,
@@ -90,7 +91,7 @@ ACC_KS = {"reverse the terms of a tile": KS[1:]}
 
 @pytest.mark.parametrize(
     ("layout", "region"),
-    [(layout, region) for layout in LAYOUTS for region in regions(127, layout)],
+    [(layout, region) for layout in LAYOUTS for region in regions(WITNESS_DIMS[layout], layout)],
 )
 @pytest.mark.parametrize("mistake", ACC_MISTAKES)
 def test_the_suite_catches_an_accumulator_mistake(mistake, region, layout):

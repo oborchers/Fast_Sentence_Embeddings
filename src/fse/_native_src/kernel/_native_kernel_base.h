@@ -38,7 +38,18 @@
 #include <cpuid.h>
 #define FSE_AVX2_TARGET __attribute__((target("avx2,fma,f16c")))
 #endif
+#if defined(FSE_HAVE_AVX512)
+#if defined(_MSC_VER)
+#define FSE_AVX512_TARGET
+#else
+#define FSE_AVX512_TARGET __attribute__((target("avx2,fma,f16c,avx512f,avx512dq,avx512bw,avx512vl")))
 #endif
+#define FSE_AVX512 1
+#endif
+#endif
+
+/* A remains the default until the story measurement selects a layout. */
+#define FSE_AVX512_LAYOUT 0
 
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
 #define FSE_NEON 1
@@ -66,7 +77,7 @@
 #define FSE_OOV_TOKEN 0xFFFFFFFEu
 
 enum { FSE_F32 = 0, FSE_F16 = 1, FSE_I8 = 2 };
-enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2 };
+enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2, FSE_ISA_AVX512 = 3 };
 
 /* Per-thread diagnostics exist only in explicitly instrumented test builds. */
 #if defined(FSE_TEST_TILES)

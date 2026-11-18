@@ -1,0 +1,5 @@
+--- a/src/fse/_native_src/kernel/_native_kernel_base.h
++++ b/src/fse/_native_src/kernel/_native_kernel_base.h
+@@ -1,1 +1,1 @@
+-#define FSE_AVX512_LAYOUT 0
++#define FSE_AVX512_LAYOUT 1

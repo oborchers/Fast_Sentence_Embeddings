@@ -74,7 +74,7 @@ def _rng(seed):
 
 # The int8 prefilter variant that runs with an instruction set (the portable one if the CPU
 # lacks the instructions of the vector variant).
-PREFILTER_OF_ISA = {"neon": "neon-sdot", "avx2": "avx2"}
+PREFILTER_OF_ISA = {"neon": "neon-sdot", "avx2": "avx2", "avx512": "avx2"}
 
 
 def prefilter_variant_of(isa):

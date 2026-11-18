@@ -1,0 +1,118 @@
+"""Raw-register eligibility and exact import-time ISA selection, including emulated children."""
+
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+
+import numpy as np
+import pytest
+
+from fse import _native
+
+LEAF1 = sum(1 << bit for bit in (12, 27, 28, 29))
+LEAF7 = sum(1 << bit for bit in (5, 16, 17, 30, 31))
+
+
+@pytest.fixture
+def detect():
+    if _native._test_isa_detection(7, LEAF1, LEAF7, 0xE6) is None:
+        assert not os.environ.get("FSE_REQUIRE_ISA"), "required detection hook missing"
+        assert os.environ.get("FSE_TEST_TILES") != "1", "rebuild instrumented extension"
+        pytest.skip("synthetic detection exists only in instrumented builds")
+    return _native._test_isa_detection
+
+
+@pytest.mark.parametrize("bit", [12, 27, 28, 29])
+def test_each_shared_avx_prerequisite(detect, bit):
+    assert detect(7, LEAF1 & ~(1 << bit), LEAF7, 0xE6) == 0
+
+
+@pytest.mark.parametrize("bit", [5, 16, 17, 30, 31])
+def test_each_leaf7_feature(detect, bit):
+    assert detect(7, LEAF1, LEAF7 & ~(1 << bit), 0xE6) == (0 if bit == 5 else 1)
+
+
+@pytest.mark.parametrize("bit", [1, 2, 5, 6, 7])
+def test_each_os_state_component(detect, bit):
+    assert detect(7, LEAF1, LEAF7, 0xE6 & ~(1 << bit)) == (0 if bit in (1, 2) else 1)
+
+
+@pytest.mark.parametrize("leaf", [0, 1, 6])
+def test_missing_leaf(detect, leaf):
+    assert detect(leaf, LEAF1, LEAF7, 0xE6) == 0
+
+
+@pytest.mark.parametrize("vendor", [0, 0x68747541, 0x756E6547])
+@pytest.mark.parametrize("family", [6, 0x19, 0x1A, 0xFF])
+def test_availability_does_not_enable_default_policy(detect, vendor, family):
+    assert detect(7, LEAF1, LEAF7, 0xE6, vendor=vendor, family=family) == 3
+    assert detect(7, LEAF1, LEAF7, 0xE6, compiled=0, vendor=vendor, family=family) == 1
+    assert detect(8, LEAF1 | 1, LEAF7 | 1, 0xE7, leaf7_ecx=0xFFFFFFFF) == 3
+
+
+def _child(choice):
+    env = os.environ.copy()
+    env.pop("FSE_ISA", None)
+    if choice is not None:
+        env["FSE_ISA"] = choice
+    # Explicit wrapping instruments every exec, independently of Pin's fork policy.
+    prefix = shlex.split(env.get("FSE_TEST_PYTHON_PREFIX", ""), posix=sys.platform != "win32")
+    script = """
+import json, os, numpy as np
+from fse import _native as n
+available = n.available_isas()
+profile = os.environ.get('FSE_SDE_PROFILE')
+if profile == 'spr':
+    assert 'avx512' in available, available
+elif profile == 'hsw':
+    assert 'avx2' in available and 'avx512' not in available, available
+explicit = n.WeightedMean(np.ones((1, 1), np.float32), np.ones(1, np.float32), isa='portable')
+implicit = n.WeightedMean(np.ones((1, 1), np.float32), np.ones(1, np.float32))
+result = [n.default_isa(), available, explicit.isa_name, implicit.isa_name]
+os.environ['FSE_ISA'] = 'invalid after import'
+assert n.default_isa() == result[0]
+print(json.dumps(result))
+"""
+    return subprocess.run(
+        [*prefix, sys.executable, "-c", script], env=env, capture_output=True, text=True, check=False
+    )
+
+
+@pytest.mark.parametrize("choice", [None, "portable", "avx2", "avx512", "neon"])
+def test_environment_choice_and_explicit_precedence(choice):
+    result = _child(choice)
+    if choice is not None and choice not in _native.available_isas():
+        assert result.returncode != 0
+        assert "ValueError: FSE_ISA" in result.stderr
+        return
+    assert result.returncode == 0, result.stderr
+    default, available, explicit, implicit = json.loads(result.stdout)
+    expected = choice or next(isa for isa in reversed(available) if isa != "avx512")
+    assert default == implicit == expected
+    assert tuple(available) == _native.available_isas()
+    assert explicit == "portable"
+
+
+@pytest.mark.parametrize("choice", ["", "AVX2", " avx2", "avx2 ", "avx512\n", "sse", "0"])
+def test_invalid_environment_fails_at_extension_import(choice):
+    result = _child(choice)
+    assert result.returncode != 0
+    assert "ValueError: FSE_ISA" in result.stderr
+
+
+def test_required_isa_is_executed():
+    required = os.environ.get("FSE_REQUIRE_ISA")
+    if required is None:
+        pytest.skip("no required ISA in this run")
+    assert required in _native.available_isas()
+    assert _native._test_pool_trace() is not None
+    kernel = _native.WeightedMean(np.ones((1, 255), np.float32), np.ones(1, np.float32), isa=required)
+    from fse._contract import Batch
+
+    kernel.pool(Batch(0, np.array([0, 1], np.int64), np.array([0], np.uint32)))
+    assert _native._test_pool_trace() == (f"{required}-tiles", 1)
+    assert _native._avx512_layout() == int(os.environ.get("FSE_EXPECT_AVX512_LAYOUT", "0"))
