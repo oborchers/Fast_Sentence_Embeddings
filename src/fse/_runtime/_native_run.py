@@ -8,21 +8,20 @@ from typing import Any
 from fse._text import StringSource
 
 from ._sinks import ArrayRows
+from ._worker import WorkerLocal
 
 MAX_ROWS = 131_072
 MAX_BYTES = 16 << 20
 MAX_TASKS = 256
 
 
-def eligible(
-    pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
+def _scope(
+    pipeline, source, tasks, workers, pool, sink, base, lengths, collector, chunk_bytes, dtype
 ):
-    """Decide before consuming any item of the plan's task iterator."""
     return (
         pool is None
         and sink is None
-        and type(own) is ArrayRows
-        and own.dtype == "float32"
+        and dtype == "float32"
         and type(source) is StringSource
         and source._verified
         and base == 0
@@ -39,6 +38,66 @@ def eligible(
         and tasks.rows <= MAX_ROWS
         and source.nbytes <= MAX_BYTES
     )
+
+
+def eligible(
+    pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
+):
+    """Decide before consuming any item of the plan's task iterator."""
+    return type(own) is ArrayRows and _scope(
+        pipeline,
+        source,
+        tasks,
+        workers,
+        pool,
+        sink,
+        base,
+        lengths,
+        collector,
+        chunk_bytes,
+        own.dtype,
+    )
+
+
+def prepare(
+    pipeline,
+    source,
+    tasks,
+    workers,
+    window,
+    dtype,
+    sink,
+    pool,
+    base,
+    lengths,
+    collector,
+    chunk_bytes,
+    output_factory,
+):
+    """Keep old-path logging before setup; delay candidates to select executor metadata."""
+    log_args = (source, tasks.rows, tasks.inline, workers, window, dtype, sink)
+    logged = not _scope(
+        pipeline, source, tasks, workers, pool, sink, base, lengths, collector, chunk_bytes, dtype
+    )
+    if logged:
+        pipeline._planned(*log_args)
+    try:
+        own = output_factory(tasks.rows, pipeline.output_dim, dtype) if sink is None else None
+        active_sink = own if sink is None else sink
+        local = WorkerLocal(lengths)
+        work = pipeline._task_work(source, type(own) is ArrayRows, local, base, collector)
+        internal = own if work is not None else None
+        team, remaining = select(
+            pipeline, source, tasks, own, workers, pool, sink, base, lengths, collector, chunk_bytes
+        )
+        if not logged:
+            pipeline._planned(*log_args, executor=getattr(team, "executor", None))
+            logged = True
+        return own, active_sink, local, work, internal, team, remaining
+    except BaseException:
+        if not logged:
+            pipeline._planned(*log_args)
+        raise
 
 
 def _append(buffered, item):
@@ -68,7 +127,7 @@ def select(
         team = pipeline.backend.string_team(
             pipeline.prepared, pipeline.lookup, source, buffered, own._out, workers
         )
-    except (MemoryError, ValueError, TypeError, RuntimeError):
+    except (MemoryError, ValueError, TypeError):
         return None, replay
     if not team.prepared:
         return None, replay

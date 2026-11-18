@@ -65,7 +65,7 @@ def test_real_errors_match_old_executor_and_reference(monkeypatch, kind, positio
     assert native[1].startswith(f"row {row} ")
 
 
-@pytest.mark.parametrize("workers", [2, 4, 8])
+@pytest.mark.parametrize("workers", range(2, 9))
 def test_later_pooling_error_cannot_hide_earlier_normalization_failure(workers):
     model = _pipeline("overflow")
     sentences = ["good".ljust(100)] * 4000

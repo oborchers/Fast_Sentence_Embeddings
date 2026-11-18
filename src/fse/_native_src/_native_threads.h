@@ -14,6 +14,10 @@
 
 typedef void (*fse_part)(void *arg, int part);
 
+/* Native helpers run no Python frames; variable buffers live in Workspaces.
+ * Still request a 1 MiB floor rather than depending on musl's small default. */
+#define FSE_TEAM_STACK_MIN (1024u * 1024u)
+
 /* For the tests: bit i set makes the start of the thread of part i fail. */
 static unsigned fse_test_failed_starts = 0;
 /* Test-only failure before bookkeeping allocation; no part runs on failure. */
@@ -62,6 +66,12 @@ static int fse_start(fse_thread *thread, fse_task *task) {
     return *thread ? 0 : -1;
 }
 
+static int fse_start_team(fse_thread *thread, fse_task *task) {
+    *thread = (HANDLE)_beginthreadex(NULL, FSE_TEAM_STACK_MIN, fse_thread_main,
+                                    task, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+    return *thread ? 0 : -1;
+}
+
 static void fse_join(fse_thread thread) {
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
@@ -84,6 +94,21 @@ static int fse_start(fse_thread *thread, fse_task *task) {
     return pthread_create(thread, NULL, fse_thread_main, task) ? -1 : 0;
 }
 
+static int fse_start_team(fse_thread *thread, fse_task *task) {
+    pthread_attr_t attributes;
+    size_t size;
+    int status;
+    if (pthread_attr_init(&attributes)) return -1;
+    status = pthread_attr_getstacksize(&attributes, &size);
+    if (!status) {
+        if (size < FSE_TEAM_STACK_MIN) size = FSE_TEAM_STACK_MIN;
+        status = pthread_attr_setstacksize(&attributes, size);
+    }
+    if (!status) status = pthread_create(thread, &attributes, fse_thread_main, task);
+    pthread_attr_destroy(&attributes);
+    return status ? -1 : 0;
+}
+
 static void fse_join(fse_thread thread) { pthread_join(thread, NULL); }
 static uint64_t fse_thread_id(fse_thread thread) { return (uint64_t)(uintptr_t)thread; }
 static void fse_team_pause(void) {
@@ -93,12 +118,12 @@ static void fse_team_pause(void) {
 #endif
 
 /* Caller-owned storage. Failed starts reduce the team; slot zero drains the queue.
- * Separate started/joined handles let each call check its own resource balance. */
+ * Started/executing identities and joined flags check each call's balance. */
 typedef struct {
-    fse_thread thread, joined_thread;
+    fse_thread thread;
     fse_task task;
     int started, joined;
-    uint64_t started_id, joined_id, actual_id;
+    uint64_t started_id, actual_id;
 } fse_team_slot;
 
 static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
@@ -110,15 +135,13 @@ static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
         slots[i].task.part = i;
         slots[i].task.actual_id = &slots[i].actual_id;
         slots[i].started = !(i < 32 && (failed_starts >> i) & 1u) &&
-                           fse_start(&slots[i].thread, &slots[i].task) == 0;
+                           fse_start_team(&slots[i].thread, &slots[i].task) == 0;
         if (slots[i].started) slots[i].started_id = fse_thread_id(slots[i].thread);
     }
     fn(arg, 0);
     for (i = 1; i < n; i++) {
         if (slots[i].started) {
-            slots[i].joined_id = fse_thread_id(slots[i].thread);
             fse_join(slots[i].thread);
-            slots[i].joined_thread = slots[i].thread;
             slots[i].joined = 1;
         }
     }
@@ -129,13 +152,7 @@ static int fse_team_balanced(int n, fse_team_slot *slots) {
     for (i = 1; i < n; i++) {
         if (slots[i].started != slots[i].joined) return 0;
         if (!slots[i].started) continue;
-        if (slots[i].started_id != slots[i].joined_id ||
-            slots[i].started_id != slots[i].actual_id) return 0;
-#ifdef _WIN32
-        if (slots[i].thread != slots[i].joined_thread) return 0;
-#else
-        if (!pthread_equal(slots[i].thread, slots[i].joined_thread)) return 0;
-#endif
+        if (slots[i].started_id != slots[i].actual_id) return 0;
     }
     return 1;
 }

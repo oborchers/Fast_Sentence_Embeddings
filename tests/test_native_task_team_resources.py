@@ -70,14 +70,14 @@ def test_simultaneous_calls_have_independent_balances(monkeypatch, calls):
     assert (_native._test_team_resources(), _native._test_join_resources()) == baseline
 
 
-def test_thread_identities_match_started_joined_and_executing_slots(monkeypatch):
+def test_started_thread_ids_match_callbacks_and_join_counts(monkeypatch):
     teams = capture(monkeypatch)
     with faults(failed_starts=10):
         pipeline().infer(StringSource(texts(4000)), workers=8)
     team = teams[-1]
     assert len(team.thread_ids) == team.balance[2] == team.balance[3]
     assert team.thread_ids
-    assert all(started == joined == executing for started, joined, executing in team.thread_ids)
+    assert all(started == executing for started, executing in team.thread_ids)
 
 
 def test_team_uses_immutable_hook_snapshots():

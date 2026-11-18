@@ -274,15 +274,18 @@ def test_the_record_of_a_task_makes_only_allocations(monkeypatch, tmp_path, mode
     assert collector.report().n_rows == 2000
 
 
-def test_team_callback_and_its_exclusive_helpers_require_noexcept():
+@pytest.mark.parametrize("helper", ["_team_failed", "_team_release"])
+def test_callback_and_run_helpers_require_noexcept(helper):
     part = "_native_task_team.pxi"
     text = gil_budget.source(part)
-    declaration = "cdef bint _team_failed("
+    declaration = (
+        "cdef bint _team_failed(" if helper == "_team_failed" else "cdef void _team_release("
+    )
     start = text.index(declaration)
     end = text.index(":\n", start)
     broken = text[:start] + text[start:end].replace(" noexcept", "") + text[end:]
     others = [source for source in gil_budget.native_sources() if source != text]
-    assert "_team_failed" in gil_budget.checked_without_gil(broken, others)
+    assert helper in gil_budget.checked_without_gil(broken, others)
 
 
 def test_native_call_has_one_section_and_no_numpy_calls(monkeypatch, tmp_path):

@@ -119,7 +119,8 @@ def _fixed_plan(monkeypatch, count, *, scan_error=False):
             seen.append(i)
             yield Task(source, Chunk(i, i + 1, i, 1))
         if scan_error:
-            raise ValueError("scan stopped after complete tasks")
+            error_type = MemoryError if scan_error == "memory" else ValueError
+            raise error_type("scan stopped after complete tasks")
 
     def plan(*_args, **_kwargs):
         return Plan(items(), count, False), 8, threading.Event()
@@ -128,7 +129,7 @@ def _fixed_plan(monkeypatch, count, *, scan_error=False):
     return source, seen
 
 
-@pytest.mark.parametrize("count", [256, 257, 258])
+@pytest.mark.parametrize("count", [255, 256, 257, 258])
 def test_task_limit_buffers_at_most_257_then_replays_all_tasks(monkeypatch, count):
     source, seen = _fixed_plan(monkeypatch, count)
     observed = []
@@ -231,3 +232,78 @@ def test_native_plan_is_logged_once_and_errors_have_no_done_record(failed):
     assert all(record.threadName == threading.current_thread().name for record in events)
     if not failed:
         assert (events[1].fse_rows, events[1].fse_tasks) == (len(source), len(tasks))
+
+
+@pytest.mark.parametrize("candidate", [False, True])
+def test_setup_allocation_failure_keeps_one_plan_record(monkeypatch, candidate):
+    from fse._runtime import _pipeline
+    from support.logs import captured
+
+    model = pipeline()
+    source = StringSource(texts(2000))
+    with captured() as records:
+
+        def fail(*_args):
+            if not candidate:
+                assert [r.fse_event for r in records] == ["runtime.plan"]
+            raise MemoryError("own output allocation failed")
+
+        monkeypatch.setattr(_pipeline, "own_rows", fail)
+        with pytest.raises(MemoryError, match="own output allocation failed"):
+            model.infer(source, workers=2, chunk_bytes=None if candidate else 8000)
+    assert [r.fse_event for r in records] == ["runtime.plan"]
+
+
+def test_next_memory_error_is_a_scan_error_not_a_buffering_failure(monkeypatch):
+    source, seen = _fixed_plan(monkeypatch, 256, scan_error="memory")
+    before = _native._test_team_calls()
+    with pytest.raises(MemoryError, match="scan stopped after complete tasks"):
+        pipeline().infer(source, workers=2)
+    assert seen == list(range(256))
+    assert _native._test_team_calls() == before + 1
+
+
+def test_native_range_invariant_is_not_hidden_by_fallback(monkeypatch):
+    from dataclasses import replace
+
+    from fse._runtime import _pipeline
+    from fse._runtime._tasks import Plan
+    from support.native_team import tasks_for
+
+    model = pipeline()
+    source = StringSource(texts(2000))
+    tasks = tasks_for(model, source, 2)
+    assert len(tasks) > 1
+    tasks[1] = replace(tasks[1], chunk=replace(tasks[1].chunk, first_row=tasks[1].first_row + 1))
+    original_plan, window, stop = model.plan_tasks(source, 2, None, model._row_bytes("float32"))
+
+    def plan(*_args, **_kwargs):
+        return Plan(iter(tasks), original_plan.rows, False), window, stop
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("native range invariant reached the fallback executor")
+
+    monkeypatch.setattr(model, "plan_tasks", plan)
+    monkeypatch.setattr(_pipeline, "run", forbidden)
+    before = _native._test_team_calls()
+    with pytest.raises(RuntimeError, match="native task team requires ordered, disjoint"):
+        model.infer(source, workers=2)
+    assert _native._test_team_calls() == before
+    assert _native._test_team_resources() == 0
+
+
+def test_checked_preparation_error_replays_tasks(monkeypatch):
+    model = pipeline()
+    sentences = texts(2000)
+    source = StringSource(sentences)
+
+    def checked_error(*_args):
+        raise ValueError("checked output/input error")
+
+    monkeypatch.setattr(model.backend, "string_team", checked_error)
+    before = _native._test_team_calls()
+    found = model.infer(source, workers=2)
+    assert _native._test_team_calls() == before
+    np.testing.assert_array_equal(
+        found.view(np.uint32), expected(model.spec, sentences).view(np.uint32)
+    )

@@ -1,7 +1,14 @@
 /* Compile the production thread runner and atomic protocol, without Python. */
-#include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include "_native_threads.h"
+
+#define CHECK(expression) do { \
+    if (!(expression)) { \
+        fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expression); \
+        abort(); \
+    } \
+} while (0)
 
 #define ITEMS 257
 #define WORKERS 8
@@ -22,11 +29,11 @@ static void worker(void *arg, int slot) {
     int64_t i;
     void *owned = fse_join_calloc(1, 16);
     (void)slot;
-    assert(owned);
+    CHECK(owned);
     for (;;) {
         i = fse_atomic_add(&call->next, 1);
         if (i >= ITEMS || i > fse_atomic_load(&call->failed_at)) break;
-        assert(fse_atomic_add(&call->visits[i], 1) == 0);
+        CHECK(fse_atomic_add(&call->visits[i], 1) == 0);
         if (i == call->failure) fse_atomic_min(&call->failed_at, i);
     }
     fse_join_free(owned);
@@ -39,11 +46,11 @@ static void run_call(void *arg, int index) {
     fse_atomic_store(&call->next, 0);
     fse_atomic_store(&call->failed_at, ITEMS);
     fse_team(WORKERS, worker, call, call->slots, call->failed_starts);
-    assert(fse_team_balanced(WORKERS, call->slots));
+    CHECK(fse_team_balanced(WORKERS, call->slots));
     prefix = call->failure < 0 ? ITEMS : call->failure;
-    assert(fse_atomic_load(&call->failed_at) == prefix);
-    for (i = 0; i < prefix; i++) assert(fse_atomic_load(&call->visits[i]) == 1);
-    for (i = prefix; i < ITEMS; i++) assert(fse_atomic_load(&call->visits[i]) <= 1);
+    CHECK(fse_atomic_load(&call->failed_at) == prefix);
+    for (i = 0; i < prefix; i++) CHECK(fse_atomic_load(&call->visits[i]) == 1);
+    for (i = prefix; i < ITEMS; i++) CHECK(fse_atomic_load(&call->visits[i]) <= 1);
 }
 
 int main(void) {
@@ -57,9 +64,9 @@ int main(void) {
             state.calls[i].failed_starts = masks[(round + i) % 4];
             state.calls[i].failure = failures[(round / 4 + i) % 4];
         }
-        assert(fse_parallel(CALLS, run_call, &state) == 0);
-        assert(fse_atomic_load(&fse_test_join_live) == 0);
-        assert(fse_atomic_load(&fse_test_team_live) == 0);
+        CHECK(fse_parallel(CALLS, run_call, &state) == 0);
+        CHECK(fse_atomic_load(&fse_test_join_live) == 0);
+        CHECK(fse_atomic_load(&fse_test_team_live) == 0);
     }
     return 0;
 }

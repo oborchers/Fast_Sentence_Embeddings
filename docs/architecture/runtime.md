@@ -5,7 +5,7 @@ Historical M1 timing observations in this document are withdrawn and must not su
 
 Binding for every 2.0 module (formerly under "2.0 design").
 
-`fse._runtime` runs encoding on one executor (`run`):
+`fse._runtime` runs encoding through `run` or the bounded per-call native team below:
 
 - **Uniform inputs.** Every finite text batch in `encode_batches` and `predict_batches` may be a list, tuple, one-dimensional NumPy text array or Arrow string column. The same element and dimension checks apply before conversion. This also holds inside document-ID and stream-position tuples, including a batch sliced while resuming stores of different lengths. Local file parameters accept `str` and `os.PathLike[str]`; model references distinguish local path objects from string Hub identifiers. Stores, sinks and views retain TypeError for invalid path types, while validated loaders retain ValidationError.
 
@@ -136,3 +136,17 @@ No computation thread outlives the call and no default pool is created. There is
 no new fork handler. If another Python thread forks during a team call, the child
 does not resume the team's calling frame or join inherited handles. The child's
 resource tests use their post-fork baseline for inherited allocations.
+
+Native helper stacks have an explicit 1 MiB floor (`FSE_TEAM_STACK_MIN`).
+Pthread helpers retain a larger system default. Windows helpers explicitly reserve
+1 MiB with `_beginthreadex`. This avoids depending on musl's smaller default.
+Helpers run no Python frames; variable-sized token, normalization and lattice
+buffers live in their heap workspaces. Python's `threading.stack_size()` does
+not configure these native helpers. The existing parallel input-join passes keep
+their thread-start behavior.
+
+Excluded calls log `runtime.plan` before output allocation and task-worker setup,
+as before. Potential native calls delay this record until preparation selects
+the executor. If their setup fails, they still emit one plan record before raising.
+Preparation errors from checked input/output validation may use the old executor;
+an internal range-order invariant raises `RuntimeError` without silent fallback.

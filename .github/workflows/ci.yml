@@ -524,11 +524,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Compile the production task runner with ThreadSanitizer
-        run: clang -std=c11 -O1 -g -fsanitize=thread -fno-omit-frame-pointer -pthread -Isrc/fse/_native_src tests/native/task_team_tsan.c -o /tmp/fse-team-tsan
+        run: |
+          clang -std=c11 -O1 -g -fsanitize=thread -fno-omit-frame-pointer -pthread -Isrc/fse/_native_src tests/native/task_team_tsan.c -o /tmp/fse-team-tsan
+          clang -std=c11 -O1 -g -DNDEBUG -fsanitize=thread -fno-omit-frame-pointer -pthread -Isrc/fse/_native_src tests/native/task_team_tsan.c -o /tmp/fse-team-tsan-ndebug
       - name: Check concurrent teams, atomic failure order and resource balance
         env:
           TSAN_OPTIONS: halt_on_error=1
-        run: /tmp/fse-team-tsan
+        run: |
+          /tmp/fse-team-tsan
+          /tmp/fse-team-tsan-ndebug
 
   check:
     if: always()

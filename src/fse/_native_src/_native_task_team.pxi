@@ -9,7 +9,6 @@ cdef extern from "_native_threads.h":
         int started
         int joined
         uint64_t started_id
-        uint64_t joined_id
         uint64_t actual_id
     void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
                   unsigned failed_starts) noexcept nogil
@@ -40,7 +39,6 @@ cdef struct _Team:
     int allocated, freed, started, joined
     bint balanced
     uint64_t started_ids[256]
-    uint64_t joined_ids[256]
     uint64_t actual_ids[256]
 
 
@@ -238,7 +236,7 @@ cdef class TaskTeam:
             end, rows = chunk.end, chunk.n_sentences
             if (chunk.start != start or chunk.first_row != first_row or rows <= 0
                     or end - start != rows or end > last or first_row + rows > len(out)):
-                raise ValueError("task team requires ordered, disjoint StringSource ranges")
+                raise RuntimeError("native task team requires ordered, disjoint StringSource ranges")
             _span_of(&t.tasks[i].span, data, offsets, start, end)
             _stages_of(&t.tasks[i].stages, kernel, lookup, out, len(out), normalize, code, None)
             t.tasks[i].stages.out += first_row * kernel.dim
@@ -267,7 +265,6 @@ cdef class TaskTeam:
                 t.started += t.slots[i].started
                 t.joined += t.slots[i].joined
                 t.started_ids[i] = t.slots[i].started_id
-                t.joined_ids[i] = t.slots[i].joined_id
                 t.actual_ids[i] = t.slots[i].actual_id
             _team_release(t)
         self.workspaces = []
@@ -278,7 +275,7 @@ cdef class TaskTeam:
 
     @property
     def thread_ids(self):
-        return tuple((self.team.started_ids[i], self.team.joined_ids[i], self.team.actual_ids[i])
+        return tuple((self.team.started_ids[i], self.team.actual_ids[i])
                      for i in range(1, self.team.workers) if self.team.started_ids[i])
 
     @property

@@ -310,6 +310,7 @@ def checked_without_gil(fused: str, others: list[str]) -> list[str]:
     roots = _nogil_calls(fused)
     if "_team_worker" in signatures:
         roots.add("_team_worker")  # A C callback is passed by name, never called syntactically.
+        roots |= _nogil_calls(source("_native_task_team.pxi"))
     todo, seen, found = list(roots), set(), []
     while todo:
         name = todo.pop()

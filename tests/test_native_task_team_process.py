@@ -23,6 +23,7 @@ def test_signal_and_fork_contract_in_bounded_processes(mode):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     receipt = json.loads(result.stdout)
+    print(json.dumps(receipt))
     assert receipt["balanced"]
     if mode == "fork":
         assert receipt["child"]

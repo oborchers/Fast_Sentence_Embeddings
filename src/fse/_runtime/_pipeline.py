@@ -42,7 +42,7 @@ from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
 from ._native_run import execute as execute_native
-from ._native_run import select as select_native
+from ._native_run import prepare as prepare_native
 from ._pool import Pool, Workers, resolve_workers
 from ._sinks import (
     ArrayRows,
@@ -163,17 +163,26 @@ class Pipeline:
         tasks, window, stop = self.plan_tasks(
             source, workers, chunk_bytes, row_bytes, base, pool=pool
         )
-        requested_sink = sink
-        own: ArrayRows | GrowingRows | None = None
-        tbase = base if sink is not None else 0  # own targets count from 0
-        if sink is None:
-            own = own_rows(tasks.rows, self.output_dim, dtype)
-            sink = own
-        local = WorkerLocal(lengths)
-        done = [0, 0]  # the rows and tasks committed, for the record of the run
-
-        native_work = self._task_work(source, type(own) is ArrayRows, local, base, collector)
-        internal = cast(ArrayRows, own) if native_work is not None else None
+        tbase = base if sink is not None else 0
+        own: ArrayRows | GrowingRows | None
+        own, sink, local, native_work, internal, team, remaining = prepare_native(
+            self,
+            source,
+            tasks,
+            workers,
+            window,
+            dtype,
+            sink,
+            pool,
+            base,
+            lengths,
+            collector,
+            chunk_bytes,
+            own_rows,
+        )
+        sink = cast(Sink, sink)
+        internal = cast(ArrayRows | None, internal)
+        done = [0, 0]
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
             first = tbase + task.first_row
@@ -197,29 +206,6 @@ class Pipeline:
             done[0] += item[0].n_rows
             done[1] += 1
 
-        team, remaining = select_native(
-            self,
-            source,
-            tasks,
-            own,
-            workers,
-            pool,
-            requested_sink,
-            base,
-            lengths,
-            collector,
-            chunk_bytes,
-        )
-        self._planned(
-            source,
-            tasks.rows,
-            tasks.inline,
-            workers,
-            window,
-            dtype,
-            requested_sink,
-            getattr(team, "executor", None),
-        )
         execute_native(
             team,
             own,
