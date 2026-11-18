@@ -1,6 +1,6 @@
 """Run serial kernel conformance under a pinned Intel SDE, including followed child interpreters.
 
-The workflow supplies FSE_SDE_EXE. Pin follows every Python exec in the environment-choice tests. Each child checks
+The workflow supplies FSE_SDE_EXE. The pinned SDE launcher follows child execs by default (see -no-follow-child in its help). Each child checks
 the emulated feature profile itself, under both Sapphire Rapids and Haswell.
 """
 
@@ -35,12 +35,12 @@ TESTS = (
 
 def main() -> None:
     for profile in ("spr", "hsw"):
-        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "-follow_execv", "--"]
+        prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "-echo", "--"]
         env = os.environ.copy()
         env["FSE_SDE_PROFILE"] = profile
         env["FSE_REQUIRE_ISA"] = "avx512" if profile == "spr" else "avx2"
-        # Pin's documented -follow_execv instruments the same Python executable in
-        # children. Do not nest Pin inside Pin: that fails before child import.
+        # SDE enables Pin child following by default; -echo records its actual Pin
+        # command. Pin's own follow option is not an SDE tool knob. Do not nest Pin.
         # Child assertions under BOTH profiles catch accidental host execution.
         subprocess.run(
             [*prefix, sys.executable, "-m", "pytest", "-x", *TESTS, "-m", "not network"],
