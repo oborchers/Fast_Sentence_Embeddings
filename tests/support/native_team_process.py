@@ -141,6 +141,7 @@ def main():
     copied = len(sys.argv) > 2 and sys.argv[2] == "copied"
     source = copied_strings(sentences) if copied else StringSource(sentences)
     task_count = len(tasks_for(model, source, 2))
+    assert task_count > len(tasks_for(model, source, 2, refined=False))
     wanted = expected(model.spec, sentences)
     baseline = (_native._test_team_resources(), _native._test_join_resources())
     _native._test_team_control(True)

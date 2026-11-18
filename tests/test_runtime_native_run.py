@@ -6,7 +6,7 @@ import pytest
 from fse import _native
 from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _native_run
-from fse._text import StringSource
+from fse._text import StringSource, copied_strings
 from fse._tokenizer_spec import TokenizerSpec
 from support.runtime import expected, texts, word_vectors
 
@@ -76,6 +76,7 @@ def test_failure_status_preserves_prefix_and_replay_contract(
     model = pipeline()
     source = StringSource(texts(4000))
     tasks = tasks_for(model, source, 4)
+    assert len(tasks) > len(tasks_for(model, source, 4, refined=False))
     index = {"first": 0, "middle": len(tasks) // 2, "last": len(tasks) - 1}[position]
     allocations, replays = [], []
     real_own, real_work = _pipeline.own_rows, Pipeline._task_work
@@ -218,6 +219,7 @@ def test_native_plan_is_logged_once_and_errors_have_no_done_record(failed):
     model = pipeline()
     source = StringSource(texts(2000))
     tasks = tasks_for(model, source, 2)
+    assert len(tasks) > len(tasks_for(model, source, 2, refined=False))
     with captured() as records, faults(status_task=0 if failed else -1, status=1):
         if failed:
             with pytest.raises(MemoryError):
@@ -273,6 +275,7 @@ def test_native_range_invariant_is_not_hidden_by_fallback(monkeypatch):
     model = pipeline()
     source = StringSource(texts(2000))
     tasks = tasks_for(model, source, 2)
+    assert len(tasks) > len(tasks_for(model, source, 2, refined=False))
     assert len(tasks) > 1
     tasks[1] = replace(tasks[1], chunk=replace(tasks[1].chunk, first_row=tasks[1].first_row + 1))
     original_plan, window, stop = model.plan_tasks(source, 2, None, model._row_bytes("float32"))
@@ -328,41 +331,65 @@ def test_raising_plan_hook_is_called_once_and_releases_prepared_team(monkeypatch
     assert _native._test_team_resources() == 0
 
 
-def test_refined_limit_fallback_replays_original_tasks_and_scan_error(monkeypatch):
+@pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
+@pytest.mark.parametrize("preparation_failure", [False, True])
+@pytest.mark.parametrize("scan_error", [False, True])
+def test_refined_limit_keeps_native_original_tasks_or_preparation_fallback(
+    monkeypatch, source_factory, preparation_failure, scan_error
+):
     import threading
 
     from fse._runtime import _pipeline
     from fse._runtime._tasks import Plan, Task
     from fse._text import Chunk
+    from support.native_team import faults
 
-    source = StringSource(["w0 " * 100] * 512)
+    sentences = ["w0 " * 100] * 512
+    source = source_factory(sentences)
     original = [Task(source, Chunk(0, 512, 0, 512))]
-    seen = []
+    replayed, selected = [], []
+    model = pipeline()
 
     def items():
         yield from original
-        raise ValueError("saved scan error")
+        if scan_error:
+            raise ValueError("saved scan error")
 
     def plan(*_args, **_kwargs):
         return Plan(items(), 512, False), 8, threading.Event()
 
-    runner = _pipeline.run
+    runner, factory = _pipeline.run, model.backend.string_team
 
     def replay(tasks, *args, **kwargs):
         def record():
             for task in tasks:
-                seen.append(task)
+                replayed.append(task)
                 yield task
 
         return runner(record(), *args, **kwargs)
 
+    def team(prepared, lookup, text, tasks, out, workers):
+        selected.extend(tasks)
+        return factory(prepared, lookup, text, tasks, out, workers)
+
     monkeypatch.setattr(Pipeline, "plan_tasks", plan)
     monkeypatch.setattr(_pipeline, "run", replay)
+    monkeypatch.setattr(model.backend, "string_team", team)
     calls = _native._test_team_calls()
-    with pytest.raises(ValueError, match="saved scan error"):
-        pipeline().infer(source, workers=100)
-    assert seen == original
-    assert _native._test_team_calls() == calls
+    with faults(allocation=int(preparation_failure)):
+        if scan_error:
+            with pytest.raises(ValueError, match="saved scan error"):
+                model.infer(source, workers=100)
+        else:
+            found = model.infer(source, workers=100)
+            np.testing.assert_array_equal(
+                found.view(np.uint32), expected(model.spec, sentences).view(np.uint32)
+            )
+    assert selected == original
+    assert replayed == (original if preparation_failure else [])
+    assert _native._test_team_calls() == calls + (not preparation_failure)
+    if source_factory is copied_strings:
+        assert _native._test_string_copy_progress(source._copy) == (512, 1)
 
 
 def test_refinement_memory_error_replays_original_tasks(monkeypatch):

@@ -119,8 +119,10 @@ single-task path and excluded routes retain their original cuts.
 
 Refinement consumes byte cuts lazily and retains at most 256 new tasks alongside
 the original buffer, with constant temporary cut state. If another item would
-exceed that limit, or refinement or team preparation fails, the ordinary executor
-receives the original tasks and retained scan error. The team and error replay
+exceed that limit, the native team uses the original buffered tasks. This keeps
+the native route available wherever the unrefined plan fits. If refinement or
+team preparation fails, the ordinary executor receives the original tasks and
+retained scan error. The team and error replay
 use the same refined list, so prefix rows and copied ranges are accounted per
 refined item, including actual copies beyond the earliest failure.
 
@@ -136,7 +138,10 @@ The team releases the GIL once and never re-enters Python while processing tasks
 It restores each thread's floating-point environment, joins all started threads,
 frees native team buffers and checks its own resource balance before returning
 to Python. `runtime.plan` adds `executor="native"` for this route. Successful
-calls emit `runtime.done` once. Errors emit no completion record.
+calls emit `runtime.done` once. Its `tasks` field counts the items actually
+executed: refined items on the native route, original tasks when refinement
+exceeds the limit, and ordinary plan tasks on the Python route. Errors emit no
+completion record.
 
 Python executor interrupts retain their existing behavior: cancel the call's own
 pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second

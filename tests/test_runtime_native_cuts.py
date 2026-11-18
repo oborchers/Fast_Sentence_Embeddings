@@ -11,7 +11,7 @@ from fse._text import Chunk, StringSource, _plan, copied_strings
 
 
 @pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
-@pytest.mark.parametrize("workers", [2, 4, 8, 2**64])
+@pytest.mark.parametrize("workers", [2, 4, 8])
 @pytest.mark.parametrize("seed", range(12))
 def test_cut_properties(source_factory, workers, seed):
     rng = np.random.default_rng(seed)
@@ -81,3 +81,12 @@ def test_cut_build_stops_before_creating_excess_tasks(monkeypatch, count):
         assert len(found) == count
     else:
         assert found is None
+
+
+def test_more_target_items_than_bytes_still_has_a_refined_result():
+    source = StringSource(["x", "", "", "y", ""])
+    original = [Task(source, Chunk(0, len(source), 0, len(source)))]
+    assert source.nbytes < 4 * 2**64
+    found = refine(source, original, 2**64, 256)
+    assert found is not None
+    assert [task.chunk for task in found] == [Chunk(0, 1, 0, 1), Chunk(1, 5, 1, 4)]

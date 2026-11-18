@@ -127,7 +127,7 @@ def select(
     try:
         refined = refine(source, buffered, workers, MAX_TASKS)
         if refined is None:
-            return None, replay
+            refined = buffered
         team = pipeline.backend.string_team(
             pipeline.prepared, pipeline.lookup, source, refined, own._out, workers
         )

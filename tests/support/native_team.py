@@ -40,5 +40,7 @@ def tasks_for(model, source, workers, *, refined=True):
     if refined and not plan.inline:
         from fse._runtime._native_cuts import refine
 
-        return refine(source, tasks, workers, 256) or tasks
+        result = refine(source, tasks, workers, 256)
+        assert result is not None, "test requires a refined native plan within the task limit"
+        return result
     return tasks

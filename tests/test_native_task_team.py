@@ -24,6 +24,7 @@ def test_batch_corruption_matches_old_task(kind, workers, position, source_facto
     model = pipeline(fasttext=True)
     source = source_factory(texts(4000))
     tasks = tasks_for(model, source, workers)
+    assert len(tasks) > len(tasks_for(model, source, workers, refined=False))
     index = {"first": 0, "middle": len(tasks) // 2, "last": len(tasks) - 1}[position]
     worker = model._task_work(source, True, WorkerLocal(), 0, None)
     task = tasks[index]
