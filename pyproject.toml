@@ -280,7 +280,7 @@ skip = "*-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]
 # Double quotes, because the Windows shell does not understand single quotes.
-test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n auto'
+test-command = 'python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows && pytest {project}/tests -m "not network" -p no:cacheprovider -n auto'
 
 [tool.cibuildwheel.macos]
 archs = ["arm64"]
@@ -302,7 +302,7 @@ musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce
 [[tool.cibuildwheel.overrides]]
 select = "cp311-win* cp312-win* cp313-win* cp314-win*"
 test-groups = []
-test-command = "python -I {project}/tools/wheel_smoke.py"
+test-command = "python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows && python -I {project}/tools/wheel_smoke.py"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux_*"
@@ -315,7 +315,7 @@ test-requires = [
     "tokenizers==0.23.3", "model2vec==0.10.0", "pyarrow==26.0.0",
     "pandas==3.1.0", "polars==2.1.0", "datasets==5.1.0",
 ]
-test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n auto --ignore={project}/tests/test_gensim.py -k "not test_ft_ngram_hashes_match_gensim_on_random_unicode"'
+test-command = 'python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows && pytest {project}/tests -m "not network" -p no:cacheprovider -n auto --ignore={project}/tests/test_gensim.py -k "not test_ft_ngram_hashes_match_gensim_on_random_unicode"'
 # PyYAML (a Hub dependency) builds from source on CPython 3.15 musllinux.
 
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---

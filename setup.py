@@ -102,7 +102,11 @@ class BuildExt(build_ext):
                 )
             ]
             subprocess.run(
-                [sys.executable, str(Path(__file__).parent / "tools/check_isa_isolation.py"), *objects],
+                [
+                    sys.executable,
+                    str(Path(__file__).parent / "tools/check_isa_isolation.py"),
+                    *objects,
+                ],
                 check=True,
             )
 
