@@ -50,7 +50,6 @@
 
 /* A remains the default until the story measurement selects a layout. */
 #define FSE_AVX512_LAYOUT 0
-
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
 #define FSE_NEON 1
 #include <arm_neon.h>
