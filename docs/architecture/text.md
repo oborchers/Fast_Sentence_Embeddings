@@ -21,7 +21,7 @@ until completion. Source subclasses and sources with post-encoding checks keep t
 ordinary `encode_with` route (see [Runtime](runtime.md#internal-string-task-entry)).
 
 
-### Runtime vocabulary table
+## Runtime vocabulary table
 
 The vocabulary table is rebuilt at load and never persisted. Its slot count is the
 smallest power of two at least twice the vocabulary size (minimum two). Slots use
