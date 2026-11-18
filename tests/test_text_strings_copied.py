@@ -22,6 +22,7 @@ def reset_copied_string_hooks():
     _native._string_copy_between(None)
     _native._string_copy_check(None)
     _native._string_copy_fail_stage(0)
+    gc.collect()  # Exception traceback cycles may retain their source until collection.
     assert _native._test_join_resources() == 0
 
 
@@ -439,7 +440,12 @@ def test_stage_one_errors_precede_later_pooling_errors(location, stage_one, monk
     previous = _native._test_sentence_limit(16 if stage_one == "too-long" else 1 << 30)
     try:
         ordinary = outcome(StringSource(rows))
-        actual = outcome(copied_strings(rows))
+        source = copied_strings(rows)
+        owner = weakref.ref(source._copy)
+        actual = outcome(source)
+        del source
+        gc.collect()
+        assert owner() is None
     finally:
         _native._test_sentence_limit(previous)
     assert actual == ordinary
