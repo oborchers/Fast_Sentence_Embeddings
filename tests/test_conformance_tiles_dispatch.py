@@ -16,10 +16,11 @@ from support.tiles import prefetch_addresses, prefetch_digest
 
 
 @pytest.fixture
-def instrumented():
+def builder_trace():
     if _native._test_builder_trace() is None:
         assert os.environ.get("FSE_TEST_TILES") != "1", "rebuild with test instrumentation"
         pytest.skip("production build has no builder counters")
+    return _native._test_builder_trace
 
 
 def _case(kind, dim, dtype="float32"):
@@ -52,8 +53,9 @@ def _case(kind, dim, dtype="float32"):
 @pytest.mark.parametrize(
     "kind", ["known", "known FastText", "known offsets", "empty buckets", "mixed buckets"]
 )
-@pytest.mark.usefixtures("instrumented")
-def test_offsets_select_builder_with_identical_bits_counts_and_hints(isa, dtype, dim, kind):
+def test_offsets_select_builder_with_identical_bits_counts_and_hints(
+    builder_trace, isa, dtype, dim, kind
+):
     """All-empty ranges must use general, even though their bucket pointer is NULL."""
     case = _case(kind, dim, dtype)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
@@ -63,7 +65,7 @@ def test_offsets_select_builder_with_identical_bits_counts_and_hints(isa, dtype,
     known_only = batch.ngram_offsets is None
     for method in ("pool", "accumulate", "pool"):
         got = getattr(kernel, method)(batch)
-        known, general = _native._test_builder_trace()
+        known, general = builder_trace()
         if tiled:
             assert (known > 0, general > 0) == (known_only, not known_only)
         else:
@@ -81,19 +83,18 @@ def test_offsets_select_builder_with_identical_bits_counts_and_hints(isa, dtype,
 
 
 @pytest.mark.parametrize("isa", _native.available_isas())
-@pytest.mark.usefixtures("instrumented")
-def test_builder_counters_reset_between_paths_and_are_thread_local(isa):
+def test_builder_counters_reset_between_paths_and_are_thread_local(builder_trace, isa):
     barrier = Barrier(2)
 
     def probe(kind):
         case = _case(kind, 127)
         kernel = _native.WeightedMean(*case.args(), isa=isa)
         kernel.pool(case.batch)
-        before = _native._test_builder_trace()
+        before = builder_trace()
         barrier.wait(timeout=10)
-        assert _native._test_builder_trace() == before
+        assert builder_trace() == before
         kernel.pool(Batch(0, np.array([0, 0], np.int64), np.array([], np.uint32)))
-        after = _native._test_builder_trace()
+        after = builder_trace()
         return before, after
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -123,14 +124,13 @@ def test_empty_batch_output_is_unchanged(isa):
 
 @pytest.mark.parametrize("isa", _native.available_isas())
 @pytest.mark.parametrize("kind", ["known", "empty buckets"])
-@pytest.mark.usefixtures("instrumented")
-def test_zero_sentence_batch_resets_builder_counters(isa, kind):
+def test_zero_sentence_batch_resets_builder_counters(builder_trace, isa, kind):
     case = _case(kind, 127)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
     empty = Batch(0, np.array([0], np.int64), np.array([], np.uint32))
     for method in ("pool", "accumulate"):
         kernel.pool(case.batch)
-        before = _native._test_builder_trace()
+        before = builder_trace()
         assert sum(before) > 0 if isa in ("avx2", "neon") else before == (0, 0)
         getattr(kernel, method)(empty)
-        assert _native._test_builder_trace() == (0, 0)
+        assert builder_trace() == (0, 0)
