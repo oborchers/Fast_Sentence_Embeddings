@@ -113,9 +113,7 @@ jobs:
                {os: $os, libc: $libc} ]')
           echo "wheel_matrix={\"include\":$wheels}" >> "$GITHUB_OUTPUT"
           comparison=""
-          if [ "$TARGETED" = "true" ]; then
-            comparison=$(git merge-base origin/master HEAD || true)
-          elif [ "$EVENT" = "pull_request" ]; then
+          if [ "$EVENT" = "pull_request" ]; then
             comparison=$(git merge-base "origin/$BASE" HEAD || true)
           elif [ "$EVENT" = "push" ] && [ "$REF" = "refs/heads/master" ] \
             && [[ "$BEFORE" =~ ^[0-9a-f]{40}$ ]] \

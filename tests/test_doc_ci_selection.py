@@ -100,7 +100,10 @@ def test_document_deletion_selects_lint(repository):
 
 def test_full_and_targeted_selections_keep_lint_policy(repository):
     assert selection(repository, event="schedule")["lint"] == "true"
-    assert selection(repository, event="workflow_dispatch", targeted="true")["lint"] == "false"
+    targeted = selection(repository, event="workflow_dispatch", targeted="true")
+    assert targeted["lint"] == "false"
+    # The controller checkout does not establish the requested PR source diff.
+    assert targeted["sde"] == "true"
 
 
 def test_deleted_non_markdown_target_selects_lint(repository):
