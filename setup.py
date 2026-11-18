@@ -3,9 +3,9 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
 import tempfile
 from glob import glob
+from pathlib import Path
 
 import numpy
 from Cython.Build import cythonize

@@ -42,7 +42,8 @@ def test_post_link_addresses_are_checked_against_resolved_functions():
     text = "0000 <.text>:\n 1000: vmovups zmm0, [rax]\n 1010: kmovw k1, eax\n"
     assert INSPECT(text, {0x1000: "fse_loop_f32_avx512", 0x1010: "fse_loop_f32_avx512"}) == (2, [])
     count, violations = INSPECT(text, {0x1000: "fse_loop_f32_avx512", 0x1010: "fse_run"})
-    assert count == 2 and len(violations) == 1
+    assert count == 2
+    assert len(violations) == 1
     assert "fse_run" in violations[0]
 
 
