@@ -47,6 +47,13 @@ CHILD_PREFIXES = (
 )
 
 
+def require_named_tests(cases, names):
+    for name in names:
+        matches = [case for case in cases if case.get("name") == name]
+        if len(matches) != 1 or matches[0].find("skipped") is not None:
+            raise RuntimeError(f"required SDE test did not execute: {name}")
+
+
 def require_execution(report: Path, profile: str) -> dict:
     """A successful launcher alone is not evidence: -echo also returns zero."""
     if not report.is_file():
@@ -59,10 +66,7 @@ def require_execution(report: Path, profile: str) -> dict:
     required = REQUIRED | (
         {"test_avx512_selection_reaches_every_vector_dispatch_site"} if profile == "spr" else set()
     )
-    for name in required:
-        matches = [case for case in native_cases if case.get("name") == name]
-        if len(matches) != 1 or matches[0].find("skipped") is not None:
-            raise RuntimeError(f"required SDE test did not execute: {name}")
+    require_named_tests(native_cases, required)
     children = [case for case in native_cases if case.get("name", "").startswith(CHILD_PREFIXES)]
     if len(children) != 12 or any(case.find("skipped") is not None for case in children):
         raise RuntimeError("SDE receipt lacks all twelve child-import tests")
