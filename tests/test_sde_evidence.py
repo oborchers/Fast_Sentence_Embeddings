@@ -29,9 +29,6 @@ def receipt(path, profile="spr", omitted=None, skipped=None, failed=False):
         case = ET.SubElement(suite, "testcase", name="another_test", classname="tests.other")
         ET.SubElement(case, "failure")
     ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
-    if failed:
-        ET.SubElement(ET.SubElement(suite, "testcase", name="other"), "failure")
-    ET.ElementTree(root).write(path)
 
 
 @pytest.mark.parametrize("profile", ["spr", "hsw"])
@@ -50,7 +47,8 @@ def test_zero_exit_without_execution_report_is_rejected(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "name", [*MODULE["REQUIRED"], "test_avx512_selection_reaches_every_vector_dispatch_site"]
+    "name",
+    [*sorted(MODULE["REQUIRED"]), "test_avx512_selection_reaches_every_vector_dispatch_site"],
 )
 @pytest.mark.parametrize("kind", ["omitted", "skipped"])
 def test_required_kernel_and_snapshot_proofs_cannot_be_skipped(tmp_path, name, kind):
