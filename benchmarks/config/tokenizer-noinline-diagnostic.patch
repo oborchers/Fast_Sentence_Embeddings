@@ -49,15 +49,15 @@
      const unsigned char *p, Py_ssize_t n, np.uint64_t *key, bint padded
  ) noexcept nogil:
      """The slot hash of a word, 8 bytes per step. For a word of at most INLINE_KEY_BYTES
-@@ -90,7 +90,7 @@
+@@ -91,7 +91,7 @@
      np.uint64_t mask
  
  
--cdef inline uINT_t _vocab_lookup(
-+cdef uINT_t _vocab_lookup(
-     const VocabView *v, const unsigned char *p, Py_ssize_t n, bint padded=False
+-cdef inline uINT_t _vocab_find(
++cdef uINT_t _vocab_find(
+     const VocabView *v, const unsigned char *p, Py_ssize_t n,
+     np.uint64_t h, const np.uint64_t *key,
  ) noexcept nogil:
-     """Vocabulary index of the n bytes at p, or NOT_FOUND; padded as for _hash_word."""
 --- a/src/fse/_native_src/text/_native_wordpiece.pxi
 +++ b/src/fse/_native_src/text/_native_wordpiece.pxi
 @@ -297,7 +297,7 @@

@@ -10,8 +10,8 @@ cdef enum:
     NATIVE_BAD_ROW = -3
 
 
-# Words of at most this many UTF-8 bytes are stored in their slot, so looking one up
-# usually reads a single cache line; longer words are compared in the arena.
+# Words of at most this many UTF-8 bytes use two zero-padded keys; longer words
+# are compared in the arena. Only the first key is stored in a slot.
 cdef enum:
     INLINE_KEY_BYTES = 16
 
@@ -49,7 +49,8 @@ cdef inline np.uint64_t _hash_word(
     const unsigned char *p, Py_ssize_t n, np.uint64_t *key, bint padded
 ) noexcept nogil:
     """The slot hash of a word, 8 bytes per step. For a word of at most INLINE_KEY_BYTES
-    bytes, key receives its bytes as two zero-padded words, as a slot stores them. With
+    bytes, key receives its bytes as two zero-padded words. For longer words it receives
+    the first 16 bytes, without changing h. With
     padded, 16 bytes from p are readable, so the words are loaded whole and masked.
 
     Only VocabTable uses it, for building and looking up, so it is no persistence format.
@@ -65,6 +66,8 @@ cdef inline np.uint64_t _hash_word(
             key[1] = _load_partial(p + 8, n - 8) if n > 8 else 0
         h = _mix(_mix(h, key[0]), key[1])
     else:
+        key[0] = _load_partial(p, 8)
+        key[1] = _load_partial(p + 8, 8)
         while left >= 8:
             h = _mix(h, _load_partial(p, 8))
             p += 8
@@ -74,70 +77,72 @@ cdef inline np.uint64_t _hash_word(
     return h ^ (h >> 32)
 
 
-# One slot of the open-addressing table, 32 bytes. value is NOT_FOUND for a free slot.
+# One 16-byte slot; value is NOT_FOUND for a free slot.
 cdef struct VocabSlot:
-    np.uint64_t hash
+    np.uint64_t k0
     uINT_t value
     np.uint32_t length
-    # The word itself, zero-padded, if length <= INLINE_KEY_BYTES, else its offset in the
-    # arena (int64).
-    np.uint64_t key[2]
 
 
 cdef struct VocabView:
     const VocabSlot *slots
+    const np.uint64_t *hi
     const unsigned char *arena
     np.uint64_t mask
 
 
-cdef inline uINT_t _vocab_lookup(
-    const VocabView *v, const unsigned char *p, Py_ssize_t n, bint padded=False
+cdef inline uINT_t _vocab_find(
+    const VocabView *v, const unsigned char *p, Py_ssize_t n,
+    np.uint64_t h, const np.uint64_t *key,
 ) noexcept nogil:
-    """Vocabulary index of the n bytes at p, or NOT_FOUND; padded as for _hash_word."""
-    cdef np.uint64_t key[2]
-    cdef np.uint64_t h = _hash_word(p, n, key, padded)
+    """Find with unchanged _hash_word h and zero-padded first 16 bytes in key for
+    every length (first 8 bytes in key[0], next 8 in key[1] for n > 16).
+    p stays the word pointer for long-word memcmp. Return a table-local id or NOT_FOUND.
+    """
     cdef np.uint64_t j = h & v.mask
     cdef const VocabSlot *slot
     while True:
         slot = &v.slots[j]
         if slot.value == NOT_FOUND:
             return NOT_FOUND
-        if slot.hash == h and slot.length == n:
+        if slot.length == n and slot.k0 == key[0]:
+            if n <= 8:
+                return slot.value
             if n <= INLINE_KEY_BYTES:
-                if slot.key[0] == key[0] and slot.key[1] == key[1]:
+                if v.hi[slot.value] == key[1]:
                     return slot.value
-            elif memcmp(v.arena + <np.int64_t>slot.key[0], p, n) == 0:
+            elif memcmp(v.arena + <np.int64_t>v.hi[slot.value], p, n) == 0:
                 return slot.value
         j = (j + 1) & v.mask
 
 
+cdef inline uINT_t _vocab_lookup(
+    const VocabView *v, const unsigned char *p, Py_ssize_t n, bint padded=False
+) noexcept nogil:
+    """Thin wrapper computing h and key for _vocab_find; padded as for _hash_word."""
+    cdef np.uint64_t key[2]
+    cdef np.uint64_t h = _hash_word(p, n, key, padded)
+    return _vocab_find(v, p, n, h, key)
+
+
 cdef inline np.int64_t _vocab_insert(
-    VocabSlot *slots, np.uint64_t mask, const unsigned char *arena, np.int64_t offset,
+    VocabSlot *slots, np.uint64_t *hi, const VocabView *view, np.int64_t offset,
     Py_ssize_t n, uINT_t index,
 ) noexcept nogil:
-    """Insert the n bytes at arena[offset] as word index; returns -1, or the index of the
-    word already stored with the same bytes."""
-    cdef const unsigned char *p = arena + offset
+    """Insert with a table-local index; return -1, or the duplicate's local index."""
+    cdef const unsigned char *p = view.arena + offset
     cdef np.uint64_t key[2]
     cdef np.uint64_t h = _hash_word(p, n, key, False)
-    cdef np.uint64_t j = h & mask
+    cdef uINT_t duplicate = _vocab_find(view, p, n, h, key)
+    if duplicate != NOT_FOUND:
+        return duplicate
+    cdef np.uint64_t j = h & view.mask
     while slots[j].value != NOT_FOUND:
-        if slots[j].hash == h and slots[j].length == n:
-            if n <= INLINE_KEY_BYTES:
-                if slots[j].key[0] == key[0] and slots[j].key[1] == key[1]:
-                    return slots[j].value
-            elif memcmp(arena + <np.int64_t>slots[j].key[0], p, n) == 0:
-                return slots[j].value
-        j = (j + 1) & mask
-    slots[j].hash = h
+        j = (j + 1) & view.mask
+    slots[j].k0 = key[0]
     slots[j].value = index
     slots[j].length = <np.uint32_t>n
-    if n <= INLINE_KEY_BYTES:
-        slots[j].key[0] = key[0]
-        slots[j].key[1] = key[1]
-    else:
-        slots[j].key[0] = <np.uint64_t>offset
-        slots[j].key[1] = 0
+    hi[index] = key[1] if n <= INLINE_KEY_BYTES else <np.uint64_t>offset
     return -1
 
 
@@ -155,13 +160,15 @@ cdef class VocabTable:
     Built without the GIL from the vocabulary of word vectors: ``vocab_bytes`` (uint8)
     holds the words one after another, word i is ``vocab_bytes[vocab_offsets[i]:
     vocab_offsets[i + 1]]``. Open addressing with linear probing, at most half full. Each
-    32-byte slot holds the hash, the index and, for words of up to INLINE_KEY_BYTES bytes,
-    the word itself, so a lookup usually reads one cache line; longer words are compared
-    in the table's own copy of vocab_bytes.
+    16-byte slot holds the first eight bytes, the local index and the length. Slots are
+    aligned to 64 bytes. A dense uint64 array indexed by local id holds the second key
+    for words up to 16 bytes, or an arena offset for longer words. The table owns the
+    original slot allocation (including 63 alignment bytes), high keys and word bytes.
     """
 
     cdef object _bytes
     cdef object _slots
+    cdef object _hi
     cdef Py_ssize_t n_words
     cdef VocabView view
     cdef int _state
@@ -212,29 +219,32 @@ cdef class VocabTable:
         while size < 2 * <np.uint64_t>n:
             size <<= 1
         # Raw bytes, so the slot layout is the C struct's, whatever numpy would pad.
-        self._slots = np.empty(size * sizeof(VocabSlot), dtype=np.uint8)
+        self._slots = np.empty(size * sizeof(VocabSlot) + 63, dtype=np.uint8)
+        self._hi = np.empty(n, dtype=np.uint64)
         self._bytes = vocab_bytes
         self.n_words = n
-        cdef VocabSlot *slots = <VocabSlot *>np.PyArray_DATA(self._slots)
+        cdef VocabSlot *slots = <VocabSlot *>((<size_t>np.PyArray_DATA(self._slots) + 63) & ~<size_t>63)
+        cdef np.uint64_t *hi = <np.uint64_t *>np.PyArray_DATA(self._hi)
         cdef const unsigned char *arena = <const unsigned char *>np.PyArray_DATA(vocab_bytes)
         cdef const np.int64_t[::1] offsets = vocab_offsets
         cdef np.uint64_t mask = size - 1
         cdef np.uint64_t j
         cdef Py_ssize_t i
         cdef np.int64_t dup = -1
+        self.view.slots = slots
+        self.view.hi = hi
+        self.view.arena = arena
+        self.view.mask = mask
         with nogil:
             memset(slots, 0, size * sizeof(VocabSlot))
             for j in range(size):
                 slots[j].value = NOT_FOUND
             for i in range(n):
-                dup = _vocab_insert(slots, mask, arena, offsets[i], offsets[i + 1] - offsets[i], <uINT_t>i)
+                dup = _vocab_insert(slots, hi, &self.view, offsets[i], offsets[i + 1] - offsets[i], <uINT_t>i)
                 if dup >= 0:
                     break
         if dup >= 0:
             raise ValueError(f"word {i} is also word {dup} of the vocabulary")
-        self.view.slots = slots
-        self.view.arena = arena
-        self.view.mask = mask
 
     cdef inline int _check_ready(self) except -1:
         if self._state != TABLE_READY:
@@ -243,9 +253,15 @@ cdef class VocabTable:
 
     @property
     def nbytes(self):
-        """The bytes the table holds: its slots and its own copy of the words."""
+        """Owned bytes: slots including alignment slack, dense high keys and word arena."""
         self._check_ready()
-        return self._slots.nbytes + self._bytes.nbytes
+        return self._slots.nbytes + self._hi.nbytes + self._bytes.nbytes
+
+    @property
+    def _slot_alignment(self):
+        """Slot base address modulo 64; for tests."""
+        self._check_ready()
+        return <size_t>self.view.slots % 64
 
     def __reduce__(self):
         raise TypeError("a VocabTable cannot be pickled; build it from the word vectors")
@@ -260,3 +276,17 @@ cdef class VocabTable:
         encoded = word if isinstance(word, bytes) else (<str?>word).encode("utf-8")
         cdef uINT_t index = _vocab_lookup(&self.view, encoded, len(encoded))
         return None if index == NOT_FOUND else index
+
+    def _probe(self, word):
+        """Home and final slot (matching or empty), for collision tests."""
+        self._check_ready()
+        encoded = word if isinstance(word, bytes) else (<str?>word).encode("utf-8")
+        cdef const unsigned char *p = encoded
+        cdef Py_ssize_t n = len(encoded)
+        cdef np.uint64_t key[2]
+        cdef np.uint64_t h = _hash_word(p, n, key, False)
+        cdef np.uint64_t j = h & self.view.mask
+        cdef uINT_t index = _vocab_find(&self.view, p, n, h, key)
+        while self.view.slots[j].value != index:
+            j = (j + 1) & self.view.mask
+        return h & self.view.mask, j

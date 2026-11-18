@@ -52,3 +52,22 @@ accounts every copied range before Python can handle signals, including copies
 beyond the earliest task error. Error replay reuses the range's completed copy
 and reporting state. A held source retains its descriptors after team buffers
 are freed.
+
+## Runtime vocabulary table
+
+The vocabulary table is rebuilt at load and never persisted. Its slot count is the
+smallest power of two at least twice the vocabulary size (minimum two). Slots use
+linear probing and a 64-byte-aligned base. Each 16-byte slot holds the zero-padded
+first eight bytes, the table-local uint32 ID and the uint32 byte length. A dense
+uint64 array indexed by that local ID holds bytes 8 to 15 for words up to 16 bytes,
+or the offset into the owned word arena for longer words. Up to eight bytes match
+by length and the first key alone. Longer matches also compare the second key or
+the full arena bytes. Empty slots use the reserved `NOT_FOUND` ID.
+
+The hash and probe order stay unchanged. `_vocab_find(v, p, n, h, key)` accepts the
+unchanged `_hash_word` hash, the zero-padded first 16 bytes for every word length,
+and the original pointer for long-word comparison. It returns a table-local ID or
+`NOT_FOUND`. `_vocab_lookup` computes hash and keys and calls it. High-key arrays
+always use the local IDs of their own table, including continuation and prefix
+tables. The owner retains all allocations. `nbytes` counts `16 * slots + 63 +
+8 * words + arena bytes`, including the entire alignment allocation.
