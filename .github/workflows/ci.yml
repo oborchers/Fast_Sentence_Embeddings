@@ -347,7 +347,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.changes.outputs.targeted == 'true' && '["macos-14"]' || github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "macos-14"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.targeted == 'true' && '["macos-latest"]' || github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "macos-latest"]') }}
         stride: [1, 2, 4, 16]
     env:
       UV_PYTHON: "3.13"
