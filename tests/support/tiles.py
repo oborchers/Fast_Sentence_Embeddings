@@ -342,3 +342,39 @@ def model_pool(
     for s, row in enumerate(model_rows(case, k_max, mistake, region, layout)):
         out[s] = row
     return out
+
+
+def prefetch_lines(address: int, size: int, stride: int):
+    """Independent integer cache-line model, including a partial first/last line."""
+    if size:
+        yield from (
+            64 * line for line in range(address // 64, (address + size - 1) // 64 + 1, stride)
+        )
+
+
+def prefetch_addresses(case, stride: int):
+    """The row loop's hint order, independent of tile cuts and the native cursor."""
+    arrays = case.arrays
+    rows = arrays["rows"]
+    tokens = [token for sentence in case.sentences for token in sentence]
+    size = rows.shape[1] * rows.itemsize
+    word_base = rows.ctypes.data
+    ngram_base = arrays["ngram_rows"].ctypes.data if case.ngrams is not None else 0
+    unknown = 0
+    for t, token in enumerate(tokens):
+        if t + 8 < len(tokens) and tokens[t + 8] != OOV_TOKEN:
+            yield from prefetch_lines(word_base + tokens[t + 8] * size, size, stride)
+        if token == OOV_TOKEN:
+            buckets = case.ngrams[unknown]
+            unknown += 1
+            for bucket in buckets[8:]:
+                yield from prefetch_lines(ngram_base + bucket * size, size, stride)
+
+
+def prefetch_digest(addresses) -> tuple[int, int]:
+    """Order-sensitive test fingerprint, matching unsigned 64-bit native wrapping."""
+    count, digest = 0, 0
+    for address in addresses:
+        count += 1
+        digest = ((digest ^ address) * 1099511628211) & ((1 << 64) - 1)
+    return count, digest

@@ -11,6 +11,28 @@ A new study adds data. A new Python library adds a native factory and a registry
 
 ## Common contract
 
+### Prefetch stride diagnostics
+
+For DR-496 (Vorabladen der Zeilen im Kachelaufbau verringern),
+`benchmarks/config/prefetch-line-stride-diagnostic.patch` adds a private compiled-stride
+getter without address recording. In separate source/build directories per variant,
+apply the patch and force `make rebuild-ext` with
+`CFLAGS=-DFSE_PREFETCH_LINE_STRIDE=k`, for k = 1, 2, 4 and 16. For correctness builds
+also set `FSE_TEST_TILES=1` and `FSE_EXPECT_PREFETCH_LINE_STRIDE=k`, then run
+`tests/test_conformance_prefetch.py`, `tests/test_conformance.py` and
+`tests/test_conformance_tiles.py`. For timing, rebuild separately without
+`FSE_TEST_TILES`. Check `_native._diagnostic_prefetch_line_stride()` and record the
+patch digest, configured and compiled stride, and extension digest in build provenance.
+The stride selects every k-th intersecting 64-byte line, so k = 16 hints only the first
+line for aligned 1 KiB rows, but two lines for unaligned 1 KiB rows.
+
+The later study compares these variants on one frozen kept stack of
+DR-466 (Tempo je Kern auf x86-Servern erhöhen), using chunk cells at workers 1 and 8,
+plus float16, int8 and large-row regression controls. Pin cell identifiers, selection
+rules, budgets and independent confirmation before running the full optimization
+protocol. A changed production default requires a separate ticket after that evidence,
+a clean unpatched rebuild and bit conformance. The shipped default remains 1.
+
 `benchmarks/config/pins.json` holds source revisions, model revisions, the corpus revision and the Linux image digest. The same directory holds dependency locks, study definitions and one bootstrap template. Review a changed pin as a new configuration. Never silently resolve `main` in place of a recorded revision.
 
 Every kind of result writes the same four files through the lifecycle core `benchmarks/_harness/` (published studies, local development runs and the local quality run alike):

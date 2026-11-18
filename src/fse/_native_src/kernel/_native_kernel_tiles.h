@@ -13,8 +13,8 @@
    only the place of a partial sum between two terms changes, a register within a tile
    and the out row between tiles, and both keep its bits, -0.0 included.
 
-   The builder (fse_fill_tile) keeps these invariants, which the conformance tests and
-   their meta-tests (tests/test_conformance_tiles*.py) check:
+   The builder (fse_fill_tile) keeps these numerical invariants, which the conformance
+   tests and their meta-tests (tests/test_conformance_tiles*.py) check:
    - every contribution of the sentence is a term exactly once, in token order, and the
      buckets of an unknown word in bucket order, also when they straddle tiles;
    - k counts the unknown words of the batch, each exactly once, also when it has no
@@ -23,11 +23,13 @@
    - an unknown word without buckets counts for the length n of the sentence (the
      divisor is n = end - begin, the number of tokens, never the number of terms) and
      adds nothing;
-   - it prefetches what the row loop prefetches, in the same order: the row of the token
+   Separately, tests/test_conformance_prefetch.py checks instrumented hint addresses
+   against the row-loop model of tests/support/tiles.py, for the compiled line stride.
+   The builder prefetches what the row loop prefetches, in the same order: the row of the token
      FSE_PREFETCH_DISTANCE tokens ahead (also across sentences, nothing for an unknown
      token), and inside an unknown word the bucket FSE_PREFETCH_DISTANCE buckets ahead.
-     A token's prefetch is issued when the builder reaches the token, so it leads its
-     use by the distance plus the rest of the tile.
+   A token's prefetch is issued when the builder reaches the token. Its use follows
+   after the builder fills the tile containing that token, including any bucket terms.
 
    The tile rule: K = FSE_TILE_BYTES / row_bytes, at most FSE_TILE_MAX, so the rows of
    one tile stay in the L1 cache while the blocks walk through them. Rows above

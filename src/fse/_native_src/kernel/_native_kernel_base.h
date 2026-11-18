@@ -56,6 +56,13 @@
 /* Tokens ahead whose rows are prefetched; 8 was best or within noise of the best on
    Apple M1 and AMD Zen 4 in 1.x for every format and size. */
 #define FSE_PREFETCH_DISTANCE 8
+/* One hint per k-th intersecting 64-byte line. Tuning never changes arithmetic. */
+#ifndef FSE_PREFETCH_LINE_STRIDE
+#define FSE_PREFETCH_LINE_STRIDE 1
+#endif
+#if FSE_PREFETCH_LINE_STRIDE < 1
+#error "FSE_PREFETCH_LINE_STRIDE must be positive"
+#endif
 #define FSE_OOV_TOKEN 0xFFFFFFFEu
 
 enum { FSE_F32 = 0, FSE_F16 = 1, FSE_I8 = 2 };
@@ -70,11 +77,20 @@ enum { FSE_ISA_PORTABLE = 0, FSE_ISA_AVX2 = 1, FSE_ISA_NEON = 2 };
 #endif
 static FSE_TEST_TLS int64_t fse_test_tiles;
 static FSE_TEST_TLS int fse_test_loop;
+static FSE_TEST_TLS uint64_t fse_test_prefetch_count;
+static FSE_TEST_TLS uint64_t fse_test_prefetch_digest;
+#define FSE_TEST_PREFETCH_RESET() do { fse_test_prefetch_count = 0; fse_test_prefetch_digest = 0; } while (0)
+#define FSE_TEST_PREFETCH(address) do { \
+    ++fse_test_prefetch_count; \
+    fse_test_prefetch_digest = (fse_test_prefetch_digest ^ (uint64_t)(address)) * UINT64_C(1099511628211); \
+} while (0)
 #define FSE_TEST_TILE() (++fse_test_tiles)
 #define FSE_TEST_ROWS() (fse_test_loop = 0)
 #else
 #define FSE_TEST_TILE() ((void)0)
 #define FSE_TEST_ROWS() ((void)0)
+#define FSE_TEST_PREFETCH_RESET() ((void)0)
+#define FSE_TEST_PREFETCH(address) ((void)0)
 #endif
 
 /* Every float16 bit pattern as float32, filled at import: exact widening. */
@@ -101,10 +117,15 @@ typedef struct {
 } fse_batch;
 
 static inline void fse_prefetch_row(const void *row, size_t bytes) {
-    const char *p = (const char *)row;
     if (!bytes) return;
-    for (size_t offset = 0; offset < bytes; offset += 64) FSE_PREFETCH(p + offset);
-    FSE_PREFETCH(p + bytes - 1);
+    const uintptr_t p = (uintptr_t)row;
+    const uintptr_t start = p & ~(uintptr_t)63;
+    const size_t last = ((p & 63) + bytes - 1) / 64;
+    for (size_t line = 0; line <= last; line += FSE_PREFETCH_LINE_STRIDE) {
+        const uintptr_t address = start + line * 64;
+        FSE_TEST_PREFETCH(address);
+        FSE_PREFETCH((const void *)address);
+    }
 }
 
 #endif /* FSE_NATIVE_KERNEL_BASE_H */
