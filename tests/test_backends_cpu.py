@@ -171,7 +171,7 @@ def test_a_prefilter_variant_is_built_runnable_and_enabled_as_three_facts(monkey
     for isa in _native.available_isas():
         shipped = "neon-sdot" if isa == "neon" and _native.prefilter_can_run("neon-sdot") else None
         assert CpuBackend(isa=isa).prefilter_variant() == shipped
-    names = {"neon": "neon-sdot", "avx2": "avx2"}
+    names = {"neon": "neon-sdot", "avx2": "avx2", "avx512": "avx2"}
     for isa, variant in names.items():
         if isa in _native.available_isas() and _native.prefilter_can_run(variant):
             monkeypatch.setattr(_cpu, "_PREFILTER_ENABLED", frozenset({variant}))

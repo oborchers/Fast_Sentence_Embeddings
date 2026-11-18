@@ -106,6 +106,8 @@ The native extension reports compiled, runnable instruction sets through `availa
 AVX-512 requires AVX, AVX2, FMA, F16C, AVX-512 F/DQ/BW/VL and operating-system
 support for XMM, YMM, opmask and ZMM state (`XCR0 & 0xE6 == 0xE6`). Detection
 checks leaf availability before reading CPUID and OSXSAVE before executing XGETBV.
+The extension reads registers once at import and caches availability and default policy.
+Task dispatch never executes CPUID or XGETBV.
 Missing state, including Intel macOS lazy state, conservatively excludes AVX-512.
 
 AVX-512 is available without becoming the automatic default. Its CPU-family allowlist

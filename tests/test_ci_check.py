@@ -205,7 +205,7 @@ def test_lint_selection_requires_an_explicit_boolean_string(value):
 def test_sde_is_required_for_native_code_and_fails_closed(native, targeted):
     rows = needs(targeted=targeted)
     rows["changes"]["outputs"]["native"] = str(native).lower()
-    selected = native and not targeted
+    selected = native
     assert REQUIRED(rows, "workflow_dispatch")["test-sde"] == selected
     rows["test-sde"]["result"] = "skipped"
     assert ("test-sde: skipped" in FAILURES(rows, "workflow_dispatch", [])) == selected

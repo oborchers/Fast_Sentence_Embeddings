@@ -40,7 +40,7 @@ def required(needs, event):
         "test": code,
         "test-st": code and outputs["st"] == "true",
         "test-prefetch": code,
-        "test-sde": code and outputs["native"] == "true" and not targeted,
+        "test-sde": code and outputs["native"] == "true",
         "coverage": code and event != "pull_request" and not targeted,
         "sdist": code and outputs["sdist"] == "true",
         "wheels": code and outputs["native"] == "true",

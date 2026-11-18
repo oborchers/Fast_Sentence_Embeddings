@@ -148,3 +148,26 @@ def test_avx512_selection_reaches_every_vector_dispatch_site():
     for link in (Link.SIGMOID, Link.SOFTMAX):
         _native.head_outputs(logits, "proba", link, np.empty_like(logits), isa="avx512")
     assert _native._test_route_trace() == 1023  # all ten vector dispatch sites, no AVX2 f32 loop
+
+
+def test_cpu_registers_are_read_once_for_all_dispatch_paths():
+    reads = _native._test_cpu_reads()
+    if reads is None:
+        assert not os.environ.get("FSE_REQUIRE_ISA"), "required CPU read counter missing"
+        pytest.skip("production build has no read counter")
+    assert reads == 1
+    from fse._backends._cpu import CpuBackend
+    from fse._contract import Batch
+
+    rows = np.ones((1, 17), np.float32)
+    weights = np.ones(1, np.float32)
+    batch = Batch(0, np.array([0, 1], np.int64), np.array([0], np.uint32))
+    available = _native.available_isas()
+    for _ in range(3):
+        assert _native.available_isas() is available
+        _native.default_isa()
+        for isa in (None, *available):
+            _native.WeightedMean(rows, weights, isa=isa).pool(batch)
+            _native.dot16(rows, rows, isa=isa)
+            CpuBackend(isa=isa).prefilter_variant()
+    assert _native._test_cpu_reads() == 1

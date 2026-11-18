@@ -40,6 +40,8 @@ cdef extern from "_native_kernel.h":
         uint32_t family
         uint64_t xcr0
     int fse_test_isa_detection(fse_cpu_features r, int compiled)
+    void fse_initialize_cpu()
+    int fse_test_cpu_reads()
     int fse_test_route_trace(int reset)
     int fse_isa_compiled(int isa)
     int fse_default_isa()
@@ -68,9 +70,21 @@ for _i in range(65536):
 del _half_values, _i
 
 
+# One raw snapshot under the GIL. Hot task dispatch never executes CPUID/XGETBV.
+fse_initialize_cpu()
+_available_isas = tuple(name for name, isa in _ISAS.items() if fse_has_isa(isa))
+_policy_isa = next(name for name, isa in _ISAS.items() if isa == fse_default_isa())
+
+
+def _test_cpu_reads():
+    """Raw detection reads since extension load, or None without instrumentation."""
+    cdef int result = fse_test_cpu_reads()
+    return None if result < 0 else result
+
+
 def available_isas():
     """The compiled instruction sets this CPU and operating system can run."""
-    return tuple(name for name, isa in _ISAS.items() if fse_has_isa(isa))
+    return _available_isas
 
 
 def _test_route_trace(reset=False):
@@ -91,7 +105,7 @@ def _avx512_layout():
 
 _configured_isa = os.environ.get("FSE_ISA")
 if _configured_isa is not None:
-    if _configured_isa not in _ISAS or not fse_has_isa(_ISAS[_configured_isa]):
+    if _configured_isa not in _ISAS or _configured_isa not in _available_isas:
         raise ValueError(f"FSE_ISA must select a runnable kernel from {available_isas()}, not {_configured_isa!r}")
 
 
@@ -99,7 +113,7 @@ def default_isa():
     """Import-time FSE_ISA choice, or the measured CPU policy; explicit isa= wins."""
     if _configured_isa is not None:
         return _configured_isa
-    return next(name for name, isa in _ISAS.items() if isa == fse_default_isa())
+    return _policy_isa
 
 
 def _test_isa_detection(unsigned int max_leaf, unsigned int leaf1_ecx,

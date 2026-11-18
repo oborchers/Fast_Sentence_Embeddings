@@ -394,7 +394,7 @@ jobs:
   test-sde:
     name: test-sde (${{ matrix.os }}, ${{ matrix.compiler }}, layout ${{ matrix.layout }})
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.native == 'true' && needs.changes.outputs.targeted != 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}
     strategy:
@@ -447,6 +447,7 @@ jobs:
           (cd "$RUNNER_TEMP" && tar -xf "$archive" -C sde --strip-components=1)
           executable="$RUNNER_TEMP/sde/sde64"
           if [ "$SDE_PLATFORM" = win ]; then executable="$RUNNER_TEMP/sde/sde.exe"; fi
+          test -x "$executable"
           echo "FSE_SDE_EXE=$executable" >> "$GITHUB_ENV"
       - name: Build instrumented extension and prove compiled support
         run: |
@@ -454,6 +455,23 @@ jobs:
           uv run --no-sync python -c "from fse import _native as n; assert 'avx512' in n._compiled_isas(); assert n._avx512_layout() == ${{ matrix.layout }}"
       - name: Conformance and baseline isolation, with explicit emulated children
         run: uv run --no-sync python tools/check_sde.py
+      - name: Build the production wheel and inspect instruction isolation
+        env:
+          FSE_TEST_TILES: "0"
+        run: |
+          make clean
+          uv build --wheel --out-dir "$RUNNER_TEMP/sde-production-wheel"
+          uv run --no-sync python tools/check_isa_isolation.py
+      - name: Run the production wheel under the Haswell profile
+        env:
+          FSE_EXPECT_PRODUCTION: "1"
+          FSE_SDE_PROFILE: hsw
+        run: |
+          uv venv "$RUNNER_TEMP/sde-production-env"
+          python="$RUNNER_TEMP/sde-production-env/bin/python"
+          if [ "$RUNNER_OS" = Windows ]; then python="$RUNNER_TEMP/sde-production-env/Scripts/python.exe"; fi
+          uv pip install --python "$python" "$RUNNER_TEMP"/sde-production-wheel/*.whl
+          "$FSE_SDE_EXE" -hsw -- "$python" -I tools/wheel_smoke.py
 
   # The comparisons with sentence-transformers 6.2.0 (group st, torch from the CPU index
   # of PyTorch). A job of its own: sentence-transformers needs huggingface-hub 1.3 or

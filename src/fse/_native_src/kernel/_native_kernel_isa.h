@@ -21,7 +21,16 @@ static int fse_avx512_eligible(fse_cpu_features r, int compiled) {
 /* Empty until a full optimization decision approves a CPU family. */
 static int fse_avx512_preferred(fse_cpu_features r) { (void)r; return 0; }
 
+static fse_cpu_features fse_cpu_snapshot;
+static int fse_cpu_initialized;
+#if defined(FSE_TEST_TILES)
+static int fse_cpu_read_count;
+#endif
+
 static fse_cpu_features fse_read_cpu(void) {
+#if defined(FSE_TEST_TILES)
+    ++fse_cpu_read_count;
+#endif
     fse_cpu_features r = {0};
 #if defined(FSE_X86)
 #if defined(_MSC_VER)
@@ -67,6 +76,20 @@ static fse_cpu_features fse_read_cpu(void) {
 #endif
     return r;
 }
+/* Called once under the GIL at extension import, before kernels become reachable. */
+static void fse_initialize_cpu(void) {
+    if (!fse_cpu_initialized) {
+        fse_cpu_snapshot = fse_read_cpu();
+        fse_cpu_initialized = 1;
+    }
+}
+static int fse_test_cpu_reads(void) {
+#if defined(FSE_TEST_TILES)
+    return fse_cpu_read_count;
+#else
+    return -1;
+#endif
+}
 static int fse_isa_compiled(int isa) {
     if (isa == FSE_ISA_PORTABLE) return 1;
 #if defined(FSE_X86)
@@ -81,17 +104,17 @@ static int fse_isa_compiled(int isa) {
     return 0;
 }
 static int fse_has_avx2(void) {
-    return fse_isa_compiled(FSE_ISA_AVX2) && fse_avx2_eligible(fse_read_cpu());
+    return fse_isa_compiled(FSE_ISA_AVX2) && fse_avx2_eligible(fse_cpu_snapshot);
 }
 static int fse_has_isa(int isa) {
     if (!fse_isa_compiled(isa)) return 0;
     if (isa == FSE_ISA_AVX2) return fse_has_avx2();
     if (isa == FSE_ISA_AVX512)
-        return fse_avx512_eligible(fse_read_cpu(), fse_isa_compiled(isa));
+        return fse_avx512_eligible(fse_cpu_snapshot, fse_isa_compiled(isa));
     return 1;
 }
 static int fse_default_isa(void) {
-    fse_cpu_features r = fse_read_cpu();
+    fse_cpu_features r = fse_cpu_snapshot;
     if (fse_avx512_preferred(r) && fse_has_isa(FSE_ISA_AVX512)) return FSE_ISA_AVX512;
     if (fse_has_avx2()) return FSE_ISA_AVX2;
     return fse_isa_compiled(FSE_ISA_NEON) ? FSE_ISA_NEON : FSE_ISA_PORTABLE;
