@@ -98,3 +98,31 @@ def test_a_failure_elsewhere_still_fails_the_receipt(tmp_path):
     receipt(path, failed=True)
     with pytest.raises(RuntimeError, match="failed tests"):
         REQUIRE(path, "spr")
+
+
+@pytest.mark.parametrize("profile", ["spr", "hsw"])
+def test_selected_profile_runs_the_full_manifest_and_requires_its_receipt(monkeypatch, profile):
+    main = MODULE["main"]
+    calls = []
+
+    def run(command, *, env, check):
+        assert check is True
+        assert env["FSE_SDE_PROFILE"] == profile
+        assert env["FSE_REQUIRE_ISA"] == ("avx512" if profile == "spr" else "avx2")
+        assert set(MODULE["TESTS"]).issubset(command)
+        report = next(arg.split("=", 1)[1] for arg in command if arg.startswith("--junitxml="))
+        receipt(Path(report), profile)
+        calls.append(command)
+
+    monkeypatch.setitem(
+        main.__globals__,
+        "sys",
+        SimpleNamespace(argv=["check_sde.py", "--profile", profile], executable="python"),
+    )
+    monkeypatch.setitem(
+        main.__globals__, "emulator_prefix", lambda value: ["sde", f"-{value}", "--"]
+    )
+    monkeypatch.setitem(main.__globals__, "subprocess", SimpleNamespace(run=run))
+    main()
+    assert len(calls) == 1
+    assert calls[0][:4] == ["sde", f"-{profile}", "--", "python"]

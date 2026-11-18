@@ -99,6 +99,7 @@ def require_execution(report: Path, profile: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheel-smoke", action="store_true")
+    parser.add_argument("--profile", choices=("spr", "hsw"))
     args = parser.parse_args()
     if args.wheel_smoke:
         subprocess.run(
@@ -112,7 +113,7 @@ def main() -> None:
         )
         return
     with tempfile.TemporaryDirectory(prefix="fse-sde-proof-") as directory:
-        for profile in ("spr", "hsw"):
+        for profile in (args.profile,) if args.profile else ("spr", "hsw"):
             prefix = emulator_prefix(profile)
             env = os.environ.copy()
             env["FSE_SDE_PROFILE"] = profile
