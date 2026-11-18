@@ -13,7 +13,11 @@
    only the place of a partial sum between two terms changes, a register within a tile
    and the out row between tiles, and both keep its bits, -0.0 included.
 
-   The builder (fse_fill_tile) keeps these numerical invariants, which the conformance
+   At batch entry, absent ngram_offsets select fse_fill_tile_known: validation guarantees
+   every token is known. Supplied offsets select fse_fill_tile, even with no buckets.
+   FastText workspace encoding supplies offsets even when every token is known.
+   Test builds count calls of each builder per thread; production omits the counters.
+   Both builders keep these numerical invariants, which the conformance
    tests and their meta-tests (tests/test_conformance_tiles*.py) check:
    - every contribution of the sentence is a term exactly once, in token order, and the
      buckets of an unknown word in bucket order, also when they straddle tiles;

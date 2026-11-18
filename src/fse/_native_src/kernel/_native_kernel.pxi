@@ -24,6 +24,7 @@ cdef extern from "_native_kernel.h":
         const int64_t *ngram_offsets
         const uint32_t *ngrams
     float fse_half_table[65536]
+    void fse_test_builder_reset()
     int fse_test_builder_trace(int64_t *known, int64_t *general)
     int64_t fse_test_pool_trace(int *loop)
     int fse_test_prefetch_trace(uint64_t *count, uint64_t *digest)
@@ -112,7 +113,7 @@ def _test_pool_trace():
 
 
 def _test_builder_trace():
-    """Last native batch on this thread: known/general tile-builder calls, or None."""
+    """Last batch on this thread: known/general tile-builder calls, or None."""
     cdef int64_t known = 0, general = 0
     if not fse_test_builder_trace(&known, &general):
         return None
@@ -272,6 +273,7 @@ cdef class WeightedMean:
         cdef int64_t bad
         global _nogil_sections
         if b.n_sentences == 0:
+            fse_test_builder_reset()
             return -1
         _nogil_sections += 1
         with nogil:

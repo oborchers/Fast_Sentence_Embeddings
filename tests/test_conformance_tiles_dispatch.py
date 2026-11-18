@@ -111,3 +111,17 @@ def test_empty_batch_output_is_unchanged(isa):
     want, want_counts = _reference.accumulate(case.batch, *case.args())
     assert_bits_equal(got, want)
     np.testing.assert_array_equal(counts, want_counts)
+
+
+@pytest.mark.parametrize("isa", _native.available_isas())
+@pytest.mark.parametrize("kind", ["known", "empty buckets"])
+def test_zero_sentence_batch_resets_builder_counters(instrumented, isa, kind):
+    case = _case(kind, 127)
+    kernel = _native.WeightedMean(*case.args(), isa=isa)
+    empty = Batch(0, np.array([0], np.int64), np.array([], np.uint32))
+    for method in ("pool", "accumulate"):
+        kernel.pool(case.batch)
+        before = _native._test_builder_trace()
+        assert sum(before) > 0 if isa in ("avx2", "neon") else before == (0, 0)
+        getattr(kernel, method)(empty)
+        assert _native._test_builder_trace() == (0, 0)

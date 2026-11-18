@@ -138,13 +138,19 @@ static fse_loop_t fse_loop_for(int isa, int dtype) {
     return dtype == FSE_F32 ? fse_loop_f32_portable : dtype == FSE_F16 ? fse_loop_f16_portable : fse_loop_i8_portable;
 }
 
+FSE_INLINE void fse_test_builder_reset(void) {
+#if defined(FSE_TEST_TILES)
+    fse_test_builders[0] = fse_test_builders[1] = 0;
+#endif
+}
+
 static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                        int64_t *counts, int finish) {
     fse_fpenv env = fse_fpenv_enter();
     fse_loop_t loop = fse_loop_for(isa, p->dtype);
 #if defined(FSE_TEST_TILES)
     fse_test_tiles = 0;
-    fse_test_builders[0] = fse_test_builders[1] = 0;
+    fse_test_builder_reset();
     fse_test_loop = 0;
     FSE_TEST_PREFETCH_RESET();
 #if defined(FSE_X86)
