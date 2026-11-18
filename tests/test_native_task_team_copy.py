@@ -10,7 +10,8 @@ import pytest
 from fse import Encoder, _native
 from fse._backends._cpu import CpuBackend
 from fse._runtime import _native_run, _pipeline
-from fse._text import copied_strings
+from fse._runtime._worker import WorkerLocal
+from fse._text import StringSource, copied_strings
 from support.native_team import faults, pipeline, tasks_for
 from support.runtime import expected, small_tasks, texts, word_vectors
 from support.waiting import until
@@ -146,10 +147,25 @@ def test_preparation_fallback_copies_once_and_releases_team(monkeypatch):
     source = copied_strings(texts(200))
     model = pipeline()
     tasks = tasks_for(model, source, 4)
+    teams = []
+    factory = CpuBackend.string_team
+
+    def capture(*args):
+        team = factory(*args)
+        teams.append(team)
+        return team
+
+    monkeypatch.setattr(CpuBackend, "string_team", capture)
     calls = _native._test_team_calls()
     with faults(allocation=7):
         result = model.infer(source, workers=4)
     assert _native._test_team_calls() == calls
+    assert len(teams) == 1
+    assert not teams[0].prepared
+    allocated, freed, started, joined, balanced, _ = teams[0].balance
+    assert allocated == freed
+    assert started == joined == 0
+    assert balanced
     assert _native._test_string_copy_progress(source._copy) == (len(source), len(tasks))
     assert len(result) == len(source)
 
@@ -180,3 +196,49 @@ def test_held_owner_and_team_have_separate_resource_balances(monkeypatch):
     gc.collect()
     assert owner() is None
     assert _native._test_join_resources() == baseline
+
+
+def test_claimed_task_copies_after_an_earlier_failure(monkeypatch):
+    small_tasks(monkeypatch)
+    model = pipeline()
+    source = copied_strings(texts(200))
+    tasks = tasks_for(model, source, 2)
+    _native._test_team_copy_control(1, before=True)
+    previous = _native._test_corrupt(1)
+    calls = _native._test_team_calls()
+    try:
+        with faults(corrupt_task=0), ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(model.infer, source, workers=2)
+            try:
+                assert until(lambda: _native._test_team_copy_control()[2:] == (0, 1))
+                # Task zero failed. Task one was claimed but has not copied yet.
+                assert _native._test_team_copy_control()[1] == 1
+            finally:
+                _native._test_team_copy_control(-1)
+            with pytest.raises(ValueError, match=r"."):
+                future.result(timeout=15)
+    finally:
+        _native._test_corrupt(previous)
+    assert _native._test_team_calls() == calls + 1
+    assert _native._test_string_copy_progress(source._copy) == (
+        tasks[0].n_rows + tasks[1].n_rows,
+        2,
+    )
+
+
+@pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
+@pytest.mark.parametrize("size", [0, 1, 4])
+def test_malformed_native_task_item_is_rejected(source_factory, size):
+    model = pipeline()
+    source = source_factory(["w1", "w2"])
+    worker = model._task_work(source, True, WorkerLocal(), 0, None)
+    with pytest.raises(RuntimeError, match="native text task item has invalid copy state"):
+        worker((None,) * size)
+
+
+def test_joined_task_rejects_copy_state():
+    model = pipeline()
+    source = StringSource(["w1", "w2"])
+    worker = model._task_work(source, True, WorkerLocal(), 0, None)
+    with pytest.raises(RuntimeError, match="native text task item has invalid copy state"):
+        worker((None, None, (True, 1)))

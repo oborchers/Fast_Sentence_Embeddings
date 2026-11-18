@@ -39,6 +39,7 @@ cdef struct _Team:
     int status, delay_ms
     bint hold
     Py_ssize_t copy_hold_task
+    bint copy_hold_before
     unsigned failed_starts
     int allocated, freed, started, joined
     bint balanced
@@ -59,17 +60,24 @@ cdef fse_atomic _team_entered
 cdef Py_ssize_t _team_copy_hold_task = -1
 cdef fse_atomic _team_copy_hold
 cdef fse_atomic _team_copied
+cdef fse_atomic _team_copy_failed
+cdef fse_atomic _team_copy_waiting
+cdef bint _team_copy_hold_before = False
 
 
-def _test_team_copy_control(task=None):
-    """Test barrier after a chosen task copies; count observed copies before release."""
-    global _team_copy_hold_task
+def _test_team_copy_control(task=None, bint before=False):
+    """Test barrier around a chosen copy, with receipts for claims and failure."""
+    global _team_copy_hold_task, _team_copy_hold_before
     if task is not None:
         _team_copy_hold_task = task
+        _team_copy_hold_before = before
         if task >= 0:
             fse_atomic_store(&_team_copied, 0)
+            fse_atomic_store(&_team_copy_failed, -1)
+            fse_atomic_store(&_team_copy_waiting, 0)
         fse_atomic_store(&_team_copy_hold, task >= 0)
-    return fse_atomic_load(&_team_copy_hold), fse_atomic_load(&_team_copied)
+    return (fse_atomic_load(&_team_copy_hold), fse_atomic_load(&_team_copied),
+            fse_atomic_load(&_team_copy_failed), fse_atomic_load(&_team_copy_waiting))
 
 
 def _test_team_control(hold=None):
@@ -154,11 +162,18 @@ cdef void _team_worker(void *arg, int slot) noexcept nogil:
             for delay in range(t.delay_ms):
                 fse_team_pause()
         if task.copy.rows != NULL:
+            if t.copy_hold_before and i == t.copy_hold_task:
+                fse_atomic_store(&_team_copy_waiting, 1)
+                while fse_atomic_load(&_team_copy_hold):
+                    fse_team_pause()
             _copy_range(&task.copy)
             if t.copy_hold_task >= 0:
                 fse_atomic_add(&_team_copied, 1)
-                if i == t.copy_hold_task:
+                if i == t.copy_hold_task and not t.copy_hold_before:
                     while fse_atomic_load(&_team_copy_hold):
+                        fse_team_pause()
+                if t.copy_hold_before and i == 0:
+                    while not fse_atomic_load(&_team_copy_waiting):
                         fse_team_pause()
         _start_result(&task.result)
         if i == t.status_task and t.status == ENCODE_NO_MEMORY:
@@ -174,6 +189,8 @@ cdef void _team_worker(void *arg, int slot) noexcept nogil:
                 task.result.built = CHECK_OFFSETS_START  # deterministic mismatch probe
         if _team_failed(&task.result):
             fse_atomic_min(&t.failed_at, i)
+            if t.copy_hold_task >= 0:
+                fse_atomic_store(&_team_copy_failed, fse_atomic_load(&t.failed_at))
     fse_fpenv_pop(saved)
 
 
@@ -204,6 +221,7 @@ cdef class TaskTeam:
         self.team.delay_task, self.team.delay_ms = _team_delay_task, _team_delay_ms
         self.team.hold = fse_atomic_load(&_team_hold) != 0
         self.team.copy_hold_task = _team_copy_hold_task
+        self.team.copy_hold_before = _team_copy_hold_before
         self.workspaces = []
         try:
             self._prepare(kernel, lookup, isa, normalize, text, tasks, out, workers)

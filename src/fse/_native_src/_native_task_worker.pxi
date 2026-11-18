@@ -36,11 +36,13 @@ cdef class _TextAttempt:
     cdef Py_ssize_t copies, reported_copies
 
     def __init__(self, TextTasks owner not None, item):
+        if len(item) not in (2, 3) or (len(item) == 3 and owner.copy is None):
+            raise RuntimeError("native text task item has invalid copy state")
         self.owner, self.task = owner, item[0]
         stored = item[1]
         codes, scales = stored if isinstance(stored, tuple) else (stored, None)
         self.target = (codes, scales, None)
-        if owner.copy is not None and len(item) == 3:
+        if len(item) == 3:
             self.copied, self.copies = item[2]
             self.reported = self.copied
             self.reported_copies = self.copies
