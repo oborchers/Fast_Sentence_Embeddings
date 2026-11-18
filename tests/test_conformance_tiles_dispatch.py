@@ -124,7 +124,7 @@ def test_empty_batch_output_is_unchanged(isa):
 @pytest.mark.parametrize("isa", _native.available_isas())
 @pytest.mark.parametrize("kind", ["known", "empty buckets"])
 @pytest.mark.usefixtures("instrumented")
-def test_zero_sentence_batch_resets_builder_counters(instrumented, isa, kind):
+def test_zero_sentence_batch_resets_builder_counters(isa, kind):
     case = _case(kind, 127)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
     empty = Batch(0, np.array([0], np.int64), np.array([], np.uint32))
