@@ -49,8 +49,12 @@ def _case(kind, dim, dtype="float32"):
 @pytest.mark.parametrize("isa", _native.available_isas())
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("dim", [33, 127, 300, 1024, 1025])
-@pytest.mark.parametrize("kind", ["known", "known FastText", "known offsets", "empty buckets", "mixed buckets"])
-def test_offsets_select_builder_with_identical_bits_counts_and_hints(instrumented, isa, dtype, dim, kind):
+@pytest.mark.parametrize(
+    "kind", ["known", "known FastText", "known offsets", "empty buckets", "mixed buckets"]
+)
+def test_offsets_select_builder_with_identical_bits_counts_and_hints(
+    instrumented, isa, dtype, dim, kind
+):
     """All-empty ranges must use general, even though their bucket pointer is NULL."""
     case = _case(kind, dim, dtype)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
@@ -106,7 +110,9 @@ def test_builder_counters_reset_between_paths_and_are_thread_local(instrumented,
 def test_empty_batch_output_is_unchanged(isa):
     case = Case("empty", "float32", np.ones((1, 127), F32), np.ones(1, F32), ())
     kernel = _native.WeightedMean(*case.args(), isa=isa)
-    assert_bits_equal(kernel.pool(case.batch), _reference.pool_weighted_mean(case.batch, *case.args()))
+    assert_bits_equal(
+        kernel.pool(case.batch), _reference.pool_weighted_mean(case.batch, *case.args())
+    )
     got, counts = kernel.accumulate(case.batch)
     want, want_counts = _reference.accumulate(case.batch, *case.args())
     assert_bits_equal(got, want)
