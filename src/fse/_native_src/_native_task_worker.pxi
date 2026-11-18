@@ -68,7 +68,7 @@ cdef class _TextAttempt:
             copy = &span
         try:
             _pool_text_checked(owner.kernel, owner.lookup, ws, owner.text,
-                           chunk.start, chunk.end, chunk.n_sentences,
+                               chunk.start, chunk.end, chunk.n_sentences,
                                owner.base + chunk.first_row, rows, owner.normalize, None, owner.isa, copy)
         finally:
             if self.copied and not self.reported:

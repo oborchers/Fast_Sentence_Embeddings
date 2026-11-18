@@ -120,10 +120,10 @@ class CopiedStrings(_Buffered):
     def _array(self) -> ndarray:
         raise AssertionError("only native tasks may read copied strings")
 
-    def encode(self, chunk, lookup, workspace) -> Batch:
+    def encode(self, _chunk, _lookup, _workspace) -> Batch:
         raise AssertionError("only native tasks may read copied strings")
 
-    def encode_with(self, chunk, run):
+    def encode_with(self, _chunk, _run):
         raise AssertionError("only native tasks may read copied strings")
 
 

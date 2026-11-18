@@ -10,6 +10,7 @@ cdef extern from "Python.h":
 
 cdef int _copy_fail_stage = 0
 cdef object _copy_between = None
+cdef object _copy_check = None
 
 
 cdef struct _CopyRow:
@@ -138,3 +139,10 @@ def _test_string_copy_result(StringCopy owner not None):
     if owner.finished != len(owner.snapshot):
         raise AssertionError("the string tasks have not copied every row")
     return owner.data, owner.offsets
+
+
+def _string_copy_check(callback):
+    """Test only: run immediately before a copied attempt checks its encode range."""
+    global _copy_check
+    previous, _copy_check = _copy_check, callback
+    return previous

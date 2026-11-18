@@ -40,13 +40,13 @@ INLINE_MAX_BYTES = 1 << 16
 STREAM_TASKS_PER_COLLECTION = 8
 
 SOURCES = (
-    CopiedStrings,
     StringSource,
     FileSource,
     TokenListSource,
     StreamSource,
     ArrowSource,
     Window,
+    CopiedStrings,
 )
 
 

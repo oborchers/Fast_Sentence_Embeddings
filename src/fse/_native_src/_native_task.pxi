@@ -330,6 +330,8 @@ cdef int _pool_buffer(TextLookup lookup, WeightedMean kernel, Workspace ws, text
     global _nogil_sections
     data, offsets = text
     cdef const unsigned char[::1] view = data
+    if copy != NULL and _copy_check is not None:
+        _copy_check(first, last)
     offsets, first, last = lookup._check_encode(view, offsets, first, last, ws)
     cdef _Span span
     _span_of(&span, view, offsets, first, last)

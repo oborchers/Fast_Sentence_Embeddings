@@ -39,10 +39,11 @@ from fse._text import (
     make_lookup,
 )
 
+from ._checks import _non_negative, check_sink_rows
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
-from ._pool import Pool, Workers, resolve_workers
+from ._pool import Pool, resolve_workers
 from ._sinks import (
     ArrayRows,
     GrowingRows,
@@ -444,36 +445,6 @@ def _empty_rows(local: threading.local) -> tuple | None:
     none = np.empty(0, np.int64)
     counted = lengths.count_truncated
     return np.empty(0, np.uint8), none, none, none if counted else None, none if counted else None
-
-
-def check_workers(workers: object) -> int | None:
-    """``workers`` of a run: None (the usable CPUs), a positive int or the ``Workers`` of a call."""
-    if isinstance(workers, Workers):
-        return workers.workers
-    return None if workers is None else _positive(workers, "workers")
-
-
-def _non_negative(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int | np.integer) or value < 0:
-        raise ValueError(f"{name} must be a non-negative int, not {value!r}")
-    return int(value)
-
-
-def _positive(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int | np.integer) or value < 1:
-        raise ValueError(f"{name} must be a positive int, not {value!r}")
-    return int(value)
-
-
-def check_sink_rows(sink: object, dim: int):
-    """``sink`` has ``target`` and ``commit`` and takes rows of ``dim`` values of a storage
-    dtype, with or without inverse norms."""
-    if not callable(getattr(sink, "target", None)) or not callable(getattr(sink, "commit", None)):
-        raise TypeError(f"the sink must have target and commit methods, not {type(sink).__name__}")
-    if getattr(sink, "dim", None) != dim:
-        raise ValueError(f"the sink must take rows of {dim} values")
-    sink_dtype(sink)
-    wants_inverse_norms(sink)
 
 
 def _own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:

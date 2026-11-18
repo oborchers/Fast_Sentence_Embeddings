@@ -19,7 +19,7 @@ from typing import Any
 from numpy import ndarray
 
 from fse._contract import EXTERNAL_TOKENIZER
-from fse._text import CopiedStrings, RowTypeError, copied_strings, StringSource, TokenListSource
+from fse._text import CopiedStrings, RowTypeError, StringSource, TokenListSource, copied_strings
 
 COLLECTIONS = (list, tuple, ndarray)
 
