@@ -168,6 +168,7 @@ def test_preparation_fallback_copies_once_and_releases_team(monkeypatch):
     assert balanced
     assert _native._test_string_copy_progress(source._copy) == (len(source), len(tasks))
     assert len(result) == len(source)
+    teams.clear()
 
 
 def test_held_owner_and_team_have_separate_resource_balances(monkeypatch):
