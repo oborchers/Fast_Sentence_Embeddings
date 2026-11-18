@@ -145,7 +145,7 @@ def test_avx512_selection_reaches_every_vector_dispatch_site():
     )
     logits = np.ones((1, 17), np.float32)
     _native.exp1(logits, isa="avx512")
-    for link in (Link.SIGMOID, Link.SOFTMAX):
+    for link in (Link.OVR, Link.SOFTMAX):
         _native.head_outputs(logits, "proba", link, np.empty_like(logits), isa="avx512")
     assert _native._test_route_trace() == 1023  # all ten vector dispatch sites, no AVX2 f32 loop
 

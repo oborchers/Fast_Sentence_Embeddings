@@ -44,7 +44,7 @@ def main() -> None:
         # Serial pytest prevents unwrapped xdist execs. Environment-choice children
         # explicitly enter SDE, so their feature checks cannot accidentally see the host.
         subprocess.run(
-            [*prefix, sys.executable, "-m", "pytest", *TESTS, "-m", "not network"],
+            [*prefix, sys.executable, "-m", "pytest", "-x", *TESTS, "-m", "not network"],
             env=env,
             check=True,
         )
