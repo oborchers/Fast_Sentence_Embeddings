@@ -22,14 +22,15 @@
      computed once per word from its full bucket count m;
    - an unknown word without buckets counts for the length n of the sentence (the
      divisor is n = end - begin, the number of tokens, never the number of terms) and
-     adds nothing;
+     adds nothing.
+
    Separately, tests/test_conformance_prefetch.py checks instrumented hint addresses
    against the row-loop model of tests/support/tiles.py, for the compiled line stride.
-   The builder prefetches what the row loop prefetches, in the same order: the row of the token
-     FSE_PREFETCH_DISTANCE tokens ahead (also across sentences, nothing for an unknown
-     token), and inside an unknown word the bucket FSE_PREFETCH_DISTANCE buckets ahead.
-   A token's prefetch is issued when the builder reaches the token. Its use follows
-   after the builder fills the tile containing that token, including any bucket terms.
+   The builder prefetches what the row loop prefetches, in the same order: the row of
+   the token FSE_PREFETCH_DISTANCE tokens ahead (also across sentences, nothing for an
+   unknown token), and inside an unknown word the bucket FSE_PREFETCH_DISTANCE buckets
+   ahead. At token t the builder hints the row of token t+8. That row is used when
+   the tile holding token t+8 is filled, including any bucket terms before it.
 
    The tile rule: K = FSE_TILE_BYTES / row_bytes, at most FSE_TILE_MAX, so the rows of
    one tile stay in the L1 cache while the blocks walk through them. Rows above

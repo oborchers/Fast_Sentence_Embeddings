@@ -340,7 +340,7 @@ jobs:
 
   # Diagnostic builds never produce release artifacts. macOS keeps its explicit PR opt-in.
   test-prefetch:
-    name: prefetch (${{ matrix.os }}, stride ${{ matrix.stride }})
+    name: test-prefetch (${{ matrix.os }}, stride ${{ matrix.stride }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -359,13 +359,21 @@ jobs:
         with:
           repository: ${{ needs.changes.outputs.source_repository }}
           ref: ${{ needs.changes.outputs.source_ref }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Verify the executing checkout SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.changes.outputs.source_ref }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: ${{ needs.changes.outputs.targeted != 'true' }}
       - name: Build the diagnostic variant from clean sources
         run: |
           git apply --check benchmarks/config/prefetch-line-stride-diagnostic.patch
           git apply benchmarks/config/prefetch-line-stride-diagnostic.patch
-          uv sync --locked --group test --reinstall-package fse
+          uv sync "$UV_SYNC_FLAGS" --group test --reinstall-package fse
       - name: Verify compiled stride and extension identity
         run: |
           uv run --no-sync python - <<'PY'
@@ -376,6 +384,7 @@ jobs:
           stride = int(os.environ["FSE_EXPECT_PREFETCH_LINE_STRIDE"])
           assert _native._diagnostic_prefetch_line_stride() == stride
           assert _native._test_prefetch_trace()[0] == stride
+          print("patch_sha256", hashlib.sha256(Path("benchmarks/config/prefetch-line-stride-diagnostic.patch").read_bytes()).hexdigest())
           print("stride", stride, "extension_sha256", hashlib.sha256(Path(_native.__file__).read_bytes()).hexdigest())
           PY
       - name: Hint proof and numerical conformance
@@ -560,7 +569,7 @@ jobs:
 
   check:
     if: always()
-    needs: [changes, lint, test, test-st, coverage, sdist, wheels]
+    needs: [changes, lint, test, test-st, test-prefetch, coverage, sdist, wheels]
     permissions:
       contents: read
       actions: read
