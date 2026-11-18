@@ -20,6 +20,9 @@ cdef struct _TeamTask:
     _Span span
     _Stages stages
     _Pooled result
+    _CopyRange copy
+    bint copied
+    Py_ssize_t copies
 
 
 cdef struct _Team:
@@ -35,6 +38,7 @@ cdef struct _Team:
     Py_ssize_t corrupt_task, status_task, delay_task
     int status, delay_ms
     bint hold
+    Py_ssize_t copy_hold_task
     unsigned failed_starts
     int allocated, freed, started, joined
     bint balanced
@@ -52,6 +56,20 @@ cdef Py_ssize_t _team_delay_task = -1
 cdef int _team_delay_ms = 0
 cdef fse_atomic _team_hold
 cdef fse_atomic _team_entered
+cdef Py_ssize_t _team_copy_hold_task = -1
+cdef fse_atomic _team_copy_hold
+cdef fse_atomic _team_copied
+
+
+def _test_team_copy_control(task=None):
+    """Test barrier after a chosen task copies; count observed copies before release."""
+    global _team_copy_hold_task
+    if task is not None:
+        _team_copy_hold_task = task
+        if task >= 0:
+            fse_atomic_store(&_team_copied, 0)
+        fse_atomic_store(&_team_copy_hold, task >= 0)
+    return fse_atomic_load(&_team_copy_hold), fse_atomic_load(&_team_copied)
 
 
 def _test_team_control(hold=None):
@@ -135,6 +153,13 @@ cdef void _team_worker(void *arg, int slot) noexcept nogil:
         if i == t.delay_task:
             for delay in range(t.delay_ms):
                 fse_team_pause()
+        if task.copy.rows != NULL:
+            _copy_range(&task.copy)
+            if t.copy_hold_task >= 0:
+                fse_atomic_add(&_team_copied, 1)
+                if i == t.copy_hold_task:
+                    while fse_atomic_load(&_team_copy_hold):
+                        fse_team_pause()
         _start_result(&task.result)
         if i == t.status_task and t.status == ENCODE_NO_MEMORY:
             task.result.encode = ENCODE_NO_MEMORY
@@ -160,6 +185,9 @@ cdef class TaskTeam:
     cdef int fail_allocation, preparation_steps
     cdef Py_ssize_t failed_at
     cdef int encode_status
+    cdef StringCopy copy
+    cdef bint failed_copied
+    cdef Py_ssize_t failed_copies
 
     def __cinit__(self):
         self.team.balanced = True
@@ -175,6 +203,7 @@ cdef class TaskTeam:
         self.team.corrupt_task = _team_corrupt_task
         self.team.delay_task, self.team.delay_ms = _team_delay_task, _team_delay_ms
         self.team.hold = fse_atomic_load(&_team_hold) != 0
+        self.team.copy_hold_task = _team_copy_hold_task
         self.workspaces = []
         try:
             self._prepare(kernel, lookup, isa, normalize, text, tasks, out, workers)
@@ -210,6 +239,10 @@ cdef class TaskTeam:
         ws = Workspace()
         self.workspaces.append(ws)
         self._allocation()
+        if isinstance(text, StringCopy):
+            _check_string_copy(text)
+            self.copy = text
+            text = (self.copy.data, self.copy.offsets)
         data = text[0]
         offsets, first, last = lookup._check_encode(data, text[1], 0, len(text[1]) - 1, ws)
         self.owners = (kernel, lookup, data, offsets, out)
@@ -237,6 +270,13 @@ cdef class TaskTeam:
             if (chunk.start != start or chunk.first_row != first_row or rows <= 0
                     or end - start != rows or end > last or first_row + rows > len(out)):
                 raise RuntimeError("native task team requires ordered, disjoint StringSource ranges")
+            if self.copy is not None:
+                t.tasks[i].copy.rows = self.copy.rows
+                t.tasks[i].copy.offsets = <const int64_t *>np.PyArray_DATA(<np.ndarray>offsets)
+                t.tasks[i].copy.out = PyBytes_AS_STRING(self.copy.data)
+                t.tasks[i].copy.first, t.tasks[i].copy.last = start, end
+            t.tasks[i].copy.copied = &t.tasks[i].copied
+            t.tasks[i].copy.calls = &t.tasks[i].copies
             _span_of(&t.tasks[i].span, data, offsets, start, end)
             _stages_of(&t.tasks[i].stages, kernel, lookup, out, len(out), normalize, code, None)
             t.tasks[i].stages.out += first_row * kernel.dim
@@ -260,6 +300,14 @@ cdef class TaskTeam:
             self.failed_at = fse_atomic_load(&t.failed_at)
             self.encode_status = (t.tasks[self.failed_at].result.encode
                                   if self.failed_at < t.n else ENCODE_OK)
+            if self.copy is not None:
+                for i in range(t.n):
+                    if t.tasks[i].copied:
+                        self.copy.finished += t.tasks[i].copy.last - t.tasks[i].copy.first
+                        self.copy.copy_calls += t.tasks[i].copies
+                if self.failed_at < t.n:
+                    self.failed_copied = t.tasks[self.failed_at].copied
+                    self.failed_copies = t.tasks[self.failed_at].copies
             t.balanced = fse_team_balanced(<int>t.workers, t.slots)
             for i in range(1, t.workers):
                 t.started += t.slots[i].started
@@ -272,6 +320,12 @@ cdef class TaskTeam:
         if not t.balanced:
             raise RuntimeError("native task team resource balance mismatch")
         return self.failed_at, self.encode_status == ENCODE_NO_MEMORY
+
+    @property
+    def retry_state(self):
+        if self.copy is not None:
+            return bool(self.failed_copied), self.failed_copies
+        return None
 
     @property
     def thread_ids(self):

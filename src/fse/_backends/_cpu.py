@@ -171,7 +171,7 @@ class CpuBackend:
             lookup,
             state.isa,
             bool(prepared.steps),
-            (source._array(), source._offsets),
+            source._task_text(),
             tasks,
             out,
             min(workers, 256),

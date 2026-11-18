@@ -52,7 +52,13 @@ def _windows(
             chunk_bytes=chunk_bytes,
             dtype=dtype,
         )
-    if kind == "strings" and dtype == "float32" and chunk_bytes is None and workers > 1 and fused:
+    if (
+        kind in ("strings", "copied")
+        and dtype == "float32"
+        and chunk_bytes is None
+        and workers > 1
+        and fused
+    ):
         assert _native._test_team_calls() == calls + 1
         assert len(budget.windows) == 1
     else:
@@ -289,9 +295,10 @@ def test_callback_and_run_helpers_require_noexcept(helper):
     assert helper in gil_budget.checked_without_gil(broken, others)
 
 
-def test_native_call_has_one_section_and_no_numpy_calls(monkeypatch, tmp_path):
+@pytest.mark.parametrize("kind", ["strings", "copied"])
+def test_native_call_has_one_section_and_no_numpy_calls(monkeypatch, tmp_path, kind):
     small_tasks(monkeypatch)
-    windows = _windows(monkeypatch, tmp_path, "strings", workers=4, chunk_bytes=None)
+    windows = _windows(monkeypatch, tmp_path, kind, workers=4, chunk_bytes=None)
     assert len(windows) == 1
     assert windows[0].sections == 1
     assert windows[0].numpy == Counter()

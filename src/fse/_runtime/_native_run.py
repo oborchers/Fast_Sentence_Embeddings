@@ -5,7 +5,7 @@ from __future__ import annotations
 from itertools import chain
 from typing import Any
 
-from fse._text import StringSource
+from fse._text import CopiedStrings, StringSource
 
 from ._sinks import ArrayRows
 from ._worker import WorkerLocal
@@ -22,7 +22,7 @@ def _scope(
         pool is None
         and sink is None
         and dtype == "float32"
-        and type(source) is StringSource
+        and type(source) in (StringSource, CopiedStrings)
         and source._verified
         and base == 0
         and lengths is None
@@ -180,7 +180,9 @@ class NativeCall:
         if failed_at < len(self.tasks):
             if no_memory:
                 raise MemoryError("could not grow the buffers of the Workspace")
-            work(reserve(self.tasks[failed_at]))
+            item = reserve(self.tasks[failed_at])
+            state = self.team.retry_state
+            work(item if state is None else (*item, state))
             raise RuntimeError("native task team and Python task error mismatch")
         if self.error is not None:
             raise self.error

@@ -34,3 +34,22 @@ def test_signal_and_fork_contract_in_bounded_processes(mode):
     else:
         assert receipt["interrupt"]
         assert receipt["latency"] >= 0
+
+
+@pytest.mark.parametrize("mode", ["main", "main-twice", "background"])
+def test_copied_tasks_account_before_interrupt_can_raise(mode):
+    result = subprocess.run(
+        [sys.executable, "-m", "support.native_team_process", mode, "copied"],
+        cwd=Path(__file__).parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt["balanced"]
+    assert receipt["interrupt"]
+    assert receipt["copies_accounted"]
+    if mode == "background":
+        assert receipt["background_result"]

@@ -12,8 +12,8 @@ import warnings
 import numpy as np
 
 from fse import _native
-from fse._text import StringSource
-from support.native_team import pipeline
+from fse._text import StringSource, copied_strings
+from support.native_team import pipeline, tasks_for
 from support.runtime import expected, texts
 from support.waiting import until
 
@@ -134,7 +134,9 @@ def fork_probe(model, source, wanted):
 def main():
     model = pipeline()
     sentences = texts(2000)
-    source = StringSource(sentences)
+    copied = len(sys.argv) > 2 and sys.argv[2] == "copied"
+    source = copied_strings(sentences) if copied else StringSource(sentences)
+    task_count = len(tasks_for(model, source, 2))
     wanted = expected(model.spec, sentences)
     baseline = (_native._test_team_resources(), _native._test_join_resources())
     _native._test_team_control(True)
@@ -145,6 +147,10 @@ def main():
         receipt = background_signal(model, source, wanted)
     else:
         receipt = fork_probe(model, source, wanted)
+    if copied:
+        assert _native._test_string_copy_progress(source._copy) == (len(sentences), task_count)
+        assert _native._test_string_copy_result(source._copy)[0] == "".join(sentences).encode()
+        receipt["copies_accounted"] = True
     gc.collect()
     assert (_native._test_team_resources(), _native._test_join_resources()) == baseline
     receipt["balanced"] = True

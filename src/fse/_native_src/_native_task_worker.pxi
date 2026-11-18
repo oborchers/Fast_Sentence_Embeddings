@@ -40,6 +40,10 @@ cdef class _TextAttempt:
         stored = item[1]
         codes, scales = stored if isinstance(stored, tuple) else (stored, None)
         self.target = (codes, scales, None)
+        if owner.copy is not None and len(item) == 3:
+            self.copied, self.copies = item[2]
+            self.reported = self.copied
+            self.reported_copies = self.copies
 
     def run(self, Py_ssize_t n):
         cdef TextTasks owner = self.owner
