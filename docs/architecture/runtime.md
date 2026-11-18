@@ -98,3 +98,41 @@ validation. Caller sinks, including caller-supplied `ArrayRows`, keep their chec
 Other sources, subclasses and backends keep the ordinary route. Executor workers mark
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
+
+### Per-call native StringSource team
+
+After the direct single-task check, an exact, verified `StringSource` may run its
+CPU text tasks in a native team. This requires internally allocated float32
+`ArrayRows`, no pool or sink, original `first_row=0`, no length settings or
+collector, automatic chunking, a non-inline plan and more than one worker.
+Limits are 131,072 rows, 16 MiB of text and 256 tasks. The runtime reads at most
+257 task items before choosing the team or replaying the iterator to `run`.
+Preparation failure also replays the tasks and any retained scan error.
+
+The caller starts at most `min(workers, tasks) - 1` native threads and participates
+in task processing. Failed thread starts reduce the team. Each slot owns a
+workspace. Atomic ascending task claims and the atomic minimum failure index
+preserve the successful prefix and the earliest task error. Non-memory task
+errors are replayed through `TextTasks` and `earliest` to identify the earliest
+row. A memory failure raises directly, without replay. A successful replay of
+an allegedly failed task raises an internal `RuntimeError`.
+
+The team releases the GIL once and never re-enters Python while processing tasks.
+It restores each thread's floating-point environment, joins all started threads,
+frees native team buffers and checks its own resource balance before returning
+to Python. `runtime.plan` adds `executor="native"` for this route. Successful
+calls emit `runtime.done` once. Errors emit no completion record.
+
+Python executor interrupts retain their existing behavior: cancel the call's own
+pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second
+interrupt preserves task-place accounting. Within the native team's limits, an
+interrupt takes effect after the native section ends. Tasks complete or skip
+after failure, all started threads join and native resources are freed before
+Python can raise. A second interrupt cannot shorten this section. There is no
+general latency bound. Signals raise in the main Python thread; an encode call
+in another thread may return normally.
+
+No computation thread outlives the call and no default pool is created. There is
+no new fork handler. If another Python thread forks during a team call, the child
+does not resume the team's calling frame or join inherited handles. The child's
+resource tests use their post-fork baseline for inherited allocations.

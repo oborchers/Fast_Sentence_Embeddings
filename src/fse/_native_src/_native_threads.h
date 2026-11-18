@@ -10,6 +10,7 @@
 #define FSE_NATIVE_THREADS_H
 
 #include <stdlib.h>
+#include "_native_atomics.h"
 
 typedef void (*fse_part)(void *arg, int part);
 
@@ -21,18 +22,19 @@ static int fse_test_fail_bookkeeping = 0;
 /* Actual live native allocations for join parts and parallel bookkeeping. Only
  * the calling thread allocates/frees these while holding the GIL. Never reset
  * this counter between calls: a missed free must remain visible to the tests. */
-static size_t fse_test_join_live = 0;
+static fse_atomic fse_test_join_live = {0};
+static fse_atomic fse_test_team_live = {0};
 
 static void *fse_join_calloc(size_t n, size_t size) {
     void *p = calloc(n, size);
-    if (p) fse_test_join_live++;
+    if (p) fse_atomic_add(&fse_test_join_live, 1);
     return p;
 }
 
 static void fse_join_free(void *p) {
     if (p) {
         free(p);
-        fse_test_join_live--;
+        fse_atomic_add(&fse_test_join_live, -1);
     }
 }
 
@@ -78,6 +80,48 @@ static int fse_start(fse_thread *thread, fse_task *task) {
 
 static void fse_join(fse_thread thread) { pthread_join(thread, NULL); }
 #endif
+
+/* Caller-owned storage. Failed starts reduce the team; slot zero drains the queue.
+ * Separate started/joined handles let each call check its own resource balance. */
+typedef struct {
+    fse_thread thread, joined_thread;
+    fse_task task;
+    int started, joined;
+} fse_team_slot;
+
+static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
+                     unsigned failed_starts) {
+    int i;
+    for (i = 1; i < n; i++) {
+        slots[i].task.fn = fn;
+        slots[i].task.arg = arg;
+        slots[i].task.part = i;
+        slots[i].started = !(i < 32 && (failed_starts >> i) & 1u) &&
+                           fse_start(&slots[i].thread, &slots[i].task) == 0;
+    }
+    fn(arg, 0);
+    for (i = 1; i < n; i++) {
+        if (slots[i].started) {
+            fse_join(slots[i].thread);
+            slots[i].joined_thread = slots[i].thread;
+            slots[i].joined = 1;
+        }
+    }
+}
+
+static int fse_team_balanced(int n, fse_team_slot *slots) {
+    int i;
+    for (i = 1; i < n; i++) {
+        if (slots[i].started != slots[i].joined) return 0;
+        if (!slots[i].started) continue;
+#ifdef _WIN32
+        if (slots[i].thread != slots[i].joined_thread) return 0;
+#else
+        if (!pthread_equal(slots[i].thread, slots[i].joined_thread)) return 0;
+#endif
+    }
+    return 1;
+}
 
 /* 0, or -1 if the bookkeeping could not be allocated (then nothing ran). */
 static int fse_parallel(int n, fse_part fn, void *arg) {

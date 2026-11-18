@@ -44,14 +44,13 @@ def _test_corrupt(int kind):
     return previous
 
 
-cdef void _corrupt(Workspace ws, WeightedMean kernel) noexcept nogil:
+cdef void _corrupt_kind(Workspace ws, WeightedMean kernel, int kind) noexcept nogil:
     cdef int64_t *offsets = <int64_t *>ws.offsets.data
     cdef Py_ssize_t n_offsets = ws.offsets.size // <Py_ssize_t>sizeof(int64_t)
     cdef uINT_t *tokens = <uINT_t *>ws.tokens.data
     cdef Py_ssize_t n_tokens = ws.tokens.size // <Py_ssize_t>sizeof(uINT_t)
     cdef int64_t *ngram_offsets = <int64_t *>ws.ngram_offsets.data
     cdef Py_ssize_t n_ngram_offsets = ws.ngram_offsets.size // <Py_ssize_t>sizeof(int64_t)
-    cdef int kind = _test_corrupt_kind
     if kind == 1:
         offsets[0] = 1
     elif kind == 2 and n_offsets > 2:
@@ -192,11 +191,16 @@ cdef struct _Stages:
 
 cdef void _pool_stages(WeightedMean kernel, Workspace ws, _Stages *s,
                        _Pooled *result) noexcept nogil:
+    _pool_stages_kind(kernel, ws, s, result, _test_corrupt_kind)
+
+
+cdef void _pool_stages_kind(WeightedMean kernel, Workspace ws, _Stages *s,
+                            _Pooled *result, int corrupt) noexcept nogil:
     """Stages 2 to 4 on the batch stage 1 left in ws: the checks, pooling and normalize,
     each only if everything before it passed."""
     cdef fse_batch b
-    if _test_corrupt_kind:
-        _corrupt(ws, kernel)
+    if corrupt:
+        _corrupt_kind(ws, kernel, corrupt)
     _count(ws, &result.counts)
     result.built = _check_built(ws, &result.counts, s.ngrams, s.rows, &result.at)
     if result.built != CHECK_OK or not s.out_ok:
