@@ -7,6 +7,7 @@ The matching production wheel is also executed under SDE's Haswell profile.
 from __future__ import annotations
 
 import argparse
+import importlib
 import re
 import shutil
 import subprocess
@@ -76,7 +77,7 @@ def main() -> None:
     args = parser.parse_args()
     objects = [Path(path) for path in args.objects]
     if args.installed_wheel:
-        from fse import _native
+        _native = importlib.import_module("fse._native")
 
         if "avx512" not in _native._compiled_isas():
             print("Installed wheel has no AVX-512 variant; register isolation is not applicable")
