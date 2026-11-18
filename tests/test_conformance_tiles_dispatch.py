@@ -52,9 +52,8 @@ def _case(kind, dim, dtype="float32"):
 @pytest.mark.parametrize(
     "kind", ["known", "known FastText", "known offsets", "empty buckets", "mixed buckets"]
 )
-def test_offsets_select_builder_with_identical_bits_counts_and_hints(
-    instrumented, isa, dtype, dim, kind
-):
+@pytest.mark.usefixtures("instrumented")
+def test_offsets_select_builder_with_identical_bits_counts_and_hints(isa, dtype, dim, kind):
     """All-empty ranges must use general, even though their bucket pointer is NULL."""
     case = _case(kind, dim, dtype)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
@@ -82,7 +81,8 @@ def test_offsets_select_builder_with_identical_bits_counts_and_hints(
 
 
 @pytest.mark.parametrize("isa", _native.available_isas())
-def test_builder_counters_reset_between_paths_and_are_thread_local(instrumented, isa):
+@pytest.mark.usefixtures("instrumented")
+def test_builder_counters_reset_between_paths_and_are_thread_local(isa):
     barrier = Barrier(2)
 
     def probe(kind):
@@ -99,8 +99,10 @@ def test_builder_counters_reset_between_paths_and_are_thread_local(instrumented,
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(probe, ("known", "empty buckets")))
     if isa in ("avx2", "neon"):
-        assert results[0][0][0] > 0 and results[0][0][1] == 0
-        assert results[1][0][0] == 0 and results[1][0][1] > 0
+        assert results[0][0][0] > 0
+        assert results[0][0][1] == 0
+        assert results[1][0][0] == 0
+        assert results[1][0][1] > 0
         assert all(after == (1, 0) for _, after in results)
     else:
         assert all(before == after == (0, 0) for before, after in results)
@@ -121,6 +123,7 @@ def test_empty_batch_output_is_unchanged(isa):
 
 @pytest.mark.parametrize("isa", _native.available_isas())
 @pytest.mark.parametrize("kind", ["known", "empty buckets"])
+@pytest.mark.usefixtures("instrumented")
 def test_zero_sentence_batch_resets_builder_counters(instrumented, isa, kind):
     case = _case(kind, 127)
     kernel = _native.WeightedMean(*case.args(), isa=isa)
