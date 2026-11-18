@@ -10,12 +10,13 @@ docs/architecture/runtime.md, "Runtime". Private: the Encoder builds an EncodeSp
 Pipeline; the public entry points are those of the Encoder.
 """
 
+from ._checks import check_sink_rows, check_workers
 from ._head import OUTPUTS, HeadPipeline, make_head
 from ._head_spec import HeadSpec
 from ._heads import HeadsPipeline
 from ._heads_plan import HeadsPlan, Member, plan_heads
 from ._lengths import LengthCollector, LengthReport, LengthSettings, rule_of
-from ._pipeline import Pipeline, check_sink_rows, check_workers
+from ._pipeline import Pipeline
 from ._pool import Pool, Workers, iteration, resolve_workers, streaming, workers_of
 from ._sinks import (
     ArrayRows,

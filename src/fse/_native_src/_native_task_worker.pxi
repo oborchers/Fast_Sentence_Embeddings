@@ -9,12 +9,17 @@ cdef class TextTasks:
     cdef int isa
     cdef bint normalize
     cdef object text, local, base, helpers
+    cdef StringCopy copy
 
     def __init__(self, WeightedMean kernel not None, TextLookup lookup not None, isa,
                  bint normalize, text, local, base, helpers):
         self.kernel, self.lookup = kernel, lookup
         self.isa = _check_isa(isa)
         self.normalize = normalize
+        if isinstance(text, StringCopy):
+            _check_string_copy(text)
+            self.copy = text
+            text = (self.copy.data, self.copy.offsets)
         self.text, self.local, self.base, self.helpers = text, local, base, helpers
 
     def __call__(self, item):
@@ -27,6 +32,8 @@ cdef class TextTasks:
 cdef class _TextAttempt:
     cdef TextTasks owner
     cdef object task, target
+    cdef bint copied, reported
+    cdef Py_ssize_t copies, reported_copies
 
     def __init__(self, TextTasks owner not None, item):
         self.owner, self.task = owner, item[0]
@@ -50,7 +57,27 @@ cdef class _TextAttempt:
                 "Argument 'ws' has incorrect type (expected fse._native.Workspace, got NoneType)"
             )
         chunk = task.chunk
-        _pool_text_checked(owner.kernel, owner.lookup, ws, owner.text,
-                           chunk.start, chunk.end, chunk.n_sentences,
-                           owner.base + chunk.first_row, rows, owner.normalize, None, owner.isa)
+        cdef _CopyRange span
+        cdef _CopyRange *copy = NULL
+        if owner.copy is not None:
+            span.rows = owner.copy.rows
+            span.offsets = <const int64_t *>np.PyArray_DATA(<np.ndarray>owner.copy.offsets)
+            span.out = PyBytes_AS_STRING(owner.copy.data)
+            span.first, span.last = self.task.chunk.start, self.task.chunk.end
+            if not 0 <= span.first <= chunk.start <= chunk.end <= span.last <= len(owner.copy.snapshot):
+                raise AssertionError("copied task range is outside its snapshot")
+            span.copied = &self.copied
+            span.calls = &self.copies
+            copy = &span
+        try:
+            _pool_text_checked(owner.kernel, owner.lookup, ws, owner.text,
+                               chunk.start, chunk.end, chunk.n_sentences,
+                               owner.base + chunk.first_row, rows, owner.normalize, None, owner.isa, copy)
+        finally:
+            if self.copied and not self.reported:
+                owner.copy.finished += self.task.chunk.end - self.task.chunk.start
+                self.reported = True
+            if owner.copy is not None:
+                owner.copy.copy_calls += self.copies - self.reported_copies
+                self.reported_copies = self.copies
         owner.helpers[4](rows, part, owner.base + task.first_row)

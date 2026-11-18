@@ -155,7 +155,7 @@ class CpuBackend:
             lookup,
             state.isa,
             bool(prepared.steps),
-            (source._array(), source._offsets),
+            source._task_text(),
             local,
             base,
             helpers,

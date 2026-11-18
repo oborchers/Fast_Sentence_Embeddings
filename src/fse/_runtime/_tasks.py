@@ -23,6 +23,7 @@ from fse._stream import StreamSource
 from fse._text import (
     ArrowSource,
     Chunk,
+    CopiedStrings,
     StringSource,
     TokenListSource,
     Window,
@@ -38,7 +39,15 @@ INLINE_MAX_BYTES = 1 << 16
 # window spans collections, so a stream keeps its smaller tasks.
 STREAM_TASKS_PER_COLLECTION = 8
 
-SOURCES = (StringSource, FileSource, TokenListSource, StreamSource, ArrowSource, Window)
+SOURCES = (
+    StringSource,
+    FileSource,
+    TokenListSource,
+    StreamSource,
+    ArrowSource,
+    Window,
+    CopiedStrings,
+)
 
 
 @dataclass(frozen=True)

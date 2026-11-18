@@ -14,11 +14,12 @@ from fse._backends import get_backend
 from fse._contract import Head, Link
 from fse._cpus import usable_cpus
 from fse._runtime import HeadSpec, Pipeline
+from fse._runtime._checks import check_sink_rows, check_workers
 from fse._runtime._errors import earliest, first_rows
 from fse._runtime._executor import run
 from fse._runtime._head import OUTPUTS
 from fse._runtime._head_common import buffer, fold, own, own_vectors, result, write_outputs
-from fse._runtime._pipeline import STEP_ROW_BYTES, check_sink_rows, check_workers
+from fse._runtime._pipeline import STEP_ROW_BYTES
 from fse._runtime._sinks import Sink, sink_dtype, split_target, wants_inverse_norms
 from fse._runtime._tasks import Task
 
