@@ -33,6 +33,10 @@ from fse._validation import PositiveInt, WorkerCount, validate_arguments
 _POLL_SECONDS = 0.25
 _POOLS: weakref.WeakSet[Pool] = weakref.WeakSet()
 _ACTIVE = threading.local()  # the pools whose call or task the thread is in
+_NESTED_POOL_ERROR = (
+    "a call on this pool was made inside a call or a task of the same pool; "
+    "give the inner call its own pool or run it with workers=1"
+)
 
 
 class Pool:
@@ -167,10 +171,7 @@ class Pool:
         for places that its own call holds, so it is refused instead of left to hang."""
         active = _ACTIVE.__dict__.setdefault("pools", set())
         if id(self) in active:
-            raise RuntimeError(
-                "a call on this pool was made inside a call or a task of the same pool; "
-                "give the inner call its own pool or run it with workers=1"
-            )
+            raise RuntimeError(_NESTED_POOL_ERROR)
         active.add(id(self))
         try:
             yield

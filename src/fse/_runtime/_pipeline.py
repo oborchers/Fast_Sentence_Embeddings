@@ -36,7 +36,6 @@ from fse._text import (
     Vocabulary,
     check_chunk_bytes,
     make_lookup,
-    new_workspace,
 )
 
 from ._errors import earliest, first_rows
@@ -56,6 +55,7 @@ from ._sinks import (
 )
 from ._spec import EncodeSpec
 from ._tasks import INLINE_MAX_BYTES, Plan, Task, plan
+from ._worker import WorkerLocal, _scratch, _workspace
 
 # The finished rows of one task take at most this many bytes, whatever the bytes of its
 # sentences (an empty sentence takes none). Smaller tasks cost throughput: a task has a
@@ -168,18 +168,22 @@ class Pipeline:
         own: ArrayRows | GrowingRows | None = None
         tbase = base if sink is not None else 0  # own targets count from 0
         if sink is None:
-            rows = tasks.rows
-            own = (
-                GrowingRows(self.output_dim, dtype)
-                if rows is None
-                else ArrayRows(rows, self.output_dim, dtype)
-            )
+            own = _own_rows(tasks.rows, self.output_dim, dtype)
             sink = own
         local = WorkerLocal(lengths)
         done = [0, 0]  # the rows and tasks committed, for the record of the run
 
+        native_work = self._task_work(source, type(own) is ArrayRows, local, base, collector)
+        internal = cast(ArrayRows, own) if native_work is not None else None
+
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
-            return task, sink.target(tbase + task.first_row, task.n_rows)
+            first = tbase + task.first_row
+            target = (
+                internal._view(first, task.n_rows)
+                if internal is not None
+                else sink.target(first, task.n_rows)
+            )
+            return task, target
 
         def work(item: tuple[Task, Stored]) -> Any:
             self._work(local, item[0], split_target(item[1], dtype, inverse), base)
@@ -187,13 +191,16 @@ class Pipeline:
 
         def commit(item: tuple[Task, Stored], rows: Any):
             rows = collect(collector, item[0], rows)
-            sink.commit(tbase + item[0].first_row, rows)
+            if internal is None:
+                sink.commit(tbase + item[0].first_row, rows)
+            else:
+                internal.next_row += item[0].n_rows
             done[0] += item[0].n_rows
             done[1] += 1
 
         run(
             tasks.tasks,
-            work,
+            native_work if native_work is not None else work,
             commit,
             workers=workers,
             inline=tasks.inline,
@@ -234,9 +241,28 @@ class Pipeline:
         self._planned(src, n, True, workers, window, dtype, None)
         rows = new_rows(n, self.output_dim, dtype)
         codes, scales = rows if isinstance(rows, tuple) else (rows, None)
-        self._work(WorkerLocal(), Task(src, Chunk(0, n, 0, n)), (codes, scales, None), 0)
+        local = WorkerLocal()
+        task = Task(src, Chunk(0, n, 0, n))
+        native_work = self._task_work(src, True, local, 0, None)
+        if native_work is None:
+            self._work(local, task, (codes, scales, None), 0)
+        else:
+            native_work((task, rows))
         self._done(n, 1, time.perf_counter() - start)
         return rows
+
+    def _task_work(self, source, internal, local, base, collector):
+        """An eligible CPU/StringSource call's native worker, otherwise the ordinary route."""
+        factory = getattr(self.backend, "string_tasks", None)
+        if (
+            not internal
+            or not self._text_rows
+            or type(source) is not StringSource
+            or factory is None
+        ):
+            return None
+        helpers = (first_rows, _scratch, _workspace, earliest, self.stored, recorded, collector)
+        return factory(self.prepared, self.lookup, source, local, base, helpers)
 
     def _planned(self, source, rows, inline, workers, window, dtype, sink) -> None:
         """The record of the plan of a run (the calling thread, before any task runs)."""
@@ -381,25 +407,6 @@ class Pipeline:
             norms[...] = self.backend.inverse_norms(codes, first)
 
 
-class WorkerLocal(threading.local):
-    """What one worker thread keeps during a run (its workspace and scratch), and the length
-    settings of the run, which every thread sees (a plain attribute set in the calling
-    thread would not reach the workers)."""
-
-    def __init__(self, lengths: LengthSettings | None = None):
-        self.lengths = lengths
-
-
-def _workspace(local: threading.local) -> Any:
-    """The workspace of the worker thread, made at its first task; it records the length rule
-    if the run asks (``local.lengths``, set by ``infer``)."""
-    workspace = getattr(local, "workspace", None)
-    if workspace is None:
-        lengths = getattr(local, "lengths", None)
-        workspace = local.workspace = new_workspace() if lengths is None else lengths.workspace()
-    return workspace
-
-
 def recorded(collector: LengthCollector | None, local: threading.local, task: Task, found: Any):
     """What a worker hands to the commit: ``found``, with the record of the length rule of its
     task if the run collects one."""
@@ -433,14 +440,6 @@ def _empty_rows(local: threading.local) -> tuple | None:
     return np.empty(0, np.uint8), none, none, none if counted else None, none if counted else None
 
 
-def _scratch(local: threading.local, n_rows: int, dim: int) -> ndarray:
-    """The float32 rows of one task before they are stored, reused by its worker thread."""
-    scratch = getattr(local, "scratch", None)
-    if scratch is None or len(scratch) < n_rows or scratch.shape[1] != dim:
-        scratch = local.scratch = np.empty((n_rows, dim), dtype=np.float32)
-    return scratch[:n_rows]
-
-
 def check_workers(workers: object) -> int | None:
     """``workers`` of a run: None (the usable CPUs), a positive int or the ``Workers`` of a call."""
     if isinstance(workers, Workers):
@@ -469,3 +468,8 @@ def check_sink_rows(sink: object, dim: int):
         raise ValueError(f"the sink must take rows of {dim} values")
     sink_dtype(sink)
     wants_inverse_norms(sink)
+
+
+def _own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:
+    """A checked target for the call, with fixed or growing row count."""
+    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)

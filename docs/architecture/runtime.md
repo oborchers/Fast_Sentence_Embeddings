@@ -82,3 +82,19 @@ Zero-row targets are allowed.
 ### Sink threads
 
 `pool=` bounds computation threads, not sink threads. Each `ShardSink` or `ScoreSink` adds up to three I/O threads of its own. The write and hash threads start at the first commit, and the publish thread at the first finished shard. Constructing, inspecting or opening a sink starts none. Once started, they live until `sink.close()` (or the end of its `with` block). Close every sink that takes rows, even when a computation runs inline. There is no finalizer. Sink work stays outside the pool: otherwise a sink could wait for a pool place held by an encode call that waits for the sink to drain.
+
+### Internal string task entry
+
+An exact `StringSource` on the CPU backend with internally allocated output uses one
+native task callable. A call retains its checked kernel, ISA, lookup and source buffer
+view. Each attempt still selects its output and workspace, checks `_out_error`, builds
+`_stages_of`, and runs the existing encoding, pooling and normalization stages in order.
+The existing `earliest` prefix search includes compact storage. Length records follow
+successful storage. Running tasks own their retained buffers until they actually finish,
+including when a second interrupt ends the caller's wait.
+
+Only an internally allocated `ArrayRows` bypasses reservation, target-splitting and commit
+validation. Caller sinks, including caller-supplied `ArrayRows`, keep their checks.
+Other sources, subclasses and backends keep the ordinary route. Executor workers mark
+the pool in a thread-local set for each task, then remove that mark in `finally`.
+Preparation, search and calling threads keep the same pool context manager.

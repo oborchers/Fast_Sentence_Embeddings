@@ -30,7 +30,7 @@ from typing import Any, TypeVar
 
 import numpy as np
 
-from ._pool import Pool
+from ._pool import _ACTIVE, _NESTED_POOL_ERROR, Pool
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -241,8 +241,15 @@ class _Run:
         if sequence > self.failed_at:
             return _SKIPPED
         try:
-            with self.pool_of_call._inside():
+            active = _ACTIVE.__dict__.setdefault("pools", set())
+            identity = id(self.pool_of_call)
+            if identity in active:
+                raise RuntimeError(_NESTED_POOL_ERROR)
+            active.add(identity)
+            try:
                 return self.work(task)
+            finally:
+                active.discard(identity)
         except BaseException:
             with self.lock:
                 self.failed_at = min(self.failed_at, sequence)
