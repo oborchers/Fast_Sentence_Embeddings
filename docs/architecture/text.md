@@ -35,3 +35,11 @@ inside its existing section without the GIL, before tokenizing any prefix.
 Descriptors contain character pointers and lengths, so this copy never reads
 Unicode headers. All other inputs, one-worker calls and caller sinks keep the
 ordinary join. Free-threaded Python remains unsupported.
+
+Snapshot, descriptor and offset allocations precede row validation on this route.
+Under memory pressure an allocation can therefore raise `MemoryError` before an
+unsupported or invalid row selects the ordinary source and its row error. This is
+an accepted allocation-order edge case. The deterministic allocation-failure hooks
+use fse's own messages (including the offsets hook). Real NumPy allocation failures
+propagate their original subclass and message unchanged, since NumPy's byte-unit
+formatting and internal exception location vary between supported versions.

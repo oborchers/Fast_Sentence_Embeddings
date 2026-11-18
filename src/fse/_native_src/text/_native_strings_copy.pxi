@@ -24,6 +24,7 @@ cdef struct _CopyRange:
     char *out
     Py_ssize_t first, last
     bint *copied
+    Py_ssize_t *calls
 
 
 cdef class StringCopy:
@@ -31,7 +32,7 @@ cdef class StringCopy:
     cdef object __weakref__
     cdef object snapshot, data, offsets
     cdef _CopyRow *rows
-    cdef Py_ssize_t finished
+    cdef Py_ssize_t finished, copy_calls
 
     def __dealloc__(self):
         fse_join_free(self.rows)
@@ -118,6 +119,7 @@ cdef void _copy_range(_CopyRange *span) noexcept nogil:
         if span.rows[i].length:
             memcpy(span.out + span.offsets[i], span.rows[i].data, span.rows[i].length)
     span.copied[0] = True
+    span.calls[0] += 1
 
 
 def _string_copy_between(callback):
@@ -146,3 +148,19 @@ def _string_copy_check(callback):
     global _copy_check
     previous, _copy_check = _copy_check, callback
     return previous
+
+
+cdef void _check_string_copy(StringCopy owner) except *:
+    # A default-constructed extension object has NULL descriptors and None fields.
+    # Reject it before any PyArray_DATA/PyBytes_AS_STRING macro sees those fields.
+    if (owner.rows == NULL or not isinstance(owner.snapshot, tuple)
+            or type(owner.data) is not bytes or not isinstance(owner.offsets, np.ndarray)):
+        raise ValueError("StringCopy is not initialized")
+    if (owner.offsets.dtype != np.int64 or owner.offsets.ndim != 1
+            or len(owner.offsets) != len(owner.snapshot) + 1):
+        raise ValueError("StringCopy is not initialized")
+
+
+def _test_string_copy_calls(StringCopy owner not None):
+    """Test only: actual native copies completed by this owner's task attempts."""
+    return owner.copy_calls

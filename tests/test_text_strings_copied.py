@@ -204,7 +204,7 @@ def test_snapshot_is_unchanged_by_allocation_finalizers(monkeypatch):
     assert rows == ["w3"]
 
 
-def test_thread_replacements_produce_one_complete_snapshot():
+def test_snapshot_is_independent_of_later_thread_replacements():
     states = [["w1", "w2"], ["w3", "w4", "w5"], ["w6"]]
     rows = list(states[0])
     condition = threading.Condition()
@@ -269,6 +269,7 @@ def test_retry_before_copy_copies_whole_task_once(monkeypatch):
     monkeypatch.setattr(_pipeline, "earliest", prefixes)
     actual = pipe.infer(source, workers=2)
     assert attempts == [5, 2, 1, 4, 5]
+    assert _native._test_string_copy_calls(source._copy) == 1
     assert snapshots == [b"w1w2w3w4w5"] * 3
     assert actual.tobytes() == expected(pipe.spec, ["w1", "w2", "w3", "w4", "w5"]).tobytes()
 
@@ -366,3 +367,111 @@ def test_legacy_string_falls_back_before_reading_its_data(monkeypatch):
         pipeline().infer(source, workers=2).tobytes()
         == pipeline().infer(StringSource(["w1", "w2"]), workers=2).tobytes()
     )
+
+
+def test_uninitialized_native_owner_is_rejected_before_pointer_access():
+    pipe = pipeline()
+    with pytest.raises(ValueError, match=r"^StringCopy is not initialized$"):
+        _native.TextTasks(
+            pipe.prepared.state.kernel, pipe.lookup, None, False, _native.StringCopy(), None, 0, ()
+        )
+
+
+@pytest.mark.parametrize("level", ["summary", "per_row"])
+@pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
+def test_lengths_collector_keeps_the_joined_result(level, dtype, monkeypatch):
+    from support import lengths as sup
+
+    encoder = sup.encoder(max_tokens=3, max_chars=12)
+    rows = ["a b c d e", "a", "", "a " * 30] * 20
+    ordinary = encoder.encode(
+        StringSource(rows), workers=3, dtype=dtype, lengths=level, count_truncated=True
+    )
+
+    def no_join(*_args):
+        raise AssertionError("length reports must use the task-copy route")
+
+    monkeypatch.setattr(_native, "join_strings", no_join)
+    actual, report = encoder.encode(
+        rows, workers=3, dtype=dtype, lengths=level, count_truncated=True
+    )
+    got = actual if isinstance(actual, tuple) else (actual,)
+    want = ordinary[0] if isinstance(ordinary[0], tuple) else (ordinary[0],)
+    assert [part.tobytes() for part in got] == [part.tobytes() for part in want]
+    sup.check_report(
+        report,
+        sup.expected(rows, max_tokens=3, max_chars=12),
+        count=True,
+        per_row=level == "per_row",
+    )
+
+
+@pytest.mark.parametrize("location", ["same-task", "across-tasks"])
+@pytest.mark.parametrize("stage_one", ["truncation", "too-long"])
+def test_stage_one_errors_precede_later_pooling_errors(location, stage_one, monkeypatch):
+    from fse._contract import TruncationError
+    from fse._runtime import LengthCollector, LengthSettings
+    from fse._tokenizer_spec import TokenizerSpec
+    from fse._wordvectors import WordVectors
+    from support import lengths as sup
+
+    small_tasks(monkeypatch)
+    values = sup.ROWS.copy()
+    values[sup.VOCAB["a"]] = np.finfo(np.float32).max
+    wv = WordVectors.from_arrays(values, words=sup.TOKENS)
+    tokenizer = TokenizerSpec("wordpiece@1", sup.CONFIG, "drop", 2)
+    pipe = Pipeline(EncodeSpec(wv, np.ones(len(wv), np.float32), (), tokenizer))
+    rows = ["", "a a a" if stage_one == "truncation" else "a " * 20, "a a", ""]
+    settings = LengthSettings.of("per_row", True, "raise", "m")
+
+    def outcome(source):
+        collector = LengthCollector(settings, 0, (None, None))
+        return _outcome(
+            lambda: pipe.infer(
+                source,
+                workers=3,
+                chunk_bytes=1 if location == "across-tasks" else 1 << 20,
+                lengths=settings,
+                collector=collector,
+            )
+        )
+
+    previous = _native._test_sentence_limit(16 if stage_one == "too-long" else 1 << 30)
+    try:
+        ordinary = outcome(StringSource(rows))
+        actual = outcome(copied_strings(rows))
+    finally:
+        _native._test_sentence_limit(previous)
+    assert actual == ordinary
+    assert actual[0] is (TruncationError if stage_one == "truncation" else ValueError)
+    assert "sentence 1" in actual[1]
+
+
+def test_public_truncation_raise_with_collector_uses_copied_rows(monkeypatch):
+    from fse._contract import TruncationError
+    from support import lengths as sup
+
+    encoder = sup.encoder(max_tokens=2, max_chars=12)
+    rows = ["a", "a b c d", "a " * 20]
+    ordinary = _outcome(
+        lambda: encoder.encode(
+            StringSource(rows),
+            workers=3,
+            lengths="per_row",
+            count_truncated=True,
+            on_truncation="raise",
+        )
+    )
+
+    def no_join(*_args):
+        raise AssertionError("truncation errors must use the task-copy route")
+
+    monkeypatch.setattr(_native, "join_strings", no_join)
+    actual = _outcome(
+        lambda: encoder.encode(
+            rows, workers=3, lengths="per_row", count_truncated=True, on_truncation="raise"
+        )
+    )
+    assert actual == ordinary
+    assert actual[0] is TruncationError
+    assert "sentence 1" in actual[1]

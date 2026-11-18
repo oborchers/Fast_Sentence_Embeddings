@@ -275,16 +275,17 @@ class Pipeline:
         """The record of the plan of a run (the calling thread, before any task runs)."""
         if not _log.enabled("runtime.plan"):
             return
+        source_name = "StringSource" if type(source) is CopiedStrings else type(source).__name__
         _log.emit(
             "runtime.plan",
             "fse runtime: %s rows of a %s on %d workers%s, %s backend, %s",
             "unknown" if rows is None else rows,
-            type(source).__name__,
+            source_name,
             workers,
             " (inline)" if inline else "",
             self.backend.name,
             dtype,
-            source=type(source).__name__,
+            source=source_name,
             rows=rows,
             workers=workers,
             inline=inline,

@@ -17,6 +17,7 @@ cdef class TextTasks:
         self.isa = _check_isa(isa)
         self.normalize = normalize
         if isinstance(text, StringCopy):
+            _check_string_copy(text)
             self.copy = text
             text = (self.copy.data, self.copy.offsets)
         self.text, self.local, self.base, self.helpers = text, local, base, helpers
@@ -32,6 +33,7 @@ cdef class _TextAttempt:
     cdef TextTasks owner
     cdef object task, target
     cdef bint copied, reported
+    cdef Py_ssize_t copies, reported_copies
 
     def __init__(self, TextTasks owner not None, item):
         self.owner, self.task = owner, item[0]
@@ -65,6 +67,7 @@ cdef class _TextAttempt:
             if not 0 <= span.first <= chunk.start <= chunk.end <= span.last <= len(owner.copy.snapshot):
                 raise AssertionError("copied task range is outside its snapshot")
             span.copied = &self.copied
+            span.calls = &self.copies
             copy = &span
         try:
             _pool_text_checked(owner.kernel, owner.lookup, ws, owner.text,
@@ -74,4 +77,7 @@ cdef class _TextAttempt:
             if self.copied and not self.reported:
                 owner.copy.finished += self.task.chunk.end - self.task.chunk.start
                 self.reported = True
+            if owner.copy is not None:
+                owner.copy.copy_calls += self.copies - self.reported_copies
+                self.reported_copies = self.copies
         owner.helpers[4](rows, part, owner.base + task.first_row)
