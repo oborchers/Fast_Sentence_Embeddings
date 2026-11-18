@@ -27,7 +27,10 @@ def _pipeline(kind):
 def _outcome(call):
     with pytest.raises(ValueError, match=r"row \d+") as error:
         call()
-    return type(error.value), str(error.value)
+    try:
+        return type(error.value), str(error.value)
+    finally:
+        del error
 
 
 def _reference_error(model, sentences):

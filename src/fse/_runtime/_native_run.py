@@ -107,8 +107,11 @@ def _append(buffered, item):
 
 
 def _reraise(error):
-    if error is not None:
-        raise error
+    try:
+        if error is not None:
+            raise error
+    finally:
+        del error
     yield from ()
 
 
@@ -122,41 +125,47 @@ def select(
         return None, tasks.tasks
     remaining = tasks.tasks
     buffered, error, replay = _buffer(remaining)
-    if buffered is None or not buffered:
-        return None, replay
     try:
-        refined = refine(source, buffered, workers, MAX_TASKS)
-        if refined is None:
-            refined = buffered
-        team = pipeline.backend.string_team(
-            pipeline.prepared, pipeline.lookup, source, refined, own._out, workers
-        )
-    except (MemoryError, ValueError, TypeError):
-        return None, replay
-    if not team.prepared:
-        return None, replay
-    return NativeCall(team, refined, error), replay
+        if buffered is None or not buffered:
+            return None, replay
+        try:
+            refined = refine(source, buffered, workers, MAX_TASKS)
+            if refined is None:
+                refined = buffered
+            team = pipeline.backend.string_team(
+                pipeline.prepared, pipeline.lookup, source, refined, own._out, workers
+            )
+        except (MemoryError, ValueError, TypeError):
+            return None, replay
+        if not team.prepared:
+            return None, replay
+        return NativeCall(team, refined, error), iter(())
+    finally:
+        # The buffer traceback retains this caller frame through f_back too.
+        del error, replay
 
 
 def _buffer(remaining):
     buffered: list[Any] = []
     error = None
-    for _ in range(MAX_TASKS + 1):
-        try:
-            item = next(remaining)
-        except StopIteration:
-            break
-        except Exception as found:
-            error = found
-            break
-        try:
-            _append(buffered, item)
-        except MemoryError:
-            return None, None, chain(buffered, (item,), remaining)
-    else:
-        return None, None, chain(buffered, remaining)
-    replay = chain(buffered, _reraise(error))
-    return buffered, error, replay
+    try:
+        for _ in range(MAX_TASKS + 1):
+            try:
+                item = next(remaining)
+            except StopIteration:
+                break
+            except Exception as found:
+                error = found
+                break
+            try:
+                _append(buffered, item)
+            except MemoryError:
+                return None, None, chain(buffered, (item,), remaining)
+        else:
+            return None, None, chain(buffered, remaining)
+        return buffered, error, chain(buffered, _reraise(error))
+    finally:
+        del error
 
 
 def execute(team, own, done, work, reserve, commit, remaining, *, runner, **options):
@@ -176,17 +185,22 @@ class NativeCall:
         self.team, self.tasks, self.error = team, tasks, error
 
     def execute(self, own, done, work, reserve):
-        failed_at, no_memory = self.team.run()
-        for task in self.tasks[:failed_at]:
-            own.next_row += task.n_rows
-            done[0] += task.n_rows
-            done[1] += 1
-        if failed_at < len(self.tasks):
-            if no_memory:
-                raise MemoryError("could not grow the buffers of the Workspace")
-            item = reserve(self.tasks[failed_at])
-            state = self.team.retry_state
-            work(item if state is None else (*item, state))
-            raise RuntimeError("native task team and Python task error mismatch")
-        if self.error is not None:
-            raise self.error
+        try:
+            failed_at, no_memory = self.team.run()
+            for task in self.tasks[:failed_at]:
+                own.next_row += task.n_rows
+                done[0] += task.n_rows
+                done[1] += 1
+            if failed_at < len(self.tasks):
+                if no_memory:
+                    raise MemoryError("could not grow the buffers of the Workspace")
+                item = reserve(self.tasks[failed_at])
+                state = self.team.retry_state
+                work(item if state is None else (*item, state))
+                raise RuntimeError("native task team and Python task error mismatch")
+            if self.error is not None:
+                raise self.error
+        finally:
+            self.error = None
+            self.tasks = ()
+            self.team = None

@@ -132,7 +132,11 @@ in task processing. Failed thread starts reduce the team. Each slot owns a
 workspace. Atomic ascending task claims and the atomic minimum failure index
 preserve the successful prefix and the earliest task error. Non-memory task
 errors are replayed through `TextTasks` and `earliest` to identify the earliest
-row. A memory failure raises directly, without replay. A successful replay of
+row. Stored errors, replay iterators and consumed task owners are released on
+every exit, including preparation fallback. Exception type, message and traceback
+remain intact. This also applies to the existing Python executor and earliest-row
+localization, which must drop their stored exception references. A memory failure
+raises directly, without replay. A successful replay of
 an allegedly failed task raises an internal `RuntimeError`.
 
 The team releases the GIL once and never re-enters Python while processing tasks.
