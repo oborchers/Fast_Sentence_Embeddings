@@ -207,11 +207,13 @@ def test_sde_follows_narrow_input_selection_and_fails_closed(sde, targeted):
     rows = needs(targeted=targeted)
     rows["changes"]["outputs"]["sde"] = str(sde).lower()
     selected = sde
-    assert REQUIRED(rows, "workflow_dispatch")["test-sde"] == selected
-    rows["test-sde"]["result"] = "skipped"
-    assert ("test-sde: skipped" in FAILURES(rows, "workflow_dispatch", [])) == selected
-    rows["test-sde"]["result"] = "failure"
-    assert "test-sde: failure" in FAILURES(rows, "workflow_dispatch", [])
+    for name in ("test-sde", "test-sde-complete"):
+        assert REQUIRED(rows, "workflow_dispatch")[name] == selected
+        rows[name]["result"] = "skipped"
+        assert (f"{name}: skipped" in FAILURES(rows, "workflow_dispatch", [])) == selected
+        rows[name]["result"] = "failure"
+        assert f"{name}: failure" in FAILURES(rows, "workflow_dispatch", [])
+        rows[name]["result"] = "success"
 
 
 SDE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "tools/ci_sde_selection.py"))

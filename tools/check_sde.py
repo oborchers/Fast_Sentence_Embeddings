@@ -7,6 +7,7 @@ the emulated feature profile itself, under both Sapphire Rapids and Haswell.
 from __future__ import annotations
 
 import argparse
+import collections
 import importlib.util
 import json
 import os
@@ -72,14 +73,7 @@ def require_named_tests(cases, names):
             raise RuntimeError(f"required SDE test did not execute: {name}")
 
 
-def require_execution(report: Path, profile: str) -> dict:
-    """A successful launcher alone is not evidence: -echo also returns zero."""
-    if not report.is_file():
-        raise RuntimeError("SDE returned without a pytest execution receipt")
-    root = ET.parse(report).getroot()
-    if root.findall(".//failure") or root.findall(".//error"):
-        raise RuntimeError("SDE receipt contains failed tests")
-    cases = root.findall(".//testcase")
+def require_cases(cases, profile):
     native_cases = [case for case in cases if case.get("classname", "").endswith("test_native_isa")]
     required = REQUIRED | (
         {"test_avx512_selection_reaches_every_vector_dispatch_site"} if profile == "spr" else set()
@@ -96,11 +90,141 @@ def require_execution(report: Path, profile: str) -> dict:
     }
 
 
-def main() -> None:
+def execution_cases(report):
+    """A successful launcher alone is not evidence: -echo also returns zero."""
+    if not report.is_file():
+        raise RuntimeError("SDE returned without a pytest execution receipt")
+    root = ET.parse(report).getroot()
+    if root.findall(".//failure") or root.findall(".//error"):
+        raise RuntimeError("SDE receipt contains failed tests")
+    return root.findall(".//testcase")
+
+
+def require_execution(report: Path, profile: str) -> dict:
+    return require_cases(execution_cases(report), profile)
+
+
+def require_execution(report: Path, profile: str) -> dict:
+    return require_cases(execution_cases(report), profile)
+
+
+def junit_identity(nodeid):
+    module, *parts = nodeid.split("::")
+    return (".".join([module.removesuffix(".py").replace("/", "."), *parts[:-1]]), parts[-1])
+
+
+def validate_partition(manifest):
+    nodeids, selected, shard = manifest["all"], manifest["selected"], manifest["shard"]
+    if (
+        shard not in (0, 1)
+        or not nodeids
+        or nodeids != sorted(set(nodeids))
+        or selected != nodeids[shard::2]
+        or {nodeid.split("::", 1)[0] for nodeid in nodeids} != set(TESTS)
+    ):
+        raise RuntimeError("SDE shard does not partition the complete test manifest")
+
+
+def shard_receipt(report, manifest, profile, compiler, layout, source_ref):
+    validate_partition(manifest)
+    cases = execution_cases(report)
+    observed = collections.Counter((case.get("classname"), case.get("name")) for case in cases)
+    expected = collections.Counter(junit_identity(nodeid) for nodeid in manifest["selected"])
+    if observed != expected:
+        raise RuntimeError("SDE execution receipt does not match its selected node IDs")
+    return {
+        **manifest,
+        "profile": profile,
+        "compiler": compiler,
+        "layout": layout,
+        "source_ref": source_ref,
+        "cases": [
+            {
+                "classname": case.get("classname"),
+                "name": case.get("name"),
+                "skipped": case.find("skipped") is not None,
+            }
+            for case in cases
+        ],
+    }
+
+
+def merge_receipts(directory, source_ref):
+    rows = [json.loads(path.read_text(encoding="utf-8")) for path in directory.glob("*.json")]
+    expected = {
+        (compiler, layout, profile, shard)
+        for compiler in ("gcc", "clang", "msvc")
+        for layout in (0, 1)
+        for profile in ("spr", "hsw")
+        for shard in (0, 1)
+    }
+    indexed = {(row["compiler"], row["layout"], row["profile"], row["shard"]): row for row in rows}
+    if len(rows) != len(expected) or set(indexed) != expected:
+        raise RuntimeError("SDE requires exactly all twenty-four shard receipts")
+    summaries = []
+    for compiler, layout, profile, shard in sorted(expected):
+        if shard:
+            continue
+        pair = [indexed[compiler, layout, profile, index] for index in (0, 1)]
+        summaries.append(merge_pair(pair, source_ref))
+    return summaries
+
+
+def merge_pair(pair, source_ref):
+    identities = {(row["compiler"], row["layout"], row["profile"]) for row in pair}
+    if len(pair) != 2 or {row["shard"] for row in pair} != {0, 1} or len(identities) != 1:
+        raise RuntimeError("SDE requires two distinct shards of the same compiler/layout/profile")
+    cases = []
+    for row in pair:
+        validate_partition(row)
+        if row["source_ref"] != source_ref or row["all"] != pair[0]["all"]:
+            raise RuntimeError("SDE shards disagree about source or full collection")
+        observed = collections.Counter((case["classname"], case["name"]) for case in row["cases"])
+        if observed != collections.Counter(junit_identity(nodeid) for nodeid in row["selected"]):
+            raise RuntimeError("SDE shard receipt has missing or duplicate execution")
+        for case in row["cases"]:
+            element = ET.Element("testcase", classname=case["classname"], name=case["name"])
+            if case["skipped"]:
+                ET.SubElement(element, "skipped")
+            cases.append(element)
+    return {
+        "compiler": pair[0]["compiler"],
+        "layout": pair[0]["layout"],
+        **require_cases(cases, pair[0]["profile"]),
+    }
+
+
+def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheel-smoke", action="store_true")
     parser.add_argument("--profile", choices=("spr", "hsw"))
+    parser.add_argument("--shard", type=int, choices=(0, 1))
+    parser.add_argument("--compiler", choices=("gcc", "clang", "msvc"))
+    parser.add_argument("--layout", type=int, choices=(0, 1))
+    parser.add_argument("--source-ref")
+    parser.add_argument("--receipts", type=Path)
+    parser.add_argument("--merge-receipts", type=Path)
     args = parser.parse_args()
+    if args.merge_receipts:
+        if not args.source_ref:
+            parser.error("merging receipts requires --source-ref")
+    if args.shard is not None and any(
+        value is None
+        for value in (args.profile, args.compiler, args.layout, args.source_ref, args.receipts)
+    ):
+        parser.error("a shard requires profile, compiler, layout, source-ref and receipts")
+    return args
+
+
+def main() -> None:
+    args = arguments()
+    if args.merge_receipts:
+        print(
+            json.dumps(
+                {"sde_complete_manifest": merge_receipts(args.merge_receipts, args.source_ref)}
+            )
+        )
+        return
     if args.wheel_smoke:
         subprocess.run(
             [
@@ -114,32 +238,69 @@ def main() -> None:
         return
     with tempfile.TemporaryDirectory(prefix="fse-sde-proof-") as directory:
         for profile in (args.profile,) if args.profile else ("spr", "hsw"):
-            prefix = emulator_prefix(profile)
-            env = os.environ.copy()
-            env["FSE_SDE_PROFILE"] = profile
-            env["FSE_REQUIRE_ISA"] = "avx512" if profile == "spr" else "avx2"
-            report = Path(directory) / f"{profile}.xml"
-            # SDE follows children by default. Its -echo prints commands WITHOUT
-            # executing them, so it must never appear in this execution prefix.
-            subprocess.run(
-                [
-                    *prefix,
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "-x",
-                    *TESTS,
-                    "-m",
-                    "not network",
-                    f"--junitxml={report}",
-                ],
-                env=env,
-                check=True,
-            )
-            print(
-                json.dumps({"sde_execution_receipt": require_execution(report, profile)}),
-                flush=True,
-            )
+            run_profile(args, profile, Path(directory))
+
+
+def run_profile(args, profile, directory):
+    env = os.environ.copy()
+    env["FSE_SDE_PROFILE"] = profile
+    env["FSE_REQUIRE_ISA"] = "avx512" if profile == "spr" else "avx2"
+    report = directory / f"{profile}.xml"
+    manifest = directory / "collection.json"
+    options = shard_options(args, manifest, env)
+    # SDE follows children by default. Its -echo prints commands WITHOUT
+    # executing them, so it must never appear in this execution prefix.
+    subprocess.run(
+        [
+            *emulator_prefix(profile),
+            sys.executable,
+            "-m",
+            "pytest",
+            "-x",
+            *options,
+            *TESTS,
+            "-m",
+            "not network",
+            f"--junitxml={report}",
+        ],
+        env=env,
+        check=True,
+    )
+    record_execution(args, profile, report, manifest)
+
+
+def shard_options(args, manifest, env):
+    if args.shard is None:
+        return []
+    root = str(Path(__file__).resolve().parents[1])
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (root, env.get("PYTHONPATH"))))
+    return [
+        "-p",
+        "tools.sde_shard",
+        f"--fse-sde-shard={args.shard}",
+        f"--fse-sde-manifest={manifest}",
+    ]
+
+
+def record_execution(args, profile, report, manifest):
+    if args.shard is None:
+        receipt = require_execution(report, profile)
+    else:
+        receipt = shard_receipt(
+            report,
+            json.loads(manifest.read_text(encoding="utf-8")),
+            profile,
+            args.compiler,
+            args.layout,
+            args.source_ref,
+        )
+        args.receipts.mkdir(parents=True, exist_ok=True)
+        name = f"{args.compiler}-{args.layout}-{profile}-{args.shard}.json"
+        (args.receipts / name).write_text(json.dumps(receipt), encoding="utf-8")
+        receipt = {
+            key: value for key, value in receipt.items() if key not in ("all", "selected", "cases")
+        }
+    print(json.dumps({"sde_execution_receipt": receipt}), flush=True)
 
 
 if __name__ == "__main__":

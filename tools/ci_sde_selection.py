@@ -15,6 +15,8 @@ PREFIXES = (
 FILES = {
     "setup.py",
     "tools/check_sde.py",
+    "tools/sde_shard.py",
+    "tests/test_sde_shard.py",
     "tools/check_isa_isolation.py",
     "tools/wheel_smoke.py",
     "tools/ci_sde_selection.py",
