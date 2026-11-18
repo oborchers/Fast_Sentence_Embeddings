@@ -3,11 +3,38 @@
 import runpy
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 MODULE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "tools/check_sde.py"))
 REQUIRE = MODULE["require_execution"]
+
+
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_chip_check_scope_keeps_the_exact_native_image(monkeypatch, platform):
+    prefix = MODULE["emulator_prefix"]
+    monkeypatch.setenv("FSE_SDE_EXE", "sde")
+    monkeypatch.setitem(prefix.__globals__, "sys", SimpleNamespace(platform=platform))
+    util = SimpleNamespace(
+        find_spec=lambda name: SimpleNamespace(origin="/wheel/_native.cp313.pyd")
+    )
+    monkeypatch.setitem(prefix.__globals__, "importlib", SimpleNamespace(util=util))
+    expected = ["sde", "-hsw"]
+    if platform == "win32":
+        expected += ["-chip-check-image", "_native.cp313.pyd"]
+    assert prefix("hsw") == [*expected, "--"]
+
+
+@pytest.mark.parametrize("origin", [None, "/wheel/_native.py"])
+def test_windows_chip_check_cannot_silently_select_no_extension(monkeypatch, origin):
+    prefix = MODULE["emulator_prefix"]
+    monkeypatch.setenv("FSE_SDE_EXE", "sde")
+    monkeypatch.setitem(prefix.__globals__, "sys", SimpleNamespace(platform="win32"))
+    util = SimpleNamespace(find_spec=lambda name: SimpleNamespace(origin=origin))
+    monkeypatch.setitem(prefix.__globals__, "importlib", SimpleNamespace(util=util))
+    with pytest.raises(RuntimeError, match="native image"):
+        prefix("hsw")
 
 
 def receipt(path, profile="spr", omitted=None, skipped=None, failed=False):

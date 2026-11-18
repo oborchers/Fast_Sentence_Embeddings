@@ -6,6 +6,8 @@ the emulated feature profile itself, under both Sapphire Rapids and Haswell.
 
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -47,6 +49,22 @@ CHILD_PREFIXES = (
 )
 
 
+def emulator_prefix(profile: str) -> list[str]:
+    prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}"]
+    if sys.platform == "win32":
+        # Windows CRT queries OS feature flags that SDE does not intercept.
+        # Keep emulation process-wide, but check the exact fse DLL, not that CRT.
+        spec = importlib.util.find_spec("fse._native")
+        if spec is None or not spec.origin:
+            raise RuntimeError("cannot identify the native image for SDE chip checking")
+        image = Path(spec.origin).name
+        if not image.endswith(".pyd"):
+            raise RuntimeError(f"expected the installed native image, got {image}")
+        prefix.extend(["-chip-check-image", image])
+        print(json.dumps({"sde_chip_check_image": image}), flush=True)
+    return [*prefix, "--"]
+
+
 def require_named_tests(cases, names):
     for name in names:
         matches = [case for case in cases if case.get("name") == name]
@@ -79,9 +97,23 @@ def require_execution(report: Path, profile: str) -> dict:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--wheel-smoke", action="store_true")
+    args = parser.parse_args()
+    if args.wheel_smoke:
+        subprocess.run(
+            [
+                *emulator_prefix("hsw"),
+                sys.executable,
+                "-I",
+                str(Path(__file__).with_name("wheel_smoke.py")),
+            ],
+            check=True,
+        )
+        return
     with tempfile.TemporaryDirectory(prefix="fse-sde-proof-") as directory:
         for profile in ("spr", "hsw"):
-            prefix = [os.environ["FSE_SDE_EXE"], f"-{profile}", "--"]
+            prefix = emulator_prefix(profile)
             env = os.environ.copy()
             env["FSE_SDE_PROFILE"] = profile
             env["FSE_REQUIRE_ISA"] = "avx512" if profile == "spr" else "avx2"

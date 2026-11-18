@@ -469,7 +469,7 @@ jobs:
           python="$RUNNER_TEMP/sde-production-env/bin/python"
           if [ "$RUNNER_OS" = Windows ]; then python="$RUNNER_TEMP/sde-production-env/Scripts/python.exe"; fi
           uv pip install --python "$python" "$RUNNER_TEMP"/sde-production-wheel/*.whl
-          "$FSE_SDE_EXE" -hsw -- "$python" -I tools/wheel_smoke.py
+          "$python" -I tools/check_sde.py --wheel-smoke
       - name: Conformance and baseline isolation, with followed emulated children
         run: uv run --no-sync python tools/check_sde.py
 
