@@ -90,7 +90,7 @@ def test_failed_task_replay_reuses_copy_and_accounts_later_tasks(monkeypatch, ki
                 assert until(lambda: _native._test_team_copy_control()[1] == len(tasks))
             finally:
                 _native._test_team_copy_control(-1)
-            with pytest.raises(ValueError) as caught:
+            with pytest.raises(ValueError, match=r".") as caught:
                 future.result(timeout=15)
         native_error = type(caught.value), str(caught.value)
         del caught
@@ -98,7 +98,7 @@ def test_failed_task_replay_reuses_copy_and_accounts_later_tasks(monkeypatch, ki
         assert _native._test_string_copy_progress(source._copy) == (len(rows), len(tasks))
         _native._string_copy_check(None)
         monkeypatch.setattr(_native_run, "eligible", lambda *_args: False)
-        with pytest.raises(ValueError) as old:
+        with pytest.raises(ValueError, match=r".") as old:
             model.infer(copied_strings(rows), workers=2)
         assert native_error == (type(old.value), str(old.value))
     finally:
@@ -122,7 +122,7 @@ def test_no_memory_accounts_copies_without_replaying(monkeypatch):
             assert until(lambda: _native._test_team_copy_control()[1] == len(tasks))
         finally:
             _native._test_team_copy_control(-1)
-        with pytest.raises(MemoryError, match="^could not grow the buffers of the Workspace$"):
+        with pytest.raises(MemoryError, match=r"^could not grow the buffers of the Workspace$"):
             future.result(timeout=15)
     assert _native._test_string_copy_progress(source._copy) == (len(source), len(tasks))
 
