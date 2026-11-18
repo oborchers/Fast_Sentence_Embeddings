@@ -146,7 +146,7 @@ def test_preparation_fallback_copies_once_and_releases_team(monkeypatch):
     small_tasks(monkeypatch)
     source = copied_strings(texts(200))
     model = pipeline()
-    tasks = tasks_for(model, source, 4)
+    tasks = tasks_for(model, source, 4, refined=False)
     teams = []
     factory = CpuBackend.string_team
 

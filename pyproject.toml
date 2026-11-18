@@ -484,7 +484,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_native_run", "_worker", "_checks", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths", "_pool"]
+layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_native_run", "_native_cuts | _worker", "_checks", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths", "_pool"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"

@@ -109,6 +109,21 @@ Limits are 131,072 rows, 16 MiB of text and 256 tasks. The runtime reads at most
 257 task items before choosing the team or replaying the iterator to `run`.
 Preparation failure also replays the tasks and any retained scan error.
 
+Only this route refines the buffered plan after `split_tail`. Each original task
+is cut at byte quantiles targeting `max(1, ceil(text_bytes / (4 * workers)))`
+bytes. Normal balanced inputs produce about four to eight items per worker.
+Indivisible sentences and existing row limits can change that count. Cuts retain
+original boundaries and row limits, stay non-empty and contiguous, and depend
+only on offsets and the worker count. Zero-byte ranges stay whole. The direct
+single-task path and excluded routes retain their original cuts.
+
+Refinement consumes byte cuts lazily and retains at most 256 new tasks alongside
+the original buffer, with constant temporary cut state. If another item would
+exceed that limit, or refinement or team preparation fails, the ordinary executor
+receives the original tasks and retained scan error. The team and error replay
+use the same refined list, so prefix rows and copied ranges are accounted per
+refined item, including actual copies beyond the earliest failure.
+
 The caller starts at most `min(workers, tasks) - 1` native threads and participates
 in task processing. Failed thread starts reduce the team. Each slot owns a
 workspace. Atomic ascending task claims and the atomic minimum failure index

@@ -7,6 +7,7 @@ from typing import Any
 
 from fse._text import CopiedStrings, StringSource
 
+from ._native_cuts import refine
 from ._sinks import ArrayRows
 from ._worker import WorkerLocal
 
@@ -124,14 +125,17 @@ def select(
     if buffered is None or not buffered:
         return None, replay
     try:
+        refined = refine(source, buffered, workers, MAX_TASKS)
+        if refined is None:
+            return None, replay
         team = pipeline.backend.string_team(
-            pipeline.prepared, pipeline.lookup, source, buffered, own._out, workers
+            pipeline.prepared, pipeline.lookup, source, refined, own._out, workers
         )
     except (MemoryError, ValueError, TypeError):
         return None, replay
     if not team.prepared:
         return None, replay
-    return NativeCall(team, buffered, error), replay
+    return NativeCall(team, refined, error), replay
 
 
 def _buffer(remaining):

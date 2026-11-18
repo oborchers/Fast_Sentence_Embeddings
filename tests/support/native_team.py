@@ -34,6 +34,11 @@ def faults(**options):
         _native._test_team_faults(*previous)
 
 
-def tasks_for(model, source, workers):
+def tasks_for(model, source, workers, *, refined=True):
     plan, _, _ = model.plan_tasks(source, workers, None, model._row_bytes("float32"))
-    return list(plan.tasks)
+    tasks = list(plan.tasks)
+    if refined and not plan.inline:
+        from fse._runtime._native_cuts import refine
+
+        return refine(source, tasks, workers, 256) or tasks
+    return tasks

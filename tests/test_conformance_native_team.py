@@ -7,12 +7,13 @@ import pytest
 
 from fse import Encoder, _native, _reference, _reference_unigram, _reference_wordpiece
 from fse._contract import Batch, Normalize
-from fse._runtime import EncodeSpec, Pipeline, _tasks
+from fse._runtime import EncodeSpec, Pipeline, _pipeline, _tasks
 from fse._text import StringSource, copied_strings
 from fse._tokenizer_spec import TokenizerSpec
 from support.runtime import expected, word_vectors
 
 
+@pytest.mark.parametrize("refined", [False, True])
 @pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
 @pytest.mark.parametrize("dtype", ["float32", "float16", "int8"])
 @pytest.mark.parametrize("dim", [1, 16, 33])
@@ -20,7 +21,7 @@ from support.runtime import expected, word_vectors
 @pytest.mark.parametrize("fasttext", [False, True])
 @pytest.mark.parametrize("tokenizer", ["fse_words@1", "external"])
 def test_two_single_row_tasks_match_reference(
-    monkeypatch, dtype, dim, normalize, fasttext, tokenizer, source_factory
+    monkeypatch, dtype, dim, normalize, fasttext, tokenizer, source_factory, refined
 ):
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     wv = word_vectors(dtype, dim=dim, fasttext=fasttext)
@@ -35,10 +36,16 @@ def test_two_single_row_tasks_match_reference(
     model = Pipeline(spec)
     model.task_rows = 1
     sentences = ["w0 w1 unknown", "w2 w1 w0"]
+    if refined:
+        sentences *= 16
+        model.task_rows = len(sentences)
+        monkeypatch.setattr(_pipeline, "INLINE_MAX_BYTES", 0)
     source = source_factory(sentences)
+    observed = _observe_cuts(monkeypatch, model, source, refined)
     calls = _native._test_team_calls()
     found = model.infer(source, workers=2)
     assert _native._test_team_calls() == calls + 1
+    assert observed
     np.testing.assert_array_equal(found.view(np.uint32), expected(spec, sentences).view(np.uint32))
 
 
@@ -85,20 +92,47 @@ def _configured_reference(spec, sentences):
     return _reference.postprocess(rows, spec.steps)
 
 
+@pytest.mark.parametrize("refined", [False, True])
 @pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
 @pytest.mark.parametrize(
     "artifact", ["encoder_wordpiece_int8.safetensors", "encoder_unigram_float16.safetensors"]
 )
 def test_configured_tokenizers_on_smallest_team_match_reference(
-    monkeypatch, artifact, source_factory
+    monkeypatch, artifact, source_factory, refined
 ):
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     encoder = Encoder.load(Path(__file__).parent / "test_data" / "v2" / "finished" / artifact)
     model = encoder._pipeline("cpu")
     model.task_rows = 1
     sentences = ["ab", "a b"]
+    if refined:
+        sentences *= 16
+        model.task_rows = len(sentences)
+        monkeypatch.setattr(_pipeline, "INLINE_MAX_BYTES", 0)
+    source = source_factory(sentences)
+    observed = _observe_cuts(monkeypatch, model, source, refined)
     before = _native._test_team_calls()
-    found = model.infer(source_factory(sentences), workers=2)
+    found = model.infer(source, workers=2)
     assert _native._test_team_calls() == before + 1
+    assert observed
     wanted = _configured_reference(model.spec, sentences)
     np.testing.assert_array_equal(found.view(np.uint32), wanted.view(np.uint32))
+
+
+def _observe_cuts(monkeypatch, model, source, refined):
+    original, _, _ = model.plan_tasks(source, 2, None, model._row_bytes("float32"))
+    original = list(original.tasks)
+    observed = []
+    factory = model.backend.string_team
+
+    def team(prepared, lookup, text, tasks, out, workers):
+        if refined:
+            assert len(tasks) > len(original)
+            assert max(task.n_rows for task in original) > 1
+        else:
+            assert len(tasks) == len(original)
+        observed.append(len(tasks))
+        return factory(prepared, lookup, text, tasks, out, workers)
+
+    monkeypatch.setattr(model.backend, "string_team", team)
+    return observed

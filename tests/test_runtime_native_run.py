@@ -326,3 +326,67 @@ def test_raising_plan_hook_is_called_once_and_releases_prepared_team(monkeypatch
     assert attempts == [1]
     assert _native._test_team_calls() == before
     assert _native._test_team_resources() == 0
+
+
+def test_refined_limit_fallback_replays_original_tasks_and_scan_error(monkeypatch):
+    import threading
+
+    from fse._runtime import _pipeline
+    from fse._runtime._tasks import Plan, Task
+    from fse._text import Chunk
+
+    source = StringSource(["w0 " * 100] * 512)
+    original = [Task(source, Chunk(0, 512, 0, 512))]
+    seen = []
+
+    def items():
+        yield from original
+        raise ValueError("saved scan error")
+
+    def plan(*_args, **_kwargs):
+        return Plan(items(), 512, False), 8, threading.Event()
+
+    runner = _pipeline.run
+
+    def replay(tasks, *args, **kwargs):
+        def record():
+            for task in tasks:
+                seen.append(task)
+                yield task
+
+        return runner(record(), *args, **kwargs)
+
+    monkeypatch.setattr(Pipeline, "plan_tasks", plan)
+    monkeypatch.setattr(_pipeline, "run", replay)
+    calls = _native._test_team_calls()
+    with pytest.raises(ValueError, match="saved scan error"):
+        pipeline().infer(source, workers=100)
+    assert seen == original
+    assert _native._test_team_calls() == calls
+
+
+def test_refinement_memory_error_replays_original_tasks(monkeypatch):
+    from fse._runtime import _pipeline
+
+    model = pipeline()
+    source = StringSource(texts(2000))
+    original, _, _ = model.plan_tasks(source, 4, None, model._row_bytes("float32"))
+    original = list(original.tasks)
+    seen = []
+    runner = _pipeline.run
+
+    def fail(*_args):
+        raise MemoryError("cut allocation failed")
+
+    def replay(tasks, *args, **kwargs):
+        tasks = list(tasks)
+        seen.extend(tasks)
+        return runner(iter(tasks), *args, **kwargs)
+
+    monkeypatch.setattr(_native_run, "refine", fail)
+    monkeypatch.setattr(_pipeline, "run", replay)
+    calls = _native._test_team_calls()
+    found = model.infer(source, workers=4)
+    assert seen == original
+    assert _native._test_team_calls() == calls
+    assert len(found) == len(source)
