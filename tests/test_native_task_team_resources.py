@@ -108,3 +108,20 @@ def test_team_uses_immutable_hook_snapshots():
         _native._test_team_faults(*old_faults)
         _native._test_corrupt(old_corrupt)
         _native._test_sentence_limit(old_limit)
+
+
+def test_caller_floating_point_environment_is_restored_on_success_and_failure():
+    model = pipeline()
+    source = StringSource(texts(2000))
+    wanted = model.infer(source, workers=2)
+    saved = _native._test_fpenv_set(flush=True, round_up=True)
+    try:
+        inside = _native._test_fpenv_get()
+        found = model.infer(source, workers=2)
+        assert _native._test_fpenv_get() == inside
+        np.testing.assert_array_equal(found.view(np.uint32), wanted.view(np.uint32))
+        with faults(status_task=0, status=1), pytest.raises(MemoryError):
+            model.infer(source, workers=2)
+        assert _native._test_fpenv_get() == inside
+    finally:
+        _native._test_fpenv_restore(saved)

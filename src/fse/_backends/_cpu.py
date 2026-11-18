@@ -174,7 +174,7 @@ class CpuBackend:
             (source._array(), source._offsets),
             tasks,
             out,
-            workers,
+            min(workers, 256),
         )
 
     def score(

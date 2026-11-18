@@ -305,7 +305,7 @@ test-groups = []
 test-requires = ["pytest>=8"]
 test-command = [
     "python -I {project}/tools/wheel_smoke.py",
-    "python -m pytest {project}/tests/test_runtime_native_run.py {project}/tests/test_native_task_team.py {project}/tests/test_native_task_team_resources.py {project}/tests/test_native_task_team_process.py -p no:cacheprovider",
+    "python -m pytest {project}/tests/test_runtime_native_run.py {project}/tests/test_runtime_native_run_scope.py {project}/tests/test_conformance_native_team.py {project}/tests/test_native_task_team_errors.py {project}/tests/test_native_task_team.py {project}/tests/test_native_task_team_resources.py {project}/tests/test_native_task_team_process.py -p no:cacheprovider",
 ]
 
 [[tool.cibuildwheel.overrides]]

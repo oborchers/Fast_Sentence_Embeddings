@@ -205,3 +205,29 @@ def test_actual_byte_limit_routes_below_at_and_above_boundary(difference):
     found = pipeline().infer(source, workers=2)
     assert found.shape == (256, 12)
     assert _native._test_team_calls() == before + (difference <= 0)
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_native_plan_is_logged_once_and_errors_have_no_done_record(failed):
+    import threading
+
+    from support.logs import captured
+    from support.native_team import faults, tasks_for
+
+    model = pipeline()
+    source = StringSource(texts(2000))
+    tasks = tasks_for(model, source, 2)
+    with captured() as records, faults(status_task=0 if failed else -1, status=1):
+        if failed:
+            with pytest.raises(MemoryError):
+                model.infer(source, workers=2)
+        else:
+            model.infer(source, workers=2)
+    events = [record for record in records if record.fse_event in ("runtime.plan", "runtime.done")]
+    assert [record.fse_event for record in events] == (
+        ["runtime.plan"] if failed else ["runtime.plan", "runtime.done"]
+    )
+    assert events[0].fse_executor == "native"
+    assert all(record.threadName == threading.current_thread().name for record in events)
+    if not failed:
+        assert (events[1].fse_rows, events[1].fse_tasks) == (len(source), len(tasks))
