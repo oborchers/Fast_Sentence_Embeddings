@@ -104,10 +104,6 @@ def require_execution(report: Path, profile: str) -> dict:
     return require_cases(execution_cases(report), profile)
 
 
-def require_execution(report: Path, profile: str) -> dict:
-    return require_cases(execution_cases(report), profile)
-
-
 def junit_identity(nodeid):
     module, *parts = nodeid.split("::")
     return (".".join([module.removesuffix(".py").replace("/", "."), *parts[:-1]]), parts[-1])
@@ -182,16 +178,22 @@ def merge_pair(pair, source_ref):
         observed = collections.Counter((case["classname"], case["name"]) for case in row["cases"])
         if observed != collections.Counter(junit_identity(nodeid) for nodeid in row["selected"]):
             raise RuntimeError("SDE shard receipt has missing or duplicate execution")
-        for case in row["cases"]:
-            element = ET.Element("testcase", classname=case["classname"], name=case["name"])
-            if case["skipped"]:
-                ET.SubElement(element, "skipped")
-            cases.append(element)
+        cases.extend(case_elements(row["cases"]))
     return {
         "compiler": pair[0]["compiler"],
         "layout": pair[0]["layout"],
         **require_cases(cases, pair[0]["profile"]),
     }
+
+
+def case_elements(cases):
+    elements = []
+    for case in cases:
+        element = ET.Element("testcase", classname=case["classname"], name=case["name"])
+        if case["skipped"]:
+            ET.SubElement(element, "skipped")
+        elements.append(element)
+    return elements
 
 
 def arguments():
@@ -205,9 +207,8 @@ def arguments():
     parser.add_argument("--receipts", type=Path)
     parser.add_argument("--merge-receipts", type=Path)
     args = parser.parse_args()
-    if args.merge_receipts:
-        if not args.source_ref:
-            parser.error("merging receipts requires --source-ref")
+    if args.merge_receipts and not args.source_ref:
+        parser.error("merging receipts requires --source-ref")
     if args.shard is not None and any(
         value is None
         for value in (args.profile, args.compiler, args.layout, args.source_ref, args.receipts)
@@ -297,8 +298,14 @@ def record_execution(args, profile, report, manifest):
         args.receipts.mkdir(parents=True, exist_ok=True)
         name = f"{args.compiler}-{args.layout}-{profile}-{args.shard}.json"
         (args.receipts / name).write_text(json.dumps(receipt), encoding="utf-8")
-        receipt = {
+        summary = {
             key: value for key, value in receipt.items() if key not in ("all", "selected", "cases")
+        }
+        receipt = {
+            **summary,
+            "tests": len(receipt["cases"]),
+            "skipped": sum(case["skipped"] for case in receipt["cases"]),
+            "complete_collection_tests": len(receipt["all"]),
         }
     print(json.dumps({"sde_execution_receipt": receipt}), flush=True)
 

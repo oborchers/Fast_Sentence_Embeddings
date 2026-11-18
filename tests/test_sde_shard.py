@@ -82,7 +82,7 @@ def test_merged_required_witnesses_cannot_be_skipped(name):
         for case in row["cases"]:
             if case["name"] == name:
                 case["skipped"] = True
-    with pytest.raises(RuntimeError, match="execute|child-import"):
+    with pytest.raises(RuntimeError, match=r"execute|child-import"):
         MODULE["merge_pair"](rows, "head")
 
 
@@ -125,7 +125,7 @@ def test_shard_checks_actual_junit_against_its_selected_nodes(tmp_path, damage):
     ET.ElementTree(root).write(report)
     arguments = (report, row, "spr", "gcc", 0, "head")
     if damage:
-        with pytest.raises(RuntimeError, match="failed tests|selected node"):
+        with pytest.raises(RuntimeError, match=r"failed tests|selected node"):
             MODULE["shard_receipt"](*arguments)
     else:
         assert MODULE["shard_receipt"](*arguments) == row
@@ -169,7 +169,9 @@ def test_real_pytest_partition_respects_selection_and_preserves_skips(tmp_path):
         assert result.returncode == 0, result.stdout + result.stderr
         row = json.loads(manifest.read_text())
         observed = ET.parse(report).getroot().findall(".//testcase")
-        assert len(observed) == len(row["selected"])
+        assert sorted((case.get("classname"), case.get("name")) for case in observed) == sorted(
+            MODULE["junit_identity"](nodeid) for nodeid in row["selected"]
+        )
         rows.append(row)
     assert rows[0]["all"] == rows[1]["all"]
     assert len(rows[0]["all"]) == 9
