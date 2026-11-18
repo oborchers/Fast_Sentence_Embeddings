@@ -503,6 +503,8 @@ ignore_names = [
     "pytest_runtest_setup",     # hooks of tests/conftest.py, called by pytest
     "pytest_runtest_call",
     "pytest_runtest_teardown",
+    "pytest_addoption",  # hooks of tools/sde_shard.py, called by pytest
+    "pytest_collection_modifyitems",
     "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "no_sink_threads_left", # an autouse fixture of tests/conftest.py, run by pytest
