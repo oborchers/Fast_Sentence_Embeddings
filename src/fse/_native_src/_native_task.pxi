@@ -301,12 +301,13 @@ def pool_text(WeightedMean kernel not None, TextLookup lookup not None, Workspac
     encode, the source, ``CpuBackend.rows`` and ``postprocess_pooled`` raise on the same
     range one after the other; the rows and their bits are theirs. Returns ``rows``."""
     return _pool_text_checked(kernel, lookup, ws, text, first, last, rows, first_row,
-                              out, normalize, after_encode, _check_isa(isa))
+                              out, normalize, after_encode, _check_isa(isa), NULL)
 
 
 cdef object _pool_text_checked(WeightedMean kernel, TextLookup lookup, Workspace ws, text,
                                Py_ssize_t first, Py_ssize_t last, Py_ssize_t rows,
-                               first_row, out, bint normalize, after_encode, int code):
+                               first_row, out, bint normalize, after_encode, int code,
+                               _CopyRange *copy):
     """The existing task checks and stages, with the immutable ISA already checked."""
     cdef _Stages s
     cdef _Pooled result
@@ -315,7 +316,7 @@ cdef object _pool_text_checked(WeightedMean kernel, TextLookup lookup, Workspace
     if isinstance(text, ArrowColumn):
         _pool_arrow(kernel, lookup, ws, <ArrowColumn>text, first, last, &s, &result, first_row)
     elif isinstance(text, tuple) and len(text) == 2:
-        _pool_buffer(lookup, kernel, ws, text, first, last, &s, &result, first_row)
+        _pool_buffer(lookup, kernel, ws, text, first, last, &s, &result, first_row, copy)
     else:
         raise TypeError("text must be (data, offsets) or an ArrowColumn")
     _raise_pooled(&result, kernel, first_row, after_encode, error)
@@ -324,7 +325,7 @@ cdef object _pool_text_checked(WeightedMean kernel, TextLookup lookup, Workspace
 
 cdef int _pool_buffer(TextLookup lookup, WeightedMean kernel, Workspace ws, text,
                       Py_ssize_t first, Py_ssize_t last, _Stages *s, _Pooled *result,
-                      first_row) except -1:
+                      first_row, _CopyRange *copy) except -1:
     """pool_text of a range of a buffer: stage 1 raised here, the rest by the caller."""
     global _nogil_sections
     data, offsets = text
@@ -339,6 +340,7 @@ cdef int _pool_buffer(TextLookup lookup, WeightedMean kernel, Workspace ws, text
         saved = fse_fpenv_push()
         _nogil_sections += 1
         with nogil:
+            _copy_range(copy)
             result.encode = _encode_span(lookup, &span, ws)
             if result.encode == ENCODE_OK:
                 _pool_stages(kernel, ws, s, result)

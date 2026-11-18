@@ -31,6 +31,7 @@ from fse._contract import Batch, Step
 from fse._text import (
     MAX_CHUNK_ROWS,
     Chunk,
+    CopiedStrings,
     StringSource,
     TokenListSource,
     Vocabulary,
@@ -224,7 +225,7 @@ class Pipeline:
         and at most ``task_rows`` sentences in at most INLINE_MAX_BYTES, which this tokenizer
         takes (anything else keeps ``plan``, with its errors, in its order)."""
         kind = type(source)
-        if kind is not StringSource and kind is not TokenListSource:
+        if kind not in (StringSource, TokenListSource, CopiedStrings):
             return False
         if kind is TokenListSource and self.spec.tokenizer.name != "external":
             return False
@@ -251,15 +252,20 @@ class Pipeline:
         self._done(n, 1, time.perf_counter() - start)
         return rows
 
+    @property
+    def copies_in_tasks(self):
+        return self._text_rows and callable(getattr(self.backend, "string_tasks", None))
+
     def _task_work(self, source, internal, local, base, collector):
         """An eligible CPU/StringSource call's native worker, otherwise the ordinary route."""
         factory = getattr(self.backend, "string_tasks", None)
         if (
             not internal
             or not self._text_rows
-            or type(source) is not StringSource
+            or type(source) not in (StringSource, CopiedStrings)
             or factory is None
         ):
+            assert not isinstance(source, CopiedStrings), "copied strings require native tasks"
             return None
         helpers = (first_rows, _scratch, _workspace, earliest, self.stored, recorded, collector)
         return factory(self.prepared, self.lookup, source, local, base, helpers)

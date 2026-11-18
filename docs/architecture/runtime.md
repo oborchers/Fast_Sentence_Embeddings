@@ -98,3 +98,17 @@ validation. Caller sinks, including caller-supplied `ArrayRows`, keep their chec
 Other sources, subclasses and backends keep the ordinary route. Executor workers mark
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
+
+### Ownership of task-copied strings
+
+A short ASCII collection can supply a `StringCopy` owner to `TextTasks`. The source,
+tasks, native worker and each active attempt retain the snapshot, descriptors,
+offsets and output bytes. The main thread plans from offsets and never reads
+unwritten bytes. Task ranges are disjoint. An attempt copies its whole original
+range once, even when error localization retries shorter prefixes. Failure before
+the copy leaves that attempt eligible to copy on its next retry.
+
+A running attempt retains these owners after a second interrupt returns to the
+caller. Final release holds the GIL, including when it occurs on a worker thread.
+Copying adds no section without the GIL: float32 tasks retain one section, and
+float16 and int8 tasks retain two, including storage.

@@ -19,7 +19,7 @@ from typing import Any
 from numpy import ndarray
 
 from fse._contract import EXTERNAL_TOKENIZER
-from fse._text import RowTypeError, StringSource, TokenListSource
+from fse._text import CopiedStrings, RowTypeError, copied_strings, StringSource, TokenListSource
 
 COLLECTIONS = (list, tuple, ndarray)
 
@@ -66,10 +66,16 @@ def check_tokenizer(tokens: bool, tokenizer: str):
         )
 
 
-def build(texts: Any, tokens: bool) -> StringSource | TokenListSource:
+def build(
+    texts: Any, tokens: bool, *, in_tasks: bool = False
+) -> StringSource | TokenListSource | CopiedStrings:
     """The source of a collection; a row of the other kind than row 0 raises naming both."""
     first = type(texts[0]).__name__ if len(texts) else None  # read before the rows
     try:
+        if in_tasks and not tokens:
+            source = copied_strings(texts)
+            if source is not None:
+                return source
         return TokenListSource(texts) if tokens else StringSource(texts)
     except RowTypeError as error:
         # The error carries what it found, so nothing of the input is read again and no
