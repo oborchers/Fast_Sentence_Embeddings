@@ -77,6 +77,8 @@ def repository(tmp_path):
         "recipes/example.ipynb",
         ".agents/skills/example/SKILL.md",
         "src/example.py",
+        "src/fse/_native.pyx",
+        "setup.py",
     ],
 )
 def test_document_and_code_changes_select_lint(repository, name):
@@ -86,6 +88,7 @@ def test_document_and_code_changes_select_lint(repository, name):
     commit(repository)
     outputs = selection(repository)
     assert outputs["lint"] == "true"
+    assert (outputs["sde"] == "true") == (name in {"src/fse/_native.pyx", "setup.py"})
     if name.endswith(".md"):
         assert outputs["code"] == "false"
 
