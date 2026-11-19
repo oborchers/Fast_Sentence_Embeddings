@@ -274,3 +274,8 @@ class MemorySink(GrowingRows):
         if isinstance(dim, bool) or not isinstance(dim, int | np.integer) or dim < 1:
             raise ValueError(f"dim must be a positive int, not {dim!r}")
         super().__init__(int(dim), dtype)
+
+
+def own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:
+    """A checked target for the call, with fixed or growing row count."""
+    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)

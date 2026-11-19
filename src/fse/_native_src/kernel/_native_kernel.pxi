@@ -30,8 +30,8 @@ cdef extern from "_native_kernel.h":
                     int64_t *counts, int finish) nogil
     void fse_dot16_rows(int isa, const float *a, const float *b, int64_t n, int dim, float *out) nogil
     uint64_t fse_test_fpenv_set(int flush, int round_up)
-    uint64_t fse_fpenv_push()
-    void fse_fpenv_pop(uint64_t saved)
+    uint64_t fse_fpenv_push() noexcept nogil
+    void fse_fpenv_pop(uint64_t saved) noexcept nogil
     void fse_test_fpenv_restore(uint64_t saved)
     uint64_t fse_test_fpenv_get()
     int64_t fse_normalize(int isa, float *rows, int64_t n, int dim, int64_t *unnormalizable) nogil

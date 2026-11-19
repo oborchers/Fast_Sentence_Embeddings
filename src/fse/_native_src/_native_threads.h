@@ -10,8 +10,13 @@
 #define FSE_NATIVE_THREADS_H
 
 #include <stdlib.h>
+#include "_native_atomics.h"
 
 typedef void (*fse_part)(void *arg, int part);
+
+/* Native helpers run no Python frames; variable buffers live in Workspaces.
+ * Still request a 1 MiB floor rather than depending on musl's small default. */
+#define FSE_TEAM_STACK_MIN (1024u * 1024u)
 
 /* For the tests: bit i set makes the start of the thread of part i fail. */
 static unsigned fse_test_failed_starts = 0;
@@ -21,18 +26,19 @@ static int fse_test_fail_bookkeeping = 0;
 /* Actual live native allocations for join parts and parallel bookkeeping. Only
  * allocation and release hold the GIL, possibly in the last owning worker. Never reset
  * this counter between calls: a missed free must remain visible to the tests. */
-static size_t fse_test_join_live = 0;
+static fse_atomic fse_test_join_live = {0};
+static fse_atomic fse_test_team_live = {0};
 
 static void *fse_join_calloc(size_t n, size_t size) {
     void *p = calloc(n, size);
-    if (p) fse_test_join_live++;
+    if (p) fse_atomic_add(&fse_test_join_live, 1);
     return p;
 }
 
 static void fse_join_free(void *p) {
     if (p) {
         free(p);
-        fse_test_join_live--;
+        fse_atomic_add(&fse_test_join_live, -1);
     }
 }
 
@@ -40,6 +46,7 @@ typedef struct {
     fse_part fn;
     void *arg;
     int part;
+    uint64_t *actual_id;
 } fse_task;
 
 #ifdef _WIN32
@@ -49,6 +56,7 @@ typedef HANDLE fse_thread;
 
 static unsigned __stdcall fse_thread_main(void *p) {
     fse_task *t = (fse_task *)p;
+    if (t->actual_id) *t->actual_id = (uint64_t)GetCurrentThreadId();
     t->fn(t->arg, t->part);
     return 0;
 }
@@ -58,16 +66,40 @@ static int fse_start(fse_thread *thread, fse_task *task) {
     return *thread ? 0 : -1;
 }
 
+static int fse_start_team(fse_thread *thread, fse_task *task) {
+    const unsigned char *image = (const unsigned char *)GetModuleHandleW(NULL);
+    const IMAGE_DOS_HEADER *dos;
+    const IMAGE_NT_HEADERS *header;
+    unsigned size = 0;
+    if (!image) return -1;
+    dos = (const IMAGE_DOS_HEADER *)image;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0) return -1;
+    header = (const IMAGE_NT_HEADERS *)(image + dos->e_lfanew);
+    if (header->Signature != IMAGE_NT_SIGNATURE ||
+        header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR_MAGIC) return -1;
+    /* Zero keeps the executable's larger default; grow only a smaller reserve.
+     * Unknown executable metadata is a start failure, never a guessed stack cap. */
+    if (header->OptionalHeader.SizeOfStackReserve < FSE_TEAM_STACK_MIN)
+        size = FSE_TEAM_STACK_MIN;
+    *thread = (HANDLE)_beginthreadex(NULL, size, fse_thread_main, task,
+                                    size ? STACK_SIZE_PARAM_IS_A_RESERVATION : 0, NULL);
+    return *thread ? 0 : -1;
+}
+
 static void fse_join(fse_thread thread) {
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
 }
+static uint64_t fse_thread_id(fse_thread thread) { return (uint64_t)GetThreadId(thread); }
+static void fse_team_pause(void) { Sleep(1); }
 #else
 #include <pthread.h>
+#include <time.h>
 typedef pthread_t fse_thread;
 
 static void *fse_thread_main(void *p) {
     fse_task *t = (fse_task *)p;
+    if (t->actual_id) *t->actual_id = (uint64_t)(uintptr_t)pthread_self();
     t->fn(t->arg, t->part);
     return NULL;
 }
@@ -76,8 +108,68 @@ static int fse_start(fse_thread *thread, fse_task *task) {
     return pthread_create(thread, NULL, fse_thread_main, task) ? -1 : 0;
 }
 
+static int fse_start_team(fse_thread *thread, fse_task *task) {
+    pthread_attr_t attributes;
+    size_t size;
+    int status;
+    if (pthread_attr_init(&attributes)) return -1;
+    status = pthread_attr_getstacksize(&attributes, &size);
+    if (!status) {
+        if (size < FSE_TEAM_STACK_MIN) size = FSE_TEAM_STACK_MIN;
+        status = pthread_attr_setstacksize(&attributes, size);
+    }
+    if (!status) status = pthread_create(thread, &attributes, fse_thread_main, task);
+    pthread_attr_destroy(&attributes);
+    return status ? -1 : 0;
+}
+
 static void fse_join(fse_thread thread) { pthread_join(thread, NULL); }
+static uint64_t fse_thread_id(fse_thread thread) { return (uint64_t)(uintptr_t)thread; }
+static void fse_team_pause(void) {
+    struct timespec delay = {0, 1000000};
+    nanosleep(&delay, NULL);
+}
 #endif
+
+/* Caller-owned storage. Failed starts reduce the team; slot zero drains the queue.
+ * Started/executing identities and joined flags check each call's balance. */
+typedef struct {
+    fse_thread thread;
+    fse_task task;
+    int started, joined;
+    uint64_t started_id, actual_id;
+} fse_team_slot;
+
+static void fse_team(int n, fse_part fn, void *arg, fse_team_slot *slots,
+                     unsigned failed_starts) {
+    int i;
+    for (i = 1; i < n; i++) {
+        slots[i].task.fn = fn;
+        slots[i].task.arg = arg;
+        slots[i].task.part = i;
+        slots[i].task.actual_id = &slots[i].actual_id;
+        slots[i].started = !(i < 32 && (failed_starts >> i) & 1u) &&
+                           fse_start_team(&slots[i].thread, &slots[i].task) == 0;
+        if (slots[i].started) slots[i].started_id = fse_thread_id(slots[i].thread);
+    }
+    fn(arg, 0);
+    for (i = 1; i < n; i++) {
+        if (slots[i].started) {
+            fse_join(slots[i].thread);
+            slots[i].joined = 1;
+        }
+    }
+}
+
+static int fse_team_balanced(int n, fse_team_slot *slots) {
+    int i;
+    for (i = 1; i < n; i++) {
+        if (slots[i].started != slots[i].joined) return 0;
+        if (!slots[i].started) continue;
+        if (slots[i].started_id != slots[i].actual_id) return 0;
+    }
+    return 1;
+}
 
 /* 0, or -1 if the bookkeeping could not be allocated (then nothing ran). */
 static int fse_parallel(int n, fse_part fn, void *arg) {

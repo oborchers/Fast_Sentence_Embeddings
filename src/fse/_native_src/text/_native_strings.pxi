@@ -228,7 +228,7 @@ cdef object _join_strings_direct(texts, int threads):
 
 def _test_join_resources():
     """Actual live native part/bookkeeping allocations. Python objects use weakref/tracemalloc tests."""
-    return fse_test_join_live
+    return fse_atomic_load(&fse_test_join_live)
 
 
 def _test_join_string_parts():

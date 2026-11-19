@@ -5,7 +5,7 @@ Historical M1 timing observations in this document are withdrawn and must not su
 
 Binding for every 2.0 module (formerly under "2.0 design").
 
-`fse._runtime` runs encoding on one executor (`run`):
+`fse._runtime` runs encoding through `run` or the bounded per-call native team below:
 
 - **Uniform inputs.** Every finite text batch in `encode_batches` and `predict_batches` may be a list, tuple, one-dimensional NumPy text array or Arrow string column. The same element and dimension checks apply before conversion. This also holds inside document-ID and stream-position tuples, including a batch sliced while resuming stores of different lengths. Local file parameters accept `str` and `os.PathLike[str]`; model references distinguish local path objects from string Hub identifiers. Stores, sinks and views retain TypeError for invalid path types, while validated loaders retain ValidationError.
 
@@ -99,6 +99,58 @@ Other sources, subclasses and backends keep the ordinary route. Executor workers
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
 
+### Per-call native StringSource team
+
+After the direct single-task check, an exact, verified `StringSource` may run its
+CPU text tasks in a native team. This requires internally allocated float32
+`ArrayRows`, no pool or sink, original `first_row=0`, no length settings or
+collector, automatic chunking, a non-inline plan and more than one worker.
+Limits are 131,072 rows, 16 MiB of text and 256 tasks. The runtime reads at most
+257 task items before choosing the team or replaying the iterator to `run`.
+Preparation failure also replays the tasks and any retained scan error.
+
+The caller starts at most `min(workers, tasks) - 1` native threads and participates
+in task processing. Failed thread starts reduce the team. Each slot owns a
+workspace. Atomic ascending task claims and the atomic minimum failure index
+preserve the successful prefix and the earliest task error. Non-memory task
+errors are replayed through `TextTasks` and `earliest` to identify the earliest
+row. A memory failure raises directly, without replay. A successful replay of
+an allegedly failed task raises an internal `RuntimeError`.
+
+The team releases the GIL once and never re-enters Python while processing tasks.
+It restores each thread's floating-point environment, joins all started threads,
+frees native team buffers and checks its own resource balance before returning
+to Python. `runtime.plan` adds `executor="native"` for this route. Successful
+calls emit `runtime.done` once. Errors emit no completion record.
+
+Python executor interrupts retain their existing behavior: cancel the call's own
+pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second
+interrupt preserves task-place accounting. Within the native team's limits, an
+interrupt takes effect after the native section ends. Tasks complete or skip
+after failure, all started threads join and native resources are freed before
+Python can raise. A second interrupt cannot shorten this section. There is no
+general latency bound. Signals raise in the main Python thread; an encode call
+in another thread may return normally.
+
+No computation thread outlives the call and no default pool is created. There is
+no new fork handler. If another Python thread forks during a team call, the child
+does not resume the team's calling frame or join inherited handles. The child's
+resource tests use their post-fork baseline for inherited allocations.
+
+Native helper stacks have an explicit 1 MiB floor (`FSE_TEAM_STACK_MIN`).
+Pthread helpers retain a larger system default. Windows helpers inspect the
+executable PE header and keep its default reserve when it is at least 1 MiB,
+requesting the floor through `_beginthreadex` only for smaller reserves. This avoids depending on musl's smaller default.
+Helpers run no Python frames; variable-sized token, normalization and lattice
+buffers live in their heap workspaces. Python's `threading.stack_size()` does
+not configure these native helpers. The existing parallel input-join passes keep
+their thread-start behavior.
+
+Excluded calls log `runtime.plan` before output allocation and task-worker setup,
+as before. Potential native calls delay this record until preparation selects
+the executor. If their setup fails, they still emit one plan record before raising.
+Preparation errors from checked input/output validation may use the old executor;
+an internal range-order invariant raises `RuntimeError` without silent fallback.
 ### Ownership of task-copied strings
 
 A short ASCII collection can supply a `StringCopy` owner to `TextTasks`. The source,
