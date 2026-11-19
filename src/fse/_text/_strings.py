@@ -80,6 +80,9 @@ class StringSource(_Buffered):
             self._verify(*joined)
         self._data, self._offsets = joined
 
+    def _task_text(self):
+        return self._array(), self._offsets
+
     @classmethod
     def encoded(cls, sentences: list[bytes]) -> StringSource:
         """A source of sentences already encoded (and checked) as UTF-8."""
@@ -89,6 +92,46 @@ class StringSource(_Buffered):
 
     def __len__(self) -> int:
         return self._positions()
+
+
+# Exclusive row limit for the heuristic task-copy route. Large lists keep parallel joins.
+TASK_COPY_ROWS = 32_768
+
+
+class CopiedStrings(_Buffered):
+    """Verified offsets whose bytes only the owning native tasks may read or write."""
+
+    _verified = True
+    _offsets: ndarray
+
+    def __init__(self, owner: _native.StringCopy):
+        self._copy = owner
+        self._offsets = owner.positions
+
+    def __len__(self) -> int:
+        return len(self._offsets) - 1
+
+    @property
+    def nbytes(self) -> int:
+        return int(self._offsets[-1])
+
+    def _task_text(self) -> _native.StringCopy:
+        return self._copy
+
+    def _array(self) -> ndarray:
+        raise AssertionError("only native tasks may read copied strings")
+
+    def encode(self, _chunk, _lookup, _workspace) -> Batch:
+        raise AssertionError("only native tasks may read copied strings")
+
+    def encode_with(self, _chunk, _run):
+        raise AssertionError("only native tasks may read copied strings")
+
+
+def copied_strings(texts: Any) -> CopiedStrings | None:
+    """Prepare short exact ASCII lists for copying inside their native tasks."""
+    owner = _native.copy_strings(texts, TASK_COPY_ROWS)
+    return None if owner is None else CopiedStrings(owner)
 
 
 def _token_lists(sentences: Any) -> tuple[bytes, ndarray]:

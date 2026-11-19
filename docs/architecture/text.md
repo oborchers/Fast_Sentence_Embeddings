@@ -19,3 +19,27 @@ For the CPU runtime's internal string task entry, an exact `StringSource` retain
 buffer view per call. Tasks share this immutable view and the offsets, and retain them
 until completion. Source subclasses and sources with post-encoding checks keep their
 ordinary `encode_with` route (see [Runtime](runtime.md#internal-string-task-entry)).
+
+### Short ASCII lists copied by tasks
+
+For an allocated encode result with at least two workers, the CPU path can prepare
+an exact list or tuple of 1 to 32,767 exact, ready ASCII strings without joining
+the bytes first. `TASK_COPY_ROWS` is the exclusive row limit. Under the GIL it
+retains a tuple snapshot, checks each string, records native character pointers
+and lengths, and builds read-only offsets starting at zero. A list size change
+during snapshot allocation selects the ordinary source path instead.
+
+`CopiedStrings` exposes only verified offsets for planning. Its ordinary buffer
+and encode entries raise. Each native task copies its whole original row range
+inside its existing section without the GIL, before tokenizing any prefix.
+Descriptors contain character pointers and lengths, so this copy never reads
+Unicode headers. All other inputs, one-worker calls and caller sinks keep the
+ordinary join. Free-threaded Python remains unsupported.
+
+Snapshot, descriptor and offset allocations precede row validation on this route.
+Under memory pressure an allocation can therefore raise `MemoryError` before an
+unsupported or invalid row selects the ordinary source and its row error. This is
+an accepted allocation-order edge case. The deterministic allocation-failure hooks
+use fse's own messages (including the offsets hook). Real NumPy allocation failures
+propagate their original subclass and message unchanged, since NumPy's byte-unit
+formatting and internal exception location vary between supported versions.

@@ -12,7 +12,7 @@ import pytest
 from fse import _native
 from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _tasks
-from fse._text import StringSource
+from fse._text import StringSource, copied_strings
 from fse._tokenizer_spec import TokenizerSpec
 from support import gil_budget
 from support.gil_budget import Budget, Window
@@ -27,7 +27,7 @@ VIEW = Counter({"frombuffer in _array": 1})
 STORE = {"float32": Counter(), "float16": Counter(), "int8": Counter()}
 # The sections of a task: pool_text, and store_rows for a compact target.
 SECTIONS = {"float32": 1, "float16": 2, "int8": 2}
-KINDS = ["strings", "tokens", "file", "stream", "arrow"]
+KINDS = ["copied", "strings", "tokens", "file", "stream", "arrow"]
 
 
 def _pipeline(kind, normalize=True):
@@ -44,9 +44,10 @@ def _windows(
     pipeline._text_rows = fused
     monkeypatch.setattr(_tasks, "INLINE_MAX_BYTES", 0)
     calls = _native._test_team_calls()
+    given = copied_strings(texts(2000)) if kind == "copied" else source(kind, texts(2000), tmp_path)
     with Budget(monkeypatch) as budget:
         pipeline.infer(
-            source(kind, texts(2000), tmp_path),
+            given,
             workers=workers,
             chunk_bytes=chunk_bytes,
             dtype=dtype,
@@ -70,7 +71,7 @@ def _without_scratch(numpy):
 @pytest.mark.parametrize("workers", [1, 3])
 def test_a_task_hands_the_gil_over_within_its_budget(monkeypatch, tmp_path, kind, dtype, workers):
     windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=workers)
-    view = Counter() if kind in ("arrow", "strings") else VIEW
+    view = Counter() if kind in ("arrow", "strings", "copied") else VIEW
     # A file is checked unchanged before and after it is encoded (os.stat), as before.
     blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
     for w in windows:
@@ -87,7 +88,7 @@ def test_a_task_of_the_split_tail_has_the_same_budget(monkeypatch, tmp_path, kin
     like those of every other task."""
     small_tasks(monkeypatch)
     windows = _windows(monkeypatch, tmp_path, kind, dtype=dtype, workers=4, chunk_bytes=None)
-    view = Counter() if kind in ("arrow", "strings") else VIEW
+    view = Counter() if kind in ("arrow", "strings", "copied") else VIEW
     blocking = Counter({"os.stat": 2}) if kind == "file" else Counter()
     for w in windows:
         assert w.sections == SECTIONS[dtype]

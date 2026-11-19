@@ -24,7 +24,7 @@ static unsigned fse_test_failed_starts = 0;
 static int fse_test_fail_bookkeeping = 0;
 
 /* Actual live native allocations for join parts and parallel bookkeeping. Only
- * the calling thread allocates/frees these while holding the GIL. Never reset
+ * allocation and release hold the GIL, possibly in the last owning worker. Never reset
  * this counter between calls: a missed free must remain visible to the tests. */
 static fse_atomic fse_test_join_live = {0};
 static fse_atomic fse_test_team_live = {0};
