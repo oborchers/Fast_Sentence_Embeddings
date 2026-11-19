@@ -138,3 +138,56 @@ def test_running_native_task_keeps_owners_after_two_interrupts(monkeypatch):
         finally:
             probe.unblock()
         probe.check_finished(pool)
+
+
+class _CopiedOwnership(_Ownership):
+    def factory(self, pipeline, source, *args):
+        self.copy = weakref.ref(source._copy)
+        self.owners.append(self.copy)
+        return super().factory(pipeline, source, *args)
+
+    def submit(self, pool, work, *args):
+        from fse import _native
+
+        def capture(*items):
+            result = work(*items)
+            try:
+                data, _ = _native._test_string_copy_result(self.copy())
+            except AssertionError:  # The first task finishes while the second is blocked.
+                pass
+            else:
+                self.captured = data
+            return result
+
+        return super().submit(pool, capture, *args)
+
+
+def _copied_interrupted(pool):
+    from fse._text import copied_strings
+
+    wv = word_vectors()
+    pipeline = Pipeline(EncodeSpec(wv, np.ones(len(wv), np.float32), ()))
+    # Runtime-built strings are owned only by the snapshot after this frame unwinds.
+    rows = [" ".join([f"w{i}"] * 17) for i in (1, 2)]
+    source = copied_strings(rows)
+    with pytest.raises(KeyboardInterrupt, match=r"^second$"):
+        pipeline.infer(source, workers=Workers(2, pool), chunk_bytes=1)
+
+
+def test_copied_task_survives_second_interrupt(monkeypatch):
+    from fse import _native
+
+    probe = _CopiedOwnership()
+    probe.install(monkeypatch)
+    with Pool(2, max_tasks=2) as pool:
+        try:
+            _copied_interrupted(pool)
+            probe.check_held(pool)
+            assert probe.copy() is not None
+            assert _native._test_join_resources() == 1
+        finally:
+            probe.unblock()
+        probe.check_finished(pool)
+    assert probe.captured == b" ".join([b"w1"] * 17) + b" ".join([b"w2"] * 17)
+    assert probe.copy() is None
+    assert _native._test_join_resources() == 0

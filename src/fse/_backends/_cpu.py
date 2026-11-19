@@ -155,10 +155,26 @@ class CpuBackend:
             lookup,
             state.isa,
             bool(prepared.steps),
-            (source._array(), source._offsets),
+            source._task_text(),
             local,
             base,
             helpers,
+        )
+
+    def string_team(self, prepared, lookup, source, tasks, out, workers):
+        """Prepare an own-float32 call without executing any task."""
+        check_prepared(prepared, self.name)
+        state = prepared.state
+        assert isinstance(state, _State)
+        return _native.TaskTeam(
+            state.kernel,
+            lookup,
+            state.isa,
+            bool(prepared.steps),
+            source._task_text(),
+            tasks,
+            out,
+            min(workers, 256),
         )
 
     def score(
