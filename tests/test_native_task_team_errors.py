@@ -57,6 +57,7 @@ def test_real_errors_match_old_executor_and_reference(
     model = _pipeline(kind)
     sentences = ["good".ljust(100)] * 4000
     tasks = tasks_for(model, StringSource(sentences), workers)
+    assert len(tasks) > len(tasks_for(model, StringSource(sentences), workers, refined=False))
     index = {"first": 0, "middle": len(tasks) // 2, "last": len(tasks) - 1}[position]
     row = tasks[index].first_row + 1
     text = {"nan": "huge", "overflow": "huge huge", "tiny": "tiny"}[kind]
@@ -76,6 +77,7 @@ def test_later_pooling_error_cannot_hide_earlier_normalization_failure(workers):
     model = _pipeline("overflow")
     sentences = ["good".ljust(100)] * 4000
     tasks = tasks_for(model, StringSource(sentences), workers)
+    assert len(tasks) > len(tasks_for(model, StringSource(sentences), workers, refined=False))
     first, last = tasks[0].first_row + 1, tasks[-1].first_row + 1
     sentences[first] = "tiny".ljust(100)
     sentences[last] = "huge huge".ljust(100)
