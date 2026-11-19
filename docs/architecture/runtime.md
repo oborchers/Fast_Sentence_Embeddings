@@ -122,6 +122,9 @@ It restores each thread's floating-point environment, joins all started threads,
 frees native team buffers and checks its own resource balance before returning
 to Python. `runtime.plan` adds `executor="native"` for this route. Successful
 calls emit `runtime.done` once. Errors emit no completion record.
+Stored scan errors and consumed task iterators are cleared on every exit path.
+Raised errors retain their original traceback, while input owners are released
+without waiting for cyclic garbage collection.
 
 Python executor interrupts retain their existing behavior: cancel the call's own
 pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second

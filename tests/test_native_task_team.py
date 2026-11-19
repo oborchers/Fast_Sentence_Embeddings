@@ -13,7 +13,10 @@ from support.runtime import texts
 def caught(call):
     with pytest.raises(Exception, match=r".") as error:
         call()
-    return type(error.value), str(error.value)
+    try:
+        return type(error.value), str(error.value)
+    finally:
+        del error
 
 
 @pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
