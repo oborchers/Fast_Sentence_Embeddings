@@ -13,7 +13,11 @@
    only the place of a partial sum between two terms changes, a register within a tile
    and the out row between tiles, and both keep its bits, -0.0 included.
 
-   The builder (fse_fill_tile) keeps these numerical invariants, which the conformance
+   At batch entry, absent ngram_offsets select fse_fill_tile_known: validation guarantees
+   every token is known. Supplied offsets select fse_fill_tile, even with no buckets.
+   FastText workspace encoding supplies offsets even when every token is known.
+   Test builds count calls of each builder per thread; production omits the counters.
+   Both builders keep these numerical invariants, which the conformance
    tests and their meta-tests (tests/test_conformance_tiles*.py) check:
    - every contribution of the sentence is a term exactly once, in token order, and the
      buckets of an unknown word in bucket order, also when they straddle tiles;
@@ -55,9 +59,33 @@ typedef struct {
     float g;        /* the factor of the buckets of the current unknown word */
 } fse_cursor;
 
+/* Validated batches without ngram_offsets contain only known tokens. */
+FSE_INLINE int fse_fill_tile_known(const fse_params *p, const fse_batch *b, int64_t total,
+                                  fse_cursor *c, int cap, const char **row, float *f) {
+    FSE_TEST_BUILDER(1);
+    const size_t rb = p->row_bytes;
+    const char *rows = (const char *)p->rows;
+    const int64_t remaining = c->end - c->t;
+    const int n = remaining < cap ? (int)remaining : cap;
+    const int64_t start = c->t;
+    for (int q = 0; q < n; q++) {
+        const int64_t t = start + q;
+        if (t + FSE_PREFETCH_DISTANCE < total) {
+            const uint32_t ahead = b->tokens[t + FSE_PREFETCH_DISTANCE];
+            fse_prefetch_row(rows + (size_t)ahead * rb, rb);
+        }
+        const uint32_t w = b->tokens[t];
+        row[q] = rows + (size_t)w * rb;
+        f[q] = p->weights[w];
+    }
+    c->t += n;
+    return n;
+}
+
 /* Append the next terms of the sentence, at most cap; fewer only at its end. */
 FSE_INLINE int fse_fill_tile(const fse_params *p, const fse_batch *b, int64_t total,
                              fse_cursor *c, int cap, int scaled, const char **row, float *f) {
+    FSE_TEST_BUILDER(0);
     const size_t rb = p->row_bytes;
     const char *rows = (const char *)p->rows;
     const char *ngram_rows = (const char *)p->ngram_rows;
@@ -166,14 +194,9 @@ FSE_INLINE FSE_AVX2_TARGET void fse_tile_f32_avx2(float *FSE_RESTRICT acc, int d
 #undef FSE_AVX2_FMA
 
 /* The batch loop of FSE_DEFINE_LOOP (same arguments, same results) with tiles. */
-FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *p, const fse_batch *b,
-                                              float *out, int64_t *counts, int finish) {
+FSE_INLINE FSE_AVX2_TARGET int64_t fse_loop_f32_avx2_tiles(const fse_params *p, const fse_batch *b,
+                         float *out, int64_t *counts, int finish, size_t cap, int known_only) {
     const int dim = p->dim;
-    const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-    if (cap < FSE_TILE_MIN) {
-        FSE_TEST_ROWS();
-        return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
-    }
     const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
     const char *row[FSE_TILE_MAX];
     float f[FSE_TILE_MAX];
@@ -187,7 +210,8 @@ FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *
         /* The first tile always runs, so a sentence without terms stores +0.0. */
         int first = 1;
         do {
-            const int n = fse_fill_tile(p, b, total, &c, K, 0, row, f);
+            const int n = known_only ? fse_fill_tile_known(p, b, total, &c, K, row, f)
+                                     : fse_fill_tile(p, b, total, &c, K, 0, row, f);
             if (n || first) {
                 FSE_TEST_TILE();
                 fse_tile_f32_avx2(acc, dim, row, f, n, first);
@@ -200,6 +224,19 @@ FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *
             return s;
     }
     return -1;
+}
+
+/* Literal mode arguments remove FastText branches from the known-only batch body. */
+FSE_NOINLINE FSE_AVX2_TARGET static int64_t fse_loop_f32_avx2(const fse_params *p, const fse_batch *b,
+                                              float *out, int64_t *counts, int finish) {
+    const size_t cap = FSE_TILE_BYTES / p->row_bytes;
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_avx2_rows(p, b, out, counts, finish);
+    }
+    if (b->ngram_offsets == NULL)
+        return fse_loop_f32_avx2_tiles(p, b, out, counts, finish, cap, 1);
+    return fse_loop_f32_avx2_tiles(p, b, out, counts, finish, cap, 0);
 }
 #endif
 
@@ -268,14 +305,9 @@ FSE_INLINE void fse_tile_f32_neon(float *FSE_RESTRICT acc, int dim, const char *
 #undef FSE_NEON_FMA
 
 /* The batch loop of FSE_DEFINE_LOOP (same arguments, same results) with tiles. */
-FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_batch *b,
-                                              float *out, int64_t *counts, int finish) {
+FSE_INLINE int64_t fse_loop_f32_neon_tiles(const fse_params *p, const fse_batch *b,
+                         float *out, int64_t *counts, int finish, size_t cap, int known_only) {
     const int dim = p->dim;
-    const size_t cap = FSE_TILE_BYTES / p->row_bytes;
-    if (cap < FSE_TILE_MIN) {
-        FSE_TEST_ROWS();
-        return fse_loop_f32_neon_rows(p, b, out, counts, finish);
-    }
     const int K = cap < FSE_TILE_MAX ? (int)cap : FSE_TILE_MAX;
     const char *row[FSE_TILE_MAX];
     float f[FSE_TILE_MAX];
@@ -289,7 +321,8 @@ FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_bat
         /* The first tile always runs, so a sentence without terms stores +0.0. */
         int first = 1;
         do {
-            const int n = fse_fill_tile(p, b, total, &c, K, 0, row, f);
+            const int n = known_only ? fse_fill_tile_known(p, b, total, &c, K, row, f)
+                                     : fse_fill_tile(p, b, total, &c, K, 0, row, f);
             if (n || first) {
                 FSE_TEST_TILE();
                 fse_tile_f32_neon(acc, dim, row, f, n, first);
@@ -302,6 +335,19 @@ FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_bat
             return s;
     }
     return -1;
+}
+
+/* Literal mode arguments remove FastText branches from the known-only batch body. */
+FSE_NOINLINE static int64_t fse_loop_f32_neon(const fse_params *p, const fse_batch *b,
+                                              float *out, int64_t *counts, int finish) {
+    const size_t cap = FSE_TILE_BYTES / p->row_bytes;
+    if (cap < FSE_TILE_MIN) {
+        FSE_TEST_ROWS();
+        return fse_loop_f32_neon_rows(p, b, out, counts, finish);
+    }
+    if (b->ngram_offsets == NULL)
+        return fse_loop_f32_neon_tiles(p, b, out, counts, finish, cap, 1);
+    return fse_loop_f32_neon_tiles(p, b, out, counts, finish, cap, 0);
 }
 #endif
 
