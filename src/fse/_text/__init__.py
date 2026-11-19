@@ -26,7 +26,14 @@ from ._lookup import (
     tokenize,
 )
 from ._scan import Chunk, Scan, _Buffered, check_chunk_bytes, default_chunk_bytes
-from ._strings import RowTypeError, StringSource, TokenListSource, encode_string
+from ._strings import (
+    CopiedStrings,
+    RowTypeError,
+    StringSource,
+    TokenListSource,
+    copied_strings,
+    encode_string,
+)
 from ._window import Window
 
 __all__ = [
@@ -34,6 +41,7 @@ __all__ = [
     "MAX_NGRAMS_LIMIT",
     "ArrowSource",
     "Chunk",
+    "CopiedStrings",
     "RowTypeError",
     "Scan",
     "StringSource",
@@ -44,6 +52,7 @@ __all__ = [
     "Workspace",
     "_Buffered",
     "check_chunk_bytes",
+    "copied_strings",
     "default_chunk_bytes",
     "encode_string",
     "is_arrow",

@@ -302,7 +302,11 @@ musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64@sha256:0a7b18a1fce
 [[tool.cibuildwheel.overrides]]
 select = "cp311-win* cp312-win* cp313-win* cp314-win*"
 test-groups = []
-test-command = "python -I {project}/tools/wheel_smoke.py"
+test-requires = ["pytest>=8"]
+test-command = [
+    "python -I {project}/tools/wheel_smoke.py",
+    "python -m pytest {project}/tests/test_runtime_native_run.py {project}/tests/test_runtime_native_run_scope.py {project}/tests/test_conformance_native_team.py {project}/tests/test_native_task_team_errors.py {project}/tests/test_native_task_team.py {project}/tests/test_native_task_team_resources.py {project}/tests/test_native_task_team_process.py -p no:cacheprovider",
+]
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux_*"
@@ -480,7 +484,7 @@ name = "Runtime: a head on pipelines, the pipeline on tasks, sinks and the execu
 type = "layers"
 containers = ["fse._runtime"]
 exhaustive = true
-layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_worker", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths", "_pool"]
+layers = ["_head", "_heads", "_heads_errors | _heads_targets", "_heads_plan", "_pipeline | _head_common", "_native_run", "_native_cuts | _worker", "_checks", "_tasks | _sinks | _executor | _spec | _head_spec | _errors | _lengths", "_pool"]
 
 [[tool.importlinter.contracts]]
 name = "Optional and 1.x packages and the Arrow producers stay out of fse; gensim only in fse.gensim"
@@ -505,6 +509,7 @@ ignore_names = [
     "pytest_runtest_teardown",
     "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
+    "reset_copied_string_hooks", # autouse fixture of tests/test_text_strings_copied.py
     "no_sink_threads_left", # an autouse fixture of tests/conftest.py, run by pytest
     "python_sigint",     # a fixture used through pytest.mark.usefixtures
     "broken_logging",    # a fixture used through pytest.mark.usefixtures

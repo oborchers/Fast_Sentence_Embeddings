@@ -37,20 +37,20 @@ from ._inputs import COLLECTIONS, build, check_tokenizer, is_token_lists, refuse
 SOURCES = (StringSource, TokenListSource, FileSource, StreamSource, ArrowSource)
 
 
-def collection(texts: Any, tokenizer: str) -> Any:
+def collection(texts: Any, tokenizer: str, *, in_tasks: bool = False) -> Any:
     """The source of ``texts`` if it is exactly a list or tuple, else None (``opened`` then
     decides). A list or tuple is none of the sources, a path, an Arrow export, a str, bytes,
     set or mapping, so ``opened`` would only run the same two checks and ``build`` for it, in
     this order, without a file to close."""
     if type(texts) is not list and type(texts) is not tuple:
         return None
-    return _built(texts, tokenizer)
+    return _built(texts, tokenizer, in_tasks=in_tasks)
 
 
-def _built(texts: Any, tokenizer: str) -> Any:
+def _built(texts: Any, tokenizer: str, *, in_tasks: bool = False) -> Any:
     tokens = is_token_lists(texts)
     check_tokenizer(tokens, tokenizer)  # before any row is read
-    return build(texts, tokens)
+    return build(texts, tokens, in_tasks=in_tasks)
 
 
 @contextmanager

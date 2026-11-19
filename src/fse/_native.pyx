@@ -22,7 +22,7 @@ cimport numpy as np
 
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from cpython.pyport cimport PY_SSIZE_T_MAX
-from libc.stdint cimport SIZE_MAX
+from libc.stdint cimport SIZE_MAX, int64_t
 from libc.stdlib cimport calloc, free, malloc, realloc
 from libc.string cimport memchr, memcmp, memcpy, memset
 
@@ -35,6 +35,7 @@ include "_native_src/text/_native_vocab.pxi"
 include "_native_src/text/_native_scan.pxi"
 include "_native_src/text/_native_lists.pxi"
 include "_native_src/text/_native_strings.pxi"
+include "_native_src/text/_native_strings_copy.pxi"
 include "_native_src/kernel/_native_kernel.pxi"
 include "_native_src/kernel/_native_steps.pxi"
 include "_native_src/kernel/_native_store.pxi"
@@ -53,3 +54,4 @@ include "_native_src/text/_native_arrow_column.pxi"
 include "_native_src/text/_native_arrow_ids.pxi"
 include "_native_src/_native_task.pxi"
 include "_native_src/_native_task_worker.pxi"
+include "_native_src/_native_task_team.pxi"
