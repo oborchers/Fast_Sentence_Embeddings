@@ -280,7 +280,7 @@ skip = "*-win32 *_i686"
 build-frontend = "build[uv]"
 test-groups = ["test"]
 # Double quotes, because the Windows shell does not understand single quotes.
-test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n auto'
+test-command = 'python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows && pytest {project}/tests -m "not network" -p no:cacheprovider -n auto'
 
 [tool.cibuildwheel.macos]
 archs = ["arm64"]
@@ -304,6 +304,7 @@ select = "cp311-win* cp312-win* cp313-win* cp314-win*"
 test-groups = []
 test-requires = ["pytest>=8"]
 test-command = [
+    "python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows",
     "python -I {project}/tools/wheel_smoke.py",
     "python -m pytest {project}/tests/test_runtime_native_run.py {project}/tests/test_runtime_native_run_scope.py {project}/tests/test_conformance_native_team.py {project}/tests/test_native_task_team_errors.py {project}/tests/test_native_task_team.py {project}/tests/test_native_task_team_resources.py {project}/tests/test_native_task_team_process.py -p no:cacheprovider",
 ]
@@ -319,7 +320,7 @@ test-requires = [
     "tokenizers==0.23.3", "model2vec==0.10.0", "pyarrow==26.0.0",
     "pandas==3.1.0", "polars==2.1.0", "datasets==5.1.0",
 ]
-test-command = 'pytest {project}/tests -m "not network" -p no:cacheprovider -n auto --ignore={project}/tests/test_gensim.py -k "not test_ft_ngram_hashes_match_gensim_on_random_unicode"'
+test-command = 'python -I {project}/tools/check_isa_isolation.py --installed-wheel --allow-stripped-windows && pytest {project}/tests -m "not network" -p no:cacheprovider -n auto --ignore={project}/tests/test_gensim.py -k "not test_ft_ngram_hashes_match_gensim_on_random_unicode"'
 # PyYAML (a Hub dependency) builds from source on CPython 3.15 musllinux.
 
 # --- Guardrails (tools/check_guardrails.py; AGENTS.md, Guardrails) ---
@@ -507,6 +508,8 @@ ignore_names = [
     "pytest_runtest_setup",     # hooks of tests/conftest.py, called by pytest
     "pytest_runtest_call",
     "pytest_runtest_teardown",
+    "pytest_addoption",  # hooks of tools/sde_shard.py, called by pytest
+    "pytest_collection_modifyitems",
     "import_errors",     # called by tools/check_guardrails.py, which loads its module by path
     "windows_file_maps", # a fixture used through pytest.mark.usefixtures
     "reset_copied_string_hooks", # autouse fixture of tests/test_text_strings_copied.py

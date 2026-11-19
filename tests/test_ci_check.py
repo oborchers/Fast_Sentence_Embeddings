@@ -16,6 +16,7 @@ def needs(targeted=False, code=True):
         "code": str(code).lower(),
         "lint": str(code and not targeted).lower(),
         "native": "true",
+        "sde": "true",
         "sdist": "true",
         "st": "true",
         "targeted": str(targeted).lower(),
@@ -198,6 +199,87 @@ def test_lint_selection_requires_an_explicit_boolean_string(value):
     rows["changes"]["outputs"]["lint"] = value
     with pytest.raises(ValueError, match="explicit boolean strings"):
         FAILURES(rows, "pull_request", [])
+
+
+@pytest.mark.parametrize("sde", [True, False])
+@pytest.mark.parametrize("targeted", [True, False])
+def test_sde_follows_narrow_input_selection_and_fails_closed(sde, targeted):
+    rows = needs(targeted=targeted)
+    rows["changes"]["outputs"]["sde"] = str(sde).lower()
+    selected = sde
+    for name in ("test-sde", "test-sde-complete"):
+        assert REQUIRED(rows, "workflow_dispatch")[name] == selected
+        rows[name]["result"] = "skipped"
+        assert (f"{name}: skipped" in FAILURES(rows, "workflow_dispatch", [])) == selected
+        rows[name]["result"] = "failure"
+        assert f"{name}: failure" in FAILURES(rows, "workflow_dispatch", [])
+        rows[name]["result"] = "success"
+
+
+SDE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "tools/ci_sde_selection.py"))
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/fse/_native.pyx",
+        "src/fse/_native_src/kernel/_native_kernel.h",
+        "setup.py",
+        "tools/check_sde.py",
+        "tools/check_isa_isolation.py",
+        ".github/workflows/ci.yml",
+        "tests/test_native_isa.py",
+        "tests/test_conformance_tiles.py",
+        "tests/support/tiles.py",
+    ],
+)
+def test_native_and_emulation_inputs_require_sde(path):
+    assert SDE["selected"]([path])
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/fse/_store/_reader.py",
+        "src/fse/_container/_load.py",
+        "src/fse/_encoder/_encode.py",
+        "tests/test_store.py",
+        "docs/guide.md",
+        "uv.lock",
+    ],
+)
+def test_ordinary_python_store_and_document_changes_do_not_require_sde(path):
+    assert not SDE["selected"]([path])
+
+
+@pytest.mark.parametrize("table", ["build-system", "setuptools", "setuptools_scm", "cibuildwheel"])
+def test_build_settings_require_sde(table):
+    after = (
+        {table: {"changed": True}}
+        if table == "build-system"
+        else {"tool": {table: {"changed": True}}}
+    )
+    assert SDE["selected"](["pyproject.toml"], {}, after)
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        {"tool": {"ruff": {"line-length": 90}}},
+        {"dependency-groups": {"test": ["pytest"]}},
+        {"project": {"description": "updated"}},
+    ],
+)
+def test_non_build_pyproject_settings_do_not_require_sde(after):
+    assert not SDE["selected"](["pyproject.toml"], {}, after)
+
+
+def test_missing_pyproject_or_sde_selection_fails_closed():
+    assert SDE["selected"](["pyproject.toml"])
+    rows = needs()
+    del rows["changes"]["outputs"]["sde"]
+    with pytest.raises(ValueError, match="explicit boolean"):
+        REQUIRED(rows, "pull_request")
 
 
 @pytest.mark.parametrize("result", ["failure", "cancelled", "skipped"])

@@ -4,6 +4,8 @@
 # The weighted mean kernel (weighted_mean@1): stages 2 and 3 of a batch, without the GIL.
 # ---------------------------------------------------------------------------------------
 
+import os
+
 from libc.stdint cimport int64_t, uint32_t, uint64_t
 
 cdef extern from "_native_kernel.h":
@@ -29,6 +31,21 @@ cdef extern from "_native_kernel.h":
     int64_t fse_test_pool_trace(int *loop)
     int fse_test_prefetch_trace(uint64_t *count, uint64_t *digest)
     void fse_test_prefetch_row(const void *row, size_t bytes)
+    ctypedef struct fse_cpu_features:
+        uint32_t max_leaf
+        uint32_t leaf1_ecx
+        uint32_t leaf7_ebx
+        uint32_t leaf7_ecx
+        uint32_t vendor
+        uint32_t family
+        uint64_t xcr0
+    int fse_test_isa_detection(fse_cpu_features r, int compiled)
+    void fse_initialize_cpu()
+    int fse_test_cpu_reads()
+    int fse_test_route_trace(int reset)
+    int fse_isa_compiled(int isa)
+    int fse_default_isa()
+    int FSE_AVX512_LAYOUT
     int fse_has_isa(int isa) nogil
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
@@ -42,7 +59,7 @@ cdef extern from "_native_kernel.h":
     int64_t fse_score(int isa, int dtype, const void *stored, const float *scales, int64_t n,
                       int dim, const float *w, float bias, float *out, float *scratch) nogil
 
-_ISAS = {"portable": 0, "avx2": 1, "neon": 2}
+_ISAS = {"portable": 0, "avx2": 1, "neon": 2, "avx512": 3}
 _DTYPES = {np.dtype(np.float32): 0, np.dtype(np.float16): 1, np.dtype(np.int8): 2}
 
 with np.errstate(invalid="ignore"):
@@ -53,15 +70,67 @@ for _i in range(65536):
 del _half_values, _i
 
 
+# One raw snapshot under the GIL. Hot task dispatch never executes CPUID/XGETBV.
+fse_initialize_cpu()
+_available_isas = tuple(name for name, isa in _ISAS.items() if fse_has_isa(isa))
+_policy_isa = next(name for name, isa in _ISAS.items() if isa == fse_default_isa())
+
+
+def _test_cpu_reads():
+    """Raw detection reads since extension load, or None without instrumentation."""
+    cdef int result = fse_test_cpu_reads()
+    return None if result < 0 else result
+
+
 def available_isas():
-    """The instruction sets of the kernel this CPU runs, the fastest last."""
-    return tuple(name for name, isa in _ISAS.items() if fse_has_isa(isa))
+    """The compiled instruction sets this CPU and operating system can run."""
+    return _available_isas
+
+
+def _test_route_trace(reset=False):
+    """Observed vector dispatch sites on this thread, or None without instrumentation."""
+    cdef int result = fse_test_route_trace(1 if reset else 0)
+    return None if result < 0 else result
+
+
+def _compiled_isas():
+    """Built variants, independent of host features and FSE_ISA (wheel proof)."""
+    return tuple(name for name, isa in _ISAS.items() if fse_isa_compiled(isa))
+
+
+def _avx512_layout():
+    """The compiled tile layout: 0 for A, 1 for diagnostic B."""
+    return FSE_AVX512_LAYOUT
+
+
+_configured_isa = os.environ.get("FSE_ISA")
+if _configured_isa is not None:
+    if _configured_isa not in _ISAS or _configured_isa not in _available_isas:
+        raise ValueError(f"FSE_ISA must select a runnable kernel from {available_isas()}, not {_configured_isa!r}")
 
 
 def default_isa():
-    """The instruction set the kernel uses unless told otherwise."""
-    isas = available_isas()
-    return isas[len(isas) - 1]
+    """Import-time FSE_ISA choice, or the measured CPU policy; explicit isa= wins."""
+    if _configured_isa is not None:
+        return _configured_isa
+    return _policy_isa
+
+
+def _test_isa_detection(unsigned int max_leaf, unsigned int leaf1_ecx,
+                        unsigned int leaf7_ebx, unsigned long long xcr0,
+                        int compiled=1, unsigned int vendor=0, unsigned int family=0,
+                        unsigned int leaf7_ecx=0):
+    """Synthetic raw registers in a test build; None in a production build."""
+    cdef fse_cpu_features r
+    r.max_leaf = max_leaf
+    r.leaf1_ecx = leaf1_ecx
+    r.leaf7_ebx = leaf7_ebx
+    r.leaf7_ecx = leaf7_ecx
+    r.vendor = vendor
+    r.family = family
+    r.xcr0 = xcr0
+    cdef int result = fse_test_isa_detection(r, compiled)
+    return None if result < 0 else result
 
 
 # The kernel indexes a row with int, and its loops step up to 32 values past an index.
@@ -109,7 +178,7 @@ def _test_pool_trace():
     cdef int64_t tiles = fse_test_pool_trace(&loop)
     if tiles < 0:
         return None
-    return ("rows", "avx2-tiles", "neon-tiles")[loop], tiles
+    return ("rows", "avx2-tiles", "neon-tiles", "avx512-tiles")[loop], tiles
 
 
 def _test_builder_trace():

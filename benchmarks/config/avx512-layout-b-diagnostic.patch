@@ -1,0 +1,7 @@
+--- a/src/fse/_native_src/kernel/_native_kernel_base.h
++++ b/src/fse/_native_src/kernel/_native_kernel_base.h
+@@ -51,3 +51,3 @@
+ /* A remains the default until the story measurement selects a layout. */
+-#define FSE_AVX512_LAYOUT 0
++#define FSE_AVX512_LAYOUT 1
+ #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))

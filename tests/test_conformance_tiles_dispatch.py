@@ -61,7 +61,7 @@ def test_offsets_select_builder_with_identical_bits_counts_and_hints(
     kernel = _native.WeightedMean(*case.args(), isa=isa)
     batch = case.batch
     stride = _native._test_prefetch_trace()[0]
-    tiled = dtype == "float32" and isa in ("avx2", "neon") and dim <= 1024
+    tiled = dtype == "float32" and isa in ("avx2", "neon", "avx512") and dim <= 1024
     known_only = batch.ngram_offsets is None
     for method in ("pool", "accumulate", "pool"):
         got = getattr(kernel, method)(batch)
@@ -99,7 +99,7 @@ def test_builder_counters_reset_between_paths_and_are_thread_local(builder_trace
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(probe, ("known", "empty buckets")))
-    if isa in ("avx2", "neon"):
+    if isa in ("avx2", "neon", "avx512"):
         assert results[0][0][0] > 0
         assert results[0][0][1] == 0
         assert results[1][0][0] == 0
@@ -131,6 +131,6 @@ def test_zero_sentence_batch_resets_builder_counters(builder_trace, isa, kind):
     for method in ("pool", "accumulate"):
         kernel.pool(case.batch)
         before = builder_trace()
-        assert sum(before) > 0 if isa in ("avx2", "neon") else before == (0, 0)
+        assert sum(before) > 0 if isa in ("avx2", "neon", "avx512") else before == (0, 0)
         getattr(kernel, method)(empty)
         assert builder_trace() == (0, 0)

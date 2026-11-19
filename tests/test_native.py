@@ -91,16 +91,18 @@ def _batch(tokens, offsets=None, ngram_offsets=None, ngrams=None):
 def test_isas():
     isas = _native.available_isas()
     assert isas[0] == "portable"
-    assert _native.default_isa() == isas[-1]
-    assert set(isas) <= {"portable", "avx2", "neon"}
+    assert _native.default_isa() == os.environ.get(
+        "FSE_ISA", next(isa for isa in reversed(isas) if isa != "avx512")
+    )
+    assert set(isas) <= {"portable", "avx2", "neon", "avx512"}
     with pytest.raises(ValueError, match="isa must be one of"):
         _native.WeightedMean(np.ones((2, 2), F32), np.ones(2, F32), isa="sse")
-    missing = {"avx2", "neon"} - set(isas)
+    missing = {"avx2", "neon", "avx512"} - set(isas)
     for isa in missing:
         with pytest.raises(ValueError, match="cannot run the"):
             _native.WeightedMean(np.ones((2, 2), F32), np.ones(2, F32), isa=isa)
     wm = _native.WeightedMean(np.ones((2, 2), F32), np.ones(2, F32))
-    assert wm.isa_name == isas[-1]
+    assert wm.isa_name == _native.default_isa()
     assert wm.dim == 2
 
 
@@ -243,6 +245,8 @@ def test_ci_runs_the_vector_kernel():
     arm = machine in ("arm64", "aarch64")
     want = "neon" if arm else "avx2"
     assert want in _native.available_isas()
+    if not arm:
+        assert "avx512" in _native._compiled_isas()
     # The int8 prefilter has a vector variant of its own: the SDOT one is built where the
     # compiler can (the CI compilers can), and every CI runner of arm64 has the instruction.
     assert ("neon-sdot" if arm else "avx2") in _native.prefilter_variants()

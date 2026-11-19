@@ -59,6 +59,10 @@ def selection(
 def repository(tmp_path):
     git(tmp_path, "init", "-q")
     (tmp_path / "initial.md").write_text("initial")
+    (tmp_path / "tools").mkdir()
+    shutil.copyfile(
+        WORKFLOW.parents[2] / "tools/ci_sde_selection.py", tmp_path / "tools/ci_sde_selection.py"
+    )
     commit(tmp_path)
     git(tmp_path, "update-ref", "refs/remotes/origin/master", "HEAD")
     return tmp_path
@@ -73,6 +77,8 @@ def repository(tmp_path):
         "recipes/example.ipynb",
         ".agents/skills/example/SKILL.md",
         "src/example.py",
+        "src/fse/_native.pyx",
+        "setup.py",
     ],
 )
 def test_document_and_code_changes_select_lint(repository, name):
@@ -82,6 +88,7 @@ def test_document_and_code_changes_select_lint(repository, name):
     commit(repository)
     outputs = selection(repository)
     assert outputs["lint"] == "true"
+    assert (outputs["sde"] == "true") == (name in {"src/fse/_native.pyx", "setup.py"})
     if name.endswith(".md"):
         assert outputs["code"] == "false"
 
@@ -96,7 +103,10 @@ def test_document_deletion_selects_lint(repository):
 
 def test_full_and_targeted_selections_keep_lint_policy(repository):
     assert selection(repository, event="schedule")["lint"] == "true"
-    assert selection(repository, event="workflow_dispatch", targeted="true")["lint"] == "false"
+    targeted = selection(repository, event="workflow_dispatch", targeted="true")
+    assert targeted["lint"] == "false"
+    # The controller checkout does not establish the requested PR source diff.
+    assert targeted["sde"] == "true"
 
 
 def test_deleted_non_markdown_target_selects_lint(repository):

@@ -196,3 +196,28 @@ A running attempt retains these owners after a second interrupt returns to the
 caller. Final release holds the GIL, including when it occurs on a worker thread.
 Copying adds no section without the GIL: float32 tasks retain one section, and
 float16 and int8 tasks retain two, including storage.
+
+
+## CPU instruction-set selection
+
+The native extension reports compiled, runnable instruction sets through `available_isas()`.
+AVX-512 requires AVX, AVX2, FMA, F16C, AVX-512 F/DQ/BW/VL and operating-system
+support for XMM, YMM, opmask and ZMM state (`XCR0 & 0xE6 == 0xE6`). Detection
+checks leaf availability before reading CPUID and OSXSAVE before executing XGETBV.
+The extension reads registers once at import and caches availability and default policy.
+Task dispatch never executes CPUID or XGETBV.
+Missing state, including Intel macOS lazy state, conservatively excludes AVX-512.
+
+AVX-512 is available without becoming the automatic default. Its CPU-family allowlist
+is empty until a full optimization decision justifies adding a family. The existing
+AVX2 or NEON default remains in effect. Both float32 tile layouts pass conformance;
+layout A is provisional. The story measurement chooses a layout later, and changing
+the constant requires a separate ticket. Float16/int8 pooling, dot16, storage conversion
+and head vector operations use AVX2 when AVX-512 is selected.
+
+Set `FSE_ISA` before importing the native extension to choose exactly one default:
+`portable`, `avx2`, `avx512` or `neon`. Empty values, whitespace, case variants and
+unavailable kernels raise `ValueError` at extension import. The value is read once.
+An explicit `isa=` on a backend or native call takes precedence. The environment
+choice does not alter `available_isas()`. One wheel contains all variants supported
+by its compiler; advanced instructions stay behind runtime dispatch boundaries.

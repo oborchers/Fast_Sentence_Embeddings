@@ -75,35 +75,7 @@ static uint64_t fse_test_fpenv_get(void) {
 
 /* --- Instruction sets ---------------------------------------------------------------- */
 
-static int fse_has_avx2(void) {
-#if defined(FSE_X86)
-#if defined(_MSC_VER)
-    int info[4];
-    __cpuid(info, 1);
-    int fma = (info[2] >> 12) & 1, osxsave = (info[2] >> 27) & 1, f16c = (info[2] >> 29) & 1;
-    if (!(fma && osxsave && f16c)) return 0;
-    if ((_xgetbv(0) & 6) != 6) return 0; /* the OS saves the ymm state */
-    __cpuidex(info, 7, 0);
-    return (info[1] >> 5) & 1;
-#else
-    __builtin_cpu_init();
-    unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
-    int f16c = __get_cpuid(1, &eax, &ebx, &ecx, &edx) && ((ecx >> 29) & 1u);
-    return __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma") && f16c;
-#endif
-#else
-    return 0;
-#endif
-}
-
-static int fse_has_isa(int isa) {
-    if (isa == FSE_ISA_PORTABLE) return 1;
-    if (isa == FSE_ISA_AVX2) return fse_has_avx2();
-#if defined(FSE_NEON)
-    if (isa == FSE_ISA_NEON) return 1;
-#endif
-    return 0;
-}
+#include "_native_kernel_isa.h"
 
 /* The variants of the int8 prefilter: built into this binary (the compiler could build
    them) and runnable on this CPU are separate questions. */
@@ -128,8 +100,15 @@ typedef int64_t (*fse_loop_t)(const fse_params *, const fse_batch *, float *, in
 
 static fse_loop_t fse_loop_for(int isa, int dtype) {
 #if defined(FSE_X86)
-    if (isa == FSE_ISA_AVX2)
+#if defined(FSE_AVX512)
+    if (isa == FSE_ISA_AVX512 && dtype == FSE_F32) {
+        FSE_TEST_ROUTE(512u); return fse_loop_f32_avx512;
+    }
+#endif
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(dtype == FSE_F16 ? 128u : dtype == FSE_I8 ? 256u : 1024u);
         return dtype == FSE_F32 ? fse_loop_f32_avx2 : dtype == FSE_F16 ? fse_loop_f16_avx2 : fse_loop_i8_avx2;
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON)
@@ -155,6 +134,9 @@ static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *
     FSE_TEST_PREFETCH_RESET();
 #if defined(FSE_X86)
     if (loop == fse_loop_f32_avx2) fse_test_loop = 1;
+#if defined(FSE_AVX512)
+    if (loop == fse_loop_f32_avx512) fse_test_loop = 3;
+#endif
 #endif
 #if defined(FSE_NEON)
     if (loop == fse_loop_f32_neon) fse_test_loop = 2;
@@ -202,6 +184,16 @@ static void fse_test_prefetch_row(const void *row, size_t bytes) {
 #if defined(FSE_TEST_TILES)
     FSE_TEST_PREFETCH_RESET();
     fse_prefetch_row(row, bytes);
+#endif
+}
+
+static int fse_test_route_trace(int reset) {
+#if defined(FSE_TEST_TILES)
+    unsigned int result = fse_test_routes;
+    if (reset) fse_test_routes = 0;
+    return (int)result;
+#else
+    (void)reset; return -1;
 #endif
 }
 

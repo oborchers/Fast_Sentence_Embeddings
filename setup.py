@@ -1,8 +1,11 @@
 """Build the Cython extension. All package metadata lives in pyproject.toml."""
 
 import os
+import subprocess
+import sys
 import tempfile
 from glob import glob
+from pathlib import Path
 
 import numpy
 from Cython.Build import cythonize
@@ -38,6 +41,23 @@ FSE_PROBE_TARGET int fse_probe(const signed char *a, const signed char *b) {
 """
 
 
+AVX512_PROBE = """
+#if !defined(__x86_64__) && !defined(_M_X64)
+#error "AVX-512 is an x86-64 instruction set"
+#endif
+#include <immintrin.h>
+#if defined(_MSC_VER)
+#define FSE_PROBE_TARGET __declspec(noinline)
+#else
+#define FSE_PROBE_TARGET __attribute__((noinline,target("avx2,fma,f16c,avx512f,avx512dq,avx512bw,avx512vl")))
+#endif
+FSE_PROBE_TARGET void fse_probe(float *out, const float *x, unsigned short mask) {
+    __m512 a = _mm512_maskz_loadu_ps(mask, x);
+    _mm512_mask_storeu_ps(out, mask, _mm512_fmadd_ps(a, _mm512_set1_ps(2.0f), a));
+}
+"""
+
+
 def compiles(compiler, source, flags):
     """Whether ``source`` compiles as C with ``flags`` (nothing is linked or kept)."""
     with tempfile.TemporaryDirectory() as directory:
@@ -51,6 +71,19 @@ def compiles(compiler, source, flags):
     return True
 
 
+def isolation_debug_flags(compiler_type, build_temp):
+    """Keep MSVC release optimization and retain post-LTCG names for the CI proof."""
+    if compiler_type != "msvc" or os.environ.get("FSE_VERIFY_ISOLATION") != "1":
+        return [], []
+    directory = os.path.abspath(build_temp)
+    return ["/Zi", "/Fd" + os.path.join(directory, "fse-compile.pdb")], [
+        "/DEBUG:FULL",
+        "/OPT:REF",
+        "/OPT:ICF",
+        "/PDB:" + os.path.join(directory, "fse-native.pdb"),
+    ]
+
+
 class BuildExt(build_ext):
     def build_extensions(self):
         if self.compiler.compiler_type not in FLAGS:
@@ -60,16 +93,49 @@ class BuildExt(build_ext):
                 "use MSVC on Windows, or GCC or Clang elsewhere"
             )
         flags = FLAGS[self.compiler.compiler_type]
+        debug_compile, debug_link = isolation_debug_flags(
+            self.compiler.compiler_type, self.build_temp
+        )
         probe = self.compiler.compiler_type == "unix" and compiles(
             self.compiler, DOTPROD_PROBE, flags
         )
+        avx512 = compiles(self.compiler, AVX512_PROBE, flags)
         for extension in self.extensions:
-            extension.extra_compile_args = [*extension.extra_compile_args, *flags]
+            extension.extra_compile_args = [*extension.extra_compile_args, *flags, *debug_compile]
+            extension.extra_link_args = [*extension.extra_link_args, *debug_link]
             if os.environ.get("FSE_TEST_TILES") == "1":
                 extension.define_macros = [*extension.define_macros, ("FSE_TEST_TILES", "1")]
+            if avx512:
+                extension.define_macros = [*extension.define_macros, ("FSE_HAVE_AVX512", "1")]
             if probe:
                 extension.define_macros = [*extension.define_macros, ("FSE_HAVE_DOTPROD", "1")]
         super().build_extensions()
+        if os.environ.get("FSE_VERIFY_ISOLATION") == "1":
+            self.verify_isolation()
+
+    def verify_isolation(self):
+        arguments = []
+        if self.compiler.compiler_type == "msvc":
+            # /GL objects are compiler IR. Inspect actual post-LTCG instructions instead.
+            objects = [self.get_ext_fullpath(extension.name) for extension in self.extensions]
+            arguments = ["--pdb", os.path.abspath(os.path.join(self.build_temp, "fse-native.pdb"))]
+        else:
+            objects = [
+                path
+                for extension in self.extensions
+                for path in self.compiler.object_filenames(
+                    extension.sources, output_dir=self.build_temp
+                )
+            ]
+        subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).parent / "tools/check_isa_isolation.py"),
+                *arguments,
+                *objects,
+            ],
+            check=True,
+        )
 
 
 extensions = [

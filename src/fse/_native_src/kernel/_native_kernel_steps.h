@@ -97,7 +97,9 @@ static float fse_dot16_neon(const float *a, const float *b, int n) {
 
 static float fse_dot16(int isa, const float *a, const float *b, int n) {
 #if defined(FSE_X86)
-    if (isa == FSE_ISA_AVX2) return fse_dot16_avx2(a, b, n);
+    if (isa == FSE_ISA_AVX2 || isa == FSE_ISA_AVX512) {
+        FSE_TEST_ROUTE(1u); return fse_dot16_avx2(a, b, n);
+    }
 #endif
 #if defined(FSE_NEON)
     if (isa == FSE_ISA_NEON) return fse_dot16_neon(a, b, n);

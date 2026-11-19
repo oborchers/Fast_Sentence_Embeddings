@@ -14,6 +14,8 @@ thread). It exits with 1 on the first difference. It takes a few seconds.
 
 from __future__ import annotations
 
+import os
+import platform
 import sys
 
 import numpy as np
@@ -54,6 +56,12 @@ def _check(dtype: str, workers: int) -> None:
 
 def main() -> int:
     print(f"fse {fse.__version__}, python {sys.version.split()[0]}, isa {_native.available_isas()}")
+    if os.environ.get("FSE_EXPECT_PRODUCTION") == "1":
+        assert _native._test_pool_trace() is None
+        assert "avx2" in _native.available_isas()
+        assert "avx512" not in _native.available_isas()
+    if platform.machine().lower() in ("amd64", "x86_64"):
+        assert "avx512" in _native._compiled_isas()
     for dtype in ("float32", "float16", "int8"):
         for workers in (1, 2):
             _check(dtype, workers)
