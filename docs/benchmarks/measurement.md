@@ -32,6 +32,21 @@ flowchart LR
     A --> R[cells.jsonl, progress.json, manifest.json, DONE]
 ```
 
+### Prefetch stride diagnostics
+
+For DR-496 (Vorabladen der Zeilen im Kachelaufbau verringern),
+`benchmarks/config/prefetch-line-stride-diagnostic.patch` adds a private compiled-stride
+getter without address recording. In separate source/build directories per variant,
+apply the patch and force `make rebuild-ext` with
+`CFLAGS=-DFSE_PREFETCH_LINE_STRIDE=k`, for k = 1, 2, 4 and 16. For correctness builds
+also set `FSE_TEST_TILES=1` and `FSE_EXPECT_PREFETCH_LINE_STRIDE=k`, then run
+`tests/test_conformance_prefetch.py`, `tests/test_conformance.py` and
+`tests/test_conformance_tiles.py`. For timing, rebuild separately without
+`FSE_TEST_TILES`. Check `_native._diagnostic_prefetch_line_stride()` and record the
+patch digest, configured and compiled stride, and extension digest in build provenance.
+The stride selects every k-th intersecting 64-byte line, so k = 16 hints only the first
+line for aligned 1 KiB rows, but two lines for unaligned 1 KiB rows.
+
 ## Eleven measurement rules
 
 1. Publish speed only from Linux. M1 timings and calls with only about 5,000 texts are withdrawn. Every timed block must last at least two seconds: a large fse inference call (encode or predict) lasts at least two seconds on its own, and short calls are timed as blocks of repeated identical calls lasting at least two seconds in total, with a large-call control cell. Search uses the whole-pool block rule below. Aim for three seconds with headroom. Rehearsal observations are never speed evidence.

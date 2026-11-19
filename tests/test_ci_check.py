@@ -156,6 +156,31 @@ def test_unknown_skipped_job_still_fails_closed():
     assert FAILURES(needs(), "push", observed) == ["observed unexpected: completed/skipped"]
 
 
+@pytest.mark.parametrize("code", [False, True])
+@pytest.mark.parametrize("conclusion", ["success", "skipped", "failure", None])
+def test_prefetch_matrix_follows_code_selection(code, conclusion):
+    rows = needs(code=code)
+    assert REQUIRED(rows, "pull_request")["test-prefetch"] == code
+    observed = [
+        {
+            "name": "test-prefetch (ubuntu-latest, stride 4)",
+            "status": "completed",
+            "conclusion": conclusion,
+        }
+    ]
+    allowed = conclusion == "success" or (not code and conclusion == "skipped")
+    assert bool(FAILURES(rows, "pull_request", observed)) != allowed
+
+
+def test_required_prefetch_job_cannot_be_missing_or_skipped():
+    rows = needs()
+    rows["test-prefetch"]["result"] = "skipped"
+    assert FAILURES(rows, "pull_request", []) == ["test-prefetch: skipped"]
+    del rows["test-prefetch"]
+    with pytest.raises(ValueError, match="complete expected"):
+        REQUIRED(rows, "pull_request")
+
+
 @pytest.mark.parametrize("result", ["success", "skipped", "failure"])
 def test_documentation_only_requires_successful_lint(result):
     rows = needs(code=False)

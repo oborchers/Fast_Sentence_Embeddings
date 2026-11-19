@@ -145,6 +145,7 @@ static int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *
 #if defined(FSE_TEST_TILES)
     fse_test_tiles = 0;
     fse_test_loop = 0;
+    FSE_TEST_PREFETCH_RESET();
 #if defined(FSE_X86)
     if (loop == fse_loop_f32_avx2) fse_test_loop = 1;
 #endif
@@ -165,6 +166,24 @@ static int64_t fse_test_pool_trace(int *loop) {
 #else
     *loop = -1;
     return -1;
+#endif
+}
+
+/* No address recording or state in production builds. */
+static int fse_test_prefetch_trace(uint64_t *count, uint64_t *digest) {
+#if defined(FSE_TEST_TILES)
+    *count = fse_test_prefetch_count;
+    *digest = fse_test_prefetch_digest;
+    return FSE_PREFETCH_LINE_STRIDE;
+#else
+    return 0;
+#endif
+}
+
+static void fse_test_prefetch_row(const void *row, size_t bytes) {
+#if defined(FSE_TEST_TILES)
+    FSE_TEST_PREFETCH_RESET();
+    fse_prefetch_row(row, bytes);
 #endif
 }
 

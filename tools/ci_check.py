@@ -6,7 +6,17 @@ import json
 import os
 import subprocess
 
-JOBS = {"changes", "lint", "test", "test-st", "coverage", "sdist", "wheels", "tsan"}
+JOBS = {
+    "changes",
+    "lint",
+    "test",
+    "test-st",
+    "test-prefetch",
+    "coverage",
+    "sdist",
+    "wheels",
+    "tsan",
+}
 
 
 def required(needs, event):
@@ -29,6 +39,7 @@ def required(needs, event):
         "lint": outputs["lint"] == "true" and not targeted,
         "test": code,
         "test-st": code and outputs["st"] == "true",
+        "test-prefetch": code,
         "coverage": code and event != "pull_request" and not targeted,
         "sdist": code and outputs["sdist"] == "true",
         "wheels": code and outputs["native"] == "true",

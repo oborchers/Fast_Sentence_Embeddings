@@ -25,6 +25,8 @@ cdef extern from "_native_kernel.h":
         const uint32_t *ngrams
     float fse_half_table[65536]
     int64_t fse_test_pool_trace(int *loop)
+    int fse_test_prefetch_trace(uint64_t *count, uint64_t *digest)
+    void fse_test_prefetch_row(const void *row, size_t bytes)
     int fse_has_isa(int isa) nogil
     int64_t fse_run(int isa, const fse_params *p, const fse_batch *b, float *out,
                     int64_t *counts, int finish) nogil
@@ -106,6 +108,26 @@ def _test_pool_trace():
     if tiles < 0:
         return None
     return ("rows", "avx2-tiles", "neon-tiles")[loop], tiles
+
+
+def _test_prefetch_trace():
+    """Last call on this thread: compiled stride, hint count and address digest, or None."""
+    cdef uint64_t count = 0, digest = 0
+    cdef int stride = fse_test_prefetch_trace(&count, &digest)
+    if not stride:
+        return None
+    return stride, count, digest
+
+
+def _test_prefetch_row(buffer):
+    """Probe the hint helper without accessing data, in instrumented builds only."""
+    if not isinstance(buffer, np.ndarray) or buffer.dtype != np.uint8 or buffer.ndim != 1:
+        raise ValueError("buffer must be a one-dimensional uint8 array")
+    if not buffer.flags.c_contiguous:
+        raise ValueError("buffer must be C-contiguous")
+    cdef np.ndarray data = buffer
+    fse_test_prefetch_row(np.PyArray_DATA(data), <size_t>data.size)
+    return _test_prefetch_trace()
 
 
 def _check_isa(isa):

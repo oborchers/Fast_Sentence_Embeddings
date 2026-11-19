@@ -1,0 +1,15 @@
+--- a/src/fse/_native_src/kernel/_native_kernel.pxi
++++ b/src/fse/_native_src/kernel/_native_kernel.pxi
+@@ -320,3 +320,12 @@
+                oov_weight=None, *, isa=None):
+     """``fse._reference.accumulate`` in the kernel."""
+     return WeightedMean(vectors, weights, scales, ngram_vectors, ngram_scales, oov_weight, isa=isa).accumulate(batch)
++
++
++# Diagnostic patch only: identify an uninstrumented timing build without hint recording.
++cdef extern from "_native_kernel_base.h":
++    int FSE_PREFETCH_LINE_STRIDE
++
++
++def _diagnostic_prefetch_line_stride():
++    return FSE_PREFETCH_LINE_STRIDE
