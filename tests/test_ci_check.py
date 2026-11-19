@@ -35,7 +35,7 @@ def test_full_ci_requires_all_jobs_and_rejects_skipped_tag_wheels():
 def test_intentional_optional_manual_skips_are_accepted():
     rows = needs(targeted=True)
     rows["changes"]["outputs"]["sdist"] = "false"
-    for name in ("lint", "coverage", "sdist"):
+    for name in ("lint", "coverage", "sdist", "tsan"):
         rows[name]["result"] = "skipped"
     assert FAILURES(rows, "workflow_dispatch", []) == []
     rows["wheels"]["result"] = "skipped"
@@ -280,3 +280,19 @@ def test_missing_pyproject_or_sde_selection_fails_closed():
     del rows["changes"]["outputs"]["sde"]
     with pytest.raises(ValueError, match="explicit boolean"):
         REQUIRED(rows, "pull_request")
+
+
+@pytest.mark.parametrize("result", ["failure", "cancelled", "skipped"])
+def test_native_tsan_job_cannot_be_failed_or_skipped(result):
+    rows = needs()
+    rows["tsan"]["result"] = result
+    assert FAILURES(rows, "pull_request", []) == [f"tsan: {result}"]
+
+
+def test_tsan_runs_for_native_changes_and_omits_only_selected_non_native_work():
+    rows = needs()
+    assert REQUIRED(rows, "pull_request")["tsan"]
+    assert FAILURES(rows, "pull_request", []) == []
+    rows["changes"]["outputs"]["native"] = "false"
+    rows["tsan"]["result"] = "skipped"
+    assert FAILURES(rows, "pull_request", []) == []

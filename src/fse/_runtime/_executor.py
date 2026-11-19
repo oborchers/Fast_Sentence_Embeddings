@@ -114,6 +114,7 @@ class _Run:
         self.close_on_exhaustion = False
 
     def execute(self, pool: Pool, *, close_on_exhaustion: bool = False):
+        future: Future | None = None
         pool._check_open()
         self.pool_of_call = pool
         self.close_on_exhaustion = close_on_exhaustion
@@ -126,10 +127,17 @@ class _Run:
                 self._stop()
                 for future in self._running():
                     future.cancel()
+                future = None
                 self._wait_for_own()
                 raise
             finally:
-                self._give_back_all(pool)
+                # A stored error and consumed futures must not retain this run.
+                self.source_error = None
+                self.tasks = iter(())
+                try:
+                    self._give_back_all(pool)
+                finally:
+                    self.pending.clear()
 
     def _running(self) -> list[Future]:
         with self.lock:
@@ -259,7 +267,10 @@ class _Run:
 
     def _commit_oldest(self, pool: Pool):
         _, task, future = self.pending.popleft()
-        result = future.result()  # raises the error of the first failing task in order
+        try:
+            result = future.result()  # raises the error of the first failing task in order
+        finally:
+            del future
         assert result is not _SKIPPED  # only tasks after a failed one are skipped
         self.commit(task, result)
         self._give_back(pool)  # a task that failed or was never committed is given back by execute
