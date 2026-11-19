@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from fse._contract import Normalize
-from fse._runtime import EncodeSpec, MemorySink, Pipeline
+from fse._runtime import EncodeSpec, MemorySink, Pipeline, _native_run
 from fse._tokenizer_spec import TokenizerSpec
 from support.runtime import expected, small_tasks, source, texts, whole_tail, word_vectors
 
@@ -41,8 +41,16 @@ def _counting(monkeypatch):
 
         return counted
 
+    execute = _native_run.NativeCall.execute
+
+    def team(self, *args):
+        result = execute(self, *args)
+        tasks.extend(task.n_rows for task in self.tasks)
+        return result
+
     monkeypatch.setattr(Pipeline, "_work", work)
     monkeypatch.setattr(Pipeline, "_task_work", selected)
+    monkeypatch.setattr(_native_run.NativeCall, "execute", team)
     return tasks
 
 

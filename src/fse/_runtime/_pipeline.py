@@ -41,6 +41,8 @@ from fse._text import (
 from ._errors import earliest, first_rows
 from ._executor import run
 from ._lengths import LengthCollector, LengthSettings
+from ._native_run import execute as execute_native
+from ._native_run import prepare as prepare_native
 from ._pool import Pool, Workers, resolve_workers
 from ._sinks import (
     ArrayRows,
@@ -49,6 +51,7 @@ from ._sinks import (
     Sink,
     Stored,
     new_rows,
+    own_rows,
     sink_dtype,
     split_target,
     wants_inverse_norms,
@@ -127,15 +130,11 @@ class Pipeline:
         lengths: LengthSettings | None = None,
         collector: LengthCollector | None = None,
     ) -> Rows | None:
-        """The rows of every sentence of ``source``: returned (as ``dtype``: float32 rows,
-        float16 codes, or int8 codes and scales), or committed to ``sink`` in its dtype,
-        numbered from ``first_row`` there (the rows of a run before this source). Errors
-        name their rows from ``first_row`` either way; rows returned count from 0.
-
-        ``lengths`` (checked settings) make the workers record what the length rule cuts, and
-        raise a ``TruncationError`` for the first sentence it would cut if they ask for it;
-        the record of each task is added to ``collector`` in commit order (the caller makes
-        the report of it). Every argument is checked before the source is read.
+        """Return every sentence's rows as ``dtype``, or commit them in the sink's dtype.
+        Returned rows count from zero; sink rows and errors count from ``first_row``.
+        ``lengths`` records truncation and can raise for the first cut sentence.
+        Each task's record reaches ``collector`` in commit order. Every argument is
+        checked before reading the source.
         """
         start = time.perf_counter()
         workers, pool = resolve_workers(workers)
@@ -164,17 +163,26 @@ class Pipeline:
         tasks, window, stop = self.plan_tasks(
             source, workers, chunk_bytes, row_bytes, base, pool=pool
         )
-        self._planned(source, tasks.rows, tasks.inline, workers, window, dtype, sink)
-        own: ArrayRows | GrowingRows | None = None
-        tbase = base if sink is not None else 0  # own targets count from 0
-        if sink is None:
-            own = _own_rows(tasks.rows, self.output_dim, dtype)
-            sink = own
-        local = WorkerLocal(lengths)
-        done = [0, 0]  # the rows and tasks committed, for the record of the run
-
-        native_work = self._task_work(source, type(own) is ArrayRows, local, base, collector)
-        internal = cast(ArrayRows, own) if native_work is not None else None
+        tbase = base if sink is not None else 0
+        own: ArrayRows | GrowingRows | None
+        own, sink, local, native_work, internal, team, remaining = prepare_native(
+            self,
+            source,
+            tasks,
+            workers,
+            window,
+            dtype,
+            sink,
+            pool,
+            base,
+            lengths,
+            collector,
+            chunk_bytes,
+            own_rows,
+        )
+        sink = cast(Sink, sink)
+        internal = cast(ArrayRows | None, internal)
+        done = [0, 0]
 
         def reserve(task: Task) -> tuple[Task, Stored]:  # in the calling thread, in order
             first = tbase + task.first_row
@@ -198,14 +206,18 @@ class Pipeline:
             done[0] += item[0].n_rows
             done[1] += 1
 
-        run(
-            tasks.tasks,
+        execute_native(
+            team,
+            own,
+            done,
             native_work if native_work is not None else work,
+            reserve,
             commit,
+            remaining,
+            runner=run,
             workers=workers,
             inline=tasks.inline,
             window=window,
-            reserve=reserve,
             stop=stop,
             pool=pool,
         )
@@ -264,7 +276,7 @@ class Pipeline:
         helpers = (first_rows, _scratch, _workspace, earliest, self.stored, recorded, collector)
         return factory(self.prepared, self.lookup, source, local, base, helpers)
 
-    def _planned(self, source, rows, inline, workers, window, dtype, sink) -> None:
+    def _planned(self, source, rows, inline, workers, window, dtype, sink, executor=None) -> None:
         """The record of the plan of a run (the calling thread, before any task runs)."""
         if not _log.enabled("runtime.plan"):
             return
@@ -285,6 +297,7 @@ class Pipeline:
             dtype=dtype,
             sink=None if sink is None else type(sink).__name__,
             window_tasks=window,
+            **({"executor": executor} if executor is not None else {}),
         )
 
     def _done(self, rows: int, tasks: int, seconds: float) -> None:
@@ -468,8 +481,3 @@ def check_sink_rows(sink: object, dim: int):
         raise ValueError(f"the sink must take rows of {dim} values")
     sink_dtype(sink)
     wants_inverse_norms(sink)
-
-
-def _own_rows(rows: int | None, dim: int, dtype: str) -> ArrayRows | GrowingRows:
-    """A checked target for the call, with fixed or growing row count."""
-    return GrowingRows(dim, dtype) if rows is None else ArrayRows(rows, dim, dtype)

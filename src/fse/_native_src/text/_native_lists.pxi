@@ -46,7 +46,10 @@ cdef extern from "_native_threads.h":
     ctypedef void (*fse_part)(void *arg, int part) noexcept nogil
     int fse_parallel(int n, fse_part fn, void *arg) nogil
     unsigned fse_test_failed_starts
-    size_t fse_test_join_live
+    ctypedef struct fse_atomic:
+        pass
+    fse_atomic fse_test_join_live
+    int64_t fse_atomic_load(fse_atomic *p) noexcept nogil
     void *fse_join_calloc(size_t n, size_t size) noexcept nogil
     void fse_join_free(void *p) noexcept nogil
     int fse_test_fail_bookkeeping

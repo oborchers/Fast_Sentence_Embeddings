@@ -353,3 +353,35 @@ class TextTasks:
         helpers: tuple,
     ) -> None: ...
     def __call__(self, item: tuple) -> object: ...
+
+class TaskTeam:
+    prepared: bool
+    def __init__(
+        self,
+        kernel: WeightedMean,
+        lookup: TextLookup,
+        isa: str,
+        normalize: bool,
+        text: object,
+        tasks: list,
+        out: ndarray,
+        workers: int,
+    ) -> None: ...
+    def run(self) -> tuple[int, bool]: ...
+    @property
+    def balance(self) -> tuple[int, int, int, int, bool, int]: ...
+    @property
+    def thread_ids(self) -> tuple[tuple[int, int], ...]: ...
+
+def _test_team_calls() -> int: ...
+def _test_team_resources() -> int: ...
+def _test_team_faults(
+    allocation: int = 0,
+    failed_starts: int = 0,
+    status_task: int = -1,
+    status: int = 0,
+    corrupt_task: int = -1,
+    delay_task: int = -1,
+    delay_ms: int = 0,
+) -> tuple[int, int, int, int, int, int, int]: ...
+def _test_team_control(hold: bool | None = None) -> tuple[int, int]: ...

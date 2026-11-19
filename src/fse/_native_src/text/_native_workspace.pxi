@@ -47,22 +47,42 @@ cdef class Workspace:
         self.store_rows = store_rows
 
     def __dealloc__(self):
+        self._clear()
+
+    cdef void _clear(self) noexcept nogil:
+        """Release owned buffers before the team can return to Python."""
         free(self.cand.data)
+        memset(&self.cand, 0, sizeof(_Buffer))
         free(self.starts.data)
+        memset(&self.starts, 0, sizeof(_Buffer))
         free(self.ends.data)
+        memset(&self.ends, 0, sizeof(_Buffer))
         free(self.word.data)
+        memset(&self.word, 0, sizeof(_Buffer))
         free(self.tokens.data)
+        memset(&self.tokens, 0, sizeof(_Buffer))
         free(self.offsets.data)
+        memset(&self.offsets, 0, sizeof(_Buffer))
         free(self.ngram_offsets.data)
+        memset(&self.ngram_offsets, 0, sizeof(_Buffer))
         free(self.ngrams.data)
+        memset(&self.ngrams, 0, sizeof(_Buffer))
         free(self.norm.data)
+        memset(&self.norm, 0, sizeof(_Buffer))
         free(self.run.data)
+        memset(&self.run, 0, sizeof(_Buffer))
         free(self.lattice.data)
+        memset(&self.lattice, 0, sizeof(_Buffer))
         free(self.cands.data)
+        memset(&self.cands, 0, sizeof(_Buffer))
         free(self.cuts.data)
+        memset(&self.cuts, 0, sizeof(_Buffer))
         free(self.dropped.data)
+        memset(&self.dropped, 0, sizeof(_Buffer))
         free(self.cut_tokens.data)
+        memset(&self.cut_tokens, 0, sizeof(_Buffer))
         free(self.cut_chars.data)
+        memset(&self.cut_chars, 0, sizeof(_Buffer))
 
     def __reduce__(self):
         raise TypeError("a Workspace belongs to one worker and cannot be pickled")
