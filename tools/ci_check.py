@@ -6,7 +6,17 @@ import json
 import os
 import subprocess
 
-JOBS = {"changes", "lint", "test", "test-st", "test-prefetch", "coverage", "sdist", "wheels", "tsan"}
+JOBS = {
+    "changes",
+    "lint",
+    "test",
+    "test-st",
+    "test-prefetch",
+    "coverage",
+    "sdist",
+    "wheels",
+    "tsan",
+}
 
 
 def required(needs, event):
