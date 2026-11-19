@@ -164,3 +164,8 @@ cdef void _check_string_copy(StringCopy owner) except *:
 def _test_string_copy_calls(StringCopy owner not None):
     """Test only: actual native copies completed by this owner's task attempts."""
     return owner.copy_calls
+
+
+def _test_string_copy_progress(StringCopy owner not None):
+    """Test only: accounted rows and copy calls, without exposing unfinished bytes."""
+    return owner.finished, owner.copy_calls

@@ -99,10 +99,10 @@ Other sources, subclasses and backends keep the ordinary route. Executor workers
 the pool in a thread-local set for each task, then remove that mark in `finally`.
 Preparation, search and calling threads keep the same pool context manager.
 
-### Per-call native StringSource team
+### Per-call native text team
 
-After the direct single-task check, an exact, verified `StringSource` may run its
-CPU text tasks in a native team. This requires internally allocated float32
+After the direct single-task check, an exact, verified `StringSource` or
+`CopiedStrings` may run its CPU text tasks in a native team. This requires internally allocated float32
 `ArrayRows`, no pool or sink, original `first_row=0`, no length settings or
 collector, automatic chunking, a non-inline plan and more than one worker.
 Limits are 131,072 rows, 16 MiB of text and 256 tasks. The runtime reads at most
@@ -122,6 +122,9 @@ It restores each thread's floating-point environment, joins all started threads,
 frees native team buffers and checks its own resource balance before returning
 to Python. `runtime.plan` adds `executor="native"` for this route. Successful
 calls emit `runtime.done` once. Errors emit no completion record.
+Stored scan errors and consumed task iterators are cleared on every exit path.
+Raised errors retain their original traceback, while input owners are released
+without waiting for cyclic garbage collection.
 
 Python executor interrupts retain their existing behavior: cancel the call's own
 pending tasks and wait for running tasks, polling at `_POLL_SECONDS`. A second
@@ -159,6 +162,13 @@ offsets and output bytes. The main thread plans from offsets and never reads
 unwritten bytes. Task ranges are disjoint. An attempt copies its whole original
 range once, even when error localization retries shorter prefixes. Failure before
 the copy leaves that attempt eligible to copy on its next retry.
+
+On the per-call native route, each task copies its whole range before encoding.
+After the join, native Cython code accounts every range that actually copied,
+including failing tasks and tasks beyond the earliest failure. Skipped tasks add
+nothing. This accounting precedes signal handling, so interrupts cannot lose it.
+Error localization inherits the failing task's copy and reporting state. It reuses
+the bytes and adds neither a second completed range nor a second copy call.
 
 A running attempt retains these owners after a second interrupt returns to the
 caller. Final release holds the GIL, including when it occurs on a worker thread.

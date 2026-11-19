@@ -43,3 +43,12 @@ an accepted allocation-order edge case. The deterministic allocation-failure hoo
 use fse's own messages (including the offsets hook). Real NumPy allocation failures
 propagate their original subclass and message unchanged, since NumPy's byte-unit
 formatting and internal exception location vary between supported versions.
+
+
+For eligible own-float32 calls, `CopiedStrings` also uses the bounded per-call
+native team (see [runtime](runtime.md#per-call-native-text-team)). Each claimed task
+copies its disjoint range before encoding. After joining all helpers, the entry
+accounts every copied range before Python can handle signals, including copies
+beyond the earliest task error. Error replay reuses the range's completed copy
+and reporting state. A held source retains its descriptors after team buffers
+are freed.

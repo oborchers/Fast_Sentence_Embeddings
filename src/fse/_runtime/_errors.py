@@ -34,16 +34,20 @@ def earliest(run: Callable[[int], None], rows: int) -> None:
         return
     except ValueError as error:
         failed = _kept(error)
-    good, bad = 0, rows  # run(good) succeeds (nothing to run for 0), run(bad) fails
-    while bad - good > 1:
-        middle = (good + bad) // 2
-        try:
-            run(middle)
-        except ValueError as error:
-            bad, failed = middle, _kept(error)
-        else:
-            good = middle
-    raise failed
+    # The traceback points back here: never retain the exception in this frame.
+    try:
+        good, bad = 0, rows  # run(good) succeeds (nothing to run for 0), run(bad) fails
+        while bad - good > 1:
+            middle = (good + bad) // 2
+            try:
+                run(middle)
+            except ValueError as error:
+                bad, failed = middle, _kept(error)
+            else:
+                good = middle
+        raise failed
+    finally:
+        del failed
 
 
 def _kept(error: ValueError) -> ValueError:

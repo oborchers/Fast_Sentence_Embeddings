@@ -12,8 +12,8 @@ import warnings
 import numpy as np
 
 from fse import _native
-from fse._text import StringSource
-from support.native_team import pipeline
+from fse._text import StringSource, copied_strings
+from support.native_team import faults, pipeline, tasks_for
 from support.runtime import expected, texts
 from support.waiting import until
 
@@ -31,18 +31,22 @@ def interrupt():
         os.kill(os.getpid(), signal.SIGINT)
 
 
-def main_signal(model, source, twice=False):
+def main_signal(model, source, twice=False, copy_count=None):
     errors = []
 
     def sender():
         try:
             entered()
+            if copy_count is not None:
+                _native._test_team_control(False)
+                assert until(lambda: _native._test_team_copy_control()[1] == copy_count)
             interrupt()
             if twice:
                 interrupt()
         except BaseException as error:
             errors.append(repr(error))
         finally:
+            _native._test_team_copy_control(-1)
             _native._test_team_control(False)
 
     worker = threading.Thread(target=sender)
@@ -134,17 +138,31 @@ def fork_probe(model, source, wanted):
 def main():
     model = pipeline()
     sentences = texts(2000)
-    source = StringSource(sentences)
+    copied = len(sys.argv) > 2 and sys.argv[2] == "copied"
+    source = copied_strings(sentences) if copied else StringSource(sentences)
+    task_count = len(tasks_for(model, source, 2))
     wanted = expected(model.spec, sentences)
     baseline = (_native._test_team_resources(), _native._test_join_resources())
     _native._test_team_control(True)
     mode = sys.argv[1]
-    if mode.startswith("main"):
+    if mode == "interrupt-error":
+        previous = _native._test_corrupt(1)
+        _native._test_team_copy_control(0)
+        try:
+            with faults(corrupt_task=0):
+                receipt = main_signal(model, source, copy_count=task_count)
+        finally:
+            _native._test_corrupt(previous)
+    elif mode.startswith("main"):
         receipt = main_signal(model, source, mode == "main-twice")
     elif mode == "background":
         receipt = background_signal(model, source, wanted)
     else:
         receipt = fork_probe(model, source, wanted)
+    if copied:
+        assert _native._test_string_copy_progress(source._copy) == (len(sentences), task_count)
+        assert _native._test_string_copy_result(source._copy)[0] == "".join(sentences).encode()
+        receipt["copies_accounted"] = True
     gc.collect()
     assert (_native._test_team_resources(), _native._test_join_resources()) == baseline
     receipt["balanced"] = True

@@ -8,7 +8,7 @@ from fse._backends import PoolInput
 from fse._contract import Normalize
 from fse._runtime import EncodeSpec, Pipeline, _native_run
 from fse._runtime._errors import earliest
-from fse._text import StringSource
+from fse._text import StringSource, copied_strings
 from fse._wordvectors import WordVectors
 from support.native_team import faults, tasks_for
 
@@ -27,7 +27,10 @@ def _pipeline(kind):
 def _outcome(call):
     with pytest.raises(ValueError, match=r"row \d+") as error:
         call()
-    return type(error.value), str(error.value)
+    try:
+        return type(error.value), str(error.value)
+    finally:
+        del error
 
 
 def _reference_error(model, sentences):
@@ -44,10 +47,13 @@ def _reference_error(model, sentences):
     return _outcome(lambda: earliest(reference, len(sentences)))
 
 
+@pytest.mark.parametrize("source_factory", [StringSource, copied_strings])
 @pytest.mark.parametrize("kind", ["nan", "overflow", "tiny"])
 @pytest.mark.parametrize("position", ["first", "middle", "last"])
 @pytest.mark.parametrize("workers", range(2, 9))
-def test_real_errors_match_old_executor_and_reference(monkeypatch, kind, position, workers):
+def test_real_errors_match_old_executor_and_reference(
+    monkeypatch, kind, position, workers, source_factory
+):
     model = _pipeline(kind)
     sentences = ["good".ljust(100)] * 4000
     tasks = tasks_for(model, StringSource(sentences), workers)
@@ -55,12 +61,12 @@ def test_real_errors_match_old_executor_and_reference(monkeypatch, kind, positio
     row = tasks[index].first_row + 1
     text = {"nan": "huge", "overflow": "huge huge", "tiny": "tiny"}[kind]
     sentences[row] = text.ljust(100)
-    source = StringSource(sentences)
+    source = source_factory(sentences)
     before = _native._test_team_calls()
     native = _outcome(lambda: model.infer(source, workers=workers))
     assert _native._test_team_calls() == before + 1
     monkeypatch.setattr(_native_run, "eligible", lambda *_args: False)
-    old = _outcome(lambda: model.infer(source, workers=workers))
+    old = _outcome(lambda: model.infer(source_factory(sentences), workers=workers))
     assert native == old == _reference_error(model, sentences)
     assert native[1].startswith(f"row {row} ")
 
